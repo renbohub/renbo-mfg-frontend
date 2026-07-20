@@ -1,0 +1,46 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<nav class="ppic-subnav" aria-label="Navigasi PPIC"><div class="app-container ppic-subnav-inner">
+  <% const ppicTabs = [['mrp','MRP'],['mps','MPS'],['monthly-plan','Monthly Plan'],['consume-forecast','Consume Forecast'],['capacity-planning','Capacity Planning']]; %>
+  <% ppicTabs.forEach(([slug,label]) => { %><a class="<%= activePpicTab === slug ? 'active' : '' %>" href="/modules/planning-ppic/<%= slug %>"><%= label %></a><% }) %>
+</div></nav>
+<main class="ppic-page ppic-detail-page">
+  <section class="ppic-detail-toolbar">
+    <div class="app-container ppic-detail-toolbar-inner">
+      <div>
+        <div class="ppic-breadcrumb"><a href="/modules/planning-ppic">PPIC</a><i>/</i><a href="/modules/planning-ppic/<%= activePpicTab %>"><%= title.replace(' Detail','') %></a><i>/</i><b id="ppic-detail-key"><%= recordKey %></b></div>
+        <h1 id="ppic-detail-title"><%= title %></h1>
+      </div>
+      <div id="ppic-detail-actions" class="ppic-detail-actions"></div>
+    </div>
+  </section>
+  <section class="app-container ppic-detail-content">
+    <div id="ppic-detail-alert" class="alert d-none"></div>
+    <div id="ppic-detail-loading" class="ppic-detail-loading">Memuat detail perencanaan...</div>
+    <div id="ppic-detail-shell" class="ppic-detail-layout d-none">
+      <aside class="ppic-workflow-card">
+        <h2>Approval Workflow</h2>
+        <div id="ppic-workflow" class="ppic-workflow"></div>
+        <div id="ppic-workflow-actions" class="ppic-workflow-actions"></div>
+        <div class="ppic-status-summary"><h3>Status Summary</h3><div id="ppic-status-path"></div></div>
+      </aside>
+      <div class="ppic-detail-main">
+        <section class="ppic-detail-card">
+          <h2 id="ppic-info-title">Informasi Dokumen</h2>
+          <div id="ppic-info-grid" class="ppic-detail-info"></div>
+        </section>
+        <section class="ppic-detail-card">
+          <div class="ppic-table-card-head"><h2 id="ppic-table-title">Detail</h2><div id="ppic-table-filters" class="ppic-table-filters"></div></div>
+          <div class="table-responsive"><table class="table ppic-detail-table"><thead id="ppic-detail-head"></thead><tbody id="ppic-detail-rows"></tbody></table></div>
+        </section>
+        <section class="ppic-detail-card">
+          <h2 id="ppic-summary-title">Ringkasan Perencanaan</h2>
+          <div id="ppic-summary-grid" class="ppic-detail-summary"></div>
+          <p id="ppic-detail-notes" class="ppic-detail-notes d-none"></p>
+        </section>
+      </div>
+    </div>
+  </section>
+</main>
+<script id="ppic-detail-config" type="application/json"><%- JSON.stringify({ activeTab: activePpicTab, recordKey }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

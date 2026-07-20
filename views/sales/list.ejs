@@ -1,0 +1,23 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/sales-subnav') %>
+<main class="sales-page app-container">
+  <nav class="module-breadcrumb"><a href="/modules">Modul</a><span>/</span><a href="/modules/sales">Sales</a><span>/</span><b><%= page.label %></b></nav>
+  <section class="sales-titlebar">
+    <div><h1><%= page.label %></h1><p><%= page.description %></p></div>
+    <a class="btn btn-primary brand-button" href="/modules/sales/<%= page.slug %>/new">＋ Buat <%= page.label %></a>
+  </section>
+  <section class="sales-card">
+    <div class="sales-toolbar">
+      <label class="sales-search"><span>⌕</span><input id="sales-search" type="search" placeholder="Cari nomor, customer, atau status..."></label>
+      <button id="sales-export" class="btn btn-outline-secondary">Export CSV</button>
+      <div class="list-view-toolbar" aria-label="Mode tampilan"><button type="button" data-list-view="table" class="active">☷</button><button type="button" data-list-view="gallery">▦</button></div>
+    </div>
+    <div id="sales-alert" class="alert alert-warning d-none"></div>
+    <div id="sales-list-root"><div class="list-table-view"><div class="table-responsive"><table id="sales-table" class="table align-middle w-100"><thead><tr>
+      <% page.columns.forEach(column => { %><th><%= column.label %></th><% }) %><th>AKSI</th>
+    </tr></thead></table></div></div><div class="list-gallery is-hidden" aria-live="polite"></div></div>
+  </section>
+</main>
+<script id="sales-page-config" type="application/json"><%- JSON.stringify({ ...page }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

@@ -1,0 +1,14 @@
+<header class="module-header">
+  <div class="app-container module-header-row">
+    <a class="module-brand" href="/modules"><span class="module-brand-mark">N</span><span>NexGen ERP</span></a>
+    <nav class="module-nav" aria-label="Navigasi modul">
+      <a class="<%= !activeModule ? 'active' : '' %>" href="/modules">Semua Modul</a>
+      <% modules.forEach(item => { %><a class="<%= activeModule === item.slug ? 'active' : '' %>" href="/modules/<%= item.slug %>"><%= item.shortLabel %></a><% }) %>
+    </nav>
+    <div class="module-user">
+      <span class="module-user-avatar" data-user-avatar>U</span>
+      <span class="module-user-name" data-user-name>User</span>
+      <button type="button" class="module-logout" data-logout>Keluar</button>
+    </div>
+  </div>
+</header>

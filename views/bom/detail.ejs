@@ -1,0 +1,23 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/bom-subnav', { activeBomTab: 'detail', recordKey }) %>
+<main class="bom-record-page" data-bom-view="detail">
+  <section class="bom-record-toolbar app-container">
+    <nav class="bom-crumb"><span>Master Data</span><i>/</i><span>BOM</span><i>/</i><b><%= recordKey %></b></nav>
+    <div class="bom-toolbar-spacer"></div><a class="bom-toolbar-button" href="/modules/manufacturing-bom/bill-of-materials/<%= encodeURIComponent(recordKey) %>/edit-table">☷ <span>Edit via Table</span></a><a class="bom-toolbar-button" href="/modules/manufacturing-bom/bill-of-materials/<%= encodeURIComponent(recordKey) %>/edit">✎ <span>Edit Canvas</span></a>
+  </section>
+  <div id="bom-record-alert" class="alert alert-danger d-none mx-4 mt-3"></div>
+  <section class="bom-record-content app-container">
+    <div class="bom-detail-grid">
+      <article class="bom-info-card">
+        <h2>Informasi Utama BOM</h2>
+        <div class="bom-info-fields"><div><small>BOM Code</small><b data-field="noReg">—</b></div><div><small>Parent Item</small><b data-field="parentItem">—</b></div><div><small>BOM Type</small><span data-field="bomType">Standard</span></div><div><small>Revisi</small><span data-field="revision">—</span></div><div><small>Effective Date</small><span data-field="effectiveDate">—</span></div><div><small>Status</small><span class="bom-release-badge" data-field="status">—</span></div><div class="bom-description"><small>Deskripsi</small><span data-field="notes">—</span></div></div>
+      </article>
+      <article class="bom-info-card bom-summary-card"><h2>Ringkasan Produksi</h2><small>Total Komponen</small><strong data-field="componentCount">0 Item</strong><hr><small>Estimasi Total Biaya (Standard Cost)</small><strong class="cost" data-field="totalCost">—</strong><hr><small>Terakhir Diubah</small><span data-field="updatedAt">—</span></article>
+    </div>
+    <h2 class="bom-section-title">Struktur Komponen (BOM Tree Grid)</h2>
+    <div class="bom-tree-table"><table class="table"><thead><tr><th>LVL</th><th>KODE ITEM</th><th>NAMA ITEM</th><th>QTY</th><th>SATUAN</th><th>POSISI</th><th>PROSES</th><th>MATERIAL / GROSS</th><th>SCRAP %</th><th>LEAD TIME</th></tr></thead><tbody id="bom-detail-rows"><tr><td colspan="10" class="text-center py-4">Memuat detail BOM...</td></tr></tbody></table></div>
+  </section>
+</main>
+<script id="bom-record-config" type="application/json"><%- JSON.stringify({ recordKey, view: 'detail' }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

@@ -1,0 +1,24 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/sales-subnav') %>
+<main class="sales-page app-container">
+  <nav class="module-breadcrumb"><a href="/modules/sales/<%= page.slug %>"><%= page.label %></a><span>/</span><b id="document-breadcrumb"><%= recordKey %></b></nav>
+  <section class="sales-titlebar">
+    <div><div class="sales-heading-line"><h1 id="document-number"><%= recordKey %></h1><span id="document-status" class="sales-badge">...</span></div><p id="document-caption">Memuat detail <%= page.label %>...</p></div>
+    <div class="sales-actions"><button id="make-to-so" class="btn btn-success d-none">Make to SO</button><a id="edit-document" class="btn btn-outline-primary" href="/modules/sales/<%= page.slug %>/<%= encodeURIComponent(recordKey) %>/edit">Edit</a><button id="delete-document" class="btn btn-outline-danger">Hapus</button></div>
+  </section>
+  <div id="sales-alert" class="alert d-none"></div>
+  <div class="sales-detail-layout">
+    <div>
+      <section class="sales-card"><div class="sales-card-head"><div><h2>Informasi Dokumen</h2><p>Ringkasan transaksi dan customer</p></div></div><div id="detail-info" class="sales-info-grid"></div></section>
+      <section class="sales-card"><div class="sales-card-head"><div><h2>Detail Item</h2><p id="detail-items-caption">Part dan kuantitas dokumen</p></div></div><div class="table-responsive"><table class="table sales-detail-table"><thead id="detail-head"></thead><tbody id="detail-body"></tbody></table></div><div id="detail-summary" class="sales-summary"></div></section>
+      <section class="sales-card"><div class="sales-card-head"><h2>Catatan</h2></div><p id="detail-notes" class="sales-notes">-</p></section>
+    </div>
+    <aside>
+      <section class="sales-card"><div class="sales-card-head"><h2>Alur Dokumen</h2></div><div id="workflow" class="sales-workflow"></div></section>
+      <section class="sales-card"><div class="sales-card-head"><h2>Relasi</h2></div><div id="relationships" class="sales-relationships"></div></section>
+    </aside>
+  </div>
+</main>
+<script id="sales-page-config" type="application/json"><%- JSON.stringify({ ...page, recordKey }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

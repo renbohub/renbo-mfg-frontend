@@ -1,0 +1,21 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/bom-subnav', { activeBomTab: 'list', recordKey: '' }) %>
+<main class="bom-figma-page">
+  <section class="bom-figma-toolbar app-container">
+    <nav class="bom-crumb"><span>Master Data</span><i>/</i><b>BOM List</b></nav>
+    <label class="bom-figma-search"><span class="bom-search-kind">BOM⌄</span><span class="bom-search-divider"></span><%- include('../partials/icon', { name: 'search' }) %><input id="bom-search" type="search" placeholder="Cari data..."></label>
+    <button class="bom-toolbar-button" type="button">☷ <span>Filter</span></button>
+    <div class="bom-toolbar-spacer"></div>
+    <div class="bom-view-toggles" aria-label="Pilihan tampilan"><button class="active" type="button" data-bom-view="table" title="Table">☷</button><button type="button" data-bom-view="kanban" title="Kanban">▦</button><button type="button" data-bom-view="gallery" title="Gallery">▤</button></div>
+    <button class="bom-toolbar-button" type="button">⇩ <span>Export</span></button>
+    <a class="btn bom-create-button" href="/modules/manufacturing-bom/bill-of-materials/new">＋ Tambah Baru</a>
+  </section>
+  <div id="bom-list-alert" class="alert alert-warning d-none mx-4 mt-3"></div>
+  <section class="bom-figma-content app-container">
+    <div id="bom-table-view" class="bom-figma-table"><div class="table-responsive"><table id="bom-table" class="table align-middle w-100"><thead><tr><th></th><th>KODE BOM</th><th>PARENT ITEM</th><th>BOM TYPE</th><th>REVISION</th><th>TOTAL KOMPONEN</th><th>EFFECTIVE DATE</th><th>STATUS</th><th>AKSI</th></tr></thead></table></div></div>
+    <div id="bom-kanban-view" class="bom-alt-view d-none"></div>
+    <div id="bom-gallery-view" class="bom-alt-view d-none"></div>
+  </section>
+</main>
+<%- include('../partials/footer') %>

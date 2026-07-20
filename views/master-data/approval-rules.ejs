@@ -1,0 +1,66 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-master') %>
+<main class="system-master-page">
+  <section class="system-master-toolbar app-container">
+    <div>
+      <span class="system-eyebrow">MASTER DATA / DATA SISTEM</span>
+      <h1>Approval Rules</h1>
+      <p>Ubah alur approval per module, halaman, action, nilai, dan kondisi dokumen.</p>
+    </div>
+    <div class="system-toolbar-actions">
+      <button id="new-rule" class="btn btn-outline-secondary" type="button">Rule Baru</button>
+      <button id="delete-rule" class="btn btn-outline-danger d-none" type="button">Hapus</button>
+      <button id="save-rule" class="btn btn-primary brand-button" type="button">Simpan Rule</button>
+    </div>
+  </section>
+  <div id="approval-alert" class="alert d-none app-container system-alert" role="alert"></div>
+  <section class="system-master-layout app-container">
+    <aside class="system-master-sidebar">
+      <div class="system-sidebar-head">
+        <div><strong>Daftar Approval Rule</strong><small id="rule-count">0 rule</small></div>
+        <input id="rule-search" type="search" placeholder="Cari rule...">
+      </div>
+      <div id="rule-list" class="system-record-list"><div class="system-loading">Memuat rule...</div></div>
+    </aside>
+    <div class="system-master-editor">
+      <section class="system-card">
+        <div class="system-card-head"><div><h2>Target & Identitas Rule</h2><p>Rule paling kecil nilai prioritasnya akan dipilih lebih dahulu.</p></div><label class="system-switch"><input id="rule-active" type="checkbox" checked><span></span>Aktif</label></div>
+        <div class="system-form-grid approval-grid">
+          <label>Kode Rule<input id="rule-code" type="text" placeholder="PO_APPROVAL_STANDARD"></label>
+          <label>Nama Rule<input id="rule-name" type="text" placeholder="PO Standard Approval"></label>
+          <label>Module<select id="rule-module"></select></label>
+          <label>Halaman / Fitur<select id="rule-page"></select></label>
+          <label>Action<select id="rule-action"><option value="approve">Approve / Confirm</option><option value="release">Release</option><option value="submit">Submit</option><option value="delete">Delete</option><option value="update">Update</option></select></label>
+          <label>Document Type<input id="rule-document-type" type="text" placeholder="PurchaseOrder"></label>
+          <label>Prioritas<input id="rule-priority" type="number" min="1" value="100"></label>
+          <label>Currency<input id="rule-currency" type="text" placeholder="IDR"></label>
+          <label>Minimum Amount<input id="rule-min-amount" type="number" step="0.01" placeholder="0"></label>
+          <label>Maximum Amount<input id="rule-max-amount" type="number" step="0.01" placeholder="Tanpa batas"></label>
+          <label>Efektif Mulai<input id="rule-effective-from" type="datetime-local"></label>
+          <label>Efektif Sampai<input id="rule-effective-until" type="datetime-local"></label>
+          <label class="span-2">Deskripsi<textarea id="rule-description" rows="2"></textarea></label>
+          <label class="span-2">Conditions JSON<textarea id="rule-conditions" class="code-input" rows="4" placeholder='{"poType":{"$in":["Material","Asset"]},"department.code":"ENG"}'></textarea><small>Mendukung $eq, $ne, $in, $notIn, $gte, $gt, $lte, $lt, dan $contains.</small></label>
+        </div>
+        <div class="system-option-row">
+          <label><input id="rule-sequential" type="checkbox" checked> Approval wajib berurutan</label>
+          <label><input id="rule-self-approval" type="checkbox"> Izinkan pembuat dokumen approve sendiri</label>
+        </div>
+      </section>
+      <section class="system-card">
+        <div class="system-card-head"><div><h2>Approval Steps</h2><p>Urutan, role approver, quorum, SLA, dan status dokumen dapat diubah.</p></div><button id="add-step" class="btn btn-outline-primary btn-sm" type="button">+ Tambah Step</button></div>
+        <div class="approval-step-wrap">
+          <table class="approval-step-table">
+            <thead><tr><th>#</th><th>Nama Step</th><th>Role Approver</th><th>Jumlah</th><th>Pending Status</th><th>Approved Status</th><th>Rejected Status</th><th>SLA Jam</th><th></th></tr></thead>
+            <tbody id="approval-steps"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="system-card system-rule-note">
+        <h2>Cara pemilihan rule</h2>
+        <p>Engine mencocokkan module, halaman, action, periode efektif, currency, amount, lalu Conditions JSON. Rule wildcard <b>*</b> dapat dipakai sebagai fallback module/halaman.</p>
+      </section>
+    </div>
+  </section>
+</main>
+<script id="approval-rule-config" type="application/json"><%- JSON.stringify({ permissionCatalog }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

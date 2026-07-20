@@ -1,0 +1,63 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/bom-subnav', { activeBomTab: 'detail', recordKey }) %>
+<main class="bom-table-editor-page">
+  <section class="bom-record-toolbar app-container">
+    <nav class="bom-crumb"><a href="/modules/manufacturing-bom/bill-of-materials">BOM List</a><i>/</i><b id="bom-table-title"><%= recordKey %></b></nav>
+    <div class="bom-toolbar-spacer"></div>
+    <a class="bom-toolbar-button" href="/modules/manufacturing-bom/bill-of-materials/<%= encodeURIComponent(recordKey) %>/edit">Edit Canvas</a>
+    <button id="bom-table-save" class="btn bom-create-button" type="button">Simpan Perubahan</button>
+  </section>
+  <div id="bom-table-edit-alert" class="alert alert-danger d-none app-container mt-3"></div>
+  <section class="bom-table-editor-content app-container">
+    <article class="bom-table-header-card">
+      <div><label>Produk Utama</label><strong id="bom-table-root">—</strong></div>
+      <div><label>UOM</label><select id="bom-table-uom" class="form-select"></select></div>
+      <div><label>Revision</label><input id="bom-table-revision" class="form-control" type="number" min="1"></div>
+      <div><label>Effective Date</label><input id="bom-table-effective" class="form-control" type="date"></div>
+      <div><label>Expiry Date</label><input id="bom-table-expiry" class="form-control" type="date"></div>
+      <div class="notes"><label>Catatan</label><input id="bom-table-notes" class="form-control" type="text"></div>
+    </article>
+    <section class="bom-estimate-summary">
+      <article><small>CRITICAL LEAD TIME</small><strong id="bom-estimate-lead">0 jam</strong><span>Jalur terlama, termasuk routing dan MBOM turunan</span></article>
+      <article><small>ESTIMATED COST / UNIT</small><strong id="bom-estimate-total">Rp0</strong><span>Rolled-up cost seluruh struktur</span></article>
+      <article><small>PURCHASE + MATERIAL</small><strong id="bom-estimate-material">Rp0</strong><span>Price list bulanan terbaru</span></article>
+      <article><small>PROCESS + VENDOR</small><strong id="bom-estimate-process">Rp0</strong><span>Cycle time × machine rate</span></article>
+      <article><small>PRICE COVERAGE</small><strong id="bom-estimate-coverage">0 / 0</strong><span id="bom-estimate-warning">Lengkapi master harga bila ada gap</span></article>
+    </section>
+    <article class="bom-table-grid-card">
+      <div class="bom-table-grid-heading"><div><h1>Edit Struktur BOM via Table</h1><p>Ubah part, parent, quantity, kategori, dan urutan struktur tanpa canvas.</p><small id="bom-table-owned-note" class="bom-table-owned-note d-none"></small></div><button id="bom-table-add" class="btn btn-outline-primary" type="button">＋ Tambah Baris</button></div>
+      <div class="table-responsive"><table class="table align-middle bom-edit-grid"><thead><tr><th>LVL</th><th>PART</th><th>QTY</th><th>UOM</th><th>PARENT</th><th>KATEGORI</th><th>POLICY</th><th>LEAD TIME / ORDER</th><th>PROSES</th><th>EST. COST</th><th>CATATAN</th><th></th></tr></thead><tbody id="bom-table-edit-rows"><tr><td colspan="12" class="text-center py-4">Memuat BOM...</td></tr></tbody></table></div>
+    </article>
+  </section>
+</main>
+<dialog id="bom-process-dialog" class="bom-process-dialog">
+  <form method="dialog" class="bom-process-dialog-card">
+    <header><div><small>ROUTING PROCESS</small><h2 id="bom-process-title">Edit Proses</h2></div><button value="cancel" type="submit">×</button></header>
+    <div class="bom-process-dialog-actions"><p>Cycle time menggunakan detik. Lead time hasil perhitungan ditampilkan dalam jam.</p><button id="bom-process-add" class="btn btn-outline-primary" type="button">＋ Tambah Proses</button></div>
+    <div class="table-responsive"><table class="table bom-process-edit-table"><thead><tr><th>ROUTING NO.</th><th>ORDER</th><th>PROCESS</th><th>MACHINE</th><th>CYCLE TIME (DETIK)</th><th>EST. COST</th><th>CATATAN</th><th></th></tr></thead><tbody id="bom-process-edit-rows"></tbody></table></div>
+    <footer><button class="btn btn-primary" value="default" type="submit">Selesai</button></footer>
+  </form>
+</dialog>
+<dialog id="bom-material-dialog" class="bom-material-dialog">
+  <form method="dialog" class="bom-material-dialog-card">
+    <header><div><small>RAW MATERIAL CONSUMPTION</small><h2 id="bom-material-dialog-title">Edit Material</h2></div><button value="cancel" type="submit">×</button></header>
+    <div class="bom-material-dialog-body">
+      <div class="bom-material-master-info"><div><small>MASTER MATERIAL</small><strong id="bom-material-master-name">—</strong></div><a id="bom-material-master-link" href="/master-data/materials">Lihat Master</a></div>
+      <div class="bom-material-dialog-grid">
+        <label>Spec<input id="bom-material-spec" class="form-control" readonly></label>
+        <label>C/S/P<input id="bom-material-csp" class="form-control" readonly></label>
+        <label>T / Thickness (mm)<input id="bom-material-thickness" class="form-control" readonly></label>
+        <label>W / Width (mm)<input id="bom-material-width" class="form-control" readonly></label>
+        <label>P / Pitch (mm)<input id="bom-material-pitch" class="form-control" type="number" min="0.001" step="0.001" required></label>
+        <label>Cavity<input id="bom-material-cavity" class="form-control" type="number" min="1" step="1" required></label>
+        <label>Density (kg/mm³)<input id="bom-material-density" class="form-control" readonly></label>
+        <label>Gross Weight (kg/pcs)<input id="bom-material-gross" class="form-control" readonly></label>
+      </div>
+      <p>Gross = T × W × P × Density ÷ Cavity. Perubahan P dan Cavity hanya berlaku pada detail BOM ini.</p>
+    </div>
+    <footer><button class="btn btn-outline-secondary" value="cancel" type="submit">Batal</button><button id="bom-material-save" class="btn btn-primary" value="default" type="button">Terapkan</button></footer>
+  </form>
+</dialog>
+<script id="bom-table-editor-config" type="application/json"><%- JSON.stringify({ recordKey }) %></script>
+<%- include('../partials/footer') %>

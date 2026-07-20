@@ -1,0 +1,21 @@
+<header class="topbar">
+  <nav class="navbar navbar-expand-xl px-0 py-0" aria-label="Navigasi utama">
+    <div class="container-fluid app-container topbar-row">
+      <a class="brand" href="/modules" aria-label="NexGen home"><span class="brand-mark"></span><span>NexGen</span></a>
+      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"><span class="navbar-toggler-icon"></span></button>
+      <div class="collapse navbar-collapse" id="mainNav">
+        <div class="navbar-nav main-links">
+          <a class="nav-link" href="#">Dashboard</a><a class="nav-link" href="#">Sales</a>
+          <a class="nav-link active" href="/master-data">Master Data</a><a class="nav-link" href="#">Inventory</a>
+          <a class="nav-link" href="#">Finance</a><a class="nav-link" href="#">HR</a><a class="nav-link" href="#">Settings</a>
+        </div>
+      </div>
+      <div class="user-tools d-none d-lg-flex">
+        <button class="icon-button" aria-label="Cari"><%- include('icon', { name: 'search' }) %></button>
+        <button class="icon-button" aria-label="Notifikasi"><%- include('icon', { name: 'bell' }) %></button>
+        <span class="tool-divider"></span>
+        <div class="avatar" data-user-avatar>U</div><div><strong data-user-name>Pengguna</strong><small data-user-role>ERP User</small></div><button class="logout-button" type="button" data-logout>Keluar</button>
+      </div>
+    </div>
+  </nav>
+</header>

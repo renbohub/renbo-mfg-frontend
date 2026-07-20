@@ -1,0 +1,21 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-master') %>
+<main class="items-page" x-data="{ filterOpen: false }">
+  <section class="items-toolbar app-container">
+    <div class="breadcrumb-line"><span>Master Data</span><b>/</b><strong>Item Master</strong></div>
+    <div class="toolbar-search"><%- include('../partials/icon', { name: 'search' }) %><input id="item-search" type="search" placeholder="Cari data..." aria-label="Cari item"></div>
+    <button class="btn btn-filter" @click="filterOpen = !filterOpen"><%- include('../partials/icon', { name: 'filter' }) %> Filter</button>
+    <div class="toolbar-spacer"></div>
+    <div class="list-view-toolbar" aria-label="Mode tampilan"><button type="button" data-list-view="table" class="active">☷</button><button type="button" data-list-view="gallery">▦</button></div>
+    <button class="btn btn-export">Export</button>
+    <button class="btn btn-primary brand-button"><%- include('../partials/icon', { name: 'plus' }) %> Tambah Baru</button>
+  </section>
+  <div class="filter-panel app-container" x-show="filterOpen" x-transition x-cloak><span>Filter tambahan akan mengikuti field backend.</span></div>
+  <div id="connection-alert" class="alert alert-warning mx-4 mt-3 d-none" role="alert"></div>
+  <section id="items-list-root" class="table-shell"><div class="list-table-view">
+    <table id="items-table" class="table align-middle w-100">
+      <thead><tr><th></th><th>KODE ITEM</th><th>NAMA ITEM</th><th>ITEM TYPE</th><th>SATUAN</th><th>HARGA</th><th>STOK</th><th>STATUS</th><th>AKSI</th></tr></thead>
+    </table></div><div class="list-gallery is-hidden" aria-live="polite"></div>
+  </section>
+</main>
+<%- include('../partials/footer') %>

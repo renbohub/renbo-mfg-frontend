@@ -1,0 +1,8 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-master') %>
+<main class="entity-detail-page app-container">
+  <div class="detail-heading"><div><a href="/master-data/<%= config.slug %>"><%= config.label %></a><span>/</span><strong>Detail</strong></div><div class="detail-actions"><a id="edit-record" class="btn btn-primary brand-button" href="#">Edit Data</a></div></div>
+  <div id="detail-content" class="detail-sections"><section class="detail-card"><div class="detail-card-title"><span></span><h1>Detail <%= config.singular %></h1></div><div class="detail-loading">Memuat data...</div></section></div>
+</main>
+<script id="entity-config" type="application/json"><%- JSON.stringify({ config, recordKey }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

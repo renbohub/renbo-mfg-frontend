@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#4f46e5">
+  <title><%= title %> · NexGen</title>
+  <link rel="stylesheet" href="/vendor/bootstrap/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/vendor/datatables-bs5/css/dataTables.bootstrap5.min.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/login.css">
+  <link rel="stylesheet" href="/css/master-data.css">
+  <link rel="stylesheet" href="/css/session.css">
+  <link rel="stylesheet" href="/css/modules.css">
+  <link rel="stylesheet" href="/css/master-detail.css">
+  <link rel="stylesheet" href="/css/form-permissions.css">
+  <link rel="stylesheet" href="/css/bom.css">
+  <link rel="stylesheet" href="/css/bom-figma.css">
+  <link rel="stylesheet" href="/css/sales.css">
+  <link rel="stylesheet" href="/css/ppic-detail.css">
+  <link rel="stylesheet" href="/css/ppic-grouping.css">
+  <link rel="stylesheet" href="/css/ppic-capacity.css">
+  <link rel="stylesheet" href="/css/operations.css">
+  <link rel="stylesheet" href="/css/system-master.css">
+  <link rel="stylesheet" href="/css/gallery-view.css">
+  <% if (typeof requiresAuth !== 'undefined' && requiresAuth) { %>
+  <script>
+    if (!localStorage.getItem('token') && !sessionStorage.getItem('token')) {
+      location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search));
+    }
+  </script>
+  <% } %>
+  <script defer src="/vendor/alpine/cdn.min.js"></script>
+</head>
+<body>

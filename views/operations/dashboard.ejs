@@ -1,0 +1,44 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<nav class="ops-subnav ops-subnav--<%= module.color %>" aria-label="Navigasi <%= module.label %>">
+  <div class="app-container ops-subnav-inner">
+    <% module.pages.forEach(item => { %>
+      <a class="<%= item.slug === page.slug ? 'active' : '' %> <%= !item.apiReady ? 'disabled' : '' %>" href="<%= item.apiReady ? '/modules/' + module.slug + '/' + item.slug : '#' %>" <%= !item.apiReady ? 'aria-disabled="true" title="Endpoint belum tersedia"' : '' %>><%= item.label %></a>
+    <% }) %>
+  </div>
+</nav>
+<main class="ops-page app-container">
+  <nav class="module-breadcrumb"><a href="/modules">Modul</a><span>/</span><a href="/modules/<%= module.slug %>"><%= module.label %></a><span>/</span><b><%= page.label %></b></nav>
+  <section class="ops-titlebar">
+    <div>
+      <p class="ops-eyebrow"><%= module.label %> Control Center</p>
+      <h1><%= page.label %></h1>
+      <p><%= page.description %></p>
+    </div>
+    <div class="ops-title-actions">
+      <button id="ops-refresh" type="button" class="btn btn-outline-secondary">Refresh</button>
+      <button id="ops-export" type="button" class="btn btn-primary brand-button">Export CSV</button>
+    </div>
+  </section>
+
+  <section class="ops-summary" aria-label="Ringkasan <%= page.label %>">
+    <% for (let index = 0; index < 4; index += 1) { %>
+      <article class="ops-stat-card"><span class="ops-stat-icon"><%= index + 1 %></span><div><small id="ops-stat-label-<%= index %>">Memuat</small><strong id="ops-stat-value-<%= index %>">—</strong><em id="ops-stat-note-<%= index %>">Data terkini</em></div></article>
+    <% } %>
+  </section>
+
+  <section class="ops-table-card">
+    <header class="ops-card-head">
+      <div><h2>Daftar <%= page.label %></h2><p>Data operasional yang terhubung langsung ke backend.</p></div>
+      <label class="ops-search"><span aria-hidden="true">⌕</span><input id="ops-search" type="search" placeholder="Cari nomor, part, lokasi, atau status..."></label>
+    </header>
+    <div id="ops-alert" class="alert alert-warning d-none" role="alert"></div>
+    <div class="table-responsive">
+      <table id="ops-table" class="table align-middle w-100">
+        <thead><tr><% page.columns.forEach(column => { %><th><%= column.label %></th><% }) %><th>AKSI</th></tr></thead>
+      </table>
+    </div>
+  </section>
+</main>
+<script id="ops-page-config" type="application/json"><%- JSON.stringify({ module: module.slug, moduleLabel: module.label, moduleColor: module.color, page }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

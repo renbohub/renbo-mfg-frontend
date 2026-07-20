@@ -1,0 +1,54 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-master') %>
+<main class="system-master-page">
+  <section class="system-master-toolbar app-container">
+    <div>
+      <span class="system-eyebrow">MASTER DATA / DATA SISTEM</span>
+      <h1>Role & Permission</h1>
+      <p>Atur role, user, dan izin action untuk setiap halaman ERP.</p>
+    </div>
+    <div class="system-toolbar-actions">
+      <button id="new-role" class="btn btn-outline-secondary" type="button">Role Baru</button>
+      <button id="delete-role" class="btn btn-outline-danger d-none" type="button">Hapus</button>
+      <button id="save-role" class="btn btn-primary brand-button" type="button">Simpan Role</button>
+    </div>
+  </section>
+  <div id="role-alert" class="alert d-none app-container system-alert" role="alert"></div>
+  <section class="system-master-layout app-container">
+    <aside class="system-master-sidebar">
+      <div class="system-sidebar-head">
+        <div><strong>Daftar Role</strong><small id="role-count">0 role</small></div>
+        <input id="role-search" type="search" placeholder="Cari role...">
+      </div>
+      <div id="role-list" class="system-record-list"><div class="system-loading">Memuat role...</div></div>
+    </aside>
+    <div class="system-master-editor">
+      <section class="system-card">
+        <div class="system-card-head"><div><h2>Informasi Role</h2><p>Identitas role dan user yang menggunakannya.</p></div><label class="system-switch"><input id="role-active" type="checkbox" checked><span></span>Aktif</label></div>
+        <div class="system-form-grid">
+          <label>Kode Role<input id="role-code" type="text" placeholder="PPIC_PLANNER" maxlength="80"></label>
+          <label>Nama Role<input id="role-name" type="text" placeholder="PPIC Planner" maxlength="150"></label>
+          <label class="span-2">Deskripsi<textarea id="role-description" rows="2" placeholder="Tanggung jawab dan cakupan role"></textarea></label>
+        </div>
+      </section>
+      <section class="system-card">
+        <div class="system-card-head"><div><h2>Assignment User</h2><p>User dapat memiliki lebih dari satu role.</p></div><input id="user-search" class="system-inline-search" type="search" placeholder="Cari user..."></div>
+        <div id="role-users" class="system-user-grid"><div class="system-loading">Memuat user...</div></div>
+      </section>
+      <section class="system-card permission-card">
+        <div class="system-card-head">
+          <div><h2>Permission per Page</h2><p>Centang action yang diizinkan pada setiap fitur dan module.</p></div>
+          <div class="permission-presets"><button type="button" data-preset="read">Read Only</button><button type="button" data-preset="full">Full Access</button><button type="button" data-preset="clear">Kosongkan</button></div>
+        </div>
+        <div class="permission-table-wrap">
+          <table class="permission-matrix">
+            <thead><tr><th>Module / Page</th><th>Read</th><th>Create</th><th>Update</th><th>Delete</th><th>Approve</th><th>Submit</th><th>Release</th><th>Export</th></tr></thead>
+            <tbody id="permission-rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </section>
+</main>
+<script id="role-permission-config" type="application/json"><%- JSON.stringify({ permissionCatalog }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

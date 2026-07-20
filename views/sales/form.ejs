@@ -1,0 +1,18 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/sales-subnav') %>
+<main class="sales-page app-container">
+  <nav class="module-breadcrumb"><a href="/modules/sales/<%= page.slug %>"><%= page.label %></a><span>/</span><b><%= mode === 'edit' ? 'Edit' : 'Buat Baru' %></b></nav>
+  <section class="sales-titlebar sticky-actions">
+    <div><h1><%= mode === 'edit' ? 'Edit' : 'Buat' %> <%= page.label %></h1><p id="form-subtitle"><%= page.description %></p></div>
+    <div class="sales-actions"><a class="btn btn-outline-secondary" href="/modules/sales/<%= page.slug %>">Batal</a><button id="save-document" form="sales-form" class="btn btn-primary brand-button" type="submit">Simpan</button></div>
+  </section>
+  <div id="sales-alert" class="alert d-none"></div>
+  <form id="sales-form" novalidate>
+    <section class="sales-card"><div class="sales-card-head"><div><h2>Informasi Dokumen</h2><p>Data utama dan referensi transaksi</p></div><span id="document-status" class="sales-badge draft">Draft</span></div><div id="header-fields" class="sales-form-grid"></div></section>
+    <section class="sales-card"><div class="sales-card-head"><div><h2 id="items-title">Item</h2><p id="items-help">Tambahkan part dan kuantitas</p></div><button id="add-line" class="btn btn-outline-primary" type="button">＋ Tambah Item</button></div><div class="table-responsive"><table class="table sales-items"><thead id="items-head"></thead><tbody id="items-body"></tbody></table></div><div id="document-summary" class="sales-summary"></div></section>
+    <section class="sales-card"><div class="sales-card-head"><div><h2>Catatan</h2><p>Informasi tambahan untuk dokumen ini</p></div></div><textarea id="notes" class="form-control" rows="4" placeholder="Tambahkan catatan..."></textarea></section>
+  </form>
+</main>
+<script id="sales-page-config" type="application/json"><%- JSON.stringify({ ...page, mode, recordKey }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

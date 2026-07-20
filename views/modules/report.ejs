@@ -1,0 +1,21 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<% if (['inventory','production','purchasing','incoming','outgoing'].includes(module.slug)) { %>
+<nav class="ops-subnav ops-subnav--<%= module.color %>" aria-label="Navigasi <%= module.label %>"><div class="app-container ops-subnav-inner">
+  <% module.pages.forEach(item => { %><a class="<%= item.slug === page.slug ? 'active' : '' %> <%= !item.apiReady ? 'disabled' : '' %>" href="<%= item.apiReady ? '/modules/' + module.slug + '/' + item.slug : '#' %>" <%= !item.apiReady ? 'aria-disabled="true"' : '' %>><%= item.label %></a><% }) %>
+</div></nav>
+<% } %>
+<main class="module-data-page app-container">
+  <nav class="module-breadcrumb"><a href="/modules">Modul</a><span>/</span><a href="/modules/<%= module.slug %>"><%= module.label %></a><span>/</span><b><%= page.label %></b></nav>
+  <section class="module-data-head"><div><h1><%= page.label %></h1><p><%= page.description %></p></div><button class="btn btn-outline-secondary" onclick="window.print()">Cetak Laporan</button></section>
+  <% if (!page.apiReady) { %><section class="api-notice"><span>Frontend siap</span><div><b>Endpoint laporan belum tersedia</b><p>Komponen ringkasan dan area visualisasi sudah siap dihubungkan ke backend.</p></div></section><% } %>
+  <section class="report-stat-grid">
+    <article><small>Total Dokumen</small><strong id="report-total">—</strong><span>Periode berjalan</span></article>
+    <article><small>Open / Process</small><strong id="report-open">—</strong><span>Memerlukan tindak lanjut</span></article>
+    <article><small>Completed</small><strong id="report-completed">—</strong><span>Proses selesai</span></article>
+    <article><small>Performance</small><strong id="report-performance">—</strong><span>Realisasi terhadap rencana</span></article>
+  </section>
+  <section class="report-panels"><article><div><h2>Ringkasan Aktivitas</h2><p>Distribusi status pada periode berjalan</p></div><div id="report-chart"></div></article><article class="report-empty"><%- include('../partials/icon', { name: 'file' }) %><h2><%= page.apiReady ? 'Memuat laporan' : 'Menunggu data backend' %></h2><p>Tidak ada data contoh yang ditampilkan agar informasi operasional tetap akurat.</p></article></section>
+</main>
+<script id="module-page-config" type="application/json"><%- JSON.stringify({ module: module.slug, ...page }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

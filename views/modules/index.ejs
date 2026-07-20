@@ -1,0 +1,19 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<main class="modules-page app-container">
+  <section class="modules-hero">
+    <div><p class="eyebrow">Workspace</p><h1>Pilih Modul</h1><p>Akses proses bisnis dan data operasional dari satu tempat.</p></div>
+    <a class="master-data-shortcut" href="/master-data"><%- include('../partials/icon', { name: 'grid' }) %><span><b>Master Data</b><small>Produk, supplier, customer, mesin, dan referensi</small></span><span aria-hidden="true">→</span></a>
+  </section>
+  <section class="module-card-grid" aria-label="Daftar modul">
+    <% modules.forEach(module => { const ready = module.pages.filter(page => page.apiReady).length; %>
+      <a class="module-card module-card--<%= module.color %>" href="/modules/<%= module.slug %>">
+        <span class="module-card-icon"><%- include('../partials/icon', { name: module.icon }) %></span>
+        <span class="module-card-copy"><b><%= module.label %></b><small><%= module.description %></small></span>
+        <span class="module-card-meta"><%= module.pages.length %> menu · <%= ready %> API aktif</span>
+        <span class="module-card-arrow">→</span>
+      </a>
+    <% }) %>
+  </section>
+</main>
+<%- include('../partials/footer') %>

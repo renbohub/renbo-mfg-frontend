@@ -1,0 +1,18 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-main') %>
+<main class="hub-content app-container" x-data="{ comingSoon: false }">
+  <% groups.forEach(group => { %>
+    <section class="master-section">
+      <h2><span></span><%= group.title %></h2>
+      <div class="master-card-grid">
+        <% group.items.forEach(item => { %>
+          <a class="master-card" href="/master-data/<%= item.slug %>">
+            <span class="master-card-icon"><%- include('../partials/icon', { name: item.icon }) %></span>
+            <span><strong><%= item.label %></strong><small>Kelola <%= item.singular.toLowerCase() %></small></span>
+          </a>
+        <% }) %>
+      </div>
+    </section>
+  <% }) %>
+</main>
+<%- include('../partials/footer') %>

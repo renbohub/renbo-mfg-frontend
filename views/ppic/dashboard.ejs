@@ -1,0 +1,20 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<nav class="ppic-subnav" aria-label="Navigasi PPIC"><div class="app-container ppic-subnav-inner">
+  <% const ppicTabs = [['mrp','MRP'],['mps','MPS'],['monthly-plan','Monthly Plan'],['consume-forecast','Consume Forecast'],['capacity-planning','Capacity Planning']]; %>
+  <% ppicTabs.forEach(([slug,label]) => { %><a class="<%= activePpicTab === slug ? 'active' : '' %>" href="/modules/planning-ppic/<%= slug %>"><%= label %></a><% }) %>
+</div></nav>
+<main class="ppic-page">
+  <section class="ppic-toolbar app-container">
+    <div class="ppic-breadcrumb"><span>PPIC</span><i>/</i><b id="ppic-breadcrumb"><%= title %></b></div>
+    <div class="ppic-controls"><label class="ppic-search">⌕ <input id="ppic-search" type="search" placeholder="Cari data PPIC..."></label><button id="ppic-filter" class="btn btn-outline-secondary">Filter</button></div>
+    <div class="ppic-actions"><button id="ppic-export" class="btn btn-outline-secondary">Export</button><button id="ppic-primary" class="btn btn-primary brand-button"></button></div>
+  </section>
+  <section class="ppic-content app-container">
+    <div id="ppic-alert" class="alert d-none"></div>
+    <div class="ppic-heading"><h1 id="ppic-title"></h1><p id="ppic-subtitle"></p></div>
+    <section class="ppic-table-card"><div class="table-responsive"><table class="table ppic-table"><thead id="ppic-head"></thead><tbody id="ppic-rows"></tbody></table></div><div id="ppic-footer" class="ppic-footer"></div></section>
+  </section>
+</main>
+<script id="ppic-page-config" type="application/json"><%- JSON.stringify({ activeTab: activePpicTab }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

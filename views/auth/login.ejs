@@ -1,0 +1,37 @@
+<%- include('../partials/head') %>
+<main class="login-page">
+  <section class="login-panel" aria-labelledby="login-title">
+    <a class="brand login-brand" href="/login"><span class="brand-mark"></span><span>NexGen</span></a>
+    <div class="login-heading">
+      <span class="login-eyebrow">RENBO ERP</span>
+      <h1 id="login-title">Selamat datang kembali</h1>
+      <p>Masuk untuk melanjutkan ke sistem enterprise Anda.</p>
+    </div>
+    <form id="login-form" class="login-form" data-next="<%= nextPath %>" novalidate>
+      <div id="login-alert" class="alert alert-danger d-none" role="alert"></div>
+      <label class="form-label" for="identifier">Username atau email</label>
+      <div class="login-input">
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M5 21v-2a7 7 0 0 1 14 0v2"></path></svg>
+        <input id="identifier" name="identifier" type="text" autocomplete="username" placeholder="Masukkan username atau email" required autofocus>
+      </div>
+      <label class="form-label password-label" for="password">Password</label>
+      <div class="login-input">
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+        <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Masukkan password" required>
+        <button id="toggle-password" class="password-toggle" type="button" aria-label="Tampilkan password">Lihat</button>
+      </div>
+      <label class="remember-row"><input id="remember" class="form-check-input" type="checkbox" checked> Ingat sesi saya</label>
+      <button id="login-button" class="btn btn-primary login-button" type="submit">
+        <span class="login-button-text">Masuk</span><span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+      </button>
+    </form>
+    <p class="login-help">Gunakan akun yang terdaftar pada backend Renbo ERP.</p>
+  </section>
+  <aside class="login-visual" aria-hidden="true">
+    <div class="visual-grid"></div>
+    <div class="visual-copy"><span>MASTER DATA</span><h2>Satu pusat data untuk seluruh operasi bisnis.</h2><p>Produk, pelanggan, supplier, keuangan, dan karyawan dalam antarmuka yang konsisten.</p></div>
+    <div class="visual-card card-one"><b>847</b><span>Item aktif</span></div>
+    <div class="visual-card card-two"><i></i><span>Data tersinkron</span></div>
+  </aside>
+</main>
+<%- include('../partials/footer') %>

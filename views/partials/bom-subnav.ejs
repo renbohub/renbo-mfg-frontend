@@ -1,0 +1,10 @@
+<nav class="bom-subnav" aria-label="Navigasi BOM">
+  <a class="<%= activeBomTab === 'list' ? 'active' : '' %>" href="/modules/manufacturing-bom/bill-of-materials">BOM List</a>
+  <a class="<%= activeBomTab === 'generator' ? 'active' : '' %>" href="/modules/manufacturing-bom/bill-of-materials/new">BOM Generator</a>
+  <% if (typeof recordKey !== 'undefined' && recordKey) { %>
+  <a class="<%= activeBomTab === 'detail' ? 'active' : '' %>" href="/modules/manufacturing-bom/bill-of-materials/<%= encodeURIComponent(recordKey) %>">BOM Detail</a>
+  <a class="<%= activeBomTab === 'processes' ? 'active' : '' %>" href="/modules/manufacturing-bom/bill-of-materials/<%= encodeURIComponent(recordKey) %>/processes">BOM Proses</a>
+  <% } else { %>
+  <span>BOM Detail</span><span>BOM Proses</span>
+  <% } %>
+</nav>

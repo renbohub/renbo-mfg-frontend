@@ -1,0 +1,49 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<nav class="ppic-subnav" aria-label="Navigasi PPIC"><div class="app-container ppic-subnav-inner">
+  <% const ppicTabs = [['mrp','MRP'],['mps','MPS'],['monthly-plan','Monthly Plan'],['consume-forecast','Consume Forecast'],['capacity-planning','Capacity Planning']]; %>
+  <% ppicTabs.forEach(([slug,label]) => { %><a class="<%= activePpicTab === slug ? 'active' : '' %>" href="/modules/planning-ppic/<%= slug %>"><%= label %></a><% }) %>
+</div></nav>
+<main class="ppic-page capacity-page">
+  <section class="capacity-toolbar app-container">
+    <div><div class="ppic-breadcrumb"><span>PPIC</span><i>/</i><b>Capacity Planning</b></div><h1>Machine Capacity & Daily Schedule</h1><p>Finite capacity berdasarkan routing process, cycle time, machine, daily schedule, dan downtime.</p></div>
+    <button id="capacity-refresh" class="btn btn-primary brand-button" type="button">Refresh Capacity</button>
+  </section>
+  <section class="app-container capacity-content">
+    <div id="capacity-alert" class="alert d-none"></div>
+    <section class="capacity-filter-card">
+      <label>Production Plan<select id="capacity-plan"><option value="">Semua production plan aktif</option></select></label>
+      <label>Mulai<input id="capacity-start" type="date"></label>
+      <label>Sampai<input id="capacity-end" type="date"></label>
+      <label>Shift / Hari<select id="capacity-shifts"><option value="1">1 shift</option><option value="2">2 shift</option><option value="3">3 shift</option></select></label>
+      <label>Jam / Shift<input id="capacity-hours" type="number" min="1" max="24" step="0.5" value="8"></label>
+      <label>Efficiency %<input id="capacity-efficiency" type="number" min="1" max="100" step="1" value="85"></label>
+    </section>
+    <section class="capacity-stat-grid">
+      <article><small>Mesin Aktif</small><strong id="capacity-stat-machines">-</strong><span id="capacity-stat-machines-note">Master machine</span></article>
+      <article><small>Available Capacity</small><strong id="capacity-stat-available">-</strong><span>Jam pada horizon</span></article>
+      <article><small>Planned Load</small><strong id="capacity-stat-load">-</strong><span id="capacity-stat-utilization">Utilization -</span></article>
+      <article><small>Overload / Unscheduled</small><strong id="capacity-stat-overload">-</strong><span id="capacity-stat-readiness">Master readiness</span></article>
+    </section>
+    <section class="capacity-card capacity-heatmap-card">
+      <div class="capacity-card-head"><div><h2>Daily Machine Capacity Heatmap</h2><p>Firm = Daily Production Schedule. Proposed = Production Plan sebelum menjadi MO.</p></div><div class="capacity-legend"><span class="available">Available</span><span class="loaded">1–84%</span><span class="high">85–100%</span><span class="overload">Overload</span><span class="unavailable">Unavailable</span></div></div>
+      <div id="capacity-loading" class="capacity-loading">Menghitung capacity berdasarkan master process dan machine...</div>
+      <div id="capacity-heatmap-wrap" class="capacity-heatmap-wrap d-none"><table class="capacity-heatmap"><thead id="capacity-heatmap-head"></thead><tbody id="capacity-heatmap-body"></tbody></table></div>
+    </section>
+    <section class="capacity-lower-grid">
+      <article class="capacity-card">
+        <div class="capacity-card-head"><div><h2 id="capacity-detail-title">Schedule Detail</h2><p id="capacity-detail-subtitle">Pilih cell pada heatmap untuk melihat beban.</p></div></div>
+        <div class="table-responsive"><table class="table capacity-detail-table"><thead><tr><th>Sumber</th><th>Referensi</th><th>Part</th><th>Process</th><th>Shift</th><th>Qty</th><th>Load</th><th>Status</th></tr></thead><tbody id="capacity-detail-body"><tr><td colspan="8" class="capacity-empty">Belum ada cell dipilih.</td></tr></tbody></table></div>
+      </article>
+      <article class="capacity-card capacity-readiness-card">
+        <div class="capacity-card-head"><div><h2>Master Data Readiness</h2><p>Validasi process, routing, machine, dan cycle time.</p></div><span id="capacity-readiness-badge" class="capacity-readiness-badge">Checking</span></div>
+        <div id="capacity-readiness-list" class="capacity-readiness-list"></div>
+      </article>
+    </section>
+    <section class="capacity-card">
+      <div class="capacity-card-head"><div><h2>Unscheduled Load</h2><p>Demand yang belum bisa ditempatkan karena routing, machine, cycle time, atau kapasitas belum tersedia.</p></div><span id="capacity-unscheduled-count" class="capacity-count">0 item</span></div>
+      <div class="table-responsive"><table class="table capacity-detail-table"><thead><tr><th>Source</th><th>Reference</th><th>Part</th><th>Process</th><th>Machine</th><th>Qty</th><th>Minutes</th><th>Reason</th></tr></thead><tbody id="capacity-unscheduled-body"></tbody></table></div>
+    </section>
+  </section>
+</main>
+<%- include('../partials/footer') %>

@@ -1,0 +1,30 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<nav class="ops-subnav ops-subnav--<%= module.color %>" aria-label="Navigasi <%= module.label %>">
+  <div class="app-container ops-subnav-inner">
+    <% module.pages.forEach(item => { %>
+      <a class="<%= item.slug === page.slug ? 'active' : '' %> <%= !item.apiReady ? 'disabled' : '' %>" href="<%= item.apiReady ? '/modules/' + module.slug + '/' + item.slug : '#' %>" <%= !item.apiReady ? 'aria-disabled="true"' : '' %>><%= item.label %></a>
+    <% }) %>
+  </div>
+</nav>
+<main class="ops-page app-container">
+  <nav class="module-breadcrumb"><a href="/modules">Modul</a><span>/</span><a href="/modules/<%= module.slug %>"><%= module.label %></a><span>/</span><a href="/modules/<%= module.slug %>/<%= page.slug %>"><%= page.label %></a><span>/</span><b><%= recordKey %></b></nav>
+  <section class="ops-detail-titlebar">
+    <div><p class="ops-eyebrow"><%= page.label %></p><h1 id="ops-detail-title"><%= recordKey %></h1><p id="ops-detail-subtitle">Memuat detail dokumen...</p></div>
+    <div id="ops-detail-actions" class="ops-title-actions"><a class="btn btn-outline-secondary" href="/modules/<%= module.slug %>/<%= page.slug %>">← Kembali</a></div>
+  </section>
+  <div id="ops-detail-alert" class="alert d-none" role="alert"></div>
+  <section id="ops-detail-loading" class="ops-detail-loading">Memuat detail <%= page.label %>...</section>
+  <div id="ops-detail-shell" class="ops-detail-layout d-none">
+    <div class="ops-detail-main">
+      <section class="ops-detail-card"><header><h2>Informasi Dokumen</h2><span id="ops-detail-status"></span></header><div id="ops-detail-fields" class="ops-detail-fields"></div></section>
+      <div id="ops-detail-collections"></div>
+    </div>
+    <aside class="ops-detail-aside">
+      <section class="ops-detail-card"><h2>Workflow & Aksi</h2><p class="ops-help">Aksi yang tampil disesuaikan dengan status dokumen dan aturan backend.</p><div id="ops-workflow-actions" class="ops-workflow-actions"></div></section>
+      <section class="ops-detail-card"><h2>Kontrol Dokumen</h2><div id="ops-document-meta" class="ops-document-meta"></div></section>
+    </aside>
+  </div>
+</main>
+<script id="ops-detail-config" type="application/json"><%- JSON.stringify({ module: module.slug, moduleLabel: module.label, page, recordKey }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

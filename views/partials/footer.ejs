@@ -1,0 +1,15 @@
+  <div id="toast-stack" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+  <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/datatables/datatables.min.js"></script>
+  <script src="/vendor/datatables-bs5/js/dataTables.bootstrap5.min.js"></script>
+  <script src="/vendor/socket.io-client/socket.io.min.js"></script>
+  <script src="/vendor/mqtt/mqtt.min.js"></script>
+  <script src="/vendor/apexcharts/apexcharts.min.js"></script>
+  <script src="/js/session.js"></script>
+  <script src="/js/gallery-view.js"></script>
+  <script>window.REALTIME_CONFIG = <%- JSON.stringify({ socketUrl: typeof socketUrl === 'undefined' ? '' : socketUrl, mqttUrl: typeof mqttUrl === 'undefined' ? '' : mqttUrl }) %>;</script>
+  <script src="/js/realtime.js"></script>
+  <% if (typeof pageScript !== 'undefined' && pageScript) { %><script src="<%= pageScript %>"></script><% } %>
+</body>
+</html>
