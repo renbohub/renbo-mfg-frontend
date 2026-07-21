@@ -169,6 +169,11 @@ const registry = {
     slug: "approval-rules", label: "Approval Rules", singular: "Approval Rule", group: "Data Sistem", icon: "file",
     endpoint: "/api/system/approval-rules", customView: "master-data/approval-rules", pageScript: "/js/approval-rules.js",
     columns: [], fields: []
+  }),
+  formulas: entity({
+    slug: "formulas", label: "Master Formula", singular: "Formula", group: "Data Sistem", icon: "file",
+    endpoint: "/api/system/master-formulas", customView: "master-data/formulas", pageScript: "/js/master-formulas.js",
+    columns: [], fields: []
   })
 };
 

@@ -55,6 +55,16 @@ router.get("/", (_req, res) => {
 
 router.get("/items", (_req, res) => res.redirect("/master-data/products"));
 
+router.get("/formulas", (_req, res) => res.render("master-data/formulas", { title: "Master Formula", pageScript: "/js/master-formulas.js", ...pageData() }));
+router.get("/api/formulas", async (req, res) => {
+  try { const url = new URL(`${backendUrl}/api/system/master-formulas`); Object.entries(req.query).forEach(([k, v]) => url.searchParams.set(k, String(v))); const response = await fetch(url, { headers: authHeader(req), signal: AbortSignal.timeout(15000) }); const payload = await readBackend(response); if (!response.ok) return sendBackendError(res, response, payload); res.json(payload); }
+  catch (error) { res.status(503).json({ message: backendOffline(error) ? `Backend belum aktif di ${backendUrl}.` : "Tidak dapat mengambil formula." }); }
+});
+router.post("/api/formulas/simulate", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/master-formulas" }, "POST", "/simulate"));
+router.post("/api/formulas", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/master-formulas" }, "POST"));
+router.patch("/api/formulas/:id", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/master-formulas" }, "PATCH", `/${encodeURIComponent(req.params.id)}`));
+router.delete("/api/formulas/:id", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/master-formulas" }, "DELETE", `/${encodeURIComponent(req.params.id)}`));
+
 router.get("/api/:entity/generate-code", async (req, res) => {
   const config = requireConfig(req, res);
   if (!config || !config.generateCode) return;
