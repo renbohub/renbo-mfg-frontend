@@ -329,13 +329,16 @@
     };
     const finishedGoodCode = (row) => planPartRow(row).code;
     const finishedGoodName = (row) => planPartRow(row).name;
+    // Offset is not unique in legacy documents (both rows may have offset=1),
+    // therefore include the actual schedule month in the parent lookup key.
     const sourceFinishedGoods = new Map(receiptDetails.map((row) => [
-      `${row.customerCode || "Tanpa Customer"}|${row.partCode}|${number(row.forecastPeriodOffset)}`,
+      `${row.customerCode || "Tanpa Customer"}|${row.partCode}|${scheduleMonthKey(row)}`,
       row,
     ]));
-    const finishedGoodMonth = (row) => sourceFinishedGoods.get(
-      `${row.customerCode || "Tanpa Customer"}|${finishedGoodCode(row)}|${number(row.forecastPeriodOffset)}`,
-    ) ? scheduleDate(sourceFinishedGoods.get(`${row.customerCode || "Tanpa Customer"}|${finishedGoodCode(row)}|${number(row.forecastPeriodOffset)}`)) : scheduleDate(row);
+    const finishedGoodMonth = (row) => {
+      const source = sourceFinishedGoods.get(`${row.customerCode || "Tanpa Customer"}|${finishedGoodCode(row)}|${scheduleMonthKey(row)}`);
+      return source ? scheduleDate(source) : scheduleDate(row);
+    };
     const visibleDetails = preparePlanningView(allVisibleDetails, { customer: (row) => row.customerCode, month: (row) => finishedGoodMonth(row), part: (row) => finishedGoodCode(row) });
     const groupedRows = groupedPlanningRows(visibleDetails, {
       colSpan: 12,
