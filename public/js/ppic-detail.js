@@ -295,10 +295,21 @@
     const receiptByMonth = new Map(receiptDetails.map((row) => [`${row.customerCode || ""}|${row.partCode}|${scheduleMonthKey(row)}`, row]));
     const receiptByCustomerOffset = new Map();
     receiptDetails.forEach((row) => receiptByCustomerOffset.set(`${row.customerCode || ""}|${number(row.forecastPeriodOffset)}`, row));
+    const receiptByCustomerPart = new Map();
+    receiptDetails.forEach((row) => {
+      const key = `${row.customerCode || ""}|${row.partCode}`;
+      const list = receiptByCustomerPart.get(key) || [];
+      list.push(row);
+      receiptByCustomerPart.set(key, list);
+    });
+    const nearestParent = (customerCode, partCode, row) => {
+      const candidates = receiptByCustomerPart.get(`${customerCode || ""}|${partCode}`) || [];
+      return candidates.slice().sort((left, right) => Math.abs(new Date(left.startDate).getTime() - new Date(row.startDate).getTime()) - Math.abs(new Date(right.startDate).getTime() - new Date(row.startDate).getTime()))[0];
+    };
     const processDetails = details.filter((row) => isGeneratedProcess(row) && String(row.part?.itemType || "").toUpperCase() !== "FG").map((row) => {
       const sourceId = String(row.notes || "").match(/\[MPS-SOURCE:([^\]]+)\]/)?.[1];
       const sourcePart = String(row.notes || "").match(/;\s*source\s+(.+?)(?:;|$)/i)?.[1]?.trim();
-      const source = receiptById.get(sourceId) || receiptByLegacyKey.get(`${row.customerCode || ""}|${sourcePart || ""}|${number(row.forecastPeriodOffset)}`) || receiptByMonth.get(`${row.customerCode || ""}|${sourcePart || ""}|${scheduleMonthKey(row)}`) || receiptByCustomerOffset.get(`${row.customerCode || ""}|${number(row.forecastPeriodOffset)}`);
+      const source = receiptById.get(sourceId) || receiptByLegacyKey.get(`${row.customerCode || ""}|${sourcePart || ""}|${number(row.forecastPeriodOffset)}`) || receiptByMonth.get(`${row.customerCode || ""}|${sourcePart || ""}|${scheduleMonthKey(row)}`) || nearestParent(row.customerCode, sourcePart, row) || receiptByCustomerOffset.get(`${row.customerCode || ""}|${number(row.forecastPeriodOffset)}`);
       // Existing child rows predate the explicit source marker.  Fall back to
       // their parent FG so buffer remains visible without altering history.
       return source ? { ...row, forecastQty: number(row.forecastQty) || number(source.forecastQty), actualSalesOrderQty: number(row.actualSalesOrderQty) || number(source.actualSalesOrderQty), bufferBaseQty: number(row.bufferBaseQty) || number(source.bufferBaseQty), bufferPercent: number(row.bufferPercent) || number(source.bufferPercent), bufferQty: number(row.bufferQty) || number(source.bufferQty), effectiveDemandQty: number(row.effectiveDemandQty) || number(source.effectiveDemandQty), productionPercent: number(row.productionPercent || 100) } : row;
