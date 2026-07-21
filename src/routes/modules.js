@@ -57,6 +57,7 @@ router.get("/api/sales/:page/generate-number", (req, res) => {
   return proxyPageMutation(req, res, page.endpoint, "GET", "/generate-number");
 });
 router.get("/api/planning-ppic/mrp/generate-number", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "GET", "/generate-number"));
+router.get("/api/planning-ppic/mps/monthly-summary", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "GET", "/monthly-summary"));
 router.get("/api/planning-ppic/capacity-planning", async (req, res) => {
   try {
     const url = new URL(`${backendUrl}/api/planning/capacity-planning`);

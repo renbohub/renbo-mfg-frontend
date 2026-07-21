@@ -8,6 +8,7 @@
   <script src="/vendor/apexcharts/apexcharts.min.js"></script>
   <script src="/js/session.js"></script>
   <script src="/js/gallery-view.js"></script>
+  <link rel="stylesheet" href="/css/workflow-views.css">
   <script>window.REALTIME_CONFIG = <%- JSON.stringify({ socketUrl: typeof socketUrl === 'undefined' ? '' : socketUrl, mqttUrl: typeof mqttUrl === 'undefined' ? '' : mqttUrl }) %>;</script>
   <script src="/js/realtime.js"></script>
   <% if (typeof pageScript !== 'undefined' && pageScript) { %><script src="<%= pageScript %>"></script><% } %>

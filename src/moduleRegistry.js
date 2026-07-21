@@ -6,7 +6,8 @@ const modules = [
       page("bill-of-materials", "m-Bill of Materials", "Daftar dan revisi bill of materials", "/api/mbom/mbom", "noReg", [
         col("noReg", "No. Registrasi"), col("part.partNumber", "Part Number"), col("part.partName", "Part Name"), col("uomCode", "UOM"), col("revision", "Revisi"), col("effectiveDate", "Berlaku", "date")
       ]),
-      placeholder("bom-processes", "mBOM Processes", "Urutan proses dan routing per BOM"),
+      page("bom-processes", "Routing", "Routing header dan operasi proses yang dapat ditautkan ke mBOM", "/api/engineering/routings", "routingCode", [col("routingCode", "Kode Routing"), col("part.partCode", "Part"), col("revision", "Revisi"), col("status", "Status", "status")]),
+      page("work-centers", "Work Centers", "Kelompok mesin dan kapasitas produksi", "/api/engineering/work-centers", "workCenterCode", [col("workCenterCode", "Kode"), col("workCenterName", "Work Center"), col("plantCode", "Plant"), col("lineCode", "Line"), col("capacityMinutesPerDay", "Capacity (min)", "number"), col("isActive", "Status", "active")]),
       placeholder("bom-costing", "mBOM Costing", "Perhitungan biaya material dan proses"),
       report("bom-report", "mBOM Report", "Ringkasan struktur dan pemakaian BOM")
     ]
@@ -29,6 +30,7 @@ const modules = [
       page("material-requirements-planning", "Material Requirements Planning", "Kebutuhan material dan planned order hasil MRP", "/api/planning/mrp", "runNumber", [col("runNumber", "No. Run"), col("mpsNumber", "MPS"), col("runDate", "Tanggal", "date"), col("totalRequirements", "Requirements", "number"), col("totalPlannedOrders", "Planned Order", "number"), col("status", "Status", "status")]),
       page("monthly-plan", "Monthly Plan", "Target dan realisasi rencana produksi bulanan", "/api/planning/monthly-production-plans", "planNumber", [col("planNumber", "Plan ID"), col("planMonth", "Bulan", "date"), col("targetQty", "Target Qty", "number"), col("actualQty", "Actual Qty", "number"), col("status", "Status", "status")]),
       page("capacity-planning", "Capacity Planning", "Heatmap schedule dan kapasitas harian per mesin", "/api/planning/capacity-planning", "machineCode", [col("machineCode", "Mesin"), col("machineName", "Nama"), col("lineCode", "Line"), col("status", "Status", "status")]),
+      page("control-tower", "Demand-to-Delivery Control Tower", "Visibilitas demand, delivery, dan risiko lintas proses", "/api/dashboard/control-tower", "soNumber", [col("soNumber", "Sales Order"), col("customer.customerName", "Customer"), col("deliveryDate", "Required", "date"), col("orderedQty", "Demand", "number"), col("deliveredQty", "Delivered", "number"), col("outstandingQty", "Outstanding", "number"), col("risk", "Risk", "status")]),
       placeholder("planned-orders", "Planned Orders", "Usulan order dari hasil perencanaan"),
       placeholder("monthly-production-plans", "Monthly Production Plans", "Rencana produksi bulanan")
     ]

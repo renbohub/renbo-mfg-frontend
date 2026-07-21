@@ -13,6 +13,10 @@
   <section class="ppic-content app-container">
     <div id="ppic-alert" class="alert d-none"></div>
     <div class="ppic-heading"><h1 id="ppic-title"></h1><p id="ppic-subtitle"></p></div>
+    <section id="mps-monthly-summary" class="mps-monthly-summary d-none" aria-label="Ringkasan kebutuhan MPS bulanan">
+      <div class="mps-monthly-head"><div><h2>Kebutuhan MPS per Bulan</h2><p>Ringkasan kebutuhan dari MPS existing maupun MPS baru.</p></div><div class="mps-monthly-filters"><select id="mps-summary-group"><option value="detail">Detail per part</option><option value="customer">Per customer</option><option value="part">Per part</option><option value="forecast">Per forecast</option></select><select id="mps-summary-month"><option value="">Semua bulan</option></select><select id="mps-summary-forecast"><option value="">Semua forecast</option></select><select id="mps-summary-customer"><option value="">Semua customer</option></select><select id="mps-summary-scope"><option value="">Semua tipe part</option><option value="FG NON-COMP">FG non-COMP</option><option value="NON-COMP">Non-COMP</option><option value="COMP">COMP</option></select></div></div>
+      <div class="table-responsive"><table class="table ppic-table"><thead><tr><th>Bulan</th><th>Forecast</th><th>Customer</th><th>Part</th><th>Jadwal</th><th>Klasifikasi</th><th>MPS</th><th class="ppic-number">Forecast</th><th class="ppic-number">SO</th><th class="ppic-number">Buffer</th><th class="ppic-number">Kebutuhan Plan</th></tr></thead><tbody id="mps-summary-rows"></tbody></table></div><div id="mps-summary-footer" class="ppic-footer"></div>
+    </section>
     <section class="ppic-table-card"><div class="table-responsive"><table class="table ppic-table"><thead id="ppic-head"></thead><tbody id="ppic-rows"></tbody></table></div><div id="ppic-footer" class="ppic-footer"></div></section>
   </section>
 </main>

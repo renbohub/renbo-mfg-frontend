@@ -263,7 +263,17 @@
     const details = Array.isArray(doc.details) ? doc.details : [];
     const isGeneratedProcess = (row) => String(row.notes || "").startsWith("[MRP-PRODUCTION]");
     const receiptDetails = details.filter((row) => !isGeneratedProcess(row));
-    const processDetails = details.filter((row) => isGeneratedProcess(row) && String(row.part?.itemType || "").toUpperCase() !== "FG");
+    const receiptById = new Map(receiptDetails.map((row) => [row.id, row]));
+    const receiptByLegacyKey = new Map(receiptDetails.map((row) => [`${row.customerCode || ""}|${row.partCode}|${number(row.forecastPeriodOffset)}`, row]));
+    const receiptByMonth = new Map(receiptDetails.map((row) => [`${row.customerCode || ""}|${row.partCode}|${monthKey(row.startDate)}`, row]));
+    const processDetails = details.filter((row) => isGeneratedProcess(row) && String(row.part?.itemType || "").toUpperCase() !== "FG").map((row) => {
+      const sourceId = String(row.notes || "").match(/\[MPS-SOURCE:([^\]]+)\]/)?.[1];
+      const sourcePart = String(row.notes || "").match(/;\s*source\s+(.+?)(?:;|$)/i)?.[1]?.trim();
+      const source = receiptById.get(sourceId) || receiptByLegacyKey.get(`${row.customerCode || ""}|${sourcePart || ""}|${number(row.forecastPeriodOffset)}`) || receiptByMonth.get(`${row.customerCode || ""}|${sourcePart || ""}|${monthKey(row.startDate)}`);
+      // Existing child rows predate the explicit source marker.  Fall back to
+      // their parent FG so buffer remains visible without altering history.
+      return source ? { ...row, forecastQty: number(row.forecastQty) || number(source.forecastQty), actualSalesOrderQty: number(row.actualSalesOrderQty) || number(source.actualSalesOrderQty), bufferBaseQty: number(row.bufferBaseQty) || number(source.bufferBaseQty), bufferPercent: number(row.bufferPercent) || number(source.bufferPercent), bufferQty: number(row.bufferQty) || number(source.bufferQty), effectiveDemandQty: number(row.effectiveDemandQty) || number(source.effectiveDemandQty), productionPercent: number(row.productionPercent || 100) } : row;
+    });
     // FG bukan proses, tetapi tetap ditampilkan sebagai receipt agar PPIC dapat
     // melihat Forecast, SO, Buffer, dan target MPS pada satu schedule.
     const allVisibleDetails = [...receiptDetails, ...processDetails];
@@ -318,8 +328,8 @@
           const soCell = salesOrderQty > 0 ? `<div class="ppic-so-reference"><b>${num(salesOrderQty, 2)}</b>${soReferences.map((so) => `<a href="/modules/sales/sales-orders/${encodeURIComponent(so)}">${esc(so)}</a>`).join("")}</div>` : "0";
           const editable = productionLevel === "FG Receipt";
           const bufferScope = first.bufferReferenceScope === "LINE" ? "line" : "parent";
-          const bufferCell = editable ? `<div class="ppic-buffer-editor"><div class="ppic-buffer-control"><input data-mps-buffer type="number" min="0" max="100" step="0.01" value="${esc(bufferPercent.length === 1 ? bufferPercent[0] : 0)}" aria-label="Buffer stock ${esc(first.partCode)}"><span>%</span><select data-mps-buffer-scope aria-label="Scope buffer"><option value="parent" ${bufferScope === "parent" ? "selected" : ""}>Parent FG</option><option value="line" ${bufferScope === "line" ? "selected" : ""}>Per baris</option></select></div><small class="ppic-buffer-source">${items.some((row) => row.bufferOverridden) ? (bufferScope === "parent" ? "Override Parent FG" : "Override per baris") : "Master FG"}</small></div>` : "-";
-          const productionCell = editable ? `<div class="ppic-buffer-editor"><div class="ppic-buffer-control"><input data-mps-production type="number" min="0" max="100" step="0.01" value="${esc(productionPercent.length === 1 ? productionPercent[0] : 100)}" aria-label="Persentase produksi ${esc(first.partCode)}"><span>%</span><button type="button" data-action="save-mps-adjustment" data-mps-number="${esc(doc.mpsNumber)}" data-detail-ids="${esc(detailIds.join(","))}">Simpan</button></div><small class="ppic-buffer-source">Minimum: SO aktual</small></div>` : "-";
+          const bufferCell = editable ? `<div class="ppic-buffer-editor"><div class="ppic-buffer-control"><input data-mps-buffer type="number" min="0" max="100" step="0.01" value="${esc(bufferPercent.length === 1 ? bufferPercent[0] : 0)}" aria-label="Buffer stock ${esc(first.partCode)}"><span>%</span><select data-mps-buffer-scope aria-label="Scope buffer"><option value="parent" ${bufferScope === "parent" ? "selected" : ""}>Parent FG</option><option value="line" ${bufferScope === "line" ? "selected" : ""}>Per baris</option></select></div><small class="ppic-buffer-source">${items.some((row) => row.bufferOverridden) ? (bufferScope === "parent" ? "Override Parent FG" : "Override per baris") : "Master FG"}</small></div>` : `<span>${num(bufferPercent.length === 1 ? bufferPercent[0] : 0, 2)}%</span><small class="ppic-buffer-source">Ikut parent FG</small>`;
+          const productionCell = editable ? `<div class="ppic-buffer-editor"><div class="ppic-buffer-control"><input data-mps-production type="number" min="0" max="100" step="0.01" value="${esc(productionPercent.length === 1 ? productionPercent[0] : 100)}" aria-label="Persentase produksi ${esc(first.partCode)}"><span>%</span><button type="button" data-action="save-mps-adjustment" data-mps-number="${esc(doc.mpsNumber)}" data-detail-ids="${esc(detailIds.join(","))}">Simpan</button></div><small class="ppic-buffer-source">Minimum: SO aktual</small></div>` : `<span>${num(productionPercent.length === 1 ? productionPercent[0] : 100, 2)}%</span><small class="ppic-buffer-source">Ikut parent FG</small>`;
           return `<tr class="ppic-mps-process-row"><td>${badge(productionLevel)}</td><td>${partCell}</td><td>${esc(period(start, end))}</td><td class="ppic-number">${num(forecastQty, 2)}</td><td class="ppic-number ppic-actual-so">${soCell}</td><td>${bufferCell}</td><td class="ppic-number ppic-buffer-qty">${num(bufferQty, 2)}</td><td>${productionCell}</td><td class="ppic-number ppic-plan-qty">${num(totalQty, 2)}</td><td>${esc(first.customerCode)}</td><td class="ppic-number">${num(Math.min(...items.map((row) => number(row.priority) || 1)))}</td><td>${badge(statuses.length === 1 ? statuses[0] : "Mixed")}</td></tr>`;
         });
       },
@@ -443,7 +453,11 @@
         location.href = `/modules/planning-ppic/mrp/${encodeURIComponent(result.runNumber || generated.runNumber)}`;
       } else if (button.dataset.action === "make-production-plan") {
         if (!confirm(`Buat Production Plan dari ${key}? MRP harus sudah Completed.`)) return;
-        const result = await api("/modules/api/planning-ppic/monthly-plan/from-mps", { method: "POST", body: JSON.stringify({ mpsNumber: key }) });
+        const input = window.prompt("Persentase forecast untuk Production Plan (0-100). SO aktual tetap menjadi minimum.", "100");
+        if (input === null) return;
+        const productionPercent = Number(input);
+        if (!Number.isFinite(productionPercent) || productionPercent < 0 || productionPercent > 100) return showAlert("Persentase Production Plan harus antara 0 sampai 100.", "warning");
+        const result = await api("/modules/api/planning-ppic/monthly-plan/from-mps", { method: "POST", body: JSON.stringify({ mpsNumber: key, productionPercent }) });
         const firstPlan = result.items?.[0]?.planNumber;
         location.href = firstPlan ? `/modules/planning-ppic/monthly-plan/${encodeURIComponent(firstPlan)}` : "/modules/planning-ppic/monthly-plan";
       } else if (button.dataset.action === "confirm-production-plan") {
@@ -463,7 +477,7 @@
       } else if (button.dataset.action === "make-mps") {
         if (!confirm(`Buat Draft MPS dari ${key}?`)) return;
         const result = await api("/modules/api/planning-ppic/mps/from-forecast", { method: "POST", body: JSON.stringify({ forecastNumber: key }) });
-        location.href = `/modules/planning-ppic/mps/${encodeURIComponent(result.mpsNumber)}`;
+        location.href = result.items?.length > 1 ? "/modules/planning-ppic/mps" : `/modules/planning-ppic/mps/${encodeURIComponent(result.mpsNumber)}`;
       }
     } catch (error) { showAlert(error.message); }
     finally { button.disabled = false; }
