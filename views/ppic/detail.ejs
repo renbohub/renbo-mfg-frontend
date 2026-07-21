@@ -1,8 +1,7 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
 <nav class="ppic-subnav" aria-label="Navigasi PPIC"><div class="app-container ppic-subnav-inner">
-  <% const ppicTabs = [['mrp','MRP'],['mps','MPS'],['monthly-plan','Monthly Plan'],['consume-forecast','Consume Forecast'],['capacity-planning','Capacity Planning']]; %>
-  <% ppicTabs.forEach(([slug,label]) => { %><a class="<%= activePpicTab === slug ? 'active' : '' %>" href="/modules/planning-ppic/<%= slug %>"><%= label %></a><% }) %>
+  <a href="/modules/planning-ppic/mrp/general">MRP General</a><a class="<%= activePpicTab === 'mrp' ? 'active' : '' %>" href="/modules/planning-ppic/mrp">MRP Header</a><a href="/modules/planning-ppic/mps/general">MPS General</a><a class="<%= activePpicTab === 'mps' ? 'active' : '' %>" href="/modules/planning-ppic/mps">MPS Header</a><a class="<%= activePpicTab === 'monthly-plan' ? 'active' : '' %>" href="/modules/planning-ppic/monthly-plan">Monthly Plan</a><a class="<%= activePpicTab === 'consume-forecast' ? 'active' : '' %>" href="/modules/planning-ppic/consume-forecast">Consume Forecast</a><a class="<%= activePpicTab === 'capacity-planning' ? 'active' : '' %>" href="/modules/planning-ppic/capacity-planning">Capacity Planning</a>
 </div></nav>
 <main class="ppic-page ppic-detail-page">
   <section class="ppic-detail-toolbar">

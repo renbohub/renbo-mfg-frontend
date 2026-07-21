@@ -58,6 +58,7 @@ router.get("/api/sales/:page/generate-number", (req, res) => {
 });
 router.get("/api/planning-ppic/mrp/generate-number", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "GET", "/generate-number"));
 router.get("/api/planning-ppic/mps/monthly-summary", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "GET", "/monthly-summary"));
+router.get("/api/planning-ppic/mrp/general-summary", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "GET", "/general-summary"));
 router.get("/api/planning-ppic/capacity-planning", async (req, res) => {
   try {
     const url = new URL(`${backendUrl}/api/planning/capacity-planning`);
@@ -186,6 +187,11 @@ function renderPpic(res, tab = "mrp") {
   if (tab === "capacity-planning") return res.render("ppic/capacity", { title: ppicTabs[tab], module, activePpicTab: tab, pageScript: "/js/ppic-capacity.js", ...common(module.slug) });
   return res.render("ppic/dashboard", { title: ppicTabs[tab], module, activePpicTab: tab, pageScript: "/js/ppic-dashboard.js", ...common(module.slug) });
 }
+function renderPpicGeneral(res, tab) {
+  const module = getModule("planning-ppic");
+  if (!["mrp", "mps"].includes(tab)) return res.status(404).render("errors/404", { title: "Menu PPIC tidak ditemukan" });
+  return res.render("ppic/general", { title: `${tab.toUpperCase()} General`, module, activePpicTab: tab, pageScript: "/js/ppic-general.js", ...common(module.slug) });
+}
 function renderPpicDetail(res, req) {
   const module = getModule("planning-ppic");
   const tab = { "material-requirements-planning": "mrp", "master-production-schedule": "mps" }[req.params.tab] || req.params.tab;
@@ -194,6 +200,8 @@ function renderPpicDetail(res, req) {
   return res.render("ppic/detail", { title: `${ppicTabs[tab]} Detail`, module, activePpicTab: tab, recordKey: req.params.key, pageScript: "/js/ppic-detail.js", ...common(module.slug) });
 }
 router.get("/planning-ppic", (_req, res) => renderPpic(res, "mrp"));
+router.get("/planning-ppic/mrp/general", (_req, res) => renderPpicGeneral(res, "mrp"));
+router.get("/planning-ppic/mps/general", (_req, res) => renderPpicGeneral(res, "mps"));
 router.get("/planning-ppic/:tab/:key", (req, res) => renderPpicDetail(res, req));
 router.get("/planning-ppic/:tab", (req, res) => renderPpic(res, req.params.tab));
 

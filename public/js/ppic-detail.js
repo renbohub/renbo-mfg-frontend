@@ -81,7 +81,16 @@
       for (const [value, child] of [...branch.entries()].filter(([key]) => key !== "__items").sort(([a], [b]) => String(a).localeCompare(String(b)))) {
         const group = grouping[level]; const isLast = level === grouping.length - 1; const count = countItems(child); const nextContext = { ...context, [group]: value };
         rows.push(`<tr class="ppic-group-row ${esc(group)}" data-group-level="${level + 1}"><td colspan="${options.colSpan}">${isLast ? `<button type="button" class="ppic-group-toggle" data-action="toggle-ppic-group"><i class="ppic-group-caret">⌄</i><span class="ppic-group-label">${esc(labels[group])}</span><b>${esc(value)}</b><em>${num(count)} baris</em></button>` : `<div class="ppic-group-static"><span class="ppic-group-label">${esc(labels[group])}</span><b>${esc(value)}</b><em>${num(count)} baris</em></div>`}</td></tr>`);
-        if (isLast) rows.push(...options.renderItems(child.get("__items") || [], nextContext)); else visit(child, level + 1, nextContext);
+        if (isLast) {
+          const leafItems = child.get("__items") || [];
+          if (group === "part" && typeof options.planPartLabelFor === "function") {
+            const label = options.planPartLabelFor(value, leafItems);
+            const display = typeof options.planPartDisplay === "function" ? options.planPartDisplay(value, leafItems) : { code: value, name: "" };
+            const lastRow = rows.at(-1);
+            if (lastRow && label) rows[rows.length - 1] = lastRow.replace('class="ppic-group-label">Finished Good', `class="ppic-group-label">${esc(label)}`).replace("</b><em>", `${display.name ? `<small class="ppic-cell-sub">${esc(display.name)}</small>` : ""}</b><em>`);
+          }
+          rows.push(...options.renderItems(leafItems, nextContext));
+        } else visit(child, level + 1, nextContext);
       }
     };
     visit(root, 0); return rows;
@@ -115,7 +124,9 @@
           if (options.renderPlanPartRow) {
             rows.push(options.renderPlanPartRow(planPart, group));
           } else if (!options.planPartInItems) {
-            rows.push(`<tr class="ppic-group-row part" data-group-level="3"><td colspan="${options.colSpan}"><button type="button" class="ppic-group-toggle" data-action="toggle-ppic-group" aria-expanded="true"><i class="ppic-group-caret">⌄</i><span class="ppic-group-label">${esc(options.planPartLabel || "Finished Good")}</span><b>${esc(planPart)}</b><em>${num(group.length)} baris</em></button></td></tr>`);
+            const label = typeof options.planPartLabelFor === "function" ? options.planPartLabelFor(planPart, group) : (options.planPartLabel || "Finished Good");
+            const display = typeof options.planPartDisplay === "function" ? options.planPartDisplay(planPart, group) : { code: planPart, name: "" };
+            rows.push(`<tr class="ppic-group-row part" data-group-level="3"><td colspan="${options.colSpan}"><button type="button" class="ppic-group-toggle" data-action="toggle-ppic-group" aria-expanded="true"><i class="ppic-group-caret">⌄</i><span class="ppic-group-label">${esc(label)}</span><b>${esc(display.code)}</b>${display.name ? `<small class="ppic-cell-sub">${esc(display.name)}</small>` : ""}<em>${num(group.length)} baris</em></button></td></tr>`);
           }
           rows.push(...options.renderItems(group, { planPart }));
         }
@@ -211,7 +222,9 @@
       customer: (row) => row.planningCustomerCode,
       month: (row) => row.planningMonth || row.requiredDate,
       planPart: (row) => row.planningPartCode,
-      planPartInItems: true,
+      planPartLabelFor: (value, rows) => String(rows[0]?.planningPartItemType || "").toUpperCase() === "FG" ? "Finished Good" : "Part",
+      planPartDisplay: (value, rows) => ({ code: value, name: rows[0]?.planningPartName || rows[0]?.planningPartNumber || "" }),
+      planPartInItems: false,
       renderItems: (group) => {
         const aggregate = new Map();
         for (const row of group) {
@@ -284,10 +297,22 @@
     const customerCount = new Set(details.map((row) => row.customerCode || "Tanpa Customer")).size;
     const monthCount = new Set(receiptDetails.map((row) => monthKey(row.startDate))).size;
     const childCount = processDetails.length;
-    const finishedGoodCode = (row) => {
-      const generatedSource = String(row.notes || "").match(/;\s*source\s+(.+?)\s*$/i)?.[1];
-      return generatedSource?.trim() || row.partCode;
+    const isFinishedGood = (row) => String(row?.part?.itemType || row?.itemType || "").trim().toUpperCase() === "FG";
+    const sourceFinishedGood = (row) => {
+      const sourceId = String(row.notes || "").match(/\[MPS-SOURCE:([^\]]+)\]/)?.[1];
+      const generatedSource = String(row.notes || "").match(/;\s*source\s+(.+?)(?:;|$)/i)?.[1]?.trim();
+      const direct = sourceId && receiptById.get(sourceId);
+      const candidates = generatedSource ? receiptDetails.filter((item) => String(item.partCode || "").trim() === generatedSource && (!row.customerCode || !item.customerCode || String(item.customerCode) === String(row.customerCode))) : [];
+      const source = direct || candidates.sort((left, right) => Math.abs(new Date(left.startDate).getTime() - new Date(row.startDate).getTime()) - Math.abs(new Date(right.startDate).getTime() - new Date(row.startDate).getTime()))[0];
+      return source && isFinishedGood(source) ? source : null;
     };
+    const planPartRow = (row) => {
+      const source = sourceFinishedGood(row);
+      const part = source || row;
+      return { code: part.partCode || "Tanpa Part", name: part.part?.partName || part.part?.partNumber || "", label: isFinishedGood(part) ? "Finished Good" : "Part" };
+    };
+    const finishedGoodCode = (row) => planPartRow(row).code;
+    const finishedGoodName = (row) => planPartRow(row).name;
     const sourceFinishedGoods = new Map(receiptDetails.map((row) => [
       `${row.customerCode || "Tanpa Customer"}|${row.partCode}|${number(row.forecastPeriodOffset)}`,
       row,
@@ -302,6 +327,8 @@
       month: finishedGoodMonth,
       planPart: finishedGoodCode,
       planPartLabel: "Finished Good",
+      planPartLabelFor: (value, rows) => planPartRow(rows[0] || {}).label,
+      planPartDisplay: (value, rows) => ({ code: value, name: finishedGoodName(rows[0] || {}) }),
       planPartInItems: true,
       renderItems: (group) => {
         const partGroups = new Map();
@@ -322,7 +349,8 @@
           const start = items.reduce((value, row) => !value || new Date(row.startDate) < new Date(value) ? row.startDate : value, null);
           const end = items.reduce((value, row) => !value || new Date(row.endDate) > new Date(value) ? row.endDate : value, null);
           const statuses = [...new Set(items.map((row) => row.status || "Planned"))];
-          const partCell = `<b>${esc(first.partCode)}</b><small class="ppic-cell-sub">${esc(first.part?.partName || first.part?.partNumber || "-")}</small>`;
+          const partCodeCell = `<b>${esc(first.partCode || "-")}</b>`;
+          const partNameCell = esc(first.part?.partName || first.part?.partNumber || "-");
           const bufferLabel = productionLevel === "FG Receipt" ? `${num(bufferPercent.length === 1 ? bufferPercent[0] : 0, 2)}%` : "-";
           const soReferences = [...new Set(items.flatMap((row) => String(row.soNumber || "").split(",")).map((value) => value.trim()).filter(Boolean))];
           const soCell = salesOrderQty > 0 ? `<div class="ppic-so-reference"><b>${num(salesOrderQty, 2)}</b>${soReferences.map((so) => `<a href="/modules/sales/sales-orders/${encodeURIComponent(so)}">${esc(so)}</a>`).join("")}</div>` : "0";
@@ -330,7 +358,7 @@
           const bufferScope = first.bufferReferenceScope === "LINE" ? "line" : "parent";
           const bufferCell = editable ? `<div class="ppic-buffer-editor"><div class="ppic-buffer-control"><input data-mps-buffer type="number" min="0" max="100" step="0.01" value="${esc(bufferPercent.length === 1 ? bufferPercent[0] : 0)}" aria-label="Buffer stock ${esc(first.partCode)}"><span>%</span><select data-mps-buffer-scope aria-label="Scope buffer"><option value="parent" ${bufferScope === "parent" ? "selected" : ""}>Parent FG</option><option value="line" ${bufferScope === "line" ? "selected" : ""}>Per baris</option></select></div><small class="ppic-buffer-source">${items.some((row) => row.bufferOverridden) ? (bufferScope === "parent" ? "Override Parent FG" : "Override per baris") : "Master FG"}</small></div>` : `<span>${num(bufferPercent.length === 1 ? bufferPercent[0] : 0, 2)}%</span><small class="ppic-buffer-source">Ikut parent FG</small>`;
           const productionCell = editable ? `<div class="ppic-buffer-editor"><div class="ppic-buffer-control"><input data-mps-production type="number" min="0" max="100" step="0.01" value="${esc(productionPercent.length === 1 ? productionPercent[0] : 100)}" aria-label="Persentase produksi ${esc(first.partCode)}"><span>%</span><button type="button" data-action="save-mps-adjustment" data-mps-number="${esc(doc.mpsNumber)}" data-detail-ids="${esc(detailIds.join(","))}">Simpan</button></div><small class="ppic-buffer-source">Minimum: SO aktual</small></div>` : `<span>${num(productionPercent.length === 1 ? productionPercent[0] : 100, 2)}%</span><small class="ppic-buffer-source">Ikut parent FG</small>`;
-          return `<tr class="ppic-mps-process-row"><td>${badge(productionLevel)}</td><td>${partCell}</td><td>${esc(period(start, end))}</td><td class="ppic-number">${num(forecastQty, 2)}</td><td class="ppic-number ppic-actual-so">${soCell}</td><td>${bufferCell}</td><td class="ppic-number ppic-buffer-qty">${num(bufferQty, 2)}</td><td>${productionCell}</td><td class="ppic-number ppic-plan-qty">${num(totalQty, 2)}</td><td>${esc(first.customerCode)}</td><td class="ppic-number">${num(Math.min(...items.map((row) => number(row.priority) || 1)))}</td><td>${badge(statuses.length === 1 ? statuses[0] : "Mixed")}</td></tr>`;
+          return `<tr class="ppic-mps-process-row"><td>${badge(productionLevel)}</td><td>${partCodeCell}</td><td>${partNameCell}</td><td>${esc(period(start, end))}</td><td class="ppic-number">${num(forecastQty, 2)}</td><td class="ppic-number ppic-actual-so">${soCell}</td><td>${bufferCell}</td><td class="ppic-number ppic-buffer-qty">${num(bufferQty, 2)}</td><td>${productionCell}</td><td class="ppic-number ppic-plan-qty">${num(totalQty, 2)}</td><td>${esc(first.customerCode)}</td><td class="ppic-number">${num(Math.min(...items.map((row) => number(row.priority) || 1)))}</td><td>${badge(statuses.length === 1 ? statuses[0] : "Mixed")}</td></tr>`;
         });
       },
     });
@@ -338,7 +366,7 @@
     const productionLinks = productionPlans.length ? productionPlans.map((plan) => `<a href="/modules/planning-ppic/monthly-plan/${encodeURIComponent(plan.planNumber)}">${esc(plan.planNumber)} (${num(plan._count?.details)} baris)</a>`).join("<br>") : "<strong>-</strong>";
     setInfo("Informasi MPS", [["MPS ID", doc.mpsNumber], ["Produk Utama", primaryPart], ["Sumber Forecast", doc.forecastNumber || "-"], ["Horizon Perencanaan", period(doc.periodStart, doc.periodEnd)], ["Output Production Planning", productionLinks, true], ["Status Dokumen", badge(doc.status), true]]);
     const totalBufferQty = receiptDetails.reduce((sum, row) => sum + number(row.bufferQty), 0);
-    setTable("FG Receipt & Child / SFG Process Schedule", ["Tipe", "Part / Produk", "Periode / Schedule", "Forecast", "Actual SO", "Buffer %", "Buffer Qty", "Produksi %", "Target MPS", "Customer", "Prioritas", "Status"], groupedRows);
+    setTable("FG Receipt & Child / SFG Process Schedule", ["Tipe", "Part Code", "Part Name", "Periode / Schedule", "Forecast", "Actual SO", "Buffer %", "Buffer Qty", "Produksi %", "Target MPS", "Customer", "Prioritas", "Status"], groupedRows);
     setSummary("Kalkulasi Rencana Produksi", [["Target FG Receipt", num(qty, 2)], ["Buffer Stock MPS", num(totalBufferQty, 2)], ["Production Planning", `${num((doc.productionPlans || []).length)} plan`], ["Jumlah Customer", num(customerCount)], ["Jumlah Bulan", num(monthCount)], ["Child / SFG Process", `${num(childCount)} baris`], ["Jumlah Part", `${num(partCount)} part`], ["MBOM Process", `${num(mbomCount)} baris`]], "FG hanya menjadi target receipt, bukan proses. Buffer MPS bulan A = Buffer % master FG × forecast bulan A+1. Demand MRP tetap memakai nilai terbesar antara Forecast + Buffer dan SO aktual.");
     renderWorkflow(doc, baseWorkflow(doc, "Production Release"), ["DRAFT", "PLANNER", "PPIC", String(doc.status || "DRAFT").toUpperCase()]);
   }

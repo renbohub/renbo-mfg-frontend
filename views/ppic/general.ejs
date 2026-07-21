@@ -1,0 +1,13 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<nav class="ppic-subnav" aria-label="Navigasi PPIC"><div class="app-container ppic-subnav-inner">
+  <a href="/modules/planning-ppic/mrp/general">MRP General</a><a href="/modules/planning-ppic/mrp">MRP Header</a><a href="/modules/planning-ppic/mps/general">MPS General</a><a href="/modules/planning-ppic/mps">MPS Header</a><a href="/modules/planning-ppic/monthly-plan">Monthly Plan</a><a href="/modules/planning-ppic/consume-forecast">Consume Forecast</a><a href="/modules/planning-ppic/capacity-planning">Capacity Planning</a>
+</div></nav>
+<main class="ppic-page">
+  <section class="ppic-toolbar app-container"><div class="ppic-breadcrumb"><span>PPIC</span><i>/</i><b id="ppic-general-breadcrumb"><%= title %></b></div><div class="ppic-actions"><a class="btn btn-outline-secondary" href="/modules/planning-ppic/<%= activePpicTab %>">Lihat Header</a></div></section>
+  <section class="ppic-content app-container"><div id="ppic-general-alert" class="alert d-none"></div><div class="ppic-heading"><h1 id="ppic-general-title"></h1><p id="ppic-general-subtitle"></p></div>
+    <section class="ppic-table-card"><div class="ppic-table-card-head"><h2 id="ppic-general-table-title">General Summary</h2><div id="ppic-general-filters" class="ppic-table-filters"></div></div><div class="table-responsive"><table class="table ppic-table"><thead id="ppic-general-head"></thead><tbody id="ppic-general-rows"></tbody></table></div><div id="ppic-general-footer" class="ppic-footer"></div></section>
+  </section>
+</main>
+<script id="ppic-general-config" type="application/json"><%- JSON.stringify({ activeTab: activePpicTab }).replace(/</g, '\u003c') %></script>
+<%- include('../partials/footer') %>

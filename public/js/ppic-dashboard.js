@@ -41,13 +41,14 @@
     const aggregate = new Map();
     for (const row of filtered) {
       const key = group === "customer" ? `${row.month}|${row.customerCode}` : group === "part" ? `${row.month}|${row.partCode}` : group === "forecast" ? `${row.month}|${row.forecastNumber}` : `${row.month}|${row.forecastNumber}|${row.customerCode}|${row.partCode}|${row.scheduleType}|${row.itemScope}`;
-      const item = aggregate.get(key) || { ...row, forecasts: new Set(), customers: new Set(), parts: new Set(), schedules: new Set(), scopes: new Set(), mps: new Set(), forecastQty: 0, actualSalesOrderQty: 0, bufferQty: 0, qtyPlanned: 0 };
+      const item = aggregate.get(key) || { ...row, forecasts: new Set(), customers: new Set(), parts: new Set(), partCodes: new Set(), partNames: new Set(), schedules: new Set(), scopes: new Set(), mps: new Set(), forecastQty: 0, actualSalesOrderQty: 0, bufferQty: 0, qtyPlanned: 0 };
       item.forecasts.add(row.forecastNumber); item.customers.add(row.customerCode); item.parts.add(`${row.partCode}${row.partName ? ` — ${row.partName}` : ""}`); item.schedules.add(row.scheduleType); item.scopes.add(row.itemScope); row.mpsNumbers.forEach((value) => item.mps.add(value));
+      item.partCodes.add(row.partCode); if (row.partName) item.partNames.add(row.partName);
       item.forecastQty += Number(row.forecastQty || 0); item.actualSalesOrderQty += Number(row.actualSalesOrderQty || 0); item.bufferQty += Number(row.bufferQty || 0); item.qtyPlanned += Number(row.qtyPlanned || 0); aggregate.set(key, item);
     }
     const compact = (values) => [...values].join(", ");
-    const items = [...aggregate.values()].sort((left, right) => `${left.month}|${compact(left.forecasts)}|${compact(left.customers)}|${compact(left.parts)}`.localeCompare(`${right.month}|${compact(right.forecasts)}|${compact(right.customers)}|${compact(right.parts)}`));
-    $("mps-summary-rows").innerHTML = items.map((row) => `<tr><td>${esc(row.month)}</td><td>${esc(compact(row.forecasts))}</td><td>${esc(compact(row.customers))}</td><td>${esc(compact(row.parts))}</td><td>${esc(compact(row.schedules))}</td><td>${esc(compact(row.scopes))}</td><td>${esc(compact(row.mps))}</td><td class="ppic-number">${num(row.forecastQty)}</td><td class="ppic-number">${num(row.actualSalesOrderQty)}</td><td class="ppic-number">${num(row.bufferQty)}</td><td class="ppic-number"><b>${num(row.qtyPlanned)}</b></td></tr>`).join("") || '<tr><td colspan="11" class="ppic-empty">Tidak ada kebutuhan untuk filter yang dipilih</td></tr>';
+    const items = [...aggregate.values()].sort((left, right) => `${left.month}|${compact(left.forecasts)}|${compact(left.customers)}|${compact(left.partCodes)}`.localeCompare(`${right.month}|${compact(right.forecasts)}|${compact(right.customers)}|${compact(right.partCodes)}`));
+    $("mps-summary-rows").innerHTML = items.map((row) => `<tr><td>${esc(row.month)}</td><td>${esc(compact(row.forecasts))}</td><td>${esc(compact(row.customers))}</td><td>${esc(compact(row.partCodes))}</td><td>${esc(compact(row.partNames))}</td><td>${esc(compact(row.schedules))}</td><td>${esc(compact(row.scopes))}</td><td>${esc(compact(row.mps))}</td><td class="ppic-number">${num(row.forecastQty)}</td><td class="ppic-number">${num(row.actualSalesOrderQty)}</td><td class="ppic-number">${num(row.bufferQty)}</td><td class="ppic-number"><b>${num(row.qtyPlanned)}</b></td></tr>`).join("") || '<tr><td colspan="12" class="ppic-empty">Tidak ada kebutuhan untuk filter yang dipilih</td></tr>';
     $("mps-summary-footer").innerHTML = `Menampilkan <b>${items.length}</b> ringkasan kebutuhan bulanan dari <b>${filtered.length}</b> baris MPS.`;
   }
   async function loadMonthlySummary() {
@@ -77,7 +78,7 @@
     $("ppic-footer").innerHTML = `Menampilkan <b>${visible.length}</b> dari <b>${rows.length}</b> data`;
   }
   async function load() {
-    try { rows = await api(config.url); await loadMonthlySummary(); $("ppic-title").textContent = config.title; $("ppic-subtitle").textContent = config.subtitle; $("ppic-primary").textContent = config.primary; render(); $("ppic-alert").classList.add("d-none"); }
+    try { rows = await api(config.url); $("ppic-title").textContent = config.title; $("ppic-subtitle").textContent = config.subtitle; $("ppic-primary").textContent = config.primary; render(); $("ppic-alert").classList.add("d-none"); }
     catch (error) { showAlert(error.message); }
   }
   $("ppic-search").addEventListener("input", render);
