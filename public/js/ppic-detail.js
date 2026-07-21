@@ -276,13 +276,29 @@
     const details = Array.isArray(doc.details) ? doc.details : [];
     const isGeneratedProcess = (row) => String(row.notes || "").startsWith("[MRP-PRODUCTION]");
     const receiptDetails = details.filter((row) => !isGeneratedProcess(row));
+    // Legacy MPS headers may contain multiple forecast periods while all rows
+    // retain the header's periodStart. Use the stored forecast offset to keep
+    // the month grouping accurate without rewriting historical data.
+    const scheduleDate = (row) => {
+      const base = new Date(row.startDate || doc.periodStart);
+      const offset = number(row.forecastPeriodOffset);
+      if (!Number.isFinite(base.getTime()) || offset <= 1) return row.startDate || doc.periodStart;
+      return new Date(base.getFullYear(), base.getMonth() + offset - 1, 1).toISOString();
+    };
+    const scheduleMonthKey = (row) => monthKey(scheduleDate(row));
+    const scheduleEndDate = (row) => {
+      const start = new Date(scheduleDate(row));
+      return new Date(start.getFullYear(), start.getMonth() + 1, 0).toISOString();
+    };
     const receiptById = new Map(receiptDetails.map((row) => [row.id, row]));
     const receiptByLegacyKey = new Map(receiptDetails.map((row) => [`${row.customerCode || ""}|${row.partCode}|${number(row.forecastPeriodOffset)}`, row]));
-    const receiptByMonth = new Map(receiptDetails.map((row) => [`${row.customerCode || ""}|${row.partCode}|${monthKey(row.startDate)}`, row]));
+    const receiptByMonth = new Map(receiptDetails.map((row) => [`${row.customerCode || ""}|${row.partCode}|${scheduleMonthKey(row)}`, row]));
+    const receiptByCustomerOffset = new Map();
+    receiptDetails.forEach((row) => receiptByCustomerOffset.set(`${row.customerCode || ""}|${number(row.forecastPeriodOffset)}`, row));
     const processDetails = details.filter((row) => isGeneratedProcess(row) && String(row.part?.itemType || "").toUpperCase() !== "FG").map((row) => {
       const sourceId = String(row.notes || "").match(/\[MPS-SOURCE:([^\]]+)\]/)?.[1];
       const sourcePart = String(row.notes || "").match(/;\s*source\s+(.+?)(?:;|$)/i)?.[1]?.trim();
-      const source = receiptById.get(sourceId) || receiptByLegacyKey.get(`${row.customerCode || ""}|${sourcePart || ""}|${number(row.forecastPeriodOffset)}`) || receiptByMonth.get(`${row.customerCode || ""}|${sourcePart || ""}|${monthKey(row.startDate)}`);
+      const source = receiptById.get(sourceId) || receiptByLegacyKey.get(`${row.customerCode || ""}|${sourcePart || ""}|${number(row.forecastPeriodOffset)}`) || receiptByMonth.get(`${row.customerCode || ""}|${sourcePart || ""}|${scheduleMonthKey(row)}`) || receiptByCustomerOffset.get(`${row.customerCode || ""}|${number(row.forecastPeriodOffset)}`);
       // Existing child rows predate the explicit source marker.  Fall back to
       // their parent FG so buffer remains visible without altering history.
       return source ? { ...row, forecastQty: number(row.forecastQty) || number(source.forecastQty), actualSalesOrderQty: number(row.actualSalesOrderQty) || number(source.actualSalesOrderQty), bufferBaseQty: number(row.bufferBaseQty) || number(source.bufferBaseQty), bufferPercent: number(row.bufferPercent) || number(source.bufferPercent), bufferQty: number(row.bufferQty) || number(source.bufferQty), effectiveDemandQty: number(row.effectiveDemandQty) || number(source.effectiveDemandQty), productionPercent: number(row.productionPercent || 100) } : row;
@@ -295,7 +311,7 @@
     const primaryPart = receiptDetails[0]?.part?.partName || receiptDetails[0]?.partCode || "-";
     const mbomCount = processDetails.filter((row) => row.mbomHeaderId || row.mbom).length;
     const customerCount = new Set(details.map((row) => row.customerCode || "Tanpa Customer")).size;
-    const monthCount = new Set(receiptDetails.map((row) => monthKey(row.startDate))).size;
+    const monthCount = new Set(receiptDetails.map(scheduleMonthKey)).size;
     const childCount = processDetails.length;
     const isFinishedGood = (row) => String(row?.part?.itemType || row?.itemType || "").trim().toUpperCase() === "FG";
     const sourceFinishedGood = (row) => {
@@ -319,7 +335,7 @@
     ]));
     const finishedGoodMonth = (row) => sourceFinishedGoods.get(
       `${row.customerCode || "Tanpa Customer"}|${finishedGoodCode(row)}|${number(row.forecastPeriodOffset)}`,
-    )?.startDate || row.startDate;
+    ) ? scheduleDate(sourceFinishedGoods.get(`${row.customerCode || "Tanpa Customer"}|${finishedGoodCode(row)}|${number(row.forecastPeriodOffset)}`)) : scheduleDate(row);
     const visibleDetails = preparePlanningView(allVisibleDetails, { customer: (row) => row.customerCode, month: (row) => finishedGoodMonth(row), part: (row) => finishedGoodCode(row) });
     const groupedRows = groupedPlanningRows(visibleDetails, {
       colSpan: 12,
@@ -346,8 +362,8 @@
           const bufferQty = items.reduce((sum, row) => sum + number(row.bufferQty), 0);
           const bufferPercent = [...new Set(items.map((row) => number(row.bufferPercent)))];
           const productionPercent = [...new Set(items.map((row) => number(row.productionPercent ?? 100)))];
-          const start = items.reduce((value, row) => !value || new Date(row.startDate) < new Date(value) ? row.startDate : value, null);
-          const end = items.reduce((value, row) => !value || new Date(row.endDate) > new Date(value) ? row.endDate : value, null);
+          const start = items.reduce((value, row) => !value || new Date(scheduleDate(row)) < new Date(value) ? scheduleDate(row) : value, null);
+          const end = items.reduce((value, row) => !value || new Date(scheduleEndDate(row)) > new Date(value) ? scheduleEndDate(row) : value, null);
           const statuses = [...new Set(items.map((row) => row.status || "Planned"))];
           const partCodeCell = `<b>${esc(first.partCode || "-")}</b>`;
           const partNameCell = esc(first.part?.partName || first.part?.partNumber || "-");
@@ -364,7 +380,10 @@
     });
     const productionPlans = doc.productionPlans || [];
     const productionLinks = productionPlans.length ? productionPlans.map((plan) => `<a href="/modules/planning-ppic/monthly-plan/${encodeURIComponent(plan.planNumber)}">${esc(plan.planNumber)} (${num(plan._count?.details)} baris)</a>`).join("<br>") : "<strong>-</strong>";
-    setInfo("Informasi MPS", [["MPS ID", doc.mpsNumber], ["Produk Utama", primaryPart], ["Sumber Forecast", doc.forecastNumber || "-"], ["Horizon Perencanaan", period(doc.periodStart, doc.periodEnd)], ["Output Production Planning", productionLinks, true], ["Status Dokumen", badge(doc.status), true]]);
+    const horizonRows = [...receiptDetails, ...processDetails];
+    const horizonStart = horizonRows.reduce((value, row) => !value || new Date(scheduleDate(row)) < new Date(value) ? scheduleDate(row) : value, null) || doc.periodStart;
+    const horizonEnd = horizonRows.reduce((value, row) => !value || new Date(scheduleEndDate(row)) > new Date(value) ? scheduleEndDate(row) : value, null) || doc.periodEnd;
+    setInfo("Informasi MPS", [["MPS ID", doc.mpsNumber], ["Produk Utama", primaryPart], ["Sumber Forecast", doc.forecastNumber || "-"], ["Horizon Perencanaan", period(horizonStart, horizonEnd)], ["Output Production Planning", productionLinks, true], ["Status Dokumen", badge(doc.status), true]]);
     const totalBufferQty = receiptDetails.reduce((sum, row) => sum + number(row.bufferQty), 0);
     setTable("FG Receipt & Child / SFG Process Schedule", ["Tipe", "Part Code", "Part Name", "Periode / Schedule", "Forecast", "Actual SO", "Buffer %", "Buffer Qty", "Produksi %", "Target MPS", "Customer", "Prioritas", "Status"], groupedRows);
     setSummary("Kalkulasi Rencana Produksi", [["Target FG Receipt", num(qty, 2)], ["Buffer Stock MPS", num(totalBufferQty, 2)], ["Production Planning", `${num((doc.productionPlans || []).length)} plan`], ["Jumlah Customer", num(customerCount)], ["Jumlah Bulan", num(monthCount)], ["Child / SFG Process", `${num(childCount)} baris`], ["Jumlah Part", `${num(partCount)} part`], ["MBOM Process", `${num(mbomCount)} baris`]], "FG hanya menjadi target receipt, bukan proses. Buffer MPS bulan A = Buffer % master FG × forecast bulan A+1. Demand MRP tetap memakai nilai terbesar antara Forecast + Buffer dan SO aktual.");
