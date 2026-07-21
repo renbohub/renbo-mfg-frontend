@@ -1,0 +1,13 @@
+/* Keep each planning field visually separated for wide MPS/MRP tables. */
+.ppic-detail-table th + th,
+.ppic-detail-table td + td {
+  border-left: 1px solid #eef0f4;
+}
+.ppic-detail-table th:first-child,
+.ppic-detail-table td:first-child {
+  border-left: 1px solid #eef0f4;
+}
+.ppic-detail-table th:last-child,
+.ppic-detail-table td:last-child {
+  border-right: 1px solid #eef0f4;
+}
