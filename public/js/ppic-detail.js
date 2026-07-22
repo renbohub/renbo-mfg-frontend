@@ -384,7 +384,10 @@
           const statuses = [...new Set(items.map((row) => row.status || "Planned"))];
           const partCodeCell = `<b>${esc(first.partCode || "-")}</b>`;
           const partNameCell = esc(first.part?.partName || first.part?.partNumber || "-");
-          const processCell = esc(first.part?.process?.processName || first.part?.process?.processCode || first.processName || "-");
+          const processPath = Array.isArray(first.processPath) ? first.processPath : [];
+          const processCell = processPath.length
+            ? processPath.map((item, index) => `${esc(item.name || "Process")}-${index + 1}`).join(" → ")
+            : esc(first.part?.process?.processName || first.part?.process?.processCode || first.processName || "-");
           const bufferLabel = productionLevel === "FG Receipt" ? `${num(bufferPercent.length === 1 ? bufferPercent[0] : 0, 2)}%` : "-";
           const soReferences = [...new Set(items.flatMap((row) => String(row.soNumber || "").split(",")).map((value) => value.trim()).filter(Boolean))];
           const soCell = salesOrderQty > 0 ? `<div class="ppic-so-reference"><b>${num(salesOrderQty, 2)}</b>${soReferences.map((so) => `<a href="/modules/sales/sales-orders/${encodeURIComponent(so)}">${esc(so)}</a>`).join("")}</div>` : "0";
