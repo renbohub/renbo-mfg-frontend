@@ -41,6 +41,8 @@
     $("capacity-stat-load").textContent = hours(summary.totalLoadMinutes);
     $("capacity-stat-utilization").textContent = `Utilization ${num(summary.utilizationPercent, 1)}% · Firm ${hours(summary.totalFirmMinutes)} · Proposed ${hours(summary.totalProposedMinutes)}`;
     $("capacity-stat-overload").textContent = `${num(summary.overloadedCells)} / ${num(summary.unscheduledCount)}`;
+    const selectedPlan = plans.find((plan) => plan.planNumber === $("capacity-plan").value);
+    $("capacity-override").classList.toggle("d-none", !selectedPlan || !snapshot.readiness.overridableCount || selectedPlan.capacityOverrideApproved === true);
     $("capacity-stat-readiness").textContent = `${num(snapshot.readiness.blockingCount)} blocker · ${num(snapshot.readiness.warningCount)} warning`;
   }
   function renderHeatmap() {
@@ -86,6 +88,7 @@
     } catch (error) { $("capacity-loading").classList.add("d-none"); alert(error.message); }
   }
   $("capacity-refresh").addEventListener("click", load);
+  $("capacity-override").addEventListener("click", async () => { const planNumber = $("capacity-plan").value; if (!planNumber) return; const reason = prompt("Jelaskan alasan override capacity (minimal 10 karakter):", "Urgent customer demand; overload akan dijadwalkan ulang oleh PPIC."); if (!reason || reason.trim().length < 10) return; try { await api(`/modules/api/planning-ppic/monthly-plan/${encodeURIComponent(planNumber)}/capacity-override`, { method: "POST", body: JSON.stringify({ reason }) }); alert("Override diproses melalui Approval Master.", "success"); await loadPlans(); await load(); } catch (error) { alert(error.message); } });
   $("capacity-plan").addEventListener("change", function () { const plan = plans.find((row) => row.planNumber === this.value); if (plan) { $("capacity-start").value = String(plan.periodStart).slice(0, 10); $("capacity-end").value = String(plan.periodEnd).slice(0, 10); } load(); });
   document.addEventListener("click", (event) => { const cell = event.target.closest("[data-machine][data-date]"); if (cell) renderCell(cell.dataset.machine, cell.dataset.date); });
   setDefaultRange(); loadPlans().finally(load);

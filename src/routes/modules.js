@@ -143,6 +143,7 @@ router.post("/api/planning-ppic/mrp/:key/output/production-plan", (req, res) => 
 router.post("/api/planning-ppic/monthly-plan/from-mps", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", "/from-mps"));
 router.post("/api/planning-ppic/monthly-plan/:key/confirm", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/confirm`));
 router.post("/api/planning-ppic/monthly-plan/:key/release", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/release`));
+router.post("/api/planning-ppic/monthly-plan/:key/capacity-override", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/capacity-override`));
 router.post("/api/planning-ppic/monthly-plan/:key/release-mos", (req, res) => proxyPageMutation(req, res, "/api/production/manufacturing-orders", "POST", "/bulk-create"));
 
 const productionWorkflowActions = {
