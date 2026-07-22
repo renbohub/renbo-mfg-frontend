@@ -352,7 +352,7 @@
     };
     const visibleDetails = preparePlanningView(allVisibleDetails, { customer: (row) => row.customerCode, month: (row) => finishedGoodMonth(row), part: (row) => finishedGoodCode(row) });
     const groupedRows = groupedPlanningRows(visibleDetails, {
-      colSpan: 12,
+      colSpan: 13,
       customer: (row) => row.customerCode,
       month: finishedGoodMonth,
       planPart: finishedGoodCode,
@@ -370,17 +370,19 @@
         }
         return [...partGroups.values()].sort((a, b) => String(a.first.partCode).localeCompare(String(b.first.partCode))).map(({ first, productionLevel, items }) => {
           const detailIds = items.map((row) => row.id).filter(Boolean);
+          const parent = productionLevel === "Child / SFG Process" ? sourceFinishedGood(first) : null;
           const totalQty = items.reduce((sum, row) => sum + number(row.qtyPlanned), 0);
           const forecastQty = items.reduce((sum, row) => sum + number(row.forecastQty), 0);
           const salesOrderQty = items.reduce((sum, row) => sum + number(row.actualSalesOrderQty), 0);
-          const bufferQty = items.reduce((sum, row) => sum + number(row.bufferQty), 0);
-          const bufferPercent = [...new Set(items.map((row) => number(row.bufferPercent)))];
-          const productionPercent = [...new Set(items.map((row) => number(row.productionPercent ?? 100)))];
+          const bufferQty = items.reduce((sum, row) => sum + number(row.bufferQty), 0) || number(parent?.bufferQty);
+          const bufferPercent = [...new Set(items.map((row) => number(row.bufferPercent)).concat(parent ? [number(parent.bufferPercent)] : []))];
+          const productionPercent = [...new Set(items.map((row) => number(row.productionPercent ?? 100)).concat(parent ? [number(parent.productionPercent ?? 100)] : []))];
           const start = items.reduce((value, row) => !value || new Date(scheduleDate(row)) < new Date(value) ? scheduleDate(row) : value, null);
           const end = items.reduce((value, row) => !value || new Date(scheduleEndDate(row)) > new Date(value) ? scheduleEndDate(row) : value, null);
           const statuses = [...new Set(items.map((row) => row.status || "Planned"))];
           const partCodeCell = `<b>${esc(first.partCode || "-")}</b>`;
           const partNameCell = esc(first.part?.partName || first.part?.partNumber || "-");
+          const processCell = esc(first.part?.process?.processName || first.part?.process?.processCode || first.processName || "-");
           const bufferLabel = productionLevel === "FG Receipt" ? `${num(bufferPercent.length === 1 ? bufferPercent[0] : 0, 2)}%` : "-";
           const soReferences = [...new Set(items.flatMap((row) => String(row.soNumber || "").split(",")).map((value) => value.trim()).filter(Boolean))];
           const soCell = salesOrderQty > 0 ? `<div class="ppic-so-reference"><b>${num(salesOrderQty, 2)}</b>${soReferences.map((so) => `<a href="/modules/sales/sales-orders/${encodeURIComponent(so)}">${esc(so)}</a>`).join("")}</div>` : "0";
@@ -388,7 +390,7 @@
           const bufferScope = first.bufferReferenceScope === "LINE" ? "line" : "parent";
           const bufferCell = editable ? `<div class="ppic-buffer-editor"><div class="ppic-buffer-control"><input data-mps-buffer type="number" min="0" max="100" step="0.01" value="${esc(bufferPercent.length === 1 ? bufferPercent[0] : 0)}" aria-label="Buffer stock ${esc(first.partCode)}"><span>%</span><select data-mps-buffer-scope aria-label="Scope buffer"><option value="parent" ${bufferScope === "parent" ? "selected" : ""}>Parent FG</option><option value="line" ${bufferScope === "line" ? "selected" : ""}>Per baris</option></select></div><small class="ppic-buffer-source">${items.some((row) => row.bufferOverridden) ? (bufferScope === "parent" ? "Override Parent FG" : "Override per baris") : "Master FG"}</small></div>` : `<span>${num(bufferPercent.length === 1 ? bufferPercent[0] : 0, 2)}%</span><small class="ppic-buffer-source">Ikut parent FG</small>`;
           const productionCell = editable ? `<div class="ppic-buffer-editor"><div class="ppic-buffer-control"><input data-mps-production type="number" min="0" max="100" step="0.01" value="${esc(productionPercent.length === 1 ? productionPercent[0] : 100)}" aria-label="Persentase produksi ${esc(first.partCode)}"><span>%</span><button type="button" data-action="save-mps-adjustment" data-mps-number="${esc(doc.mpsNumber)}" data-detail-ids="${esc(detailIds.join(","))}">Simpan</button></div><small class="ppic-buffer-source">Minimum: SO aktual</small></div>` : `<span>${num(productionPercent.length === 1 ? productionPercent[0] : 100, 2)}%</span><small class="ppic-buffer-source">Ikut parent FG</small>`;
-          return `<tr class="ppic-mps-process-row"><td>${badge(productionLevel)}</td><td>${partCodeCell}</td><td>${partNameCell}</td><td>${esc(period(start, end))}</td><td class="ppic-number">${num(forecastQty, 2)}</td><td class="ppic-number ppic-actual-so">${soCell}</td><td>${bufferCell}</td><td class="ppic-number ppic-buffer-qty">${num(bufferQty, 2)}</td><td>${productionCell}</td><td class="ppic-number ppic-plan-qty">${num(totalQty, 2)}</td><td>${esc(first.customerCode)}</td><td class="ppic-number">${num(Math.min(...items.map((row) => number(row.priority) || 1)))}</td><td>${badge(statuses.length === 1 ? statuses[0] : "Mixed")}</td></tr>`;
+          return `<tr class="ppic-mps-process-row"><td>${badge(productionLevel)}</td><td>${partCodeCell}</td><td>${partNameCell}</td><td>${processCell}</td><td>${esc(period(start, end))}</td><td class="ppic-number">${num(forecastQty, 2)}</td><td class="ppic-number ppic-actual-so">${soCell}</td><td>${bufferCell}</td><td class="ppic-number ppic-buffer-qty">${num(bufferQty, 2)}</td><td>${productionCell}</td><td class="ppic-number ppic-plan-qty">${num(totalQty, 2)}</td><td>${esc(first.customerCode)}</td><td class="ppic-number">${num(Math.min(...items.map((row) => number(row.priority) || 1)))}</td><td>${badge(statuses.length === 1 ? statuses[0] : "Mixed")}</td></tr>`;
         });
       },
     });
@@ -399,7 +401,7 @@
     const horizonEnd = horizonRows.reduce((value, row) => !value || new Date(scheduleEndDate(row)) > new Date(value) ? scheduleEndDate(row) : value, null) || doc.periodEnd;
     setInfo("Informasi MPS", [["MPS ID", doc.mpsNumber], ["Produk Utama", primaryPart], ["Sumber Forecast", doc.forecastNumber || "-"], ["Horizon Perencanaan", period(horizonStart, horizonEnd)], ["Output Production Planning", productionLinks, true], ["Status Dokumen", badge(doc.status), true]]);
     const totalBufferQty = receiptDetails.reduce((sum, row) => sum + number(row.bufferQty), 0);
-    setTable("FG Receipt & Child / SFG Process Schedule", ["Tipe", "Part Code", "Part Name", "Periode / Schedule", "Forecast", "Actual SO", "Buffer %", "Buffer Qty", "Produksi %", "Target MPS", "Customer", "Prioritas", "Status"], groupedRows);
+    setTable("FG Receipt & Child / SFG Process Schedule", ["Tipe", "Part Code", "Part Name", "Proses", "Periode / Schedule", "Forecast", "Actual SO", "Buffer %", "Buffer Qty", "Produksi %", "Target MPS", "Customer", "Prioritas", "Status"], groupedRows);
     setSummary("Kalkulasi Rencana Produksi", [["Target FG Receipt", num(qty, 2)], ["Buffer Stock MPS", num(totalBufferQty, 2)], ["Production Planning", `${num((doc.productionPlans || []).length)} plan`], ["Jumlah Customer", num(customerCount)], ["Jumlah Bulan", num(monthCount)], ["Child / SFG Process", `${num(childCount)} baris`], ["Jumlah Part", `${num(partCount)} part`], ["MBOM Process", `${num(mbomCount)} baris`]], "FG hanya menjadi target receipt, bukan proses. Buffer MPS bulan A = Buffer % master FG × forecast bulan A+1. Demand MRP tetap memakai nilai terbesar antara Forecast + Buffer dan SO aktual.");
     renderWorkflow(doc, baseWorkflow(doc, "Production Release"), ["DRAFT", "PLANNER", "PPIC", String(doc.status || "DRAFT").toUpperCase()]);
   }
