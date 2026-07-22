@@ -371,12 +371,14 @@
         return [...partGroups.values()].sort((a, b) => String(a.first.partCode).localeCompare(String(b.first.partCode))).map(({ first, productionLevel, items }) => {
           const detailIds = items.map((row) => row.id).filter(Boolean);
           const parent = productionLevel === "Child / SFG Process" ? sourceFinishedGood(first) : null;
+          const sourcePartForBuffer = String(first.notes || "").match(/;\s*source\s+(.+?)(?:;|$)/i)?.[1]?.trim();
+          const bufferParent = parent || (productionLevel === "Child / SFG Process" ? nearestParent(first.customerCode, sourcePartForBuffer, first) : null);
           const totalQty = items.reduce((sum, row) => sum + number(row.qtyPlanned), 0);
           const forecastQty = items.reduce((sum, row) => sum + number(row.forecastQty), 0);
           const salesOrderQty = items.reduce((sum, row) => sum + number(row.actualSalesOrderQty), 0);
-          const bufferQty = items.reduce((sum, row) => sum + number(row.bufferQty), 0) || number(parent?.bufferQty);
-          const bufferPercent = [...new Set(items.map((row) => number(row.bufferPercent)).concat(parent ? [number(parent.bufferPercent)] : []))];
-          const productionPercent = [...new Set(items.map((row) => number(row.productionPercent ?? 100)).concat(parent ? [number(parent.productionPercent ?? 100)] : []))];
+          const bufferQty = items.reduce((sum, row) => sum + number(row.bufferQty), 0) || number(bufferParent?.bufferQty);
+          const bufferPercent = [...new Set(items.map((row) => number(row.bufferPercent)).concat(bufferParent ? [number(bufferParent.bufferPercent)] : []))];
+          const productionPercent = [...new Set(items.map((row) => number(row.productionPercent ?? 100)).concat(bufferParent ? [number(bufferParent.productionPercent ?? 100)] : []))];
           const start = items.reduce((value, row) => !value || new Date(scheduleDate(row)) < new Date(value) ? scheduleDate(row) : value, null);
           const end = items.reduce((value, row) => !value || new Date(scheduleEndDate(row)) > new Date(value) ? scheduleEndDate(row) : value, null);
           const statuses = [...new Set(items.map((row) => row.status || "Planned"))];
