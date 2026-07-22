@@ -386,8 +386,8 @@
           const partNameCell = esc(first.part?.partName || first.part?.partNumber || "-");
           const processPath = Array.isArray(first.processPath) ? first.processPath : [];
           const processCell = processPath.length
-            ? processPath.map((item, index) => `${esc(item.name || "Process")}-${index + 1}`).join(" → ")
-            : esc(first.part?.process?.processName || first.part?.process?.processCode || first.processName || "-");
+            ? processPath.map((item, index) => `${index + 1}. ${esc(item.name || "Process")}${item.occurrenceCode ? ` (${esc(item.occurrenceCode)})` : ""}`).join(" → ")
+            : "-";
           const bufferLabel = productionLevel === "FG Receipt" ? `${num(bufferPercent.length === 1 ? bufferPercent[0] : 0, 2)}%` : "-";
           const soReferences = [...new Set(items.flatMap((row) => String(row.soNumber || "").split(",")).map((value) => value.trim()).filter(Boolean))];
           const soCell = salesOrderQty > 0 ? `<div class="ppic-so-reference"><b>${num(salesOrderQty, 2)}</b>${soReferences.map((so) => `<a href="/modules/sales/sales-orders/${encodeURIComponent(so)}">${esc(so)}</a>`).join("")}</div>` : "0";
