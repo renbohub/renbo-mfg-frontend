@@ -1,5 +1,6 @@
 (function () {
   const config = JSON.parse(document.getElementById("module-page-config").textContent);
+  const shared = window.SharedDataTable;
   const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
   const get = (object, path) => path.split(".").reduce((value, key) => value == null ? undefined : value[key], object);
   const escapeHtml = (value) => $("<div>").text(value ?? "").html();
@@ -48,8 +49,6 @@
     const query = new URLSearchParams({ start: "0", length: "500", q: document.getElementById("module-search").value });
     const response = await fetch(`/modules/api/${config.module}/${config.slug}?${query}`, { headers: { Authorization: `Bearer ${token()}` } });
     const payload = await response.json(); if (!response.ok) return window.alert(payload.message || "Export gagal.");
-    const rows = [config.columns.map((column) => column.label), ...payload.data.map((row) => config.columns.map((column) => get(row, column.data) ?? ""))];
-    const csv = rows.map((row) => row.map((value) => `"${String(typeof value === "object" ? JSON.stringify(value) : value).replaceAll('"', '""')}"`).join(",")).join("\r\n");
-    const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" })); link.download = `${config.slug}-${new Date().toISOString().slice(0, 10)}.csv`; link.click(); URL.revokeObjectURL(link.href);
+    shared.downloadCsv(`${config.slug}-${new Date().toISOString().slice(0, 10)}.csv`, config.columns.map((column) => column.label), payload.data.map((row) => config.columns.map((column) => get(row, column.data) ?? "")));
   });
 })();

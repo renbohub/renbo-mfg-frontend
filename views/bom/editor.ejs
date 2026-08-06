@@ -1,5 +1,6 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <%- include('../partials/bom-subnav', { activeBomTab: 'generator', recordKey }) %>
 <main class="bom-editor-page" data-mode="<%= mode %>">
   <section class="bom-editor-toolbar app-container">
@@ -36,7 +37,7 @@
     <div class="bom-canvas-shell">
       <div class="bom-canvas-tools"><button id="bom-zoom-out" type="button">−</button><span id="bom-zoom-label">100%</span><button id="bom-zoom-in" type="button">＋</button><button id="bom-fit" type="button">Fit</button></div>
       <div id="bom-canvas-viewport" class="bom-canvas-viewport">
-        <div id="bom-canvas" class="bom-canvas"><svg id="bom-connectors" class="bom-connectors" aria-hidden="true"></svg><div id="bom-root-node" class="bom-node bom-root-node"><small>PRODUK UTAMA</small><b>Pilih produk utama</b><span>Root BOM</span></div><div id="bom-empty-canvas" class="bom-empty-canvas"><b>Mulai bangun struktur BOM</b><p>Klik part dari panel kiri atau gunakan tombol tambah pada node.</p></div></div>
+        <div id="bom-canvas" class="bom-canvas"><svg id="bom-connectors" class="bom-connectors" aria-hidden="true"></svg><div id="bom-root-node" class="bom-node bom-root-node"><small>PRODUK UTAMA</small><b>Pilih produk utama</b><span class="bom-node-part-number">Part No: —</span><span>Root BOM</span></div><div id="bom-empty-canvas" class="bom-empty-canvas"><b>Mulai bangun struktur BOM</b><p>Klik part dari panel kiri atau gunakan tombol tambah pada node.</p></div></div>
       </div>
     </div>
     <aside id="bom-inspector" class="bom-inspector">
@@ -52,12 +53,12 @@
         <div class="bom-inspector-grid"><div><label>Lead Time</label><input id="node-lead-time" class="form-control" type="number" min="0" step="0.01"></div><div><label>Satuan</label><select id="node-lead-time-unit" class="form-select"><option value="SECOND">Detik</option><option value="MINUTE">Menit</option><option value="HOUR">Jam</option><option value="DAY">Hari (8 jam kerja)</option></select></div></div>
         <section id="node-material-consumption" class="bom-material-consumption d-none">
           <div class="bom-material-heading"><div><small>RAW MATERIAL CONSUMPTION</small><b id="node-material-name">Material belum terhubung</b></div><a id="node-material-link" href="/master-data/materials">Master Material</a></div>
-          <div class="bom-material-spec-grid"><label>T (mm)<input id="node-material-thickness" class="form-control" readonly></label><label>W (mm)<input id="node-material-width" class="form-control" readonly></label><label>P / Pitch (mm)<input id="node-material-pitch" class="form-control" type="number" min="0" step="0.001"></label><label>Cavity<input id="node-material-cavity" class="form-control" type="number" min="1" step="1"></label><label>Density (kg/mm³)<input id="node-material-density" class="form-control" readonly></label><label>Gross Weight (kg/pcs)<input id="node-gross-weight" class="form-control" readonly></label></div>
+          <div class="bom-material-spec-grid"><label>Form Default<select id="node-material-form" class="form-select"><option value="">Pilih form</option></select></label><label>Skema Aktif<select id="node-material-scheme" class="form-select"><option value="DEFAULT">Default</option><option value="ALTERNATIVE">Alternatif</option></select></label><label>T (mm)<input id="node-material-thickness" class="form-control" readonly></label><label>W (mm)<input id="node-material-width" class="form-control" readonly></label><label>P / Pitch (mm)<input id="node-material-pitch" class="form-control" type="number" min="0" step="0.001"></label><label>Cavity<input id="node-material-cavity" class="form-control" type="number" min="1" step="1"></label><label>Density (kg/mm³)<input id="node-material-density" class="form-control" readonly></label><label>Gross Weight (kg/pcs)<input id="node-gross-weight" class="form-control" readonly></label><label>Form Alternatif<select id="node-material-alt-form" class="form-select"><option value="">Tidak digunakan</option></select></label><label>Pitch Alternatif<input id="node-material-alt-pitch" class="form-control" type="number" min="0" step="0.001"></label><label>Cavity Alternatif<input id="node-material-alt-cavity" class="form-control" type="number" min="1" step="1"></label><label>Gross Alternatif<input id="node-material-alt-gross" class="form-control" readonly></label></div>
           <small id="node-material-formula">Gross = T × W × P × Density ÷ Cavity</small>
         </section>
         <label>Catatan</label><textarea id="node-notes" class="form-control" rows="3"></textarea>
         <section class="bom-node-processes"><div class="bom-process-title"><label>Routing Proses</label><button id="node-add-process" type="button">＋ Proses</button></div><div id="node-process-list" class="bom-node-process-list"></div></section>
-        <% if (mode !== 'view') { %><div class="bom-inspector-actions"><button id="node-add-child" class="btn btn-outline-primary" type="button">＋ Child</button><button id="node-delete" class="btn btn-outline-danger" type="button">Hapus Node</button></div><% } %>
+        <% if (mode !== 'view') { %><div class="bom-inspector-actions"><button id="node-insert-before" class="btn btn-outline-primary" type="button" title="Tambah proses/child tepat sebelum part terpilih">＋ Child di Atas</button><button id="node-add-child" class="btn btn-outline-primary" type="button">＋ Child</button><button id="node-delete" class="btn btn-outline-danger" type="button">Hapus Node</button></div><% } %>
       </form>
     </aside>
   </section>

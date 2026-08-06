@@ -7,7 +7,14 @@ const backendUrl = (process.env.BACKEND_URL || "http://localhost:5017").replace(
 function common(activeModule = "") {
   return { requiresAuth: true, modules, activeModule, socketUrl: process.env.SOCKET_URL || "http://localhost:5017", mqttUrl: process.env.MQTT_URL || "" };
 }
-function authHeader(req) { const authorization = req.get("authorization"); return authorization ? { authorization } : {}; }
+function authHeader(req) {
+  const headers = {};
+  ["authorization", "x-page-module", "x-page-code", "x-page-record"].forEach((name) => {
+    const value = req.get(name);
+    if (value) headers[name] = value;
+  });
+  return headers;
+}
 function findConfig(req, res) {
   const module = getModule(req.params.module);
   const page = getPage(req.params.module, req.params.page);
@@ -59,6 +66,11 @@ router.get("/api/sales/:page/generate-number", (req, res) => {
 router.get("/api/planning-ppic/mrp/generate-number", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "GET", "/generate-number"));
 router.get("/api/planning-ppic/mps/monthly-summary", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "GET", "/monthly-summary"));
 router.get("/api/planning-ppic/mrp/general-summary", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "GET", "/general-summary"));
+router.get("/api/planning-ppic/capacity-planning/scenarios", (req, res) => proxyPageMutation(req, res, "/api/planning/capacity-planning", "GET", "/scenarios"));
+router.put("/api/planning-ppic/capacity-planning/scenarios/:scenarioKey", (req, res) => proxyPageMutation(req, res, "/api/planning/capacity-planning", "PUT", `/scenarios/${encodeURIComponent(req.params.scenarioKey)}`));
+router.get("/api/planning-ppic/capacity-planning/presets", (req, res) => proxyPageMutation(req, res, "/api/planning/capacity-planning", "GET", `/presets${req.query.month ? `?month=${encodeURIComponent(req.query.month)}` : ""}`));
+router.post("/api/planning-ppic/capacity-planning/presets", (req, res) => proxyPageMutation(req, res, "/api/planning/capacity-planning", "POST", "/presets"));
+router.put("/api/planning-ppic/capacity-planning/presets/:presetId", (req, res) => proxyPageMutation(req, res, "/api/planning/capacity-planning", "PUT", `/presets/${encodeURIComponent(req.params.presetId)}`));
 router.get("/api/planning-ppic/capacity-planning", async (req, res) => {
   try {
     const url = new URL(`${backendUrl}/api/planning/capacity-planning`);
@@ -70,8 +82,49 @@ router.get("/api/planning-ppic/capacity-planning", async (req, res) => {
   } catch (error) { res.status(503).json({ message: isOffline(error) ? `Backend belum aktif di ${backendUrl}.` : "Capacity Planning gagal dimuat." }); }
 });
 
+router.get("/api/sales/forecasts/demand-summary", (req, res) => proxyPageMutation(req, res, "/api/planning/forecasts", "GET", "/demand-summary"));
+router.get("/api/planning-ppic/consume-forecast/monthly", (req, res) => proxyPageMutation(req, res, "/api/planning/forecasts", "GET", "/monthly-consumption"));
+
+router.get("/api/dashboard/executive/:module", async (req, res) => {
+  try {
+    const url = new URL(`${backendUrl}/api/dashboard/executive/${encodeURIComponent(req.params.module)}`);
+    if (req.query.year) url.searchParams.set("year", String(req.query.year));
+    const response = await fetch(url, { headers: authHeader(req), signal: AbortSignal.timeout(30000) });
+    const payload = await readBackend(response);
+    if (!response.ok) return res.status(response.status).json({ message: payload.message || `Backend merespons ${response.status}.` });
+    res.json(payload);
+  } catch (error) {
+    res.status(503).json({ message: isOffline(error) ? `Backend belum aktif di ${backendUrl}.` : "Executive dashboard gagal dimuat." });
+  }
+});
+
+async function proxyReadWithQuery(req, res, endpoint, errorMessage) {
+  try {
+    const url = new URL(`${backendUrl}${endpoint}`);
+    Object.entries(req.query || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== "") url.searchParams.set(key, String(value));
+    });
+    const response = await fetch(url, { headers: authHeader(req), signal: AbortSignal.timeout(30000) });
+    const payload = await readBackend(response);
+    if (!response.ok) return res.status(response.status).json({ message: payload.message || `Backend merespons ${response.status}.`, code: payload.code });
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    return res.status(response.status).json(payload);
+  } catch (error) {
+    return res.status(503).json({ message: isOffline(error) ? `Backend belum aktif di ${backendUrl}.` : errorMessage });
+  }
+}
+
+router.get("/api/production/fg-receipts/pending", (req, res) => proxyReadWithQuery(req, res, "/api/production/quality-inspections/fg-receipts/pending", "Pending FG Receipt gagal dimuat."));
+router.get("/api/production/fg-receipts/history", (req, res) => proxyReadWithQuery(req, res, "/api/production/quality-inspections/fg-receipts/history", "History FG Receipt gagal dimuat."));
+router.get("/api/production/fg-receipts/history/:movementNumber", (req, res) => proxyPageMutation(req, res, "/api/production/quality-inspections/fg-receipts/history", "GET", `/${encodeURIComponent(req.params.movementNumber)}`));
+router.get("/api/production/fg-receipts/warehouses", (req, res) => proxyReadWithQuery(req, res, "/api/inventory/warehouses", "Warehouse tujuan gagal dimuat."));
+router.get("/api/production/fg-receipts/racks", (req, res) => proxyReadWithQuery(req, res, "/api/inventory/racks", "Rack tujuan gagal dimuat."));
+router.patch("/api/production/fg-receipts/:inspectionNumber/receive", (req, res) => proxyPageMutation(req, res, "/api/production/quality-inspections", "PATCH", `/${encodeURIComponent(req.params.inspectionNumber)}/receive-fg`));
+router.patch("/api/production/fg-receipts/:movementNumber/rollback", (req, res) => proxyPageMutation(req, res, "/api/production/quality-inspections/fg-receipts", "PATCH", `/${encodeURIComponent(req.params.movementNumber)}/rollback`));
+
 router.get("/api/:module/:page", async (req, res) => {
   const config = findConfig(req, res); if (!config) return;
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   const { page: pageConfig } = config;
   const draw = Number(req.query.draw || 1);
   if (!pageConfig.apiReady || !pageConfig.endpoint) return res.json({ draw, recordsTotal: 0, recordsFiltered: 0, data: [], apiReady: false });
@@ -83,7 +136,7 @@ router.get("/api/:module/:page", async (req, res) => {
     url.searchParams.set("limit", String(length));
     const search = String(req.query["search[value]"] || req.query.q || "").trim();
     if (search) { url.searchParams.set("q", search); url.searchParams.set("search", search); }
-    ["partId", "isDeleted", "includeDetails"].forEach((key) => {
+    ["partId", "partCode", "isDeleted", "includeDetails", "status", "type", "referenceType", "warehouseCode", "stockType", "lowStock", "poType", "category", "prCategory", "sourceModule", "startDate", "endDate", "machineCode", "shift"].forEach((key) => {
       if (req.query[key] !== undefined && req.query[key] !== "") url.searchParams.set(key, String(req.query[key]));
     });
     const response = await fetch(url, { headers: authHeader(req), signal: AbortSignal.timeout(15000) });
@@ -108,6 +161,7 @@ router.get("/api/:module/:page/:key", async (req, res) => {
     res.json(payload);
   } catch (error) { res.status(503).json({ message: isOffline(error) ? `Backend belum aktif di ${backendUrl}.` : "Detail gagal diambil." }); }
 });
+router.patch("/api/inventory/stock-reservations/:reservationNumber/cancel", (req, res) => proxyPageMutation(req, res, "/api/inventory/stock-reservations", "PATCH", `/${encodeURIComponent(req.params.reservationNumber)}/cancel`));
 
 router.post("/api/manufacturing-bom/bill-of-materials", (req, res) => proxyBomMutation(req, res, "POST"));
 router.patch("/api/manufacturing-bom/bill-of-materials/:id", (req, res) => proxyBomMutation(req, res, "PATCH", `/${encodeURIComponent(req.params.id)}`));
@@ -122,6 +176,8 @@ router.post("/api/sales/:page", (req, res) => {
   const page = getPage("sales", req.params.page); if (!page) return res.status(404).json({ message: "Menu Sales tidak ditemukan." });
   return proxyPageMutation(req, res, page.endpoint, "POST");
 });
+router.patch("/api/sales/sales-orders/:key/confirm", (req, res) => proxyPageMutation(req, res, "/api/sales/sales-orders", "PATCH", `/${encodeURIComponent(req.params.key)}/confirm`));
+router.post("/api/sales/sales-orders/:key/revise", (req, res) => proxyPageMutation(req, res, "/api/sales/sales-orders", "POST", `/${encodeURIComponent(req.params.key)}/revise`));
 router.patch("/api/sales/:page/:key", (req, res) => {
   const page = getPage("sales", req.params.page); if (!page) return res.status(404).json({ message: "Menu Sales tidak ditemukan." });
   return proxyPageMutation(req, res, page.endpoint, "PATCH", `/${encodeURIComponent(req.params.key)}`);
@@ -131,26 +187,52 @@ router.delete("/api/sales/:page/:key", (req, res) => {
   return proxyPageMutation(req, res, page.endpoint, "DELETE", `/${encodeURIComponent(req.params.key)}`);
 });
 router.post("/api/sales/quotations/:key/make-to-so", (req, res) => proxyPageMutation(req, res, "/api/sales/quotations", "POST", `/${encodeURIComponent(req.params.key)}/make-to-so`));
+router.get("/api/sales/forecasts/planning-tool", (req, res) => proxyPageMutation(req, res, "/api/planning/forecasts", "GET", "/planning-tool"));
+router.get("/api/sales/forecasts/:key/planning-tool", (req, res) => proxyPageMutation(req, res, "/api/planning/forecasts", "GET", `/${encodeURIComponent(req.params.key)}/planning-tool`));
+router.post("/api/sales/forecasts/:key/planning-tool", (req, res) => proxyPageMutation(req, res, "/api/planning/forecasts", "POST", `/${encodeURIComponent(req.params.key)}/planning-tool/sync`));
+router.post("/api/sales/forecasts/:key/submit", (req, res) => proxyPageMutation(req, res, "/api/planning/forecasts", "POST", `/${encodeURIComponent(req.params.key)}/submit`));
+router.post("/api/sales/forecasts/:key/approve", (req, res) => proxyPageMutation(req, res, "/api/planning/forecasts", "POST", `/${encodeURIComponent(req.params.key)}/approve`));
+router.post("/api/sales/forecasts/:key/revise", (req, res) => proxyPageMutation(req, res, "/api/planning/forecasts", "POST", `/${encodeURIComponent(req.params.key)}/revise`));
+router.post("/api/planning-ppic/forecasts/:key/close", (req, res) => proxyPageMutation(req, res, "/api/planning/forecasts", "POST", `/${encodeURIComponent(req.params.key)}/close`));
 
 router.post("/api/planning-ppic/mps/from-forecast", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "POST", "/from-forecast"));
+router.post("/api/planning-ppic/mps/monthly-sync", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "POST", "/monthly-sync"));
+router.post("/api/planning-ppic/mps/:key/delivery-phases", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "POST", `/${encodeURIComponent(req.params.key)}/delivery-phases`));
+router.patch("/api/planning-ppic/mps/:key/delivery-phases/:phaseId/remove", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "PATCH", `/${encodeURIComponent(req.params.key)}/delivery-phases/${encodeURIComponent(req.params.phaseId)}/remove`));
 router.patch("/api/planning-ppic/mps/:key/adjustments", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "PATCH", `/${encodeURIComponent(req.params.key)}/adjustments`));
 router.patch("/api/planning-ppic/mps/:key/confirm", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "PATCH", `/${encodeURIComponent(req.params.key)}/confirm`));
 router.post("/api/planning-ppic/mrp/run", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "POST", "/run"));
 router.patch("/api/planning-ppic/mrp/:key/requirements/buffer", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "PATCH", `/${encodeURIComponent(req.params.key)}/requirements/buffer`));
 router.patch("/api/planning-ppic/mrp/:key/requirements/order-percent", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "PATCH", `/${encodeURIComponent(req.params.key)}/requirements/order-percent`));
-router.post("/api/planning-ppic/mrp/:key/output/purchase-request", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "POST", `/${encodeURIComponent(req.params.key)}/output/purchase-request`));
+router.patch("/api/planning-ppic/mrp/:key/planned-orders/procurement", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "PATCH", `/${encodeURIComponent(req.params.key)}/planned-orders/procurement`));
+router.post("/api/planning-ppic/mrp/:key/output/purchase-suggestions", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "POST", `/${encodeURIComponent(req.params.key)}/output/purchase-suggestions`));
 router.post("/api/planning-ppic/mrp/:key/output/production-plan", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "POST", `/${encodeURIComponent(req.params.key)}/output/production-plan`));
 router.post("/api/planning-ppic/monthly-plan/from-mps", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", "/from-mps"));
 router.post("/api/planning-ppic/monthly-plan/:key/confirm", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/confirm`));
 router.post("/api/planning-ppic/monthly-plan/:key/release", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/release`));
+router.post("/api/planning-ppic/monthly-plan/:key/daily-plans", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/daily-plans`));
+router.post("/api/planning-ppic/monthly-plan/:key/manual-daily-plans", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/manual-daily-plans`));
+router.post("/api/planning-ppic/monthly-plan/:key/manual-allocations", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/manual-allocations`));
+router.post("/api/planning-ppic/monthly-plan/:key/capacity-recommendation", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/capacity-recommendation`));
+router.post("/api/planning-ppic/monthly-plan/:key/capacity-adopt-simulation", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/capacity-adopt-simulation`));
+router.patch("/api/planning-ppic/monthly-plan/:key/manual-allocations/:allocationId", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "PATCH", `/${encodeURIComponent(req.params.key)}/manual-allocations/${encodeURIComponent(req.params.allocationId)}`));
+router.patch("/api/planning-ppic/monthly-plan/:key/manual-allocations/:allocationId/remove", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "PATCH", `/${encodeURIComponent(req.params.key)}/manual-allocations/${encodeURIComponent(req.params.allocationId)}/remove`));
 router.post("/api/planning-ppic/monthly-plan/:key/capacity-override", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/capacity-override`));
+router.post("/api/planning-ppic/monthly-plan/:key/capacity-machine-override", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/capacity-machine-override`));
+router.post("/api/planning-ppic/monthly-plan/:key/capacity-day", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/capacity-day`));
+router.post("/api/planning-ppic/capacity-day", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", "/capacity-day"));
 router.post("/api/planning-ppic/monthly-plan/:key/release-mos", (req, res) => proxyPageMutation(req, res, "/api/production/manufacturing-orders", "POST", "/bulk-create"));
+router.post("/api/production/daily-production-schedules/dispatch-from-work-orders", (req, res) => proxyPageMutation(req, res, "/api/production/daily-production-schedules", "POST", "/dispatch-from-work-orders"));
+router.post("/api/production/daily-production-schedules/:key/consume", (req, res) => proxyPageMutation(req, res, "/api/production/daily-production-schedules", "POST", `/${encodeURIComponent(req.params.key)}/consume`));
 
 const productionWorkflowActions = {
-  "manufacturing-orders": { "availability-check": "GET", release: "PATCH", start: "PATCH", "generate-work-orders": "POST" },
-  "work-orders": { start: "PATCH" },
-  "daily-production-schedules": { release: "POST", start: "POST" },
-  "production-logs": { submit: "PATCH" }
+  "manufacturing-orders": { "availability-check": "GET", release: "PATCH", start: "PATCH", complete: "PATCH", cancel: "PATCH", "generate-work-orders": "POST" },
+  "work-orders": { start: "PATCH", complete: "PATCH", cancel: "PATCH" },
+  "daily-production-schedules": { consume: "POST", release: "POST", start: "POST", complete: "POST", cancel: "POST" },
+  "vendor-process-orders": { send: "PATCH", receive: "PATCH", reprice: "PATCH" },
+  "material-issues": { issue: "PATCH", close: "PATCH" },
+  "quality-inspections": { complete: "PATCH", "receive-fg": "PATCH" },
+  "production-logs": { submit: "PATCH", approve: "PATCH" }
 };
 router.post("/api/production-workflow/:page/:key/:action", (req, res) => {
   const page = getPage("production", req.params.page);
@@ -160,7 +242,9 @@ router.post("/api/production-workflow/:page/:key/:action", (req, res) => {
   return proxyPageMutation(req, res, page.endpoint, method, suffix);
 });
 const purchasingWorkflowActions = {
-  "purchase-order": { "submit-checking": "PATCH", approve: "PATCH", send: "PATCH", confirm: "PATCH" }
+  "purchase-requisitions": { submit: "PATCH", approve: "PATCH", reject: "PATCH", "confirm-suppliers": "PATCH", "make-po": "POST" },
+  "purchase-order": { "submit-checking": "PATCH", approve: "PATCH", revise: "PATCH", reject: "PATCH", send: "PATCH", confirm: "PATCH", cancel: "PATCH", "manual-complete": "PATCH" },
+  "purchase-invoices": { submit: "PATCH", approve: "PATCH", post: "PATCH", pay: "PATCH" }
 };
 router.post("/api/purchasing-workflow/:page/:key/:action", (req, res) => {
   const page = getPage("purchasing", req.params.page);
@@ -169,10 +253,63 @@ router.post("/api/purchasing-workflow/:page/:key/:action", (req, res) => {
   const suffix = `/${encodeURIComponent(req.params.key)}/${encodeURIComponent(req.params.action)}`;
   return proxyPageMutation(req, res, page.endpoint, method, suffix);
 });
+router.patch("/api/purchasing-pr/:key/confirm-suppliers", (req, res) => proxyPageMutation(req, res, "/api/purchasing/purchase-requisitions", "PATCH", `/${encodeURIComponent(req.params.key)}/confirm-suppliers`));
+router.post("/api/purchasing-pr/consolidate-to-po", (req, res) => proxyPageMutation(req, res, "/api/purchasing/purchase-requisitions", "POST", "/consolidate-to-po"));
+router.post("/api/purchasing-pr", (req, res) => proxyPageMutation(req, res, "/api/purchasing/purchase-requisitions", "POST"));
+router.patch("/api/purchasing-pr/:key", (req, res) => proxyPageMutation(req, res, "/api/purchasing/purchase-requisitions", "PATCH", `/${encodeURIComponent(req.params.key)}`));
+router.patch("/api/purchasing-suggestions/:key/items/:itemId", (req, res) => proxyPageMutation(req, res, "/api/purchasing/purchase-suggestions", "PATCH", `/${encodeURIComponent(req.params.key)}/items/${encodeURIComponent(req.params.itemId)}`));
+router.post("/api/purchasing-suggestions/:key/convert-to-pr", (req, res) => proxyPageMutation(req, res, "/api/purchasing/purchase-suggestions", "POST", `/${encodeURIComponent(req.params.key)}/convert-to-pr`));
+router.get("/api/purchasing-po/:key/revisions", (req, res) => proxyPageMutation(req, res, "/api/purchasing/purchase-order", "GET", `/${encodeURIComponent(req.params.key)}/revisions`));
+router.post("/api/purchasing-po", (req, res) => proxyPageMutation(req, res, "/api/purchasing/purchase-order", "POST"));
+router.patch("/api/purchasing-po/:id", (req, res) => proxyPageMutation(req, res, "/api/purchasing/purchase-order", "PATCH", `/${encodeURIComponent(req.params.id)}`));
+router.post("/api/purchasing-invoice", (req, res) => proxyPageMutation(req, res, "/api/purchasing/purchase-invoices", "POST"));
+router.patch("/api/purchasing-invoice/:key", (req, res) => proxyPageMutation(req, res, "/api/purchasing/purchase-invoices", "PATCH", `/${encodeURIComponent(req.params.key)}`));
+router.get("/api/inventory/stock-movements/material-piece-sources", (req, res) => proxyPageMutation(req, res, "/api/inventory/stock-movements", "GET", `/material-piece-sources${req.query.q ? `?q=${encodeURIComponent(req.query.q)}` : ""}`));
+router.post("/api/inventory/stock-movements", (req, res) => proxyPageMutation(req, res, "/api/inventory/stock-movements", "POST"));
+router.post("/api/inventory/stock-opname", (req, res) => proxyPageMutation(req, res, "/api/inventory/stock-opname", "POST"));
+router.patch("/api/inventory/stock-opname/:stoNo/:action", (req, res) => proxyPageMutation(req, res, "/api/inventory/stock-opname", "PATCH", `/${encodeURIComponent(req.params.stoNo)}/${encodeURIComponent(req.params.action)}`));
+router.post("/api/production/production-logs", (req, res) => proxyPageMutation(req, res, "/api/production/production-logs", "POST"));
+router.patch("/api/production/production-logs/:key", (req, res) => proxyPageMutation(req, res, "/api/production/production-logs", "PATCH", `/${encodeURIComponent(req.params.key)}`));
+const editableProductionPages = new Set([
+  "manufacturing-orders", "work-orders", "material-issues",
+  "quality-inspections", "wip", "downtime-logs",
+]);
+router.post("/api/production-documents/:page", (req, res) => {
+  const page = getPage("production", req.params.page);
+  if (!page?.endpoint) return res.status(404).json({ message: "Dokumen Production tidak ditemukan." });
+  if (req.params.page === "vendor-process-orders") {
+    const moNumber = String(req.body?.moNumber || "").trim();
+    if (!moNumber) return res.status(400).json({ message: "MO Number wajib dipilih untuk generate Vendor Process Order." });
+    return proxyPageMutation(req, res, page.endpoint, "POST", `/generate-from-mo/${encodeURIComponent(moNumber)}`);
+  }
+  if (!editableProductionPages.has(req.params.page)) return res.status(404).json({ message: "Form create tidak tersedia untuk dokumen ini." });
+  return proxyPageMutation(req, res, page.endpoint, "POST");
+});
+router.patch("/api/production-documents/:page/:key", (req, res) => {
+  const page = getPage("production", req.params.page);
+  if (!page?.endpoint || (!editableProductionPages.has(req.params.page) && req.params.page !== "vendor-process-orders")) {
+    return res.status(404).json({ message: "Form edit tidak tersedia untuk dokumen ini." });
+  }
+  return proxyPageMutation(req, res, page.endpoint, "PATCH", `/${encodeURIComponent(req.params.key)}`);
+});
+router.post("/api/incoming/goods-receipts/:key/create-inspection", (req, res) => proxyPageMutation(req, res, "/api/incoming/incoming-inspections", "POST"));
+router.post("/api/incoming/goods-receipts", (req, res) => proxyPageMutation(req, res, "/api/incoming/goods-receipts", "POST"));
+router.post("/api/incoming/incoming-inspections/:key/complete", (req, res) => proxyPageMutation(req, res, "/api/incoming/incoming-inspections", "POST", `/${encodeURIComponent(req.params.key)}/complete`));
+router.post("/api/incoming/incoming-inspections/:key/putaway", (req, res) => proxyPageMutation(req, res, "/api/incoming/incoming-inspections", "POST", `/${encodeURIComponent(req.params.key)}/putaway`));
+router.post("/api/incoming/incoming-inspections/:key/dispose-rejected", (req, res) => proxyPageMutation(req, res, "/api/incoming/incoming-inspections", "POST", `/${encodeURIComponent(req.params.key)}/dispose-rejected`));
+router.post("/api/outgoing/delivery-schedules/:key/:action", (req, res) => {
+  const action = ["pick", "pack", "ship", "pod", "fail"].includes(req.params.action) ? req.params.action : null;
+  if (!action) return res.status(404).json({ message: "Aksi delivery tidak tersedia." });
+  return proxyPageMutation(req, res, "/api/outgoing/delivery-schedules", "POST", `/${encodeURIComponent(req.params.key)}/${action}`);
+});
+router.post("/api/outgoing/delivery-schedules", (req, res) => proxyPageMutation(req, res, "/api/outgoing/delivery-schedules", "POST"));
 
 function renderSales(res, req, view, mode = "") {
   const module = getModule("sales"); const page = getPage("sales", req.params.page);
   if (!page) return res.status(404).render("errors/404", { title: "Menu Sales tidak ditemukan" });
+  if (page.kind === "report") {
+    return res.render("modules/report", { title: page.label, module, page, pageScript: "/js/module-report.js", ...common(module.slug) });
+  }
   return res.render(view, { title: page.label, module, page, mode, recordKey: req.params.key || "", pageScript: `/js/sales-${view.split("/").pop()}.js`, ...common(module.slug) });
 }
 router.get("/sales/:page/new", (req, res) => renderSales(res, req, "sales/form", "create"));
@@ -180,31 +317,31 @@ router.get("/sales/:page/:key/edit", (req, res) => renderSales(res, req, "sales/
 router.get("/sales/:page/:key", (req, res) => renderSales(res, req, "sales/detail"));
 router.get("/sales/:page", (req, res) => renderSales(res, req, "sales/list"));
 
-function renderPpic(res, tab = "mrp") {
+function renderPpic(res, tab = "mrp", req = null) {
   const module = getModule("planning-ppic");
-  tab = { "material-requirements-planning": "mrp", "master-production-schedule": "mps" }[tab] || tab;
-  const ppicTabs = { mrp: "MRP", mps: "MPS", "monthly-plan": "Monthly Plan", "consume-forecast": "Consume Forecast", "capacity-planning": "Capacity Planning" };
+  tab = { "material-requirements-planning": "mrp", "master-production-schedule": "mps", "monthly-plan": "monthly-production-plans" }[tab] || tab;
+  if (tab === "dashboard") return res.render("modules/executive-dashboard", { title: "Planning Performance", module, ...common(module.slug) });
+  const ppicTabs = { mrp: "MRP", mps: "MPS", "consume-forecast": "Consume Forecast", "capacity-planning": "Capacity Planning", "daily-production-plans": "Daily Production Plans", "control-tower": "Control Tower", "planned-orders": "Planned Orders", "monthly-production-plans": "Production Plans" };
   if (!ppicTabs[tab]) return res.status(404).render("errors/404", { title: "Menu PPIC tidak ditemukan" });
   if (tab === "capacity-planning") return res.render("ppic/capacity", { title: ppicTabs[tab], module, activePpicTab: tab, pageScript: "/js/ppic-capacity.js", ...common(module.slug) });
+  if (["control-tower", "planned-orders", "monthly-production-plans", "daily-production-plans"].includes(tab)) return renderOperationsDashboard(res, { params: { page: tab }, query: req?.query || {} }, "planning-ppic", tab);
   return res.render("ppic/dashboard", { title: ppicTabs[tab], module, activePpicTab: tab, pageScript: "/js/ppic-dashboard.js", ...common(module.slug) });
-}
-function renderPpicGeneral(res, tab) {
-  const module = getModule("planning-ppic");
-  if (!["mrp", "mps"].includes(tab)) return res.status(404).render("errors/404", { title: "Menu PPIC tidak ditemukan" });
-  return res.render("ppic/general", { title: `${tab.toUpperCase()} General`, module, activePpicTab: tab, pageScript: "/js/ppic-general.js", ...common(module.slug) });
 }
 function renderPpicDetail(res, req) {
   const module = getModule("planning-ppic");
-  const tab = { "material-requirements-planning": "mrp", "master-production-schedule": "mps" }[req.params.tab] || req.params.tab;
-  const ppicTabs = { mrp: "MRP", mps: "MPS", "monthly-plan": "Monthly Plan", "consume-forecast": "Consume Forecast" };
+  const tab = { "material-requirements-planning": "mrp", "master-production-schedule": "mps", "monthly-plan": "monthly-production-plans" }[req.params.tab] || req.params.tab;
+  const ppicTabs = { mrp: "MRP", mps: "MPS", "consume-forecast": "Consume Forecast", "daily-production-plans": "Daily Production Plans", "control-tower": "Control Tower", "planned-orders": "Planned Orders", "monthly-production-plans": "Production Plans" };
   if (!ppicTabs[tab]) return res.status(404).render("errors/404", { title: "Menu PPIC tidak ditemukan" });
+  if (["control-tower", "planned-orders", "monthly-production-plans", "daily-production-plans"].includes(tab)) return renderOperationsDetail(res, { params: { ...req.params, page: tab }, query: req.query || {} }, "planning-ppic");
   return res.render("ppic/detail", { title: `${ppicTabs[tab]} Detail`, module, activePpicTab: tab, recordKey: req.params.key, pageScript: "/js/ppic-detail.js", ...common(module.slug) });
 }
-router.get("/planning-ppic", (_req, res) => renderPpic(res, "mrp"));
-router.get("/planning-ppic/mrp/general", (_req, res) => renderPpicGeneral(res, "mrp"));
-router.get("/planning-ppic/mps/general", (_req, res) => renderPpicGeneral(res, "mps"));
+router.get("/planning-ppic", (req, res) => renderPpic(res, "mrp", req));
+router.get("/planning-ppic/mrp/general", (_req, res) => res.redirect(308, "/modules/planning-ppic/mrp"));
+router.get("/planning-ppic/mps/general", (_req, res) => res.redirect(308, "/modules/planning-ppic/mps"));
+router.get("/planning-ppic/monthly-plan/:key", (req, res) => res.redirect(308, `/modules/planning-ppic/monthly-production-plans/${encodeURIComponent(req.params.key)}`));
+router.get("/planning-ppic/monthly-plan", (_req, res) => res.redirect(308, "/modules/planning-ppic/monthly-production-plans"));
 router.get("/planning-ppic/:tab/:key", (req, res) => renderPpicDetail(res, req));
-router.get("/planning-ppic/:tab", (req, res) => renderPpic(res, req.params.tab));
+router.get("/planning-ppic/:tab", (req, res) => renderPpic(res, req.params.tab, req));
 
 router.get("/manufacturing-bom/bill-of-materials/new", (_req, res) => {
   const module = getModule("manufacturing-bom"); const page = getPage("manufacturing-bom", "bill-of-materials");
@@ -245,29 +382,114 @@ function renderOperationsDashboard(res, req, moduleSlug, defaultPage) {
   const module = getModule(moduleSlug);
   const page = getPage(moduleSlug, req.params.page || defaultPage);
   if (!module || !page) return res.status(404).render("errors/404", { title: `Menu ${module?.label || "operasional"} tidak ditemukan` });
+  if (page.kind === "dashboard") return res.render("modules/executive-dashboard", { title: page.label, module, page, ...common(module.slug) });
   if (page.kind === "report") return res.render("modules/report", { title: page.label, module, page, pageScript: "/js/module-report.js", ...common(module.slug) });
-  return res.render("operations/dashboard", { title: page.label, module, page, pageScript: "/js/operations-dashboard.js", ...common(module.slug) });
+  if (moduleSlug === "production" && page.slug === "fg-receipt") {
+    return res.render("production/fg-receipt", { title: page.label, module, page, pageScript: "/js/production-fg-receipt.js?v=20260806-1", ...common(module.slug) });
+  }
+  const isPurchaseRequisition = moduleSlug === "purchasing" && page.slug === "purchase-requisitions";
+  const requestedCategory = String(req.query.category || "").toLowerCase();
+  const supportedPurchaseCategories = new Set(["material", "purchase-part", "universal-purchase-part", "non-production"]);
+  const purchaseCategory = isPurchaseRequisition
+    ? (supportedPurchaseCategories.has(requestedCategory) ? requestedCategory : "purchase-part")
+    : null;
+  return res.render("operations/dashboard", { title: page.label, module, page, purchaseCategory, pageScript: "/js/operations-dashboard.js", ...common(module.slug) });
 }
 function renderOperationsDetail(res, req, moduleSlug) {
   const module = getModule(moduleSlug);
   const page = getPage(moduleSlug, req.params.page);
   if (!module || !page || !page.apiReady || page.kind !== "data") return res.status(404).render("errors/404", { title: `Detail ${module?.label || "operasional"} tidak ditemukan` });
-  return res.render("operations/detail", { title: `Detail ${page.label}`, module, page, recordKey: req.params.key, pageScript: "/js/operations-detail.js", ...common(module.slug) });
+  const requestedCategory = String(req.query.category || "").toLowerCase();
+  const isPurchaseRequisition = moduleSlug === "purchasing" && page.slug === "purchase-requisitions";
+  const supportedPurchaseCategories = new Set(["material", "purchase-part", "universal-purchase-part", "non-production"]);
+  const purchaseCategory = isPurchaseRequisition ? (supportedPurchaseCategories.has(requestedCategory) ? requestedCategory : "purchase-part") : null;
+  return res.render("operations/detail", { title: `Detail ${page.label}`, module, page, recordKey: req.params.key, purchaseCategory, pageScript: "/js/operations-detail.js", ...common(module.slug) });
 }
 
 router.get("/inventory", (req, res) => renderOperationsDashboard(res, req, "inventory", "stock-balances"));
+function renderInventoryForm(res, req, mode) {
+  const module = getModule("inventory"); const page = getPage("inventory", req.params.page);
+  if (!page || !["stock-movements", "stock-opname"].includes(page.slug)) return res.status(404).render("errors/404", { title: "Form inventory tidak ditemukan" });
+  return res.render("inventory/form", { title: `Buat ${page.label}`, module, page, mode, pageScript: "/js/inventory-form.js?v=20260805-2", ...common(module.slug) });
+}
+function renderSupplyChainForm(res, req, moduleSlug) {
+  const module = getModule(moduleSlug); const page = getPage(moduleSlug, req.params.page);
+  const valid = (moduleSlug === "incoming" && page?.slug === "goods-receipts") || (moduleSlug === "outgoing" && page?.slug === "delivery-schedules");
+  if (!valid) return res.status(404).render("errors/404", { title: "Form transaksi tidak ditemukan" });
+  return res.render("operations/supply-chain-form", { title: `Buat ${page.label}`, module, page, pageScript: "/js/supply-chain-form.js", ...common(module.slug) });
+}
+router.get("/inventory/:page/new", (req, res) => renderInventoryForm(res, req, "create"));
 router.get("/inventory/:page/:key", (req, res) => renderOperationsDetail(res, req, "inventory"));
 router.get("/inventory/:page", (req, res) => renderOperationsDashboard(res, req, "inventory", "stock-balances"));
-router.get("/production", (req, res) => renderOperationsDashboard(res, req, "production", "manufacturing-orders"));
+router.get("/production", (req, res) => renderOperationsDashboard(res, req, "production", "daily-production-schedules"));
+function renderProductionForm(res, req, mode) {
+  const module = getModule("production"); const page = getPage("production", req.params.page);
+  const shared = new Set([...editableProductionPages, "vendor-process-orders"]);
+  if (!page || !["production-logs", "daily-production-schedules", ...shared].includes(page.slug)) return res.status(404).render("errors/404", { title: "Form production tidak ditemukan" });
+  if (page.slug === "daily-production-schedules") return res.render("production/schedule-form", { title: "Buat Daily Production Schedule", module, page, mode, recordKey: req.params.key || "", pageScript: "/js/production-schedule-form.js", ...common(module.slug) });
+  if (page.slug === "production-logs") return res.render("production/log-form", { title: "Buat Production Log", module, page, mode, recordKey: req.params.key || "", pageScript: "/js/production-log-form.js", ...common(module.slug) });
+  return res.render("production/shared-form", { title: `${mode === "edit" ? "Edit" : "Buat"} ${page.label}`, module, page, mode, recordKey: req.params.key || "", pageScript: "/js/production-shared-form.js", ...common(module.slug) });
+}
+router.get("/production/:page/new", (req, res) => renderProductionForm(res, req, "create"));
+router.get("/production/:page/:key/edit", (req, res) => renderProductionForm(res, req, "edit"));
 router.get("/production/:page/:key", (req, res) => renderOperationsDetail(res, req, "production"));
 router.get("/production/:page", (req, res) => renderOperationsDashboard(res, req, "production", "manufacturing-orders"));
 router.get("/purchasing", (req, res) => renderOperationsDashboard(res, req, "purchasing", "purchase-requisitions"));
+function renderPurchaseRequisitionForm(res, req, mode) {
+  const module = getModule("purchasing");
+  const page = getPage("purchasing", "purchase-requisitions");
+  const requestedCategory = String(req.query.category || "").toLowerCase();
+  const supportedPurchaseCategories = new Set(["material", "purchase-part", "universal-purchase-part", "non-production"]);
+  const purchaseCategory = supportedPurchaseCategories.has(requestedCategory) ? requestedCategory : "purchase-part";
+  return res.render("purchasing/pr-form", {
+    title: mode === "edit" ? "Edit Purchase Requisition" : "Buat Purchase Requisition",
+    module,
+    page,
+    mode,
+    recordKey: req.params.key || "",
+    purchaseCategory,
+    pageScript: "/js/purchasing-pr-form.js",
+    ...common(module.slug),
+  });
+}
+function renderPurchaseInvoiceForm(res, req, mode) {
+  const module = getModule("purchasing");
+  const page = getPage("purchasing", "purchase-invoices");
+  return res.render("purchasing/invoice-form", {
+    title: mode === "edit" ? "Edit Purchase Invoice" : "Buat Purchase Invoice",
+    module,
+    page,
+    mode,
+    recordKey: req.params.key || "",
+    ...common(module.slug),
+  });
+}
+function renderPurchaseOrderForm(res, req, mode) {
+  const module = getModule("purchasing");
+  const page = getPage("purchasing", "purchase-order");
+  return res.render("purchasing/po-form", {
+    title: mode === "edit" ? "Edit Purchase Order" : "Buat Purchase Order",
+    module,
+    page,
+    mode,
+    recordKey: req.params.key || "",
+    ...common(module.slug),
+  });
+}
+router.get("/purchasing/purchase-requisitions/new", (req, res) => renderPurchaseRequisitionForm(res, req, "create"));
+router.get("/purchasing/purchase-requisitions/:key/edit", (req, res) => renderPurchaseRequisitionForm(res, req, "edit"));
+router.get("/purchasing/purchase-order/new", (req, res) => renderPurchaseOrderForm(res, req, "create"));
+router.get("/purchasing/purchase-order/:key/edit", (req, res) => renderPurchaseOrderForm(res, req, "edit"));
+router.get("/purchasing/purchase-invoices/new", (req, res) => renderPurchaseInvoiceForm(res, req, "create"));
+router.get("/purchasing/purchase-invoices/:key/edit", (req, res) => renderPurchaseInvoiceForm(res, req, "edit"));
 router.get("/purchasing/:page/:key", (req, res) => renderOperationsDetail(res, req, "purchasing"));
 router.get("/purchasing/:page", (req, res) => renderOperationsDashboard(res, req, "purchasing", "purchase-requisitions"));
 router.get("/incoming", (req, res) => renderOperationsDashboard(res, req, "incoming", "goods-receipts"));
+router.get("/incoming/:page/new", (req, res) => renderSupplyChainForm(res, req, "incoming"));
 router.get("/incoming/:page/:key", (req, res) => renderOperationsDetail(res, req, "incoming"));
 router.get("/incoming/:page", (req, res) => renderOperationsDashboard(res, req, "incoming", "goods-receipts"));
 router.get("/outgoing", (req, res) => renderOperationsDashboard(res, req, "outgoing", "delivery-orders"));
+router.get("/outgoing/:page/new", (req, res) => renderSupplyChainForm(res, req, "outgoing"));
 router.get("/outgoing/:page/:key", (req, res) => renderOperationsDetail(res, req, "outgoing"));
 router.get("/outgoing/:page", (req, res) => renderOperationsDashboard(res, req, "outgoing", "delivery-orders"));
 
@@ -280,6 +502,7 @@ router.get("/:module", (req, res) => {
 router.get("/:module/:page", (req, res) => {
   const module = getModule(req.params.module); const page = getPage(req.params.module, req.params.page);
   if (!module || !page) return res.status(404).render("errors/404", { title: "Menu tidak ditemukan" });
+  if (page.kind === "dashboard") return res.render("modules/executive-dashboard", { title: page.label, module, page, ...common(module.slug) });
   if (page.kind === "report") return res.render("modules/report", { title: page.label, module, page, pageScript: "/js/module-report.js", ...common(module.slug) });
   res.render("modules/list", { title: page.label, module, page, pageScript: "/js/module-list.js", ...common(module.slug) });
 });

@@ -1,10 +1,18 @@
 <!doctype html>
-<html lang="id">
+<html lang="id" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#4f46e5">
-  <title><%= title %> · NexGen</title>
+  <script>
+    (() => {
+      const theme = localStorage.getItem('nexgen-ui-theme');
+      const language = localStorage.getItem('nexgen-ui-language');
+      document.documentElement.dataset.theme = theme === 'dark' ? 'dark' : 'light';
+      document.documentElement.lang = ['id', 'en', 'ja'].includes(language) ? language : 'id';
+    })();
+  </script>
+  <title><%= title %> · PT. Mitsutoyo Indonesia</title>
   <link rel="stylesheet" href="/vendor/bootstrap/css/bootstrap.min.css">
   <link rel="stylesheet" href="/vendor/datatables-bs5/css/dataTables.bootstrap5.min.css">
   <link rel="stylesheet" href="/css/app.css">
@@ -12,6 +20,7 @@
   <link rel="stylesheet" href="/css/master-data.css">
   <link rel="stylesheet" href="/css/session.css">
   <link rel="stylesheet" href="/css/modules.css">
+  <link rel="stylesheet" href="/css/modules-index.css">
   <link rel="stylesheet" href="/css/master-detail.css">
   <link rel="stylesheet" href="/css/form-permissions.css">
   <link rel="stylesheet" href="/css/bom.css">
@@ -23,8 +32,15 @@
   <link rel="stylesheet" href="/css/ppic-capacity.css">
   <link rel="stylesheet" href="/css/mps-monthly-summary.css">
   <link rel="stylesheet" href="/css/operations.css">
+  <link rel="stylesheet" href="/css/production-log.css">
+  <link rel="stylesheet" href="/css/fg-receipt.css">
   <link rel="stylesheet" href="/css/system-master.css">
   <link rel="stylesheet" href="/css/gallery-view.css">
+  <link rel="stylesheet" href="/css/shared-ui.css">
+  <link rel="stylesheet" href="/css/page-context.css">
+  <link rel="stylesheet" href="/css/maintenance.css">
+  <link rel="stylesheet" href="/css/executive-dashboard.css">
+  <link rel="stylesheet" href="/css/ui-preferences.css">
   <% if (typeof requiresAuth !== 'undefined' && requiresAuth) { %>
   <script>
     if (!localStorage.getItem('token') && !sessionStorage.getItem('token')) {
@@ -33,5 +49,6 @@
   </script>
   <% } %>
   <script defer src="/vendor/alpine/cdn.min.js"></script>
+  <script defer src="/js/ui-preferences.js"></script>
 </head>
 <body>

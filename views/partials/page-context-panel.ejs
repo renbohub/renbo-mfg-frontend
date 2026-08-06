@@ -1,0 +1,28 @@
+<aside class="offcanvas offcanvas-end page-context-panel" tabindex="-1" id="page-context-panel" aria-labelledby="page-context-title">
+  <div class="offcanvas-header page-context-heading">
+    <div>
+      <p class="page-context-eyebrow">Konteks halaman</p>
+      <h2 class="offcanvas-title" id="page-context-title">Log, Alarm & Komentar</h2>
+      <small data-context-label>Memuat konteks...</small>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Tutup"></button>
+  </div>
+  <div class="page-context-tabs" role="tablist" aria-label="Jenis log halaman">
+    <button class="active" type="button" data-context-tab="activities">Log <span data-context-count="activities">0</span></button>
+    <button type="button" data-context-tab="errors">Alarm <span data-context-count="errors">0</span></button>
+    <button type="button" data-context-tab="comments">Komentar <span data-context-count="comments">0</span></button>
+  </div>
+  <div class="offcanvas-body page-context-body">
+    <div class="page-context-state" data-context-state>Memuat data halaman...</div>
+    <div class="page-context-list" data-context-list="activities"></div>
+    <div class="page-context-list d-none" data-context-list="errors"></div>
+    <div class="page-context-comments d-none" data-context-list="comments">
+      <form class="page-context-comment-form" data-context-comment-form>
+        <label for="page-context-comment">Tambahkan komentar untuk halaman ini</label>
+        <textarea id="page-context-comment" rows="3" maxlength="4000" placeholder="Tulis catatan, pertanyaan, atau tindak lanjut..." required></textarea>
+        <div><small>Komentar hanya tampil pada konteks halaman/record ini.</small><button class="btn btn-primary btn-sm" type="submit">Kirim</button></div>
+      </form>
+      <div class="page-context-list" data-context-comment-list></div>
+    </div>
+  </div>
+</aside>

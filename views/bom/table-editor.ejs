@@ -1,5 +1,6 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <%- include('../partials/bom-subnav', { activeBomTab: 'detail', recordKey }) %>
 <main class="bom-table-editor-page">
   <section class="bom-record-toolbar app-container">
@@ -20,14 +21,14 @@
     </article>
     <section class="bom-estimate-summary">
       <article><small>CRITICAL LEAD TIME</small><strong id="bom-estimate-lead">0 jam</strong><span>Jalur terlama, termasuk routing dan MBOM turunan</span></article>
-      <article><small>ESTIMATED COST / UNIT</small><strong id="bom-estimate-total">Rp0</strong><span>Rolled-up cost seluruh struktur</span></article>
+      <article><small>TOTAL BOM COST / UNIT</small><strong id="bom-estimate-total">Rp0</strong><span>Material/purchase + vendor + mesin untuk 1 produk utama</span></article>
       <article><small>PURCHASE + MATERIAL</small><strong id="bom-estimate-material">Rp0</strong><span>Price list bulanan terbaru</span></article>
-      <article><small>PROCESS + VENDOR</small><strong id="bom-estimate-process">Rp0</strong><span>Cycle time × machine rate</span></article>
+      <article><small>PROCESS / VENDOR COST</small><strong id="bom-estimate-process">Rp0</strong><span>Machine cost dan jasa proses vendor</span></article>
       <article><small>PRICE COVERAGE</small><strong id="bom-estimate-coverage">0 / 0</strong><span id="bom-estimate-warning">Lengkapi master harga bila ada gap</span></article>
     </section>
     <article class="bom-table-grid-card">
-      <div class="bom-table-grid-heading"><div><h1>Edit Struktur BOM via Table</h1><p>Ubah part, parent, quantity, kategori, dan urutan struktur tanpa canvas.</p><small id="bom-table-owned-note" class="bom-table-owned-note d-none"></small></div><button id="bom-table-add" class="btn btn-outline-primary" type="button">＋ Tambah Baris</button></div>
-      <div class="table-responsive"><table class="table align-middle bom-edit-grid"><thead><tr><th>LVL</th><th>PART</th><th>QTY</th><th>UOM</th><th>PARENT</th><th>KATEGORI</th><th>POLICY</th><th>LEAD TIME / ORDER</th><th>PROSES</th><th>EST. COST</th><th>CATATAN</th><th></th></tr></thead><tbody id="bom-table-edit-rows"><tr><td colspan="12" class="text-center py-4">Memuat BOM...</td></tr></tbody></table></div>
+      <div class="bom-table-grid-heading"><div><h1>Edit Struktur BOM via Table</h1><p>Cycle Time berasal dari Routing MBOM. Machine Cost memakai Costing Rate dari <a href="/master-data/machines" target="_blank" rel="noopener">Master Machine</a>.</p><small id="bom-table-owned-note" class="bom-table-owned-note d-none"></small></div><div class="bom-table-grid-actions"><label class="bom-freeze-control">Freeze columns<select id="bom-table-freeze-count" class="form-select" aria-label="Jumlah kolom yang dibekukan"><option value="0">Tidak ada</option><option value="1">1 · Level</option><option value="2">2 · sampai Part</option><option value="3">3 · sampai Part Number</option><option value="4">4 · sampai Qty</option><option value="5">5 · sampai UOM</option><option value="6">6 · sampai Parent</option></select></label><button id="bom-table-add" class="btn btn-outline-primary" type="button">＋ Tambah Baris</button></div></div>
+      <div class="table-responsive bom-edit-grid-scroll"><table id="bom-detail-edit-table" class="table align-middle bom-edit-grid"><thead><tr><th>LVL</th><th>PART</th><th>PART NUMBER</th><th>QTY</th><th>UOM</th><th>PARENT</th><th>KATEGORI</th><th>POLICY</th><th>LEAD TIME / ORDER</th><th>PROSES</th><th>PURCHASE / MATERIAL PRICE</th><th>PRICE QTY</th><th>MBOM TURUNAN COST</th><th>CYCLE TIME / UNIT</th><th>MACHINE COST / SECOND</th><th>MACHINE COST / UNIT</th><th>CATATAN</th><th></th></tr></thead><tbody id="bom-table-edit-rows"><tr><td colspan="18" class="text-center py-4">Memuat BOM...</td></tr></tbody></table></div>
     </article>
   </section>
 </main>
@@ -35,7 +36,7 @@
   <form method="dialog" class="bom-process-dialog-card">
     <header><div><small>ROUTING PROCESS</small><h2 id="bom-process-title">Edit Proses</h2></div><button value="cancel" type="submit">×</button></header>
     <div class="bom-process-dialog-actions"><p>Cycle time menggunakan detik. Lead time hasil perhitungan ditampilkan dalam jam.</p><button id="bom-process-add" class="btn btn-outline-primary" type="button">＋ Tambah Proses</button></div>
-    <div class="table-responsive"><table class="table bom-process-edit-table"><thead><tr><th>ROUTING NO.</th><th>ORDER</th><th>PROCESS</th><th>MACHINE</th><th>CYCLE TIME (DETIK)</th><th>EST. COST</th><th>CATATAN</th><th></th></tr></thead><tbody id="bom-process-edit-rows"></tbody></table></div>
+    <div class="table-responsive"><table class="table bom-process-edit-table"><thead><tr><th>ROUTING NO.</th><th>ORDER</th><th>PROCESS</th><th>MACHINE SPECIFICATION</th><th>STANDARD RATE</th><th>CYCLE TIME (DETIK)</th><th>MACHINE COST / SECOND</th><th>MACHINE COST / UNIT</th><th>CATATAN</th><th></th></tr></thead><tbody id="bom-process-edit-rows"></tbody></table></div>
     <footer><button class="btn btn-primary" value="default" type="submit">Selesai</button></footer>
   </form>
 </dialog>
@@ -44,9 +45,14 @@
     <header><div><small>RAW MATERIAL CONSUMPTION</small><h2 id="bom-material-dialog-title">Edit Material</h2></div><button value="cancel" type="submit">×</button></header>
     <div class="bom-material-dialog-body">
       <div class="bom-material-master-info"><div><small>MASTER MATERIAL</small><strong id="bom-material-master-name">—</strong></div><a id="bom-material-master-link" href="/master-data/materials">Lihat Master</a></div>
+      <label>Skema yang dipakai MRP / Purchase
+        <select id="bom-material-scheme" class="form-select"><option value="DEFAULT">Default</option><option value="ALTERNATIVE">Alternatif</option></select>
+      </label>
+      <h3>Skema Default</h3>
       <div class="bom-material-dialog-grid">
         <label>Spec<input id="bom-material-spec" class="form-control" readonly></label>
         <label>C/S/P<input id="bom-material-csp" class="form-control" readonly></label>
+        <label>Material Form<select id="bom-material-form" class="form-select"></select></label>
         <label>T / Thickness (mm)<input id="bom-material-thickness" class="form-control" readonly></label>
         <label>W / Width (mm)<input id="bom-material-width" class="form-control" readonly></label>
         <label>P / Pitch (mm)<input id="bom-material-pitch" class="form-control" type="number" min="0.001" step="0.001" required></label>
@@ -54,7 +60,14 @@
         <label>Density (kg/mm³)<input id="bom-material-density" class="form-control" readonly></label>
         <label>Gross Weight (kg/pcs)<input id="bom-material-gross" class="form-control" readonly></label>
       </div>
-      <p>Gross = T × W × P × Density ÷ Cavity. Perubahan P dan Cavity hanya berlaku pada detail BOM ini.</p>
+      <h3>Skema Alternatif <small>(opsional, maksimal satu)</small></h3>
+      <div class="bom-material-dialog-grid">
+        <label>Material Form<select id="bom-material-alt-form" class="form-select"></select></label>
+        <label>P / Pitch (mm)<input id="bom-material-alt-pitch" class="form-control" type="number" min="0.001" step="0.001"></label>
+        <label>Cavity<input id="bom-material-alt-cavity" class="form-control" type="number" min="1" step="1"></label>
+        <label>Gross Weight (kg/pcs)<input id="bom-material-alt-gross" class="form-control" readonly></label>
+      </div>
+      <p>Gross = T × W × P × Density ÷ Cavity. MRP, purchase, dan stock conversion memakai skema yang aktif.</p>
     </div>
     <footer><button class="btn btn-outline-secondary" value="cancel" type="submit">Batal</button><button id="bom-material-save" class="btn btn-primary" value="default" type="button">Terapkan</button></footer>
   </form>

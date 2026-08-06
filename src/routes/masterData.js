@@ -27,8 +27,12 @@ function requireConfig(req, res) {
 }
 
 function authHeader(req) {
-  const authorization = req.get("authorization");
-  return authorization ? { authorization } : {};
+  const headers = {};
+  ["authorization", "x-page-module", "x-page-code", "x-page-record"].forEach((name) => {
+    const value = req.get(name);
+    if (value) headers[name] = value;
+  });
+  return headers;
 }
 
 function backendOffline(error) {
@@ -64,6 +68,25 @@ router.post("/api/formulas/simulate", async (req, res) => proxyMutation(req, res
 router.post("/api/formulas", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/master-formulas" }, "POST"));
 router.patch("/api/formulas/:id", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/master-formulas" }, "PATCH", `/${encodeURIComponent(req.params.id)}`));
 router.delete("/api/formulas/:id", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/master-formulas" }, "DELETE", `/${encodeURIComponent(req.params.id)}`));
+
+router.get("/api/excel-imports", async (req, res) => {
+  try {
+    const url = new URL(`${backendUrl}/api/system/excel-imports`);
+    Object.entries(req.query).forEach(([key, value]) => url.searchParams.set(key, String(value)));
+    const response = await fetch(url, { headers: authHeader(req), signal: AbortSignal.timeout(15000) });
+    const payload = await readBackend(response);
+    if (!response.ok) return sendBackendError(res, response, payload);
+    res.json(payload);
+  } catch (error) { res.status(503).json({ message: backendOffline(error) ? `Backend belum aktif di ${backendUrl}.` : "Tidak dapat mengambil batch import." }); }
+});
+router.post("/api/excel-imports/preview", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST", "/preview"));
+router.post("/api/excel-imports/upload-preview", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST", "/upload-preview"));
+router.post("/api/excel-imports/forecast-preview", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST", "/forecast-preview"));
+router.post("/api/excel-imports/historical-preview", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST", "/historical-preview"));
+router.post("/api/excel-imports", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST"));
+router.patch("/api/excel-imports/:key/approve", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "PATCH", `/${encodeURIComponent(req.params.key)}/approve`));
+router.post("/api/excel-imports/:key/apply-forecast", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST", `/${encodeURIComponent(req.params.key)}/apply-forecast`));
+router.post("/api/excel-imports/:key/apply-historical", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST", `/${encodeURIComponent(req.params.key)}/apply-historical`));
 
 router.get("/api/:entity/generate-code", async (req, res) => {
   const config = requireConfig(req, res);
@@ -155,6 +178,11 @@ router.post("/api/:entity/bulk-remove", async (req, res) => {
   const config = requireConfig(req, res);
   if (!config) return;
   return proxyMutation(req, res, config, config.bulkMethod, config.bulkPath);
+});
+
+router.post("/api/parts/shift-process-sequences", async (req, res) => {
+  const config = getEntity("parts");
+  return proxyMutation(req, res, config, "POST", "/shift-process-sequences");
 });
 
 router.post("/api/:entity", async (req, res) => {

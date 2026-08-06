@@ -2,18 +2,32 @@
 <%- include('../partials/header-modules') %>
 <main class="modules-page app-container">
   <section class="modules-hero">
-    <div><p class="eyebrow">Workspace</p><h1>Pilih Modul</h1><p>Akses proses bisnis dan data operasional dari satu tempat.</p></div>
-    <a class="master-data-shortcut" href="/master-data"><%- include('../partials/icon', { name: 'grid' }) %><span><b>Master Data</b><small>Produk, supplier, customer, mesin, dan referensi</small></span><span aria-hidden="true">→</span></a>
+    <div><h1>Pilih Modul</h1></div>
+    <a class="master-data-shortcut" href="/master-data"><%- include('../partials/icon', { name: 'grid' }) %><span><b>Master Data</b></span><span aria-hidden="true">&rarr;</span></a>
   </section>
+  <section class="modules-dashboard-switcher" aria-label="Pilihan dashboard">
+    <div>
+      <button type="button" class="active" data-dashboard-target="system" aria-pressed="true">Ringkasan Sistem</button>
+      <button type="button" data-dashboard-target="inventory" aria-pressed="false">Dashboard Stock</button>
+    </div>
+    <a href="/modules/inventory/stock-balances">Buka Stock Balance &rarr;</a>
+  </section>
+  <div data-dashboard-panel="system">
+    <%- include('../partials/executive-dashboard', { executiveModule: 'system' }) %>
+  </div>
+  <div data-dashboard-panel="inventory" hidden>
+    <%- include('../partials/executive-dashboard', { executiveModule: 'inventory' }) %>
+  </div>
   <section class="module-card-grid" aria-label="Daftar modul">
-    <% modules.forEach(module => { const ready = module.pages.filter(page => page.apiReady).length; %>
+    <% modules.forEach(module => { const visiblePages = module.pages.filter(page => !page.navHidden); const ready = visiblePages.filter(page => page.apiReady).length; %>
       <a class="module-card module-card--<%= module.color %>" href="/modules/<%= module.slug %>">
         <span class="module-card-icon"><%- include('../partials/icon', { name: module.icon }) %></span>
-        <span class="module-card-copy"><b><%= module.label %></b><small><%= module.description %></small></span>
-        <span class="module-card-meta"><%= module.pages.length %> menu · <%= ready %> API aktif</span>
-        <span class="module-card-arrow">→</span>
+        <span class="module-card-copy"><b><%= module.label %></b></span>
+        <span class="module-card-meta"><%= visiblePages.length %> menu</span>
+        <span class="module-card-arrow">&rarr;</span>
       </a>
     <% }) %>
   </section>
 </main>
+<script defer src="/js/modules-index.js"></script>
 <%- include('../partials/footer') %>

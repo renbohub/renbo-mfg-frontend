@@ -1,0 +1,32 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<main class="ops-page app-container">
+  <nav class="module-breadcrumb"><a href="/modules/purchasing/purchase-invoices">Purchase Invoice</a><span>/</span><b><%= mode === 'edit' ? 'Edit Invoice' : 'Buat Invoice' %></b></nav>
+  <form id="invoice-form">
+    <section class="ops-detail-titlebar">
+      <div><p class="ops-eyebrow">Purchasing · Three-way Match</p><h1><%= mode === 'edit' ? 'Edit Purchase Invoice' : 'Buat Purchase Invoice' %></h1><p>Invoice akan dicocokkan terhadap PO, receipt quantity, dan harga.</p></div>
+      <div class="ops-title-actions"><a class="btn btn-outline-secondary" href="/modules/purchasing/purchase-invoices">Batal</a><button class="btn btn-primary" type="submit">Simpan Draft</button></div>
+    </section>
+    <div id="invoice-alert" class="alert d-none"></div>
+    <section class="ops-detail-card pr-form-card">
+      <header><div><h2>Header Invoice</h2><p>Pilih PO Approved/terkirim/diterima sebagai sumber invoice.</p></div></header>
+      <div class="pr-header-grid">
+        <label><span>Purchase Order *</span><select id="invoice-po" class="form-select" required><option value="">Pilih PO</option></select></label>
+        <label><span>Invoice Supplier *</span><input id="supplier-invoice-number" class="form-control" required></label>
+        <label><span>Tanggal Invoice *</span><input id="invoice-date" class="form-control" type="date" required></label>
+        <label><span>Jatuh Tempo</span><input id="due-date" class="form-control" type="date"></label>
+        <label><span>Supplier / Vendor</span><input id="invoice-partner" class="form-control" readonly></label>
+        <label><span>Currency</span><input id="invoice-currency" class="form-control" readonly></label>
+      </div>
+    </section>
+    <section class="ops-detail-card pr-form-card">
+      <header><div><h2>Detail Matching</h2><p>Qty invoice tidak boleh melampaui outstanding PO. Receipt dan variance ditampilkan sebelum disimpan.</p></div></header>
+      <div class="table-responsive"><table class="table ops-collection-table"><thead><tr><th>Part</th><th>Ordered</th><th>Received</th><th>Qty Invoice</th><th>UOM</th><th>PO Price</th><th>Invoice Price</th><th>Variance</th></tr></thead><tbody id="invoice-lines"><tr><td colspan="8" class="text-center text-muted p-4">Pilih Purchase Order.</td></tr></tbody></table></div>
+    </section>
+    <section class="ops-detail-card pr-form-card"><header><h2>Catatan</h2></header><textarea id="invoice-notes" class="form-control" rows="3"></textarea></section>
+  </form>
+</main>
+<script id="invoice-form-config" type="application/json"><%- JSON.stringify({ mode, recordKey }).replace(/</g, '\\u003c') %></script>
+<script src="/js/purchasing-invoice-form.js"></script>
+<%- include('../partials/footer') %>

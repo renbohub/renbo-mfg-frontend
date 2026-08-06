@@ -1,0 +1,13 @@
+<% const viewDefinitions = { table: { label: 'Table', icon: 'table' }, gallery: { label: 'Gallery', icon: 'gallery' }, heatmap: { label: 'Heatmap', icon: 'heatmap' }, kanban: { label: 'Kanban', icon: 'kanban' }, gantt: { label: 'Gantt', icon: 'activity' }, calendar: { label: 'Kalender', icon: 'calendar' } }; %>
+<% const hasCustomViews = typeof viewModes !== 'undefined' && Array.isArray(viewModes); %>
+<% const enabledViews = hasCustomViews ? viewModes : ['table', 'gallery', 'heatmap', 'kanban']; %>
+<div class="list-view-toolbar <%= typeof viewClass !== 'undefined' ? viewClass : '' %>" aria-label="Mode tampilan">
+  <% if (!hasCustomViews) { %>
+    <button type="button" data-list-view="table" class="active" title="Table" aria-label="Tampilan table" aria-pressed="true"><%- include('./icon', { name: 'table' }) %></button>
+    <button type="button" data-list-view="gallery" title="Gallery" aria-label="Tampilan gallery" aria-pressed="false"><%- include('./icon', { name: 'gallery' }) %></button>
+    <button type="button" data-list-view="heatmap" title="Heatmap" aria-label="Tampilan heatmap" aria-pressed="false"><%- include('./icon', { name: 'heatmap' }) %></button>
+    <button type="button" data-list-view="kanban" title="Kanban" aria-label="Tampilan kanban" aria-pressed="false"><%- include('./icon', { name: 'kanban' }) %></button>
+  <% } else { enabledViews.forEach((viewName, index) => { const definition = viewDefinitions[viewName] || { label: viewName, icon: 'grid' }; %>
+    <button type="button" data-list-view="<%= viewName %>" class="<%= index === 0 ? 'active' : '' %>" title="<%= definition.label %>" aria-label="Tampilan <%= definition.label %>" aria-pressed="<%= index === 0 ? 'true' : 'false' %>"><%- include('./icon', { name: definition.icon }) %><% if (typeof viewLabels !== 'undefined' && viewLabels) { %><span><%= definition.label %></span><% } %></button>
+  <% }); } %>
+</div>

@@ -1,18 +1,63 @@
 <%- include('../partials/head') %>
-<%- include('../partials/header-main') %>
-<main class="hub-content app-container" x-data="{ comingSoon: false }">
-  <% groups.forEach(group => { %>
-    <section class="master-section">
-      <h2><span></span><%= group.title %></h2>
-      <div class="master-card-grid">
-        <% group.items.forEach(item => { %>
-          <a class="master-card" href="/master-data/<%= item.slug %>">
-            <span class="master-card-icon"><%- include('../partials/icon', { name: item.icon }) %></span>
-            <span><strong><%= item.label %></strong><small>Kelola <%= item.singular.toLowerCase() %></small></span>
-          </a>
-        <% }) %>
-      </div>
-    </section>
-  <% }) %>
+<%- include('../partials/header-master') %>
+<%
+  const totalMasterItems = groups.reduce((sum, group) => sum + group.items.length, 0);
+%>
+<main class="master-hub-page" x-data="{ query: '' }">
+  <section class="entity-toolbar master-hub-toolbar app-container">
+    <div class="entity-title"><span>Master Data</span><b>/</b><strong>Semua Master</strong></div>
+    <label class="toolbar-search master-hub-search">
+      <%- include('../partials/icon', { name: 'search' }) %>
+      <input x-model="query" type="search" placeholder="Cari master data..." aria-label="Cari menu Master Data">
+    </label>
+    <div class="toolbar-spacer"></div>
+    <span class="master-hub-total"><strong><%= totalMasterItems %></strong> menu dalam <%= groups.length %> grup</span>
+  </section>
+
+  <section class="master-hub-intro app-container">
+    <div>
+      <p class="eyebrow">Data Foundation</p>
+      <h1>Master Data</h1>
+      <p>Pusat referensi barang, material, mitra, engineering, operasional, dan konfigurasi sistem.</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="/modules">Kembali ke Semua Modul</a>
+  </section>
+
+  <div class="master-hub-content app-container">
+    <% groups.forEach((group, groupIndex) => { %>
+      <section
+        id="master-group-<%= groupIndex %>"
+        class="master-hub-group"
+        x-show="!query || [...$el.querySelectorAll('[data-search]')].some(item => item.dataset.search.includes(query.toLowerCase()))"
+      >
+        <header class="master-hub-group-head">
+          <div><span></span><h2><%= group.title %></h2></div>
+          <small><%= group.items.length %> menu</small>
+        </header>
+        <div class="master-hub-grid">
+          <% group.items.forEach(item => { %>
+            <a
+              class="master-hub-card"
+              href="/master-data/<%= item.slug %>"
+              data-search="<%= (item.label + ' ' + item.singular + ' ' + group.title).toLowerCase() %>"
+              x-show="!query || $el.dataset.search.includes(query.toLowerCase())"
+            >
+              <span class="master-hub-card-icon"><%- include('../partials/icon', { name: item.icon }) %></span>
+              <span class="master-hub-card-copy">
+                <strong><%= item.label %></strong>
+                <small>Kelola data <%= item.singular.toLowerCase() %></small>
+              </span>
+              <span class="master-hub-card-arrow" aria-hidden="true">→</span>
+            </a>
+          <% }) %>
+        </div>
+      </section>
+    <% }) %>
+    <div class="master-hub-empty" x-show="query && ![...document.querySelectorAll('[data-search]')].some(item => item.dataset.search.includes(query.toLowerCase()))" x-cloak>
+      <span><%- include('../partials/icon', { name: 'search' }) %></span>
+      <strong>Menu tidak ditemukan</strong>
+      <small>Coba gunakan nama master atau nama grup lainnya.</small>
+    </div>
+  </div>
 </main>
 <%- include('../partials/footer') %>

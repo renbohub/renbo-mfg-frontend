@@ -1,5 +1,6 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <%- include('../partials/bom-subnav', { activeBomTab: 'processes', recordKey }) %>
 <main class="bom-record-page" data-bom-view="processes">
   <section class="bom-record-toolbar app-container"><nav class="bom-crumb"><span>Master Data</span><i>/</i><span>BOM</span><i>/</i><span><%= recordKey %></span><i>/</i><b>Proses / Routing</b></nav></section>

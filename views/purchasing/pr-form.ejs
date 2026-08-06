@@ -1,0 +1,37 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<% const prCategory = typeof purchaseCategory !== 'undefined' ? purchaseCategory : 'purchase-part'; %>
+<main class="ops-page app-container pr-form-page">
+  <nav class="module-breadcrumb"><a href="/modules/purchasing/purchase-requisitions<%= prCategory ? '?category=' + prCategory : '' %>">Purchase Requisition</a><span>/</span><b><%= mode === 'edit' ? 'Edit PR' : 'Buat PR Manual' %></b></nav>
+  <section class="ops-detail-titlebar pr-form-titlebar">
+    <div><p class="ops-eyebrow" id="pr-category-eyebrow">Purchasing · <%= prCategory.replaceAll('-', ' ') %></p><h1><%= mode === 'edit' ? 'Edit Purchase Requisition' : 'Buat Purchase Requisition Manual' %></h1><p id="pr-category-description">PR dipisahkan menjadi Material, Purchase Part berdrawing, Universal Purchase Part tanpa drawing, dan Non Produksi. Supplier serta konversi Coil/Sheet/Pcs ditentukan di Purchasing.</p></div>
+    <div class="ops-title-actions"><a id="pr-cancel" class="btn btn-outline-secondary" href="<%= mode === 'edit' ? '/modules/purchasing/purchase-requisitions/' + encodeURIComponent(recordKey) + (prCategory ? '?category=' + prCategory : '') : '/modules/purchasing/purchase-requisitions?category=' + prCategory %>">Batal</a><button id="pr-save" class="btn btn-primary brand-button" type="submit" form="pr-form">Simpan Draft</button></div>
+  </section>
+  <div id="pr-alert" class="alert d-none" role="alert"></div>
+  <form id="pr-form" novalidate>
+    <section class="ops-detail-card pr-form-card">
+      <header><div><h2>Informasi Dokumen</h2><p>Data permintaan, tanggal kebutuhan, dan PIC.</p></div><span class="ops-badge draft" id="pr-status">Draft</span></header>
+      <div class="pr-header-grid">
+        <label><span>Kategori PR <em>*</em></span><select id="pr-category" class="form-select" <%= mode === 'edit' ? 'disabled' : '' %>><option value="MATERIAL" <%= prCategory === 'material' ? 'selected' : '' %>>Material</option><option value="PURCHASE_PART" <%= prCategory === 'purchase-part' ? 'selected' : '' %>>Purchase Part (Drawing)</option><option value="UNIVERSAL_PURCHASE_PART" <%= prCategory === 'universal-purchase-part' ? 'selected' : '' %>>Universal Purchase Part</option><option value="NON_PRODUCTION" <%= prCategory === 'non-production' ? 'selected' : '' %>>Non Produksi</option></select><small id="pr-category-hint">Pilihan kategori langsung mengubah detail item.</small></label>
+        <label><span>Tanggal PR <em>*</em></span><input id="pr-date" class="form-control" type="date" required></label>
+        <label><span>Required Date <em>*</em></span><input id="required-date" class="form-control" type="date" required></label>
+        <label><span>Requester <em>*</em></span><input id="requested-by" class="form-control" required placeholder="Nama pemohon"></label>
+        <label><span>Department</span><select id="department-id" class="form-select"><option value="">Pilih department</option></select></label>
+        <label><span>Priority</span><select id="priority" class="form-select"><option>Low</option><option selected>Normal</option><option>High</option><option>Urgent</option></select></label>
+        <label><span>Tipe Pembelian</span><select id="po-type" class="form-select"><option>Material</option><option>Part</option><option selected>Other</option><option>Service</option></select></label>
+        <label id="header-material-wrap"><span>Header Material Master</span><input id="header-material" class="form-control" value="-" readonly><small>Raw-material PR dikelompokkan berdasarkan Material Master, bukan nomor MRP.</small></label>
+        <label><span>Demand Period</span><input id="demand-bucket" class="form-control" value="-" readonly></label>
+        <label><span>Audit Source</span><input id="source-type" class="form-control" value="MANUAL" readonly><small>MRP hanya menjadi sumber traceability, bukan kunci header.</small></label>
+      </div>
+    </section>
+    <section class="ops-detail-card pr-form-card">
+      <header><div><h2>Detail Item</h2><p id="pr-detail-description">Satu header raw-material PR hanya memuat satu Material Master. Form BOM adalah rekomendasi; supplier, Coil/Sheet/Pcs, dan delivery phase aktual dapat dipecah saat Move to PO.</p></div><button id="pr-add-line" class="btn btn-outline-primary" type="button">+ Tambah Baris</button></header>
+      <div class="table-responsive pr-lines-wrap"><table class="table pr-lines-table"><thead><tr><th>Jenis</th><th>Part / Material</th><th>Part Code Internal</th><th>Part Number / Drawing</th><th>Material Type</th><th>Qty Kebutuhan</th><th>UOM</th><th>Rekomendasi / Draft C-S-P</th><th>Supplier Proposal</th><th>Harga Est.</th><th>Total</th><th></th></tr></thead><tbody id="pr-lines"></tbody></table></div>
+      <div class="pr-form-summary"><span>Total estimasi PR</span><strong id="pr-total">Rp0</strong></div>
+    </section>
+    <section class="ops-detail-card pr-form-card"><header><div><h2>Catatan</h2><p>Tambahkan kebutuhan khusus, spesifikasi, atau referensi.</p></div></header><div class="pr-notes"><textarea id="pr-notes" class="form-control" rows="4" placeholder="Catatan purchase requisition..."></textarea></div></section>
+  </form>
+</main>
+<script id="purchasing-pr-config" type="application/json"><%- JSON.stringify({ mode, recordKey, purchaseCategory: prCategory }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

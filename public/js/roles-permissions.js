@@ -74,9 +74,13 @@
     $("delete-role").classList.toggle("d-none", !role || role.isSystem);
     clearPermissionChecks();
     for (const permission of role?.permissions || []) {
-      for (const action of Array.isArray(permission.actions) ? permission.actions : []) {
-        const checkbox = [...document.querySelectorAll(".permission-check")].find((input) => input.dataset.module === permission.moduleCode && input.dataset.page === permission.pageCode && input.dataset.action === action);
-        if (checkbox) checkbox.checked = true;
+      const permissionActions = Array.isArray(permission.actions) && permission.actions.includes("*") ? actions : (Array.isArray(permission.actions) ? permission.actions : []);
+      for (const action of permissionActions) {
+        document.querySelectorAll(".permission-check").forEach((input) => {
+          const moduleMatch = permission.moduleCode === "*" || input.dataset.module === permission.moduleCode;
+          const pageMatch = permission.pageCode === "*" || input.dataset.page === permission.pageCode || permission.resourceCode === input.dataset.resource;
+          if (moduleMatch && pageMatch && input.dataset.action === action) input.checked = true;
+        });
       }
     }
     renderUsers(role?.userIds || []);

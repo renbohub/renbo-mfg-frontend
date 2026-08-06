@@ -1,6 +1,8 @@
 (function () {
   const config = JSON.parse(document.getElementById("approval-rule-config").textContent);
   const catalog = Array.isArray(config.permissionCatalog) ? config.permissionCatalog : [];
+  const templateActions = ["create", "update", "delete", "submit", "approve"];
+  const actionLabels = { create: "Create", update: "Update", delete: "Delete", submit: "Submit", approve: "Approve / Confirm" };
   const state = { rules: [], roles: [], currentId: null, steps: [] };
   const $ = (id) => document.getElementById(id);
   const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -48,10 +50,22 @@
     return new Date(date.getTime() - offset).toISOString().slice(0, 16);
   }
 
+  function templateRules() {
+    const existing = new Set(state.rules.map((rule) => `${rule.moduleCode}|${rule.pageCode}|${rule.actionCode}`));
+    return catalog.flatMap((page) => templateActions.filter((action) => !existing.has(`${page.moduleCode}|${page.pageCode}|${action}`)).map((action) => {
+      const key = `${page.moduleCode}|${page.pageCode}|${action}`;
+      const safe = key.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "").toUpperCase();
+      return { id: `template:${key}`, isTemplate: true, isActive: false, ruleCode: `TPL_${safe}_${action.toUpperCase()}`, ruleName: `${page.pageLabel} — ${actionLabels[action]}`, moduleCode: page.moduleCode, pageCode: page.pageCode, actionCode: action, priority: 100, requireSequential: true, allowSelfApproval: false, description: "Template — aktifkan dan simpan jika action ini wajib approval.", steps: [] };
+    }));
+  }
+
+  function mergedRules() { return [...state.rules, ...templateRules()]; }
+
   function renderRules() {
     const query = $("rule-search").value.trim().toLowerCase();
-    const visible = state.rules.filter((rule) => !query || `${rule.ruleCode} ${rule.ruleName} ${rule.moduleCode} ${rule.pageCode}`.toLowerCase().includes(query));
-    $("rule-count").textContent = `${state.rules.length} rule`;
+    const allRules = mergedRules();
+    const visible = allRules.filter((rule) => !query || `${rule.ruleCode} ${rule.ruleName} ${rule.moduleCode} ${rule.pageCode} ${rule.actionCode}`.toLowerCase().includes(query));
+    $("rule-count").textContent = `${allRules.length} pilihan (${state.rules.length} tersimpan)`;
     $("rule-list").innerHTML = visible.map((rule) => `<button type="button" class="system-record-item ${rule.id === state.currentId ? "active" : ""}" data-rule-id="${esc(rule.id)}"><strong>${esc(rule.ruleName)}</strong><span><em>${esc(rule.moduleCode)} / ${esc(rule.pageCode)}</em><i class="${rule.isActive ? "active-dot" : "inactive-dot"}">${rule.isActive ? "Aktif" : "Nonaktif"} · ${rule.steps?.length || 0} step</i></span></button>`).join("") || '<div class="system-empty">Rule tidak ditemukan.</div>';
   }
 
@@ -87,7 +101,8 @@
   }
 
   function applyRule(rule) {
-    state.currentId = rule?.id || null;
+    const template = rule?.isTemplate === true;
+    state.currentId = template ? null : (rule?.id || null);
     $("rule-code").value = rule?.ruleCode || "";
     $("rule-name").value = rule?.ruleName || "";
     $("rule-module").value = rule?.moduleCode || [...modules().keys()][0] || "*";
@@ -104,8 +119,8 @@
     $("rule-conditions").value = rule?.conditions ? JSON.stringify(rule.conditions, null, 2) : "";
     $("rule-sequential").checked = rule ? rule.requireSequential !== false : true;
     $("rule-self-approval").checked = rule?.allowSelfApproval === true;
-    $("rule-active").checked = rule ? rule.isActive !== false : true;
-    $("delete-rule").classList.toggle("d-none", !rule);
+    $("rule-active").checked = rule ? (!template && rule.isActive !== false) : true;
+    $("delete-rule").classList.toggle("d-none", !rule || template);
     state.steps = (rule?.steps || [emptyStep()]).map((step, index) => ({ ...step, stepOrder: index + 1 }));
     renderSteps();
     renderRules();
@@ -151,7 +166,7 @@
       ]);
       state.rules = rulesPayload.data || rulesPayload.items || [];
       state.roles = rolesPayload.items || rolesPayload.data || [];
-      applyRule(state.rules[0] || null);
+      applyRule(mergedRules()[0] || null);
     } catch (error) { alert(error.message, "danger"); }
   }
 
@@ -159,7 +174,7 @@
   $("rule-search").addEventListener("input", renderRules);
   $("rule-list").addEventListener("click", (event) => {
     const button = event.target.closest("[data-rule-id]");
-    if (button) applyRule(state.rules.find((rule) => rule.id === button.dataset.ruleId));
+    if (button) applyRule(mergedRules().find((rule) => rule.id === button.dataset.ruleId));
   });
   $("new-rule").addEventListener("click", () => applyRule(null));
   $("add-step").addEventListener("click", () => { syncStepsFromDom(); state.steps.push(emptyStep(state.steps.length + 1)); renderSteps(); });
@@ -191,7 +206,7 @@
     try {
       await api(`/master-data/api/approval-rules/${encodeURIComponent(state.currentId)}`, { method: "DELETE" });
       state.rules = state.rules.filter((rule) => rule.id !== state.currentId);
-      applyRule(state.rules[0] || null);
+      applyRule(mergedRules()[0] || null);
       alert("Approval rule berhasil dihapus.");
     } catch (error) { alert(error.message, "danger"); }
   });

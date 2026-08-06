@@ -1,0 +1,9 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'dashboard' }) %>
+<main class="executive-dashboard-page">
+  <div class="app-container">
+    <%- include('../partials/executive-dashboard', { executiveModule: module.slug }) %>
+  </div>
+</main>
+<%- include('../partials/footer') %>

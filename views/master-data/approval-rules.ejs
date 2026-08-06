@@ -5,7 +5,7 @@
     <div>
       <span class="system-eyebrow">MASTER DATA / DATA SISTEM</span>
       <h1>Approval Rules</h1>
-      <p>Ubah alur approval per module, halaman, action, nilai, dan kondisi dokumen.</p>
+      <p>Ubah alur approval per module, halaman, action CRUD/Submit, nilai, dan kondisi dokumen.</p>
     </div>
     <div class="system-toolbar-actions">
       <button id="new-rule" class="btn btn-outline-secondary" type="button">Rule Baru</button>
@@ -20,6 +20,7 @@
         <div><strong>Daftar Approval Rule</strong><small id="rule-count">0 rule</small></div>
         <input id="rule-search" type="search" placeholder="Cari rule...">
       </div>
+      <p class="system-sidebar-hint">Template CRUD/submit di bawah belum aktif. Pilih template, centang <b>Aktif</b>, atur step, lalu simpan jika action tersebut wajib approval.</p>
       <div id="rule-list" class="system-record-list"><div class="system-loading">Memuat rule...</div></div>
     </aside>
     <div class="system-master-editor">
@@ -30,7 +31,7 @@
           <label>Nama Rule<input id="rule-name" type="text" placeholder="PO Standard Approval"></label>
           <label>Module<select id="rule-module"></select></label>
           <label>Halaman / Fitur<select id="rule-page"></select></label>
-          <label>Action<select id="rule-action"><option value="approve">Approve / Confirm</option><option value="release">Release</option><option value="submit">Submit</option><option value="delete">Delete</option><option value="update">Update</option></select></label>
+          <label>Action<select id="rule-action"><option value="approve">Approve / Confirm</option><option value="create">Create</option><option value="update">Update</option><option value="delete">Delete</option><option value="release">Release</option><option value="submit">Submit</option></select></label>
           <label>Document Type<input id="rule-document-type" type="text" placeholder="PurchaseOrder"></label>
           <label>Prioritas<input id="rule-priority" type="number" min="1" value="100"></label>
           <label>Currency<input id="rule-currency" type="text" placeholder="IDR"></label>

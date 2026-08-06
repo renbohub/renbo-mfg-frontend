@@ -1,0 +1,216 @@
+:root{
+  color-scheme:light;
+  --ui-bg:#f7f9fc;
+  --ui-surface:#fff;
+  --ui-surface-soft:#f8fafc;
+  --ui-border:#e2e8f0;
+  --ui-text:#172033;
+  --ui-muted:#64748b;
+  --ui-accent:#4f46e5;
+  --ui-shadow:0 8px 24px rgba(15,23,42,.07);
+}
+html[data-theme="dark"]{
+  color-scheme:dark;
+  --ui-bg:#0b1120;
+  --ui-surface:#111827;
+  --ui-surface-soft:#172033;
+  --ui-border:#293449;
+  --ui-text:#e5e7eb;
+  --ui-muted:#94a3b8;
+  --ui-accent:#a78bfa;
+  --ui-shadow:0 12px 30px rgba(0,0,0,.28);
+}
+.context-navbar-actions{display:flex;align-items:center;gap:5px}
+.customer-brand{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;text-decoration:none}
+.customer-brand-logo{display:block;width:auto;object-fit:contain}
+.customer-brand-logo--module{height:30px;max-width:190px}
+.customer-brand-logo--header{height:28px;max-width:180px}
+.customer-brand-logo--login{height:auto;width:min(100%,310px)}
+.ui-language-control select{height:32px;min-width:58px;padding:0 22px 0 8px;border:1px solid #dfe3ea;border-radius:8px;background-color:#fff;color:#475569;font-size:10px;font-weight:800;outline:none}
+.ui-theme-toggle{font-size:0}
+.ui-theme-toggle span{font-size:16px;line-height:1}
+.ui-theme-toggle__light{display:none}
+html[data-theme="dark"] .ui-theme-toggle__light{display:inline}
+html[data-theme="dark"] .ui-theme-toggle__dark{display:none}
+
+html[data-theme="dark"] body{background:var(--ui-bg);color:var(--ui-text)}
+html[data-theme="dark"] .module-header,
+html[data-theme="dark"] .topbar,
+html[data-theme="dark"] .module-nav,
+html[data-theme="dark"] .module-subnav,
+html[data-theme="dark"] .item-subnav{background:var(--ui-surface)!important;border-color:var(--ui-border)!important}
+html[data-theme="dark"] .module-brand,
+html[data-theme="dark"] .brand,
+html[data-theme="dark"] .module-user-name,
+html[data-theme="dark"] .modules-hero h1,
+html[data-theme="dark"] .module-title-block h1,
+html[data-theme="dark"] .module-data-head h1,
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,
+html[data-theme="dark"] h5,
+html[data-theme="dark"] h6{color:var(--ui-text)!important}
+html[data-theme="dark"] .module-nav a,
+html[data-theme="dark"] .module-subnav a,
+html[data-theme="dark"] .master-groups a,
+html[data-theme="dark"] .item-subnav a,
+html[data-theme="dark"] .module-logout,
+html[data-theme="dark"] .logout-button{color:var(--ui-muted)}
+html[data-theme="dark"] .module-nav a:hover,
+html[data-theme="dark"] .module-nav a.active,
+html[data-theme="dark"] .module-subnav a:hover,
+html[data-theme="dark"] .module-subnav a.active{color:#c4b5fd}
+html[data-theme="dark"] .ui-language-control select,
+html[data-theme="dark"] .context-nav-button,
+html[data-theme="dark"] .icon-button{border-color:var(--ui-border)!important;background:var(--ui-surface-soft)!important;color:var(--ui-text)!important}
+html[data-theme="dark"] .customer-brand{padding:5px 8px;border-radius:8px;background:#fff}
+html[data-theme="dark"] .modules-page,
+html[data-theme="dark"] .module-hub,
+html[data-theme="dark"] .module-data-page,
+html[data-theme="dark"] .entity-page,
+html[data-theme="dark"] .ppic-page,
+html[data-theme="dark"] .executive-dashboard-page{background:var(--ui-bg)!important}
+html[data-theme="dark"] .module-card,
+html[data-theme="dark"] .module-menu-card,
+html[data-theme="dark"] .module-title-block,
+html[data-theme="dark"] .master-data-shortcut,
+html[data-theme="dark"] .module-table-shell,
+html[data-theme="dark"] .table-shell,
+html[data-theme="dark"] .entity-card,
+html[data-theme="dark"] .detail-card,
+html[data-theme="dark"] .card,
+html[data-theme="dark"] .modal-content,
+html[data-theme="dark"] .offcanvas,
+html[data-theme="dark"] .report-stat-grid article,
+html[data-theme="dark"] .report-panels>article,
+html[data-theme="dark"] .form-shell,
+html[data-theme="dark"] .form-card,
+html[data-theme="dark"] .ops-form-card,
+html[data-theme="dark"] .bom-card,
+html[data-theme="dark"] .capacity-card{border-color:var(--ui-border)!important;background:var(--ui-surface)!important;color:var(--ui-text)!important;box-shadow:var(--ui-shadow)}
+html[data-theme="dark"] .module-card-copy small,
+html[data-theme="dark"] .module-menu-card small,
+html[data-theme="dark"] .modules-hero p,
+html[data-theme="dark"] .module-title-block p,
+html[data-theme="dark"] .module-data-head p,
+html[data-theme="dark"] .text-muted,
+html[data-theme="dark"] small{color:var(--ui-muted)!important}
+html[data-theme="dark"] .module-card,
+html[data-theme="dark"] .module-menu-card,
+html[data-theme="dark"] .master-data-shortcut{color:var(--ui-text)}
+html[data-theme="dark"] .form-control,
+html[data-theme="dark"] .form-select,
+html[data-theme="dark"] .input-group-text,
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea{border-color:var(--ui-border)!important;background-color:var(--ui-surface-soft)!important;color:var(--ui-text)!important}
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder{color:#718096!important}
+html[data-theme="dark"] .table,
+html[data-theme="dark"] table{--bs-table-bg:transparent;--bs-table-color:var(--ui-text);--bs-table-border-color:var(--ui-border);color:var(--ui-text)!important}
+html[data-theme="dark"] .table thead th,
+html[data-theme="dark"] table thead th,
+html[data-theme="dark"] #module-table thead th,
+html[data-theme="dark"] .report-detail-table thead th{border-color:var(--ui-border)!important;background:#1c2638!important;color:#cbd5e1!important}
+html[data-theme="dark"] .table tbody td,
+html[data-theme="dark"] table tbody td,
+html[data-theme="dark"] #module-table tbody td,
+html[data-theme="dark"] .report-detail-table tbody td{border-color:var(--ui-border)!important;background:var(--ui-surface)!important;color:#d7deea!important}
+html[data-theme="dark"] .table tbody tr:hover td,
+html[data-theme="dark"] table tbody tr:hover td{background:#1a2435!important}
+html[data-theme="dark"] .dropdown-menu,
+html[data-theme="dark"] .list-group-item,
+html[data-theme="dark"] .accordion-item,
+html[data-theme="dark"] .accordion-button{border-color:var(--ui-border)!important;background:var(--ui-surface)!important;color:var(--ui-text)!important}
+html[data-theme="dark"] .bg-white{background-color:var(--ui-surface)!important}
+html[data-theme="dark"] .border,
+html[data-theme="dark"] .border-top,
+html[data-theme="dark"] .border-bottom{border-color:var(--ui-border)!important}
+html[data-theme="dark"] .executive-dashboard{border-color:var(--ui-border);background:linear-gradient(145deg,#111827,#151d2d);color:var(--ui-text);box-shadow:var(--ui-shadow)}
+html[data-theme="dark"] .executive-dashboard__ambient{background:radial-gradient(circle at 8% -10%,rgba(139,92,246,.18),transparent 32%),radial-gradient(circle at 92% 2%,rgba(14,165,233,.12),transparent 28%)}
+html[data-theme="dark"] .executive-dashboard__controls .form-select,
+html[data-theme="dark"] .executive-dashboard__refresh,
+html[data-theme="dark"] .executive-dashboard__metric-toggle,
+html[data-theme="dark"] .executive-kpi,
+html[data-theme="dark"] .executive-dashboard__chart-card,
+html[data-theme="dark"] .executive-dashboard__insight-card,
+html[data-theme="dark"] .executive-insight{border-color:var(--ui-border);background:#172033;color:var(--ui-text)}
+html[data-theme="dark"] .executive-kpi>strong,
+html[data-theme="dark"] .executive-dashboard__panel-head h3,
+html[data-theme="dark"] .executive-insight strong{color:var(--ui-text)}
+html[data-theme="dark"] .executive-dashboard__panel-head>span,
+html[data-theme="dark"] .executive-dashboard__context div{border-color:var(--ui-border);background:#1c2638}
+html[data-theme="dark"] .executive-dashboard__context b{color:#d7deea}
+html[data-theme="dark"] .apexcharts-text,
+html[data-theme="dark"] .apexcharts-legend-text{fill:#94a3b8!important;color:#94a3b8!important}
+html[data-theme="dark"] .apexcharts-tooltip{border-color:var(--ui-border)!important;background:#172033!important;color:var(--ui-text)!important}
+html[data-theme="dark"] .apexcharts-tooltip-title{border-color:var(--ui-border)!important;background:#1c2638!important}
+html[data-theme="dark"] .entity-toolbar,
+html[data-theme="dark"] .entity-form-card,
+html[data-theme="dark"] .form-actions,
+html[data-theme="dark"] .detail-field,
+html[data-theme="dark"] .sales-subnav,
+html[data-theme="dark"] .sales-card,
+html[data-theme="dark"] .ppic-subnav,
+html[data-theme="dark"] .ppic-toolbar,
+html[data-theme="dark"] .ppic-search,
+html[data-theme="dark"] .ppic-table-card,
+html[data-theme="dark"] .ppic-detail-toolbar,
+html[data-theme="dark"] .ppic-detail-card,
+html[data-theme="dark"] .ppic-workflow-card,
+html[data-theme="dark"] .ppic-table-filters,
+html[data-theme="dark"] .ppic-buffer-control,
+html[data-theme="dark"] .ppic-allocation-line,
+html[data-theme="dark"] .ppic-procurement-summary,
+html[data-theme="dark"] .ops-subnav,
+html[data-theme="dark"] .ops-category-tabs,
+html[data-theme="dark"] .ops-table-card,
+html[data-theme="dark"] .ops-detail-card,
+html[data-theme="dark"] .ops-detail-fields,
+html[data-theme="dark"] .ops-stat-card,
+html[data-theme="dark"] .ops-collection-head,
+html[data-theme="dark"] .ops-collection-table,
+html[data-theme="dark"] .pr-form-summary,
+html[data-theme="dark"] .pr-lines-table,
+html[data-theme="dark"] .line-supplier-control,
+html[data-theme="dark"] .production-log-form,
+html[data-theme="dark"] .production-log-section,
+html[data-theme="dark"] .production-log-section-header,
+html[data-theme="dark"] .production-log-plan-summary,
+html[data-theme="dark"] .production-downtime-grid,
+html[data-theme="dark"] .production-downtime-row,
+html[data-theme="dark"] .mps-monthly-summary,
+html[data-theme="dark"] .mps-monthly-head,
+html[data-theme="dark"] .mps-monthly-filters,
+html[data-theme="dark"] .bom-subnav,
+html[data-theme="dark"] .bom-figma-toolbar,
+html[data-theme="dark"] .bom-record-toolbar,
+html[data-theme="dark"] .bom-table-card,
+html[data-theme="dark"] .bom-table-header-card,
+html[data-theme="dark"] .bom-table-grid-card,
+html[data-theme="dark"] .bom-info-card,
+html[data-theme="dark"] .bom-process-card,
+html[data-theme="dark"] .bom-process-row,
+html[data-theme="dark"] .bom-header-form,
+html[data-theme="dark"] .bom-palette,
+html[data-theme="dark"] .bom-inspector,
+html[data-theme="dark"] .bom-node,
+html[data-theme="dark"] .bom-root-node,
+html[data-theme="dark"] .bom-list-card,
+html[data-theme="dark"] .bom-estimate-summary,
+html[data-theme="dark"] .system-card,
+html[data-theme="dark"] .system-master-sidebar,
+html[data-theme="dark"] .system-record-item,
+html[data-theme="dark"] .permission-matrix,
+html[data-theme="dark"] .permission-module-row{border-color:var(--ui-border)!important;background:var(--ui-surface)!important;color:var(--ui-text)!important}
+html[data-theme="dark"] .bom-editor-page,
+html[data-theme="dark"] .bom-figma-page,
+html[data-theme="dark"] .bom-record-page,
+html[data-theme="dark"] .bom-table-editor-page,
+html[data-theme="dark"] .system-master-page{background:var(--ui-bg)!important;color:var(--ui-text)!important}
+@media(max-width:900px){
+  .context-navbar-actions{gap:3px}
+  .ui-language-control select{min-width:52px}
+  .customer-brand-logo--module,.customer-brand-logo--header{height:24px;max-width:145px}
+}

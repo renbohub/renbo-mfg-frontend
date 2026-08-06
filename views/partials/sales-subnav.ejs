@@ -1,7 +1,1 @@
-<nav class="sales-subnav" aria-label="Menu Sales">
-  <div class="app-container sales-subnav-inner">
-    <% module.pages.forEach(item => { %>
-      <a class="<%= page.slug === item.slug ? 'active' : '' %>" href="/modules/sales/<%= item.slug %>"><%= item.label %></a>
-    <% }) %>
-  </div>
-</nav>
+<%- include('./module-subnav', { activePage: typeof page !== 'undefined' && page ? page.slug : '' }) %>

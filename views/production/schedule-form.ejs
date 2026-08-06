@@ -1,0 +1,24 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<main class="ops-page app-container">
+  <nav class="module-breadcrumb"><a href="/modules/production">Production</a><span>/</span><a href="/modules/production/daily-production-schedules">Daily Production Schedules</a><span>/</span><b>Buat</b></nav>
+  <section class="ops-detail-titlebar"><div><p class="ops-eyebrow">Production</p><h1>Buat Daily Production Schedule</h1><p>Jadwal per tanggal dan shift. Work Order akan mengisi MO, part, proses, mesin, dan UOM secara otomatis bila tersedia.</p></div><a class="btn btn-outline-secondary" href="/modules/production/daily-production-schedules">Kembali</a></section>
+  <div id="production-schedule-alert" class="alert d-none" role="alert"></div>
+  <form id="production-schedule-form" class="ops-detail-card">
+    <div class="module-form-section-title">Informasi Daily Schedule<span class="form-required-note">* Field wajib</span></div>
+    <div class="ops-detail-fields">
+      <label><span>Tanggal *</span><input id="scheduleDate" type="date" required></label>
+      <label><span>Shift *</span><select id="shift" required><option value="1A">1A</option><option value="1B">1B</option><option value="2A">2A</option><option value="2B">2B</option><option value="3A">3A</option><option value="3C">3C</option></select></label>
+      <label class="span-2"><span>Work Order</span><input id="woNumber" list="schedule-work-orders" placeholder="Pilih/ketik nomor WO untuk auto-link MO, part, routing, dan mesin"></label>
+      <label><span>Qty Planned *</span><input id="plannedQty" type="number" min="0.0001" step="0.0001" required></label>
+      <label><span>UOM</span><input id="uomCode" placeholder="Otomatis dari WO bila kosong"></label>
+      <label><span>Operator</span><input id="operatorName"></label>
+      <label><span>Sequence</span><input id="sequence" type="number" min="0" step="1" value="0"></label>
+      <label class="span-2"><span>Catatan</span><textarea id="notes" rows="3"></textarea></label>
+    </div>
+    <datalist id="schedule-work-orders"></datalist>
+    <div class="module-form-actions"><a class="btn btn-outline-secondary" href="/modules/production/daily-production-schedules">Batal</a><button class="btn btn-primary brand-button" type="submit">Simpan Jadwal</button></div>
+  </form>
+</main>
+<%- include('../partials/footer') %>

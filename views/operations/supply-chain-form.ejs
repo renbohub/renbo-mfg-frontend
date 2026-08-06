@@ -1,0 +1,25 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<main class="ops-page app-container">
+  <nav class="module-breadcrumb"><a href="/modules/<%= module.slug %>"><%= module.label %></a><span>/</span><a href="/modules/<%= module.slug %>/<%= page.slug %>"><%= page.label %></a><span>/</span><b>Buat</b></nav>
+  <section class="ops-detail-titlebar"><div><p class="ops-eyebrow"><%= module.label %></p><h1>Buat <%= page.label %></h1><p id="supply-form-help">Pilih dokumen sumber lalu tentukan kuantitas setiap baris.</p></div><a class="btn btn-outline-secondary" href="/modules/<%= module.slug %>/<%= page.slug %>">Kembali</a></section>
+  <div id="supply-form-alert" class="alert d-none" role="alert"></div>
+  <form id="supply-form" class="ops-detail-card">
+    <div class="module-form-section-title">Informasi <%= page.label %><span class="form-required-note">* Field wajib</span></div>
+    <div class="ops-detail-fields">
+      <% if (module.slug === 'incoming') { %>
+        <label><span>Purchase Order *</span><select id="sourceNumber" required><option value="">Pilih PO</option></select></label><label><span>Warehouse *</span><select id="warehouseCode" required><option value="">Pilih warehouse</option></select></label>
+        <label><span>Surat Jalan</span><input id="deliveryNoteNumber"></label><label class="span-2"><span>Catatan</span><textarea id="notes" rows="2"></textarea></label>
+      <% } else { %>
+        <label><span>Sales Order *</span><input id="sourceNumber" placeholder="SO-..." required></label><label><span>Tanggal Kirim *</span><input id="plannedDate" type="date" required></label>
+        <label><span>Metode Kirim</span><input id="shippingMethod" placeholder="Truck / Courier"></label><label class="span-2"><span>Alamat Kirim</span><textarea id="deliveryAddress" rows="2"></textarea></label><label class="span-2"><span>Catatan</span><textarea id="notes" rows="2"></textarea></label>
+      <% } %>
+    </div>
+    <div class="d-flex gap-2 mt-3"><button id="supply-load-source" type="button" class="btn btn-outline-primary">Muat Detail Sumber</button></div>
+    <div class="table-responsive mt-3"><table class="table ops-collection-table"><thead><tr><th>Item / Deskripsi</th><th>Outstanding</th><th>Qty Transaksi</th><th><%= module.slug === 'incoming' ? 'Lot & Rack Warehouse' : 'Catatan' %></th></tr></thead><tbody id="supply-detail-body"><tr><td colspan="4" class="ops-muted">Muat dokumen sumber terlebih dahulu.</td></tr></tbody></table></div>
+    <div class="module-form-actions"><a class="btn btn-outline-secondary" href="/modules/<%= module.slug %>/<%= page.slug %>">Batal</a><button class="btn btn-primary brand-button" type="submit">Simpan Dokumen</button></div>
+  </form>
+</main>
+<script id="supply-form-config" type="application/json"><%- JSON.stringify({ module: module.slug, page: page.slug }).replace(/</g, '\u003c') %></script>
+<%- include('../partials/footer') %>

@@ -1,0 +1,37 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<main class="entity-page log-center-page">
+  <section class="entity-toolbar app-container log-center-toolbar">
+    <div class="entity-title"><span>System</span><b>/</b><strong>Log Center</strong></div>
+    <label class="toolbar-search">
+      <%- include('../partials/icon', { name: 'search' }) %>
+      <input id="log-center-search" type="search" placeholder="Cari user, halaman, record, atau pesan...">
+    </label>
+    <select id="log-center-module" class="form-select log-center-filter" aria-label="Filter modul">
+      <option value="">Semua modul</option>
+      <option value="master-data">Master Data</option>
+      <% modules.forEach(module => { %><option value="<%= module.slug %>"><%= module.label %></option><% }) %>
+      <option value="system">System</option>
+    </select>
+    <select id="log-center-type" class="form-select log-center-filter" aria-label="Filter tipe">
+      <option value="">Semua tipe</option>
+      <option value="LOG">Log transaksi/workflow</option>
+      <option value="ALARM">Alarm, blocker & error</option>
+      <option value="COMMENT">Comment</option>
+    </select>
+    <button id="log-center-refresh" class="btn btn-export" type="button">Refresh</button>
+  </section>
+
+  <section class="app-container log-center-summary" id="log-center-summary" aria-label="Ringkasan log per modul"></section>
+  <div id="log-center-alert" class="alert alert-warning mx-4 mt-3 d-none" role="alert"></div>
+  <section class="table-shell entity-table-shell log-center-table-shell">
+    <div class="table-responsive">
+      <table class="table align-middle w-100">
+        <thead><tr><th>WAKTU</th><th>MODUL</th><th>HALAMAN / RECORD</th><th>TIPE</th><th>USER</th><th>AKTIVITAS / PESAN</th><th>STATUS</th></tr></thead>
+        <tbody id="log-center-body"><tr><td colspan="7" class="text-center py-5 text-secondary">Memuat seluruh log...</td></tr></tbody>
+      </table>
+    </div>
+    <footer class="log-center-footer"><span id="log-center-total">0 log</span><span>Data terbaru ditampilkan lebih dahulu</span></footer>
+  </section>
+</main>
+<%- include('../partials/footer') %>

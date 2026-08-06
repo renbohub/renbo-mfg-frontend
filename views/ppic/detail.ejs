@@ -1,8 +1,6 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
-<nav class="ppic-subnav" aria-label="Navigasi PPIC"><div class="app-container ppic-subnav-inner">
-  <a href="/modules/planning-ppic/mrp/general">MRP General</a><a class="<%= activePpicTab === 'mrp' ? 'active' : '' %>" href="/modules/planning-ppic/mrp">MRP Header</a><a href="/modules/planning-ppic/mps/general">MPS General</a><a class="<%= activePpicTab === 'mps' ? 'active' : '' %>" href="/modules/planning-ppic/mps">MPS Header</a><a class="<%= activePpicTab === 'monthly-plan' ? 'active' : '' %>" href="/modules/planning-ppic/monthly-plan">Monthly Plan</a><a class="<%= activePpicTab === 'consume-forecast' ? 'active' : '' %>" href="/modules/planning-ppic/consume-forecast">Consume Forecast</a><a class="<%= activePpicTab === 'capacity-planning' ? 'active' : '' %>" href="/modules/planning-ppic/capacity-planning">Capacity Planning</a>
-</div></nav>
+<%- include('../partials/module-subnav', { activePage: activePpicTab }) %>
 <main class="ppic-page ppic-detail-page">
   <section class="ppic-detail-toolbar">
     <div class="app-container ppic-detail-toolbar-inner">
@@ -30,12 +28,32 @@
         </section>
         <section class="ppic-detail-card">
           <div class="ppic-table-card-head"><h2 id="ppic-table-title">Detail</h2><div id="ppic-table-filters" class="ppic-table-filters"></div></div>
-          <div class="table-responsive"><table class="table ppic-detail-table"><thead id="ppic-detail-head"></thead><tbody id="ppic-detail-rows"></tbody></table></div>
+          <div id="ppic-detail-table-wrap" class="table-responsive"><table id="ppic-detail-table" class="table ppic-detail-table"><thead id="ppic-detail-head"></thead><tbody id="ppic-detail-rows"></tbody></table></div>
+        </section>
+        <div id="ppic-delivery-form-parking" class="d-none">
+          <form id="ppic-delivery-plan-form" class="capacity-filter-card d-none">
+            <label>Part / Child<select id="ppic-delivery-detail" required></select></label>
+            <input id="ppic-delivery-target-type" type="hidden" value="CUSTOMER">
+            <label>Customer<select id="ppic-delivery-target" required></select><small id="ppic-delivery-target-help" class="d-block text-muted"></small><a id="ppic-delivery-target-master-link" class="d-none small" href="/master-data/customers">Tambah di Master Customer →</a></label>
+            <label>Tanggal Delivery<input id="ppic-delivery-date" type="date" required></label>
+            <label>Qty Phase<input id="ppic-delivery-qty" type="number" min="0.001" step="0.001" required></label>
+            <label>Catatan<input id="ppic-delivery-notes" type="text" placeholder="Contoh: Phase 1 urgent"></label>
+            <div class="d-flex align-items-end gap-2"><button class="btn btn-primary" type="submit">Simpan Phase</button><button class="btn btn-outline-secondary" type="button" data-action="cancel-delivery-phase">Batal</button></div>
+          </form>
+        </div>
+        <section id="ppic-procurement-card" class="ppic-detail-card d-none">
+          <div class="ppic-table-card-head">
+            <div><h2>MRP → Purchase Suggestion</h2><p class="ppic-section-help">Tinjau kebutuhan pembelian hasil MRP. Purchasing memeriksa supplier, MOQ, lead time, dan jadwal delivery sebelum membuat PR.</p></div>
+            <div class="ppic-procurement-actions"><button type="button" class="btn btn-primary ppic-action-primary" data-action="make-purchase-suggestion">Buat Purchase Suggestion</button></div>
+          </div>
+          <div class="table-responsive"><table class="table ppic-detail-table ppic-procurement-table"><thead><tr><th><input id="ppic-procurement-check-all" type="checkbox" aria-label="Pilih semua planned order"></th><th>Planned Order</th><th>Material / Part</th><th>Demand / Sisa</th><th>Qty Rekomendasi</th><th>UOM</th><th>Tindak Lanjut</th><th>Purchase Suggestion</th></tr></thead><tbody id="ppic-procurement-rows"></tbody></table></div>
+          <div id="ppic-procurement-summary" class="ppic-procurement-summary"></div>
         </section>
         <section class="ppic-detail-card">
           <h2 id="ppic-summary-title">Ringkasan Perencanaan</h2>
           <div id="ppic-summary-grid" class="ppic-detail-summary"></div>
           <p id="ppic-detail-notes" class="ppic-detail-notes d-none"></p>
+          <div id="ppic-readiness-list" class="ppic-readiness-list d-none"></div>
         </section>
       </div>
     </div>

@@ -1,44 +1,73 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
-<nav class="ops-subnav ops-subnav--<%= module.color %>" aria-label="Navigasi <%= module.label %>">
-  <div class="app-container ops-subnav-inner">
-    <% module.pages.forEach(item => { %>
-      <a class="<%= item.slug === page.slug ? 'active' : '' %> <%= !item.apiReady ? 'disabled' : '' %>" href="<%= item.apiReady ? '/modules/' + module.slug + '/' + item.slug : '#' %>" <%= !item.apiReady ? 'aria-disabled="true" title="Endpoint belum tersedia"' : '' %>><%= item.label %></a>
-    <% }) %>
-  </div>
-</nav>
-<main class="ops-page app-container">
-  <nav class="module-breadcrumb"><a href="/modules">Modul</a><span>/</span><a href="/modules/<%= module.slug %>"><%= module.label %></a><span>/</span><b><%= page.label %></b></nav>
-  <section class="ops-titlebar">
-    <div>
-      <p class="ops-eyebrow"><%= module.label %> Control Center</p>
-      <h1><%= page.label %></h1>
-      <p><%= page.description %></p>
-    </div>
-    <div class="ops-title-actions">
-      <button id="ops-refresh" type="button" class="btn btn-outline-secondary">Refresh</button>
-      <button id="ops-export" type="button" class="btn btn-primary brand-button">Export CSV</button>
-    </div>
-  </section>
-
-  <section class="ops-summary" aria-label="Ringkasan <%= page.label %>">
-    <% for (let index = 0; index < 4; index += 1) { %>
-      <article class="ops-stat-card"><span class="ops-stat-icon"><%= index + 1 %></span><div><small id="ops-stat-label-<%= index %>">Memuat</small><strong id="ops-stat-value-<%= index %>">—</strong><em id="ops-stat-note-<%= index %>">Data terkini</em></div></article>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<% const isPurchaseRequisition = module.slug === 'purchasing' && page.slug === 'purchase-requisitions'; %>
+<main class="entity-page operations-master-list-page">
+  <section class="entity-toolbar operations-master-toolbar app-container">
+    <div class="entity-title"><span><%= module.label %></span><b>/</b><strong><%= page.label %></strong></div>
+    <label class="toolbar-search operations-master-search">
+      <%- include('../partials/icon', { name: 'search' }) %>
+      <input id="ops-search" type="search" placeholder="Cari nomor, part, lokasi, atau status..." aria-label="Cari <%= page.label %>">
+    </label>
+    <div class="toolbar-spacer"></div>
+    <%- include('../partials/view-switcher') %>
+    <button id="ops-refresh" type="button" class="btn btn-outline-secondary">Refresh</button>
+    <button id="ops-export" type="button" class="btn btn-export">Export CSV</button>
+    <% if (isPurchaseRequisition) { %>
+      <a href="/modules/purchasing/purchase-requisitions/new<%= purchaseCategory ? '?category=' + purchaseCategory : '' %>" class="btn btn-primary brand-button"><%- include('../partials/icon', { name: 'plus' }) %> Tambah Baru</a>
+    <% } else if (page.createRoute) { %>
+      <a href="<%= page.createRoute %>" class="btn btn-primary brand-button"><%- include('../partials/icon', { name: 'plus' }) %> Tambah Baru</a>
     <% } %>
   </section>
+  <% if (module.slug === 'inventory') { %>
+    <section class="app-container d-flex flex-wrap align-items-center gap-2 py-3 border-bottom bg-white" aria-label="Warehouse operational filters">
+      <% if (page.slug !== 'warehouses') { %>
+        <select id="ops-filter-warehouse" class="form-select form-select-sm" style="max-width:240px"><option value="">Semua Warehouse</option></select>
+      <% } else { %>
+        <select id="ops-filter-type" class="form-select form-select-sm" style="max-width:190px"><option value="">Semua Tipe</option><option value="Main">Main</option><option value="Sub">Sub</option><option value="Transit">Transit</option><option value="Quarantine">Quarantine</option></select>
+        <select id="ops-filter-active" class="form-select form-select-sm" style="max-width:190px"><option value="">Semua Status</option><option value="true">Active</option><option value="false">Inactive</option></select>
+      <% } %>
+      <% if (page.slug === 'stock-balances') { %>
+        <select id="ops-filter-stock-type" class="form-select form-select-sm" style="max-width:210px"><option value="">Semua Stock Type</option><option value="Material">Material</option><option value="Purchase Part">Purchase Part</option><option value="WIP">WIP</option><option value="Finished Goods">Finished Goods</option></select>
+        <select id="ops-filter-low-stock" class="form-select form-select-sm" style="max-width:190px"><option value="">Semua Level</option><option value="true">Low Stock Only</option></select>
+      <% } %>
+      <% if (page.slug === 'stock-opname') { %>
+        <select id="ops-filter-status" class="form-select form-select-sm" style="max-width:220px"><option value="">Semua Status</option><option value="DRAFT">Draft</option><option value="COUNTING">Counting</option><option value="WAITING_APPROVAL">Waiting Approval</option><option value="APPROVED">Approved</option><option value="ADJUSTED">Adjusted</option><option value="CLOSED">Closed</option><option value="CANCELLED">Cancelled</option></select>
+      <% } %>
+      <% if (page.slug === 'stock-reservations') { %>
+        <select id="ops-filter-status" class="form-select form-select-sm" style="max-width:220px"><option value="">Semua Status</option><option value="Active">Active</option><option value="Released">Released</option><option value="Cancelled">Cancelled</option></select>
+        <select id="ops-filter-type" class="form-select form-select-sm" style="max-width:220px"><option value="">Semua Sumber</option><option value="SO">Sales Order</option><option value="MANUFACTURING_ORDER">Manufacturing Order</option><option value="MPS">MPS</option></select>
+      <% } %>
+      <button id="ops-filter-reset" type="button" class="btn btn-sm btn-outline-secondary">Reset Filter</button>
+    </section>
+  <% } %>
 
-  <section class="ops-table-card">
-    <header class="ops-card-head">
-      <div><h2>Daftar <%= page.label %></h2><p>Data operasional yang terhubung langsung ke backend.</p></div>
-      <label class="ops-search"><span aria-hidden="true">⌕</span><input id="ops-search" type="search" placeholder="Cari nomor, part, lokasi, atau status..."></label>
-    </header>
-    <div id="ops-alert" class="alert alert-warning d-none" role="alert"></div>
-    <div class="table-responsive">
+  <% if (isPurchaseRequisition) { %>
+    <nav class="ops-category-tabs operations-category-tabs app-container" aria-label="Jenis Purchase Requisition">
+      <a class="<%= purchaseCategory === 'material' ? 'active' : '' %>" href="/modules/purchasing/purchase-requisitions?category=material">
+        <span>Material</span><small>SPHC dan Material Master; request PPIC tetap KG</small>
+      </a>
+      <a class="<%= purchaseCategory === 'purchase-part' ? 'active' : '' %>" href="/modules/purchasing/purchase-requisitions?category=purchase-part">
+        <span>Purchase Part</span><small>Purchased part yang memiliki drawing</small>
+      </a>
+      <a class="<%= purchaseCategory === 'universal-purchase-part' ? 'active' : '' %>" href="/modules/purchasing/purchase-requisitions?category=universal-purchase-part">
+        <span>Universal Purchase Part</span><small>Purchased part tanpa drawing / item universal</small>
+      </a>
+      <a class="<%= purchaseCategory === 'non-production' ? 'active' : '' %>" href="/modules/purchasing/purchase-requisitions?category=non-production">
+        <span>Non Produksi</span><small>Consumable, service, asset, maintenance, dan umum</small>
+      </a>
+    </nav>
+  <% } %>
+
+  <div id="ops-alert" class="alert alert-warning mx-4 mt-3 d-none" role="alert"></div>
+  <section id="ops-list-root" class="table-shell entity-table-shell operations-master-table">
+    <div class="list-table-view">
       <table id="ops-table" class="table align-middle w-100">
         <thead><tr><% page.columns.forEach(column => { %><th><%= column.label %></th><% }) %><th>AKSI</th></tr></thead>
       </table>
     </div>
+    <div class="list-gallery is-hidden" aria-live="polite"></div>
   </section>
 </main>
-<script id="ops-page-config" type="application/json"><%- JSON.stringify({ module: module.slug, moduleLabel: module.label, moduleColor: module.color, page }).replace(/</g, '\\u003c') %></script>
+<script id="ops-page-config" type="application/json"><%- JSON.stringify({ module: module.slug, moduleLabel: module.label, moduleColor: module.color, page, purchaseCategory: typeof purchaseCategory === 'undefined' ? null : purchaseCategory }).replace(/</g, '\\u003c') %></script>
 <%- include('../partials/footer') %>

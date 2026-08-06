@@ -1,22 +1,43 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
 <%- include('../partials/sales-subnav') %>
-<main class="sales-page app-container">
-  <nav class="module-breadcrumb"><a href="/modules">Modul</a><span>/</span><a href="/modules/sales">Sales</a><span>/</span><b><%= page.label %></b></nav>
-  <section class="sales-titlebar">
-    <div><h1><%= page.label %></h1><p><%= page.description %></p></div>
-    <a class="btn btn-primary brand-button" href="/modules/sales/<%= page.slug %>/new">＋ Buat <%= page.label %></a>
-  </section>
-  <section class="sales-card">
-    <div class="sales-toolbar">
-      <label class="sales-search"><span>⌕</span><input id="sales-search" type="search" placeholder="Cari nomor, customer, atau status..."></label>
-      <button id="sales-export" class="btn btn-outline-secondary">Export CSV</button>
-      <div class="list-view-toolbar" aria-label="Mode tampilan"><button type="button" data-list-view="table" class="active">☷</button><button type="button" data-list-view="gallery">▦</button></div>
+<%
+  const salesStatuses = page.salesType === 'quotation'
+    ? ['Draft', 'Submitted', 'Approved', 'Accepted', 'Rejected']
+    : page.salesType === 'sales-order'
+      ? ['Draft', 'Confirmed', 'In Progress', 'Completed', 'Cancelled']
+      : ['Draft', 'Submitted', 'Confirmed', 'Partial Product', 'Consumed', 'Closed', 'Obsolete', 'Superseded'];
+%>
+<main class="entity-page sales-list-page">
+  <section class="entity-toolbar sales-master-toolbar app-container">
+    <div class="entity-title">
+      <span>Sales</span><b>/</b><strong><%= page.label %></strong>
     </div>
-    <div id="sales-alert" class="alert alert-warning d-none"></div>
-    <div id="sales-list-root"><div class="list-table-view"><div class="table-responsive"><table id="sales-table" class="table align-middle w-100"><thead><tr>
-      <% page.columns.forEach(column => { %><th><%= column.label %></th><% }) %><th>AKSI</th>
-    </tr></thead></table></div></div><div class="list-gallery is-hidden" aria-live="polite"></div></div>
+    <label class="toolbar-search sales-master-search">
+      <%- include('../partials/icon', { name: 'search' }) %>
+      <input id="sales-search" type="search" placeholder="Cari nomor atau customer..." aria-label="Cari <%= page.label %>">
+    </label>
+    <select id="sales-status-filter" class="form-select sales-status-filter" aria-label="Filter status">
+      <option value="">Semua status</option>
+      <% salesStatuses.forEach(status => { %><option value="<%= status %>"><%= status %></option><% }) %>
+    </select>
+    <div class="toolbar-spacer"></div>
+    <%- include('../partials/view-switcher') %>
+    <button id="sales-export" class="btn btn-export" type="button">Export CSV</button>
+    <a class="btn btn-primary brand-button" href="/modules/sales/<%= page.slug %>/new">
+      <%- include('../partials/icon', { name: 'plus' }) %> Tambah Baru
+    </a>
+  </section>
+  <div id="sales-alert" class="alert alert-warning mx-4 mt-3 d-none" role="alert"></div>
+  <section id="sales-list-root" class="table-shell entity-table-shell sales-master-table">
+    <div class="list-table-view">
+      <table id="sales-table" class="table align-middle w-100">
+        <thead><tr>
+          <% page.columns.forEach(column => { %><th><%= column.label %></th><% }) %><th>AKSI</th>
+        </tr></thead>
+      </table>
+    </div>
+    <div class="list-gallery is-hidden" aria-live="polite"></div>
   </section>
 </main>
 <script id="sales-page-config" type="application/json"><%- JSON.stringify({ ...page }).replace(/</g, '\\u003c') %></script>

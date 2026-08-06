@@ -1,0 +1,55 @@
+<% const dashboardModule = typeof executiveModule !== 'undefined' ? executiveModule : (typeof module !== 'undefined' ? module.slug : 'system'); %>
+<% const dashboardLabel = dashboardModule === 'system' ? 'Ringkasan Sistem' : (typeof module !== 'undefined' ? module.label : dashboardModule); %>
+<section class="executive-dashboard" data-executive-dashboard data-module="<%= dashboardModule %>" aria-label="<%= dashboardLabel %> dashboard">
+  <div class="executive-dashboard__ambient"></div>
+  <header class="executive-dashboard__header">
+    <div>
+      <p class="executive-dashboard__eyebrow"><span></span> Ringkasan</p>
+      <h2 data-executive-title><%= dashboardLabel %></h2>
+      <p data-executive-subtitle>Memuat data...</p>
+    </div>
+    <div class="executive-dashboard__controls">
+      <label><span>Tahun</span><select data-executive-year class="form-select form-select-sm">
+        <% const currentYear = new Date().getFullYear(); for (let year = currentYear; year >= currentYear - 4; year -= 1) { %>
+          <option value="<%= year %>"><%= year %></option>
+        <% } %>
+      </select></label>
+      <label data-executive-basis-wrap hidden><span>Actual</span><select data-executive-basis class="form-select form-select-sm"></select></label>
+      <div class="executive-dashboard__metric-toggle" data-executive-metrics></div>
+      <button type="button" data-executive-export class="executive-dashboard__export">Export CSV</button>
+      <button type="button" data-executive-refresh class="executive-dashboard__refresh" aria-label="Refresh dashboard">&#8635;</button>
+    </div>
+  </header>
+
+  <div class="executive-dashboard__error d-none" data-executive-error></div>
+  <div class="executive-dashboard__kpis" data-executive-kpis>
+    <% for (let index = 0; index < 4; index += 1) { %>
+      <article class="executive-kpi executive-kpi--loading"><small>Memuat</small><strong>&mdash;</strong><span></span></article>
+    <% } %>
+  </div>
+
+  <div class="executive-dashboard__body">
+    <article class="executive-dashboard__chart-card">
+      <div class="executive-dashboard__panel-head">
+        <div><small>PERBANDINGAN</small><h3 data-executive-chart-title>Rencana dan Aktual</h3></div>
+        <span data-executive-period>12 bulan</span>
+      </div>
+      <div data-executive-chart class="executive-dashboard__chart"></div>
+    </article>
+    <aside class="executive-dashboard__insight-card">
+      <div class="executive-dashboard__panel-head"><div><small>STATUS</small><h3>Ringkasan Status</h3></div><i></i></div>
+      <div data-executive-insights class="executive-dashboard__insights"></div>
+      <div data-executive-context class="executive-dashboard__context"></div>
+    </aside>
+  </div>
+
+  <div class="executive-dashboard__definitions" data-executive-definitions hidden></div>
+
+  <section class="executive-dashboard__exceptions" data-executive-exceptions-wrap hidden>
+    <div class="executive-dashboard__panel-head"><div><small>EXCEPTION QUEUE</small><h3>Tindakan Operasional</h3></div><span data-executive-exception-count>0 issue</span></div>
+    <div data-executive-exceptions class="executive-dashboard__exception-list"></div>
+  </section>
+
+  <section class="executive-dashboard__details" data-executive-details></section>
+</section>
+<script defer src="/js/executive-dashboard.js"></script>

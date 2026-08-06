@@ -20,6 +20,8 @@
   };
   const config = configs[tab];
   let currentDoc = null;
+  let supplierCatalog = [];
+  const formulaReferenceStore = new Map();
 
   async function api(url, options = {}) {
     const response = await fetch(url, { ...options, headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" } });
@@ -38,10 +40,167 @@
     $("ppic-info-grid").innerHTML = fields.map(([label, value, raw]) => `<div><small>${esc(label)}</small>${raw ? value : `<strong>${esc(value)}</strong>`}</div>`).join("");
   }
   function setTable(title, heads, rows) {
+    const table = $("ppic-detail-table");
+    table?.style.setProperty("--ppic-excel-min-width", `${Math.max(1100, heads.length * 124)}px`);
     $("ppic-table-title").textContent = title;
     $("ppic-detail-head").innerHTML = `<tr>${heads.map((head) => `<th>${esc(head)}</th>`).join("")}</tr>`;
     $("ppic-detail-rows").innerHTML = rows.join("") || `<tr><td colspan="${heads.length}" class="ppic-empty">Belum ada detail pada dokumen ini.</td></tr>`;
     refreshGroupedRows();
+  }
+  function setExcelTable(enabled) {
+    $("ppic-detail-table")?.classList.toggle("ppic-excel-table", enabled);
+    $("ppic-detail-table")?.classList.toggle("ppic-mps-excel-table", enabled && tab === "mps");
+    $("ppic-detail-table-wrap")?.classList.toggle("ppic-excel-sheet", enabled);
+  }
+  function openMpsAdjustmentDialog(button) {
+    const wrap = document.createElement("div");
+    const partCode = button.dataset.partCode || "FG";
+    wrap.className = "ops-modal-backdrop";
+    wrap.innerHTML = `<form class="ops-modal ppic-adjustment-modal" role="dialog" aria-modal="true" aria-labelledby="ppic-adjustment-title">
+      <header><div><p class="ops-eyebrow">MPS Adjustment</p><h2 id="ppic-adjustment-title">Edit ${esc(partCode)}</h2></div><button type="button" class="btn-close" data-cancel aria-label="Tutup"></button></header>
+      <div class="ops-modal-body">
+        <div class="alert alert-danger d-none" data-adjustment-error></div>
+        <div class="ppic-adjustment-grid">
+          <label><span>Buffer</span><div class="input-group"><input class="form-control" data-adjustment-buffer type="number" min="0" max="100" step="0.01" value="${esc(button.dataset.bufferPercent || 0)}" required><span class="input-group-text">%</span></div><small>Tambahan demand untuk menjaga buffer stock.</small></label>
+          <label><span>Production</span><div class="input-group"><input class="form-control" data-adjustment-production type="number" min="0" max="100" step="0.01" value="${esc(button.dataset.productionPercent || 100)}" required><span class="input-group-text">%</span></div><small>SO aktual tetap menjadi batas minimum target produksi.</small></label>
+          <label class="ppic-adjustment-scope"><span>Scope Buffer</span><select class="form-select" data-adjustment-scope><option value="parent" ${button.dataset.scope !== "line" ? "selected" : ""}>Parent FG</option><option value="line" ${button.dataset.scope === "line" ? "selected" : ""}>Per baris</option></select><small>Tentukan apakah perubahan mengikuti seluruh parent FG atau baris ini saja.</small></label>
+        </div>
+      </div>
+      <footer><button type="button" class="btn btn-outline-secondary" data-cancel>Batal</button><button type="submit" class="btn btn-primary">Simpan Perubahan</button></footer>
+    </form>`;
+    document.body.appendChild(wrap);
+    const form = wrap.querySelector("form");
+    const focusField = button.dataset.focus === "production" ? "[data-adjustment-production]" : "[data-adjustment-buffer]";
+    const close = () => wrap.remove();
+    wrap.querySelectorAll("[data-cancel]").forEach((element) => element.addEventListener("click", close));
+    wrap.addEventListener("click", (event) => { if (event.target === wrap) close(); });
+    form.addEventListener("keydown", (event) => { if (event.key === "Escape") close(); });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const bufferPercent = number(form.querySelector("[data-adjustment-buffer]").value);
+      const productionPercent = number(form.querySelector("[data-adjustment-production]").value);
+      const scope = form.querySelector("[data-adjustment-scope]").value || "parent";
+      const errorBox = form.querySelector("[data-adjustment-error]");
+      if (bufferPercent < 0 || bufferPercent > 100 || productionPercent < 0 || productionPercent > 100) {
+        errorBox.textContent = "Buffer dan Production harus antara 0 sampai 100%.";
+        errorBox.classList.remove("d-none");
+        return;
+      }
+      const submit = event.submitter;
+      if (submit) submit.disabled = true;
+      try {
+        const detailIds = String(button.dataset.detailIds || "").split(",").filter(Boolean);
+        await api(`/modules/api/planning-ppic/mps/${encodeURIComponent(button.dataset.mpsNumber || key)}/adjustments`, {
+          method: "PATCH", body: JSON.stringify({ detailIds, bufferPercent, productionPercent, scope }),
+        });
+        close();
+        showAlert("Buffer FG dan persentase produksi berhasil diperbarui; target tidak dapat lebih kecil dari SO aktual.", "success");
+        setTimeout(() => location.reload(), 500);
+      } catch (error) {
+        errorBox.textContent = error.message;
+        errorBox.classList.remove("d-none");
+        if (submit) submit.disabled = false;
+      }
+    });
+    requestAnimationFrame(() => form.querySelector(focusField)?.focus());
+  }
+  function openMrpPercentageDialog(button) {
+    const kind = button.dataset.adjustmentKind === "order" ? "order" : "buffer";
+    const isBuffer = kind === "buffer";
+    const label = isBuffer ? "Buffer" : "Order";
+    const wrap = document.createElement("div");
+    wrap.className = "ops-modal-backdrop";
+    wrap.innerHTML = `<form class="ops-modal ppic-adjustment-modal" role="dialog" aria-modal="true" aria-labelledby="ppic-mrp-adjustment-title">
+      <header><div><p class="ops-eyebrow">MRP Adjustment</p><h2 id="ppic-mrp-adjustment-title">Edit ${label} % · ${esc(button.dataset.partCode || "Part")}</h2></div><button type="button" class="btn-close" data-cancel aria-label="Tutup"></button></header>
+      <div class="ops-modal-body">
+        <div class="alert alert-danger d-none" data-adjustment-error></div>
+        <div class="ppic-adjustment-grid ppic-adjustment-grid-single">
+          <label><span>${label} %</span><div class="input-group"><input class="form-control" data-mrp-percentage type="number" min="0" max="100" step="0.01" value="${esc(button.dataset.percentage || (isBuffer ? 0 : 100))}" required><span class="input-group-text">%</span></div><small>${isBuffer ? "Tambahan kebutuhan untuk menjaga buffer stock." : "Persentase kebutuhan yang akan dimasukkan ke purchase plan; SO aktual tetap menjadi minimum."}</small></label>
+          ${isBuffer ? `<label><span>Scope Buffer</span><select class="form-select" data-mrp-scope><option value="parent" ${button.dataset.scope !== "line" ? "selected" : ""}>Parent FG</option><option value="line" ${button.dataset.scope === "line" ? "selected" : ""}>Per baris</option></select><small>Tentukan apakah perubahan mengikuti parent FG atau kebutuhan part pada baris ini.</small></label>` : ""}
+        </div>
+      </div>
+      <footer><button type="button" class="btn btn-outline-secondary" data-cancel>Batal</button><button type="submit" class="btn btn-primary">Simpan Perubahan</button></footer>
+    </form>`;
+    document.body.appendChild(wrap);
+    const form = wrap.querySelector("form");
+    const close = () => wrap.remove();
+    wrap.querySelectorAll("[data-cancel]").forEach((element) => element.addEventListener("click", close));
+    wrap.addEventListener("click", (event) => { if (event.target === wrap) close(); });
+    form.addEventListener("keydown", (event) => { if (event.key === "Escape") close(); });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const percentage = number(form.querySelector("[data-mrp-percentage]").value);
+      const errorBox = form.querySelector("[data-adjustment-error]");
+      if (percentage < 0 || percentage > 100) {
+        errorBox.textContent = `${label} harus antara 0 sampai 100%.`;
+        errorBox.classList.remove("d-none");
+        return;
+      }
+      const submit = event.submitter;
+      if (submit) submit.disabled = true;
+      try {
+        const requirementIds = String(button.dataset.requirementIds || "").split(",").filter(Boolean);
+        const runNumber = encodeURIComponent(button.dataset.runNumber || key);
+        if (isBuffer) {
+          const scope = form.querySelector("[data-mrp-scope]").value || "parent";
+          await api(`/modules/api/planning-ppic/mrp/${runNumber}/requirements/buffer`, {
+            method: "PATCH", body: JSON.stringify({ requirementIds, bufferPercent: percentage, scope }),
+          });
+        } else {
+          await api(`/modules/api/planning-ppic/mrp/${runNumber}/requirements/order-percent`, {
+            method: "PATCH", body: JSON.stringify({ requirementIds, orderPercent: percentage }),
+          });
+        }
+        close();
+        showAlert(isBuffer ? "Buffer stock dan purchase plan berhasil dihitung ulang." : "Order % dan purchase plan berhasil dihitung ulang; SO aktual tetap menjadi minimum.", "success");
+        setTimeout(() => location.reload(), 500);
+      } catch (error) {
+        errorBox.textContent = error.message;
+        errorBox.classList.remove("d-none");
+        if (submit) submit.disabled = false;
+      }
+    });
+    requestAnimationFrame(() => form.querySelector("[data-mrp-percentage]")?.focus());
+  }
+  function openFormulaReference(button) {
+    const scope = button.dataset.formulaScope === "mps" ? "mps" : "mrp";
+    const isProcessRow = button.dataset.generatedProcess === "true";
+    const partCode = button.dataset.partCode || "Part";
+    const uom = button.dataset.uom || "-";
+    const reference = formulaReferenceStore.get(button.dataset.formulaReferenceId) || {};
+    const value = (name) => number(button.dataset[name]);
+    const referenceSection = (title, items, emptyText) => `<section class="ppic-formula-source-section"><h3>${esc(title)}</h3><div class="ppic-formula-source-list">${items?.length ? items.map((item) => `<article><div>${item.href ? `<a href="${esc(item.href)}"><b>${esc(item.title)}</b></a>` : `<b>${esc(item.title)}</b>`}<small>${esc(item.meta || "-")}</small></div>${item.qty ? `<strong>${esc(item.qty)}</strong>` : ""}</article>`).join("") : `<p>${esc(emptyText)}</p>`}</div></section>`;
+    const formulaRows = scope === "mps"
+      ? (isProcessRow ? [
+        ["Effective Demand Parent", "forecastQty + bufferQty", `${num(value("forecast"), 3)} + ${num(value("bufferQty"), 3)} = ${num(value("effectiveDemand"), 3)} ${uom}`],
+        ["Target Proses", "parent demand × rasio kebutuhan BOM / yield", `hasil BOM explosion = ${num(value("target"), 3)} ${uom}`],
+      ] : [
+        ["Buffer Qty", "round(bufferBaseQty × bufferPercent / 100, 6)", `${num(value("bufferBase"), 3)} × ${num(value("bufferPercent"), 2)}% = ${num(value("bufferQty"), 3)} ${uom}`],
+        ["Effective Demand", "forecastQty + bufferQty", `${num(value("forecast"), 3)} + ${num(value("bufferQty"), 3)} = ${num(value("effectiveDemand"), 3)} ${uom}`],
+        ["Target MPS", "max(effectiveDemandQty × productionPercent / 100, actualSalesOrderQty)", `max(${num(value("effectiveDemand"), 3)} × ${num(value("productionPercent"), 2)}%, ${num(value("actualSalesOrder"), 3)}) = ${num(value("target"), 3)} ${uom}`],
+      ])
+      : [
+        ["Net Requirement", "max(grossRequirement − projectedAvailable, 0)", `max(${num(value("gross"), 3)} − ${num(value("projectedAvailable"), 3)}, 0) = ${num(value("net"), 3)} ${uom}`],
+        ["Purchase Plan", "max(netRequirement × orderPercent / 100, soConsumedQty)", `max(${num(value("net"), 3)} × ${num(value("orderPercent"), 2)}%, ${num(value("actualSalesOrder"), 3)}) = ${num(value("purchasePlan"), 3)} ${uom}`],
+      ];
+    const formulaNote = scope === "mps"
+      ? isProcessRow
+        ? "Baris proses merupakan hasil BOM explosion dari parent FG, sehingga target proses memakai rasio kebutuhan BOM dan yield."
+        : "MPS menyimpan gross demand; stock FG dikurangkan satu kali pada proses netting MRP."
+      : "Purchase Plan tidak boleh lebih kecil dari kebutuhan SO aktual.";
+    const wrap = document.createElement("div");
+    wrap.className = "ops-modal-backdrop";
+    wrap.innerHTML = `<section class="ops-modal ppic-formula-modal" role="dialog" aria-modal="true" aria-labelledby="ppic-formula-title">
+      <header><div><p class="ops-eyebrow">${scope.toUpperCase()} Formula Reference</p><h2 id="ppic-formula-title">${esc(partCode)}</h2></div><button type="button" class="btn-close" data-cancel aria-label="Tutup"></button></header>
+      <div class="ops-modal-body"><p class="ppic-formula-intro">Rumus mengikuti Master Formula aktif. Angka di bawah diambil dari baris tabel ini dan ditampilkan dalam <b>${esc(uom)}</b>.</p><div class="ppic-formula-list">${formulaRows.map(([label, formula, result]) => `<div class="ppic-formula-row"><div><b>${esc(label)}</b><code>${esc(formula)}</code></div><strong>${esc(result)}</strong></div>`).join("")}</div><p class="ppic-formula-note">${formulaNote}</p><div class="ppic-formula-provenance"><h2>Sumber Angka</h2>${referenceSection("Jejak FG → Child → Material", reference.nettingFactors, "Belum ada jejak netting antar-level untuk baris ini.")}${referenceSection("Kebutuhan Barang", reference.demands, "Tidak ada detail sumber kebutuhan.")}${referenceSection("Forecast / Sales Order", reference.demandDocuments, "Tidak ada Forecast atau SO yang terhubung.")}${referenceSection("Stock Warehouse / Lot", reference.warehouseStock, "Tidak ada stock warehouse yang tersedia.")}${referenceSection("WIP / FG Ekuivalen", reference.wipStock, "Tidak ada WIP/FG ekuivalen yang digunakan.")}${referenceSection("Outstanding Purchase Order", reference.purchaseOrders, "Tidak ada outstanding PO yang eligible.")}</div></div>
+      <footer><button type="button" class="btn btn-primary" data-cancel>Tutup</button></footer>
+    </section>`;
+    document.body.appendChild(wrap);
+    const close = () => wrap.remove();
+    wrap.querySelectorAll("[data-cancel]").forEach((element) => element.addEventListener("click", close));
+    wrap.addEventListener("click", (event) => { if (event.target === wrap) close(); });
+    wrap.addEventListener("keydown", (event) => { if (event.key === "Escape") close(); });
+    requestAnimationFrame(() => wrap.querySelector("[data-cancel]")?.focus());
   }
   function preparePlanningView(items, options) {
     const root = $("ppic-table-filters");
@@ -50,9 +209,15 @@
     const state = JSON.parse(localStorage.getItem(storageKey) || "{}");
     const values = (resolver) => [...new Set(items.map(resolver).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b)));
     const select = (name, label, itemsForSelect) => `<select data-ppic-filter="${name}" aria-label="Filter ${label}"><option value="">Semua ${label}</option>${itemsForSelect.map((value) => `<option value="${esc(value)}" ${state[name] === String(value) ? "selected" : ""}>${esc(value)}</option>`).join("")}</select>`;
-    root.innerHTML = `${select("customer", "Customer", values(options.customer))}${select("month", "Bulan", values((row) => month(options.month(row))))}${select("part", "Part", values(options.part))}<button type="button" class="ppic-filter-reset" data-action="reset-ppic-filter">Reset filter</button><select data-ppic-group="1"><option value="customer">Group 1: Customer</option><option value="month">Group 1: Bulan</option><option value="part">Group 1: FG/Part</option></select><select data-ppic-group="2"><option value="customer">Group 2: Customer</option><option value="month">Group 2: Bulan</option><option value="part">Group 2: FG/Part</option></select><select data-ppic-group="3"><option value="customer">Group 3: Customer</option><option value="month">Group 3: Bulan</option><option value="part">Group 3: FG/Part</option></select>`;
-    const grouping = JSON.parse(localStorage.getItem(`ppic-grouping:${tab}`) || "[\"customer\",\"month\",\"part\"]");
-    root.querySelectorAll("[data-ppic-group]").forEach((input, index) => { input.value = grouping[index] || ["customer", "month", "part"][index]; input.addEventListener("change", () => { const next = [...root.querySelectorAll("[data-ppic-group]")].map((field) => field.value); if (new Set(next).size !== 3) return showAlert("Setiap level grouping harus berbeda.", "warning"); localStorage.setItem(`ppic-grouping:${tab}`, JSON.stringify(next)); render(currentDoc); }); });
+    const groupOptions = (level) => `${level === 3 ? '<option value="">Group 3: Tidak digunakan</option>' : ''}<option value="customer">Group ${level}: Customer</option><option value="month">Group ${level}: Bulan</option><option value="part">Group ${level}: Part</option><option value="parentFg">Group ${level}: Parent FG Forecast</option>`;
+    const groupingControls = options.fixedGrouping
+      ? '<span class="ppic-fixed-grouping">Urutan: Hirarki BOM</span>'
+      : `<select data-ppic-group="1">${groupOptions(1)}</select><select data-ppic-group="2">${groupOptions(2)}</select><select data-ppic-group="3">${groupOptions(3)}</select>`;
+    root.innerHTML = `${select("customer", "Customer", values(options.customer))}${select("month", "Bulan", values((row) => month(options.month(row))))}${select("part", "Part", values(options.part))}<button type="button" class="ppic-filter-reset" data-action="reset-ppic-filter">Reset filter</button>${groupingControls}`;
+    const savedGrouping = JSON.parse(localStorage.getItem(`ppic-grouping:${tab}`) || "[\"customer\",\"month\",\"part\"]");
+    const grouping = [savedGrouping[0] || "customer", savedGrouping[1] || "month", savedGrouping.length > 2 ? (savedGrouping[2] || "") : "part"];
+    localStorage.setItem(`ppic-grouping:${tab}`, JSON.stringify(grouping));
+    root.querySelectorAll("[data-ppic-group]").forEach((input, index) => { input.value = grouping[index]; input.addEventListener("change", () => { const next = [...root.querySelectorAll("[data-ppic-group]")].map((field) => field.value); const selected = next.filter(Boolean); if (!next[0] || !next[1] || new Set(selected).size !== selected.length) return showAlert("Group 1 dan Group 2 wajib dipilih berbeda. Group 3 boleh dikosongkan.", "warning"); localStorage.setItem(`ppic-grouping:${tab}`, JSON.stringify(next)); render(currentDoc); }); });
     root.querySelectorAll("[data-ppic-filter]").forEach((input) => input.addEventListener("change", () => { const next = Object.fromEntries([...root.querySelectorAll("[data-ppic-filter]")].map((field) => [field.dataset.ppicFilter, field.value])); localStorage.setItem(storageKey, JSON.stringify(next)); render(currentDoc); }));
     return items.filter((row) => (!state.customer || String(options.customer(row) || "") === state.customer) && (!state.month || month(options.month(row)) === state.month) && (!state.part || String(options.part(row) || "") === state.part));
   }
@@ -62,8 +227,14 @@
     return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}`;
   }
   function customGroupedPlanningRows(items, options, grouping) {
-    const labels = { customer: "Customer", month: "Bulan", part: options.planPartLabel || "Finished Good" };
-    const valueFor = (item, group) => group === "customer" ? (options.customer(item) || "Tanpa Customer") : group === "month" ? month(options.month(item)) : (options.planPart(item) || "Tanpa Part");
+    const labels = { customer: "Customer", month: "Bulan", part: "Part", parentFg: "Parent FG Forecast" };
+    const valueFor = (item, group) => group === "customer"
+      ? (options.customer(item) || "Tanpa Customer")
+      : group === "month"
+        ? month(options.month(item))
+        : group === "parentFg"
+          ? (options.parentFg?.(item) || options.planPart(item) || "Tanpa Parent FG")
+          : (options.planPart(item) || "Tanpa Part");
     const root = new Map();
     for (const item of items) {
       let branch = root;
@@ -88,6 +259,10 @@
             const display = typeof options.planPartDisplay === "function" ? options.planPartDisplay(value, leafItems) : { code: value, name: "" };
             const lastRow = rows.at(-1);
             if (lastRow && label) rows[rows.length - 1] = lastRow.replace('class="ppic-group-label">Finished Good', `class="ppic-group-label">${esc(label)}`).replace("</b><em>", `${display.name ? `<small class="ppic-cell-sub">${esc(display.name)}</small>` : ""}</b><em>`);
+          } else if (group === "parentFg" && typeof options.parentFgDisplay === "function") {
+            const display = options.parentFgDisplay(value, leafItems) || { code: value, name: "" };
+            const lastRow = rows.at(-1);
+            if (lastRow) rows[rows.length - 1] = lastRow.replace(`<b>${esc(value)}</b>`, `<b>${esc(display.code || value)}</b>${display.name ? `<small class="ppic-cell-sub">${esc(display.name)}</small>` : ""}`);
           }
           rows.push(...options.renderItems(leafItems, nextContext));
         } else visit(child, level + 1, nextContext);
@@ -97,42 +272,8 @@
   }
   function groupedPlanningRows(items, options) {
     const savedGrouping = JSON.parse(localStorage.getItem(`ppic-grouping:${tab}`) || "[\"customer\",\"month\",\"part\"]");
-    const grouping = Array.isArray(savedGrouping) ? savedGrouping.filter((item) => ["customer", "month", "part"].includes(item)) : [];
-    if (grouping.length === 3 && grouping.join("|") !== "customer|month|part") return customGroupedPlanningRows(items, options, grouping);
-    const customerGroups = new Map();
-    for (const item of items) {
-      const customer = options.customer(item) || "Tanpa Customer";
-      const bucketDate = options.month(item);
-      const bucketKey = monthKey(bucketDate);
-      const planPart = options.planPart(item) || "Tanpa Part";
-      if (!customerGroups.has(customer)) customerGroups.set(customer, new Map());
-      const monthGroups = customerGroups.get(customer);
-      if (!monthGroups.has(bucketKey)) monthGroups.set(bucketKey, { date: bucketDate, parts: new Map() });
-      const partGroups = monthGroups.get(bucketKey).parts;
-      if (!partGroups.has(planPart)) partGroups.set(planPart, []);
-      partGroups.get(planPart).push(item);
-    }
-
-    const rows = [];
-    for (const [customer, months] of [...customerGroups.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-      const customerCount = [...months.values()].reduce((sum, entry) => sum + [...entry.parts.values()].reduce((partSum, group) => partSum + group.length, 0), 0);
-      rows.push(`<tr class="ppic-group-row customer" data-group-level="1"><td colspan="${options.colSpan}"><div class="ppic-group-static"><span class="ppic-group-label">Customer</span><b>${esc(customer)}</b><em>${num(customerCount)} baris</em></div></td></tr>`);
-      for (const [, monthGroup] of [...months.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-        const monthCount = [...monthGroup.parts.values()].reduce((sum, group) => sum + group.length, 0);
-        rows.push(`<tr class="ppic-group-row month" data-group-level="2"><td colspan="${options.colSpan}"><div class="ppic-group-static"><span class="ppic-group-label">Bulan</span><b>${esc(month(monthGroup.date))}</b><em>${num(monthCount)} baris</em></div></td></tr>`);
-        for (const [planPart, group] of [...monthGroup.parts.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-          if (options.renderPlanPartRow) {
-            rows.push(options.renderPlanPartRow(planPart, group));
-          } else if (!options.planPartInItems) {
-            const label = typeof options.planPartLabelFor === "function" ? options.planPartLabelFor(planPart, group) : (options.planPartLabel || "Finished Good");
-            const display = typeof options.planPartDisplay === "function" ? options.planPartDisplay(planPart, group) : { code: planPart, name: "" };
-            rows.push(`<tr class="ppic-group-row part" data-group-level="3"><td colspan="${options.colSpan}"><button type="button" class="ppic-group-toggle" data-action="toggle-ppic-group" aria-expanded="true"><i class="ppic-group-caret">⌄</i><span class="ppic-group-label">${esc(label)}</span><b>${esc(display.code)}</b>${display.name ? `<small class="ppic-cell-sub">${esc(display.name)}</small>` : ""}<em>${num(group.length)} baris</em></button></td></tr>`);
-          }
-          rows.push(...options.renderItems(group, { planPart }));
-        }
-      }
-    }
-    return rows;
+    const grouping = [savedGrouping[0] || "customer", savedGrouping[1] || "month", savedGrouping.length > 2 ? (savedGrouping[2] || "") : "part"].filter(Boolean);
+    return customGroupedPlanningRows(items, options, grouping);
   }
   function refreshGroupedRows() {
     const body = $("ppic-detail-rows");
@@ -158,6 +299,107 @@
     note.textContent = notes || "";
     note.classList.toggle("d-none", !notes);
   }
+  function refreshDeliveryFormOptions() {
+    const type = "CUSTOMER";
+    const detailSelect = $("ppic-delivery-detail");
+    const targetSelect = $("ppic-delivery-target");
+    if (!detailSelect || !targetSelect || !currentDoc) return;
+    const generated = (row) => String(row.notes || "").startsWith("[MRP-PRODUCTION]");
+    const candidates = (currentDoc.details || []).filter((row) =>
+      number(row.qtyPlanned) > 0 && !generated(row));
+    const previousDetail = detailSelect.value;
+    detailSelect.innerHTML = candidates.map((row) => {
+      const allocated = (currentDoc.deliveryPlans || [])
+        .filter((phase) => phase.mpsDetailId === row.id && phase.targetType === type && phase.status !== "Cancelled")
+        .reduce((sum, phase) => sum + number(phase.qtyPlanned), 0);
+      const remaining = Math.max(number(row.qtyPlanned) - allocated, 0);
+      return `<option value="${esc(row.id)}" data-remaining="${esc(remaining)}" data-date="${esc(String(row.endDate || currentDoc.periodEnd || "").slice(0, 10))}">${esc(row.partCode)} · sisa ${num(remaining, 3)}</option>`;
+    }).join("") || `<option value="">Tidak ada part yang sesuai</option>`;
+    if ([...detailSelect.options].some((option) => option.value === previousDetail)) detailSelect.value = previousDetail;
+    const catalog = currentDoc.deliveryCatalogs?.customers;
+    const codeKey = "customerCode";
+    const nameKey = "customerName";
+    const targetHelp = $("ppic-delivery-target-help");
+    const targetMasterLink = $("ppic-delivery-target-master-link");
+    const preferredCode = candidates.find((row) => row.id === detailSelect.value)?.customerCode;
+    targetSelect.innerHTML = (catalog || []).map((row) => `<option value="${esc(row[codeKey])}" ${row[codeKey] === preferredCode ? "selected" : ""}>${esc(row[codeKey])} · ${esc(row[nameKey] || "")}</option>`).join("") || `<option value="">Partner aktif tidak tersedia</option>`;
+    if (targetHelp) targetHelp.textContent = (catalog || []).length
+      ? `${num(catalog.length)} customer tersedia.`
+      : "Belum ada master Customer aktif.";
+    if (targetMasterLink) {
+      targetMasterLink.href = "/master-data/customers";
+      targetMasterLink.textContent = "Tambah di Master Customer →";
+      targetMasterLink.classList.toggle("d-none", (catalog || []).length > 0);
+    }
+    const selected = detailSelect.selectedOptions[0];
+    if (selected) {
+      $("ppic-delivery-qty").value = selected.dataset.remaining || "";
+      $("ppic-delivery-date").value = selected.dataset.date || String(currentDoc.periodEnd || "").slice(0, 10);
+    }
+  }
+  function closeInlineDeliveryForm() {
+    const form = $("ppic-delivery-plan-form");
+    const parking = $("ppic-delivery-form-parking");
+    if (form && parking) {
+      form.classList.add("d-none");
+      parking.appendChild(form);
+    }
+    $("ppic-inline-delivery-form-row")?.remove();
+  }
+  function openInlineDeliveryForm(button) {
+    closeInlineDeliveryForm();
+    const form = $("ppic-delivery-plan-form");
+    const sourceRow = button.closest("tr");
+    if (!form || !sourceRow) return;
+    refreshDeliveryFormOptions();
+    const detailSelect = $("ppic-delivery-detail");
+    const requestedDetailId = button.dataset.deliveryDetailId;
+    if (requestedDetailId && [...detailSelect.options].some((option) => option.value === requestedDetailId)) {
+      detailSelect.value = requestedDetailId;
+      refreshDeliveryFormOptions();
+    }
+    const formRow = document.createElement("tr");
+    formRow.id = "ppic-inline-delivery-form-row";
+    formRow.className = "ppic-inline-form-row";
+    const cell = document.createElement("td");
+    cell.colSpan = 20;
+    cell.innerHTML = `<div class="ppic-inline-form-title"><b>Tambah Customer Delivery Phase</b><small>Jadwal ini mengikuti forecast part pada baris di atas. Vendor send–return tetap di Capacity Planning.</small></div>`;
+    form.classList.remove("d-none");
+    cell.appendChild(form);
+    formRow.appendChild(cell);
+    sourceRow.after(formRow);
+    formRow.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  function readinessFix(issue) {
+    const code = String(issue.code || "").toUpperCase();
+    const partCode = issue.partCode || issue.parentPartCode || "";
+    if (code.includes("UOM") || code === "PURCHASE_SUPPLIER_MISSING") {
+      return {
+        href: `/master-data/parts/${encodeURIComponent(partCode)}/edit?key=${encodeURIComponent(partCode)}&focus=${code.includes("UOM") ? "uom" : "supplier"}`,
+        label: code.includes("UOM") ? "Perbaiki UOM Part" : "Atur Supplier Part",
+      };
+    }
+    if (issue.bomNumber) {
+      return {
+        href: `/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(issue.bomNumber)}/edit?focusPart=${encodeURIComponent(partCode)}&focusIssue=${encodeURIComponent(code)}`,
+        label: "Buka Editor BOM",
+      };
+    }
+    return {
+      href: `/modules/manufacturing-bom/bill-of-materials/new?partCode=${encodeURIComponent(partCode)}&source=MPS_READINESS`,
+      label: "Buat mBOM",
+    };
+  }
+  function renderReadinessLinks(readiness) {
+    const root = $("ppic-readiness-list");
+    if (!root) return;
+    const issues = Array.isArray(readiness?.issues) ? readiness.issues : [];
+    root.classList.toggle("d-none", issues.length === 0);
+    root.innerHTML = issues.length ? `<div class="ppic-readiness-head"><div><b>Readiness Blocking</b><small>Klik tindakan untuk memperbaiki sumber blocker.</small></div><span>${num(readiness.blockingCount)} blocker · ${num(readiness.warningCount)} warning</span></div><div class="ppic-readiness-items">${issues.map((issue) => {
+      const fix = readinessFix(issue);
+      return `<article class="${String(issue.severity).toUpperCase() === "BLOCKING" ? "blocking" : "warning"}"><span class="ppic-readiness-severity">${esc(issue.severity || "INFO")}</span><div><b>${esc(issue.code || "READINESS")}</b><p>${esc(issue.message || "-")}</p><small>${esc([issue.partCode, issue.processCode, issue.bomNumber].filter(Boolean).join(" · "))}</small></div><a href="${fix.href}">${esc(fix.label)} <span aria-hidden="true">→</span></a></article>`;
+    }).join("")}</div>` : "";
+  }
   function renderWorkflow(doc, steps, path) {
     $("ppic-workflow").innerHTML = steps.map((step) => `<div class="ppic-workflow-step ${step.done ? "done" : "pending"}"><span class="ppic-workflow-mark">${step.done ? "✓" : "◷"}</span><div><b>${esc(step.title)}</b><small>${esc(step.actor || "Menunggu proses")}</small><time>${esc(step.at ? date(step.at) : "")}</time>${step.note ? `<p>${esc(step.note)}</p>` : ""}</div></div>`).join("");
     $("ppic-status-path").innerHTML = path.map((item, index) => `${index ? '<span>›</span>' : ''}<b class="${index === path.length - 1 ? "current" : ""}">${esc(item)}</b>`).join("");
@@ -167,7 +409,7 @@
     return `<div class="ppic-progress"><span style="width:${safe}%"></span></div>`;
   }
   function baseWorkflow(doc, finalLabel) {
-    const approved = Boolean(doc.approvedDate || doc.confirmedAt || doc.releasedAt || ["Confirmed", "Released", "Completed", "Active", "Closed", "Consumed"].includes(doc.status));
+    const approved = Boolean(doc.approvedDate || doc.confirmedAt || doc.releasedAt || ["Confirmed", "Partial Product", "Released", "Completed", "Active", "Closed", "Consumed"].includes(doc.status));
     return [
       { done: true, title: `Submitted by ${doc.createdBy || doc.runBy || "Planner"}`, actor: "PPIC Planner", at: doc.createdAt, note: doc.notes },
       { done: approved, title: approved ? `Reviewed by ${doc.approvedBy || doc.confirmedBy || doc.releasedBy || "PPIC"}` : "PPIC Review", actor: approved ? "Review selesai" : "Menunggu pemeriksaan", at: doc.approvedDate || doc.confirmedAt || doc.releasedAt },
@@ -178,19 +420,178 @@
     const back = `<a class="btn btn-outline-secondary" href="/modules/planning-ppic/${tab}">← Kembali</a>`;
     let action = "";
     if (tab === "consume-forecast") action += `<a class="btn btn-outline-secondary" href="/modules/sales/forecasts/${encodeURIComponent(key)}/edit">Edit Data</a>`;
-    if (tab === "mrp" && doc.status === "Completed") action += `<button class="btn btn-outline-primary" data-action="make-purchase-request">Buat Purchase Request</button><button class="btn btn-primary ppic-action-primary" data-action="make-mrp-production-plan">Buat Production Planning</button>`;
+    if (tab === "mrp" && doc.status === "Completed") action += `<button class="btn btn-outline-primary" data-action="make-purchase-suggestion">Buat Purchase Suggestion</button><button class="btn btn-primary ppic-action-primary" data-action="make-mrp-production-plan">Buat Production Planning</button>`;
     if (tab === "mps" && doc.status === "Draft") action += `<button class="btn btn-primary ppic-action-primary" data-action="confirm-mps">Confirm MPS</button>`;
     if (tab === "mps" && doc.status === "Confirmed") action += `<button class="btn btn-outline-primary" data-action="run-mrp">Run MRP</button><button class="btn btn-primary ppic-action-primary" data-action="make-production-plan">Buat Production Plan</button>`;
-    if (tab === "consume-forecast" && doc.status === "Confirmed") action += `<button class="btn btn-primary ppic-action-primary" data-action="make-mps">Buat MPS</button>`;
+    if (tab === "consume-forecast" && ["Confirmed", "Partial Product"].includes(doc.status) && (doc.consumption?.remainingMonths || []).length) action += `<button class="btn btn-primary ppic-action-primary" data-action="make-mps">Buat MPS ${(doc.consumption.remainingMonths || []).join(", ")}</button>`;
+    if (tab === "consume-forecast" && ["Partial Product", "Consumed"].includes(doc.status)) action += `<button class="btn btn-outline-warning" data-action="close-forecast">Close Forecast</button>`;
     if (tab === "monthly-plan" && doc.status === "Draft") action += `<button class="btn btn-primary ppic-action-primary" data-action="confirm-production-plan">Confirm Plan</button>`;
     if (tab === "monthly-plan" && doc.status === "Confirmed") action += `<a class="btn btn-outline-primary" href="/modules/planning-ppic/capacity-planning?planNumber=${encodeURIComponent(doc.planNumber)}">Lihat Capacity</a><button class="btn btn-primary ppic-action-primary" data-action="release-production-plan">Capacity Check & Release</button>`;
-    if (tab === "monthly-plan" && ["Released", "In Progress"].includes(doc.status) && (doc.details || []).some((row) => number(row.qtyPlanned) > number(row.qtyReleased))) action += `<button class="btn btn-primary ppic-action-primary" data-action="release-plan-to-mo">Release ke MO</button>`;
+    if (tab === "monthly-plan" && ["Released", "In Progress"].includes(doc.status) && (doc.details || []).some((row) => number(row.qtyPlanned) > number(row.qtyReleased))) action += `<button class="btn btn-outline-primary" data-action="release-plan-to-mo">Buat MO Reference</button>`;
+    if (tab === "monthly-plan" && ["Released", "In Progress"].includes(doc.status) && (doc.manufacturingOrders || []).length) action += `<button class="btn btn-primary ppic-action-primary" data-action="convert-daily-plans">Publish Allocation ke Daily Plan</button>`;
     $("ppic-detail-actions").innerHTML = back + action;
     $("ppic-workflow-actions").innerHTML = action;
   }
+  function normalizeAllocations(value) {
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === "object") return Array.isArray(value.items) ? value.items : [];
+    if (typeof value === "string" && value.trim()) {
+      try { return normalizeAllocations(JSON.parse(value)); } catch { return []; }
+    }
+    return [];
+  }
+  function supplierOptions(selectedCode) {
+    const selected = String(selectedCode || "");
+    const options = supplierCatalog.map((supplier) => {
+      const code = supplier.supplierCode || supplier.code || supplier.id;
+      const label = [code, supplier.supplierName || supplier.name].filter(Boolean).join(" - ");
+      return `<option value="${esc(code)}" ${String(code) === selected ? "selected" : ""}>${esc(label)}</option>`;
+    });
+    if (selected && !supplierCatalog.some((supplier) => String(supplier.supplierCode || supplier.code || supplier.id) === selected)) options.unshift(`<option value="${esc(selected)}" selected>${esc(selected)} (tersimpan)</option>`);
+    return `<option value="">Pilih supplier</option>${options.join("")}`;
+  }
+  function allocationCandidates(order, requirements) {
+    const saved = normalizeAllocations(order.lotAllocations ?? order.materialAllocations ?? order.allocations ?? order.allocation);
+    const orderRequirement = requirements.find((row) => String(row.partCode || "") === String(order.partCode || ""));
+    const materialCode = order.part?.material?.materialCode || orderRequirement?.part?.material?.materialCode || "";
+    const matching = requirements.filter((row) => materialCode
+      ? row.part?.rawType === "MATERIAL" && String(row.part?.material?.materialCode || "") === String(materialCode)
+      : String(row.partCode || "") === String(order.partCode || ""));
+    const candidates = new Map();
+    matching.forEach((row, index) => {
+      const sourceNumber = row.sourceNumber || row.planningSourceNumber || row.mpsDetailId || `${order.orderNumber}-${index + 1}`;
+      const fgPartCode = row.planningPartCode || row.parentPartCode || row.rootPartCode || "";
+      const candidateKey = `${sourceNumber}|${fgPartCode}`;
+      if (!candidates.has(candidateKey)) candidates.set(candidateKey, { partCode: row.partCode, fgPartCode, sourceType: row.sourceType || "MRP", sourceNumber, qty: 0, label: [fgPartCode, row.planningPartName, row.planningCustomerCode, month(row.planningMonth || row.requiredDate)].filter(Boolean).join(" · ") });
+      const candidate = candidates.get(candidateKey);
+      candidate.qty += number(row.plannedOrderQtyKg ?? row.adjustedOrderQty ?? row.plannedOrderQty ?? row.netRequirement);
+    });
+    saved.forEach((allocation, index) => {
+      const candidateKey = `${allocation.sourceNumber || `saved-${index}`}|${allocation.fgPartCode || ""}`;
+      const existing = candidates.get(candidateKey) || {};
+      candidates.set(candidateKey, { ...existing, ...allocation, partCode: allocation.partCode || order.partCode, qty: number(allocation.qty ?? allocation.qtyKg), saved: true, label: existing.label || [allocation.fgPartCode, allocation.sourceNumber].filter(Boolean).join(" · ") || `Alokasi ${index + 1}` });
+    });
+    return [...candidates.values()].map((candidate, index) => ({ ...candidate, enabled: candidate.saved || (saved.length === 0 && candidates.size === 1) || (saved.length === 0 && String(candidate.sourceNumber || "") === String(order.referenceNumber || "")), index }));
+  }
+  function renderProcurementSetup(doc, requirements) {
+    const card = $("ppic-procurement-card");
+    const body = $("ppic-procurement-rows");
+    if (!card || !body) return;
+    if (tab !== "mrp") { card.classList.add("d-none"); return; }
+    card.classList.remove("d-none");
+    const orders = (Array.isArray(doc.plannedOrders) ? doc.plannedOrders : []).filter((row) => String(row.orderType || "Purchase").toLowerCase() === "purchase" && !["Cancelled", "Superseded"].includes(row.status));
+    body.innerHTML = orders.map((order) => {
+      const related = requirements.filter((row) => String(row.partCode || "") === String(order.partCode || ""));
+      const material = related.find((row) => row.part?.material)?.part?.material || order.part?.material || null;
+      const rawMaterial = related.some((row) => row.part?.itemType === "RAW" && row.part?.rawType === "MATERIAL")
+        || (order.part?.itemType === "RAW" && order.part?.rawType === "MATERIAL");
+      const remainingQty = Math.max(number(order.qty) - number(order.qtyReleased), 0);
+      const identityCode = rawMaterial ? (material?.materialCode || order.partCode) : order.partCode;
+      const identityName = rawMaterial ? (material?.materialName || material?.spec || order.partName || order.part?.partName) : (order.partName || order.part?.partName);
+      const locked = !["Planned", "Draft", "Partially Released"].includes(order.status || "Planned") || remainingQty <= 0;
+      const pr = order.purchaseRequest;
+      const requestUom = rawMaterial ? "KG" : (order.uomCode || "-");
+      const referencePcs = order.qtyPcs != null ? `<small class="ppic-cell-sub">Ref kebutuhan: ${num(order.qtyPcs)} PCS</small>` : "";
+      return `<tr class="ppic-procurement-row" data-procurement-row data-order-number="${esc(order.orderNumber)}" data-raw-material="${rawMaterial ? "true" : "false"}" data-procurement-locked="${locked ? "true" : "false"}"><td><input type="checkbox" data-procurement-selected ${locked ? "disabled" : "checked"} aria-label="Pilih ${esc(order.orderNumber)}"></td><td><b>${esc(order.orderNumber)}</b><small class="ppic-cell-sub">${badge(order.status || "Planned")}</small></td><td><b>${esc(identityCode)}</b><small class="ppic-cell-sub">${esc(identityName || "-")}${rawMaterial && identityCode !== order.partCode ? ` · source ${esc(order.partCode)}` : ""}</small><span class="ppic-procurement-kind ${rawMaterial ? "material" : "part"}">${rawMaterial ? "Raw Material" : `Purchase Part · drawing ${esc(order.part?.partNumber || "-")}`}</span></td><td class="ppic-number"><b>${num(order.qty, 3)}</b>${referencePcs}<small class="ppic-cell-sub">Released ${num(order.qtyReleased, 3)} · Sisa ${num(remainingQty, 3)} ${esc(requestUom)}</small></td><td><input data-procurement-release-qty type="number" min="0.001" max="${esc(remainingQty)}" step="0.001" value="${esc(remainingQty)}" ${locked ? "disabled" : ""}><small class="ppic-cell-sub">Boleh request partial</small></td><td><b>${esc(requestUom)}</b><small class="ppic-cell-sub">${rawMaterial ? "Wajib KG dari PPIC" : "Sesuai kebutuhan part"}</small></td><td><span class="ppic-pr-pending">Supplier & bentuk beli di PR/PO</span></td><td>${pr?.prNumber ? `<a class="ppic-pr-crosscheck" href="/modules/purchasing/purchase-requisitions/${encodeURIComponent(pr.prNumber)}"><b>${esc(pr.prNumber)}</b><small>${esc(pr.status || "-")} · lihat PR</small></a>` : `<span class="ppic-pr-pending">Belum dibuat</span>`}</td></tr>`;
+    }).join("") || `<tr><td colspan="8" class="ppic-empty">Belum ada Planned Order pembelian pada MRP ini.</td></tr>`;
+    const suggestion = doc.purchaseSuggestion;
+    if (suggestion?.suggestionNumber) {
+      body.querySelectorAll("[data-procurement-row] td:last-child").forEach((cell) => {
+        cell.innerHTML = `<a class="ppic-pr-crosscheck" href="/modules/purchasing/purchase-suggestions/${encodeURIComponent(suggestion.suggestionNumber)}"><b>${esc(suggestion.suggestionNumber)}</b><small>${esc(suggestion.status || "-")} · buka suggestion</small></a>`;
+      });
+    } else {
+      body.querySelectorAll("[data-procurement-row] td:last-child").forEach((cell) => { cell.innerHTML = '<span class="ppic-pr-pending">Belum dibuat</span>'; });
+    }
+    const linked = suggestion?.suggestionNumber ? orders.length : 0;
+    const materialOrders = orders.filter((order) => requirements.some((row) => String(row.partCode) === String(order.partCode) && row.part?.rawType === "MATERIAL")).length;
+    $("ppic-procurement-summary").innerHTML = `<span><b>${num(orders.length)}</b> planned order</span><span><b>${num(materialOrders)}</b> raw material</span><span><b>${num(orders.length - materialOrders)}</b> purchase part</span><span><b>${num(linked)}</b> masuk suggestion</span><p>MRP berhenti di Purchase Suggestion. PR baru dibuat Purchasing setelah konfirmasi supplier selesai.</p>`;
+  }
+  function collectProcurementOrders(onlySelected = false) {
+    return [...document.querySelectorAll("[data-procurement-row]")]
+      .filter((row) => row.dataset.procurementLocked !== "true" && (!onlySelected || row.querySelector("[data-procurement-selected]")?.checked))
+      .map((row) => ({ orderNumber: row.dataset.orderNumber, releaseQty: number(row.querySelector("[data-procurement-release-qty]")?.value) }));
+  }
   function renderMrp(doc) {
     const allRequirements = Array.isArray(doc.requirements) ? doc.requirements : [];
-    const requirements = preparePlanningView(allRequirements, { customer: (row) => row.planningCustomerCode, month: (row) => row.planningMonth || row.requiredDate, part: (row) => row.planningPartCode || row.partCode });
+    const requirementTrace = Array.isArray(doc.requirementTrace) ? doc.requirementTrace : allRequirements;
+    const productionScheduleTrace = Array.isArray(doc.productionScheduleTrace) ? doc.productionScheduleTrace : [];
+    const completeTrace = [...requirementTrace, ...productionScheduleTrace];
+    const traceById = new Map(completeTrace.map((row) => [row.id, row]));
+    const productionBySourceAndPart = new Map(completeTrace
+      .filter((row) => String(row.orderType).toLowerCase() === "production")
+      .map((row) => [`${row.mpsDetailId}|${row.partCode}`, row]));
+    const resolveTraceParent = (node) => {
+      if (node.parentRequirementId && traceById.has(node.parentRequirementId)) return traceById.get(node.parentRequirementId);
+      const structuralParentCode = node.parentPartCode
+        || node.mbomDetail?.parentDetail?.part?.partCode
+        || node.mbomDetail?.mbomHeader?.part?.partCode;
+      return structuralParentCode ? productionBySourceAndPart.get(`${node.mpsDetailId}|${structuralParentCode}`) || null : null;
+    };
+    const buildNettingFactors = (sourceRows, fallbackUom) => {
+      const factors = [];
+      const seen = new Set();
+      for (const sourceRow of sourceRows) {
+        const chain = [];
+        let current = traceById.get(sourceRow.id) || sourceRow;
+        while (current && !chain.some((item) => item.id === current.id)) {
+          chain.push(current);
+          current = resolveTraceParent(current);
+        }
+        for (const node of chain.reverse()) {
+          if (seen.has(node.id)) continue;
+          seen.add(node.id);
+          const parent = resolveTraceParent(node);
+          const gross = number(node.grossRequirement);
+          const net = number(node.netRequirement);
+          const covered = Math.max(gross - net, 0);
+          const ratio = number(node.mbomDetail?.qty);
+          const grossWeight = number(node.mbomDetail?.grossWeight);
+          const rawMaterial = String(node.part?.rawType || "").toUpperCase() === "MATERIAL" && grossWeight > 0;
+          const conversionFactor = rawMaterial ? grossWeight : ratio;
+          const parentDriver = parent && conversionFactor > 0 ? gross / conversionFactor : number(parent?.netRequirement);
+          const parentReduction = parent ? Math.max(number(parent.grossRequirement) - number(parent.netRequirement), 0) : 0;
+          const structuralParent = !parent ? (node.mbomDetail?.parentDetail?.part || node.mbomDetail?.mbomHeader?.part) : null;
+          const structuralParentDriver = structuralParent && conversionFactor > 0 ? gross / conversionFactor : 0;
+          const decisionQty = String(node.orderType).toLowerCase() === "purchase" ? number(node.adjustedOrderQty ?? node.plannedOrderQty ?? net) : net;
+          const decision = String(node.orderType).toLowerCase() === "purchase" ? "Beli" : "Produksi";
+          const productionNode = String(node.orderType).toLowerCase() === "production";
+          const rowUom = rawMaterial
+            ? "kg"
+            : productionNode
+              ? (node.part?.productionUomCode || node.part?.baseUomCode || node.mbomDetail?.uomCode || "pcs")
+              : (node.part?.stockUomCode || node.part?.baseUomCode || node.mbomDetail?.uomCode || fallbackUom || "pcs");
+          const conversionText = rawMaterial
+            ? `${num(parentDriver, 3)} PCS × GW ${num(grossWeight, 7)} KG/PCS = gross ${node.partCode} ${num(gross, 6)} KG.`
+            : `× rasio BOM ${num(ratio || 1, 6)} = gross ${node.partCode} ${num(gross, 3)} ${rowUom}.`;
+          const parentText = parent
+            ? `Driver ${parent.partCode}: gross ${num(parent.grossRequirement, 3)} PCS${parentReduction > 0 ? ` − stock/WIP/supply ${num(parentReduction, 3)} PCS` : ""} = produksi ${num(parent.netRequirement, 3)} PCS. ${conversionText}`
+            : structuralParent
+              ? `Driver produksi ${structuralParent.partCode}: ${num(structuralParentDriver, 3)} PCS setelah netting stock/WIP parent. ${rawMaterial ? `${num(structuralParentDriver, 3)} PCS × GW ${num(grossWeight, 7)} KG/PCS = ${num(gross, 6)} KG.` : `× rasio BOM ${num(ratio || 1, 6)} = gross ${node.partCode} ${num(gross, 3)} ${rowUom}.`}`
+              : `Demand FG sebelum netting ${num(gross, 3)} ${rowUom}.`;
+          if (structuralParent) {
+            factors.push({
+              title: `Reference parent · ${structuralParent.partCode}`,
+              meta: `Part ${node.partCode} berada di MBOM ${node.mbomDetail?.mbomHeader?.noReg || "-"}. Qty driver ${num(structuralParentDriver, 3)} PCS adalah kebutuhan produksi parent setelah pengurang stock/WIP. Run lama yang belum menyimpan intermediate trace tidak mempunyai rincian angka pengurang parent per baris.`,
+              qty: `${num(structuralParentDriver, 3)} PCS`,
+              href: doc.mpsNumber ? `/modules/planning-ppic/mps/${encodeURIComponent(doc.mpsNumber)}` : null,
+            });
+          }
+          factors.push({
+            title: `Level ${num(node.levelMBOM)} · ${node.partCode} · ${decision}`,
+            meta: `${parentText} Stock/supply ${node.partCode} menutup ${num(covered, 3)}; net ${num(net, 3)}.`,
+            qty: `${decision} ${num(decisionQty, 3)} ${rowUom}`,
+            href: `/modules/inventory/stock-balances?q=${encodeURIComponent(node.partCode)}`,
+          });
+        }
+      }
+      return factors;
+    };
+    const requirements = preparePlanningView(allRequirements, {
+      customer: (row) => row.planningCustomerCode,
+      month: (row) => row.planningMonth || row.requiredDate,
+      part: (row) => row.partCode,
+      parentFg: (row) => row.planningPartCode || row.partCode,
+    });
     const rawMaterialCount = allRequirements.filter((row) => row.part?.itemType === "RAW" && row.part?.rawType === "MATERIAL").length;
     const purchasePartCount = allRequirements.filter((row) => row.part?.itemType === "RAW" && row.part?.rawType === "PURCHASE_PART").length;
     const supplySummaryCells = (row) => {
@@ -203,27 +604,41 @@
       const wipLines = Array.isArray(wip.lines) ? wip.lines : [];
       const supplierLines = Array.isArray(supplier.lines) ? supplier.lines : [];
       const stockCell = (kind, stock, lines, emptyLabel) => {
+        const planningSupplyQty = kind === "wip"
+          ? number(stock.planningSupplyQty ?? stock.qtyOnHand)
+          : number(stock.planningSupplyQty ?? stock.qtyAvailable);
         const tooltip = lines.length
-          ? lines.map((line) => `${[line.warehouseCode, line.rackCode, line.lotNumber].filter(Boolean).join(" / ") || "Tanpa lokasi"}: ${num(line.qtyAvailable, 3)} ${line.uomCode || uom}`).join("\n")
+          ? lines.map((line) => kind === "wip"
+            ? `${line.sourcePartCode || "WIP/FG"}${line.sourcePartName ? ` - ${line.sourcePartName}` : ""}: ${num(line.sourceQtyOnHand, 3)} ${line.sourceUomCode || "pcs"} x GW ${num(line.conversionFactorKgPerPcs, 6)} = ${num(line.qtyOnHand, 3)} ${line.uomCode || uom}`
+            : `${[line.warehouseCode, line.rackCode, line.lotNumber].filter(Boolean).join(" / ") || "Tanpa lokasi"}: ${num(line.qtyAvailable, 3)} ${line.uomCode || uom}`).join("\n")
           : emptyLabel;
-        return `<td class="ppic-supply-cell ${kind}" title="${esc(tooltip)}"><div class="ppic-supply-value"><b>${num(stock.qtyAvailable, 3)}</b><small>${esc(uom)}</small></div><span>OH ${num(stock.qtyOnHand, 3)} · RSV ${num(stock.qtyReserved, 3)} · QC ${num(stock.qtyQC, 3)}</span><em>${lines.length ? `${num(lines.length)} lokasi` : emptyLabel}</em></td>`;
+        return `<td class="ppic-supply-cell ${kind}" title="${esc(tooltip)}"><div class="ppic-supply-value"><b>${num(planningSupplyQty, 3)}</b><small>${esc(uom)}</small></div><span>OH ${num(stock.qtyOnHand, 3)} · RSV ${num(stock.qtyReserved, 3)} · QC ${num(stock.qtyQC, 3)}</span><em>${lines.length ? `${num(lines.length)} lokasi` : emptyLabel}</em></td>`;
       };
       const supplierTooltip = supplierLines.length
         ? supplierLines.map((line) => `${line.poNumber || "PO"} · ${line.supplierName || line.supplierCode || "Supplier"} · ${validDate(line.deliveryDate) ? date(line.deliveryDate) : "Tanpa ETA"} · Sisa ${num(line.outstandingQty, 3)}`).join("\n")
         : "Belum ada outstanding PO supplier";
+      const visibleSupply = number(warehouse.planningSupplyQty ?? warehouse.qtyAvailable)
+        + number(wip.planningSupplyQty ?? wip.qtyOnHand)
+        + number(supplier.qtyEligible);
+      const coveredDemand = Math.min(number(row._gross), visibleSupply);
+      const uncoveredDemand = Math.max(number(row._gross) - visibleSupply, 0);
+      const coveragePercent = number(row._gross) > 0 ? (coveredDemand / number(row._gross)) * 100 : 100;
       return [
         stockCell("warehouse", warehouse, warehouseLines, "Belum ada stock"),
         stockCell("wip", wip, wipLines, "Belum ada stock"),
+        `<td class="ppic-supply-cell coverage" title="Covered = min(Gross, material warehouse + ekuivalen WIP/FG (pcs x GW) + outstanding PO eligible)"><div class="ppic-supply-value"><b>${num(coveredDemand, 3)}</b><small>${esc(uom)}</small></div><span>${num(coveragePercent, 1)}% covered</span><em>Uncovered ${num(uncoveredDemand, 3)}</em></td>`,
         `<td class="ppic-supply-cell supplier" title="${esc(supplierTooltip)}"><div class="ppic-supply-value"><b>${num(supplier.qtyOutstanding, 3)}</b><small>${esc(uom)}</small></div><span>Eligible ${num(supplier.qtyEligible, 3)}</span><em>${supplierLines.length ? `${num(supplierLines.length)} PO` : "Belum ada PO"}</em></td>`,
       ].join("");
     };
     const groupedRows = groupedPlanningRows(requirements, {
-      colSpan: 19,
+      colSpan: 21,
       customer: (row) => row.planningCustomerCode,
       month: (row) => row.planningMonth || row.requiredDate,
-      planPart: (row) => row.planningPartCode,
-      planPartLabelFor: (value, rows) => String(rows[0]?.planningPartItemType || "").toUpperCase() === "FG" ? "Finished Good" : "Part",
-      planPartDisplay: (value, rows) => ({ code: value, name: rows[0]?.planningPartName || rows[0]?.planningPartNumber || "" }),
+      planPart: (row) => row.partCode,
+      parentFg: (row) => row.planningPartCode || row.partCode,
+      planPartLabelFor: () => "Part",
+      planPartDisplay: (value, rows) => ({ code: value, name: rows[0]?.part?.partName || rows[0]?.part?.partNumber || "" }),
+      parentFgDisplay: (value, rows) => ({ code: value, name: rows[0]?.planningPartName || rows[0]?.planningPartNumber || "" }),
       planPartInItems: false,
       renderItems: (group) => {
         const aggregate = new Map();
@@ -231,9 +646,10 @@
           const rawMaterial = row.part?.itemType === "RAW" && row.part?.rawType === "MATERIAL";
           const displayUom = rawMaterial && row.plannedOrderQtyKg != null ? "kg" : row.uomCode || row.mbomDetail?.uomCode || "-";
           const key = `${row.partCode}|${row.orderType || "-"}|${displayUom}`;
-          if (!aggregate.has(key)) aggregate.set(key, { ...row, _ids: [], _base: 0, _forecast: 0, _actualSalesOrder: 0, _soSources: [], _bufferBase: 0, _bufferQty: 0, _bufferPercents: new Set(), _bufferScopes: new Set(), _orderPercents: new Set(), _overridden: false, _gross: 0, _net: 0, _planned: 0, _adjusted: 0, _onHand: 0, _leadTime: 0, _displayUom: displayUom, _rawMaterial: rawMaterial, _supply: row.supplyBreakdown || null });
+          if (!aggregate.has(key)) aggregate.set(key, { ...row, _ids: [], _sourceRows: [], _base: 0, _forecast: 0, _actualSalesOrder: 0, _soSources: [], _bufferBase: 0, _bufferQty: 0, _bufferPercents: new Set(), _bufferScopes: new Set(), _orderPercents: new Set(), _overridden: false, _gross: 0, _net: 0, _planned: 0, _adjusted: 0, _onHand: 0, _leadTime: 0, _referencePcs: 0, _displayUom: displayUom, _rawMaterial: rawMaterial, _supply: row.supplyBreakdown || null });
           const target = aggregate.get(key);
           target._ids.push(row.id);
+          target._sourceRows.push(row);
           target._base += number(row.effectiveDemandQty);
           target._forecast += number(row.forecastQty);
           target._actualSalesOrder += number(row.soConsumedQty);
@@ -246,6 +662,12 @@
           target._overridden = target._overridden || Boolean(row.bufferOverridden);
           target._gross += number(row.grossRequirement);
           target._net += number(row.netRequirement);
+          const referencePcs = row.referenceDemandQtyPcs != null
+            ? number(row.referenceDemandQtyPcs)
+            : number(row.mbomDetail?.grossWeight) > 0
+              ? Math.ceil(number(row.effectiveDemandQty) / number(row.mbomDetail.grossWeight) - 0.0001)
+              : 0;
+          target._referencePcs += rawMaterial ? referencePcs : 0;
           target._planned += rawMaterial && row.plannedOrderQtyKg != null ? number(row.plannedOrderQtyKg) : number(row.plannedOrderQty);
           target._adjusted += number(row.adjustedOrderQty || row.plannedOrderQty);
           target._onHand = Math.max(target._onHand, number(row.onHandQty));
@@ -260,21 +682,64 @@
           const soReferences = [...new Set(row._soSources.map((source) => String(source).split(":")[0]).filter((source) => source && !source.startsWith("MPS")))];
           const soCell = row._actualSalesOrder > 0 ? `<div class="ppic-so-reference"><b>${num(row._actualSalesOrder, 3)}</b>${soReferences.map((so) => `<a href="/modules/sales/sales-orders/${encodeURIComponent(so)}">${esc(so)}</a>`).join("")}</div>` : "0";
           const bufferScope = row._bufferScopes.has("LINE") ? "line" : "parent";
-          return `<tr class="ppic-requirement-row ${row._rawMaterial ? "ppic-raw-material-row" : ""}"><td>${badge(type)}</td><td><b>${esc(row.partCode)}</b><small class="ppic-cell-sub">Level ${num(row.levelMBOM)}</small></td><td>${esc(row.part?.partName || row.part?.partNumber || "-")}${material ? `<small class="ppic-cell-sub">Material: ${esc(material)}</small>` : ""}${conversionWarning}</td><td class="ppic-number">${num(row._forecast, 3)}</td><td class="ppic-number">${num(row._base, 3)}</td><td class="ppic-number ppic-actual-so">${soCell}</td><td class="ppic-number ppic-next-forecast">${num(row._bufferBase, 3)}</td><td><div class="ppic-buffer-editor"><div class="ppic-buffer-control"><input data-mrp-buffer type="number" min="0" max="100" step="0.01" value="${esc(bufferPercent)}" aria-label="Buffer stock ${esc(row.partCode)}"><span>%</span><select data-mrp-buffer-scope aria-label="Scope buffer"><option value="parent" ${bufferScope === "parent" ? "selected" : ""}>Parent FG</option><option value="line" ${bufferScope === "line" ? "selected" : ""}>Per baris</option></select><button type="button" data-action="save-mrp-buffer" data-run-number="${esc(doc.runNumber)}" data-requirement-ids="${esc(row._ids.join(","))}">Simpan</button></div><small class="ppic-buffer-source">${row._overridden ? (bufferScope === "parent" ? "Override Parent FG" : "Override per Part") : "Master Parent / FG"}</small></div></td><td class="ppic-number ppic-buffer-qty">${num(row._bufferQty, 3)}</td><td class="ppic-number">${num(row._gross, 3)}</td>${supplySummaryCells(row)}<td class="ppic-number">${num(row._onHand, 3)}</td><td class="ppic-number ppic-net-qty">${num(row._net, 3)}</td><td><div class="ppic-buffer-editor"><div class="ppic-buffer-control"><input type="number" min="0" max="100" step="0.01" value="${esc(orderPercent)}" aria-label="Order forecast ${esc(row.partCode)}"><span>%</span><button type="button" data-action="save-mrp-order-percent" data-run-number="${esc(doc.runNumber)}" data-requirement-ids="${esc(row._ids.join(","))}">Simpan</button></div><small class="ppic-buffer-source">Minimum: SO aktual</small></div></td><td class="ppic-number ppic-plan-qty">${num(row._adjusted, 3)}</td><td><b>${esc(row._displayUom)}</b></td><td class="ppic-number">${num(row._leadTime)} hari</td></tr>`;
+          const partNumberCell = row.part?.partNumber ? `<small class="ppic-cell-sub">Part Number: ${esc(row.part.partNumber)}</small>` : "";
+          const materialRefPcs = row._rawMaterial ? `<small class="ppic-cell-sub">Ref kebutuhan: ${num(row._referencePcs)} PCS</small>` : "";
+          const mrpAdjustmentData = `data-action="edit-mrp-percentage" data-run-number="${esc(doc.runNumber)}" data-requirement-ids="${esc(row._ids.join(","))}" data-part-code="${esc(row.partCode)}"`;
+          const bufferCell = `<div class="ppic-percent-cell"><b>${num(bufferPercent, 2)}%</b><small class="ppic-buffer-source">${row._overridden ? (bufferScope === "parent" ? "Override Parent FG" : "Override per Part") : "Master Parent / FG"}</small><button type="button" class="ppic-percent-edit" ${mrpAdjustmentData} data-adjustment-kind="buffer" data-percentage="${esc(bufferPercent)}" data-scope="${esc(bufferScope)}">Edit</button></div>`;
+          const orderCell = `<div class="ppic-percent-cell"><b>${num(orderPercent, 2)}%</b><small class="ppic-buffer-source">Minimum SO</small><button type="button" class="ppic-percent-edit" ${mrpAdjustmentData} data-adjustment-kind="order" data-percentage="${esc(orderPercent)}">Edit</button></div>`;
+          const projectedAvailable = Math.max(number(row._gross) - number(row._net), 0);
+          const supply = row._supply || {};
+          const formulaReferenceId = `mrp:${doc.runNumber}:${row.partCode}:${formulaReferenceStore.size}`;
+          const demandDocuments = [...new Set(row._soSources.map((source) => String(source).split(":")[0]).filter(Boolean))].map((source) => {
+            const sourceNumber = source.split("#")[0];
+            const isSo = /^SO/i.test(sourceNumber);
+            return { title: sourceNumber, meta: isSo ? "Sales Order yang dikonsumsi MRP" : "Referensi demand MRP", href: isSo ? `/modules/sales/sales-orders/${encodeURIComponent(sourceNumber)}` : null };
+          });
+          const stockReference = (line, qtyField = "qtyAvailable") => ({
+            title: [line.warehouseCode || "Warehouse", line.rackCode, line.lotNumber ? `Lot ${line.lotNumber}` : "Tanpa lot"].filter(Boolean).join(" / "),
+            meta: `${line.stockType || "Stock"} · OH ${num(line.qtyOnHand, 3)} · RSV ${num(line.qtyReserved, 3)} · QC ${num(line.qtyQC, 3)}`,
+            qty: `${num(line[qtyField], 3)} ${line.uomCode || row._displayUom}`,
+            href: `/modules/inventory/stock-balances?q=${encodeURIComponent(line.lotNumber || line.sourcePartCode || row.partCode)}`,
+          });
+          formulaReferenceStore.set(formulaReferenceId, {
+            nettingFactors: buildNettingFactors(row._sourceRows, row._displayUom),
+            demands: row._sourceRows.map((source) => ({
+              title: `${source.planningPartCode || source.partCode} → ${source.partCode}`,
+              meta: `Level BOM ${num(source.levelMBOM)} · perlu ${date(source.requiredDate)} · Forecast ${num(source.forecastQty, 3)} · Buffer ${num(source.bufferQty, 3)}`,
+              qty: `${num(source.grossRequirement, 3)} ${source.uomCode || row._displayUom}`,
+              href: source.planningPartCode ? `/modules/planning-ppic/mps/${encodeURIComponent(doc.mpsNumber)}` : null,
+            })),
+            demandDocuments,
+            warehouseStock: (supply.warehouseStock?.lines || []).map((line) => stockReference(line, "qtyAvailable")),
+            wipStock: (supply.wipStock?.lines || []).map((line) => ({
+              ...stockReference(line, "qtyOnHand"),
+              title: `${line.sourcePartCode || "WIP/FG"}${line.sourcePartName ? ` · ${line.sourcePartName}` : ""}`,
+              meta: `${line.warehouseCode || "Warehouse"} / ${line.rackCode || "Tanpa rack"} / ${line.lotNumber ? `Lot ${line.lotNumber}` : "Tanpa lot"} · ${num(line.sourceQtyOnHand, 3)} ${line.sourceUomCode || "pcs"} × GW ${num(line.conversionFactorKgPerPcs, 6)}`,
+            })),
+            purchaseOrders: (supply.supplierOutstanding?.lines || []).filter((line) => line.eligibleForRequirement).map((line) => ({
+              title: line.poNumber || "Purchase Order",
+              meta: `${line.supplierName || line.supplierCode || "Supplier"} · ETA ${date(line.deliveryDate)} · status ${line.poStatus || "-"}`,
+              qty: `${num(line.outstandingQty, 3)} ${line.uomCode || row._displayUom}`,
+              href: line.poNumber ? `/modules/purchasing/purchase-orders/${encodeURIComponent(line.poNumber)}` : null,
+            })),
+          });
+          const formulaData = `data-action="show-formula-reference" data-formula-reference-id="${esc(formulaReferenceId)}" data-formula-scope="mrp" data-part-code="${esc(row.partCode)}" data-uom="${esc(row._displayUom)}" data-forecast="${esc(row._forecast)}" data-need="${esc(row._base)}" data-actual-sales-order="${esc(row._actualSalesOrder)}" data-buffer-base="${esc(row._bufferBase)}" data-buffer-percent="${esc(bufferPercent)}" data-buffer-qty="${esc(row._bufferQty)}" data-gross="${esc(row._gross)}" data-projected-available="${esc(projectedAvailable)}" data-net="${esc(row._net)}" data-order-percent="${esc(orderPercent)}" data-purchase-plan="${esc(row._adjusted)}"`;
+          return `<tr class="ppic-requirement-row ${row._rawMaterial ? "ppic-raw-material-row" : ""}"><td>${badge(type)}</td><td><b>${esc(row.partCode)}</b><small class="ppic-cell-sub">Level ${num(row.levelMBOM)}</small></td><td>${esc(row.part?.partName || row.part?.partNumber || "-")}${partNumberCell}${material ? `<small class="ppic-cell-sub">Material: ${esc(material)}</small>` : ""}${conversionWarning}</td><td class="ppic-number">${num(row._forecast, 3)}</td><td class="ppic-number">${num(row._base, 3)}${materialRefPcs}</td><td class="ppic-number ppic-actual-so">${soCell}</td><td class="ppic-number ppic-next-forecast">${num(row._bufferBase, 3)}</td><td>${bufferCell}</td><td class="ppic-number ppic-buffer-qty">${num(row._bufferQty, 3)}</td><td class="ppic-number">${num(row._gross, 3)}</td>${supplySummaryCells(row)}<td class="ppic-number">${num(row._onHand, 3)}</td><td class="ppic-number ppic-net-qty">${num(row._net, 3)}</td><td>${orderCell}</td><td class="ppic-number ppic-plan-qty">${num(row._adjusted, 3)}</td><td><b>${esc(row._displayUom)}</b></td><td class="ppic-number">${num(row._leadTime)} hari</td><td class="ppic-formula-help-cell"><button type="button" class="ppic-formula-help" ${formulaData} aria-label="Lihat rumus MRP ${esc(row.partCode)}">?</button></td></tr>`;
         });
       },
     });
-    const prOutputs = (doc.plannedOrders || []).filter((row) => row.purchaseRequest?.prNumber);
-    const prNumbers = [...new Set(prOutputs.map((row) => row.purchaseRequest.prNumber))];
-    const prLinks = prNumbers.length ? prNumbers.map((prNumber) => `<a href="/modules/purchasing/purchase-requisitions/${encodeURIComponent(prNumber)}">${esc(prNumber)}</a>`).join("<br>") : "<strong>-</strong>";
-    setInfo("Informasi MRP", [["MRP ID", doc.runNumber], ["Periode", month(doc.runDate)], ["Tipe Perhitungan", "Net Requirements"], ["PIC Planner", doc.runBy || "-"], ["Output Purchase Request", prLinks, true], ["Status Dokumen", badge(doc.status), true]]);
-    setTable("Purchase Requirement - Customer / Bulan", ["Tipe", "Kode Part", "Nama / Material", "Forecast A", "Need Bulan A", "Actual Sales Order", "Forecast A+1", "Buffer %", "Buffer Qty", "Gross Req", "Stock Warehouse", "Stock WIP", "Outstanding Supplier", "On Hand", "Net Req", "Order %", "Purchase Plan", "UOM", "Lead Time"], groupedRows);
-    setSummary("Parameter Perencanaan", [["Planning Horizon", `${num(doc.planHorizon)} hari`], ["Cut-off Date", date(doc.cutoffDate)], ["Sumber MPS", doc.mpsNumber || "-"], ["Raw Material", `${num(rawMaterialCount)} baris`], ["Purchase Part", `${num(purchasePartCount)} baris`], ["Purchase Request", `${num(new Set(prOutputs.map((row) => row.purchaseRequest.prNumber)).size)} PR / ${num(prOutputs.length)} line`], ["Planned Orders", num(doc.totalPlannedOrders)]], doc.errorMessage || "MRP hanya berisi item purchase. PPIC dapat mengatur Order % terhadap forecast, tetapi kebutuhan tidak pernah turun di bawah SO aktual. Output MRP dapat diterbitkan menjadi Purchase Request; output proses produksi diterbitkan sebagai Production Planning dari MPS yang sama.");
+    const suggestionLink = doc.purchaseSuggestion?.suggestionNumber ? `<a href="/modules/purchasing/purchase-suggestions/${encodeURIComponent(doc.purchaseSuggestion.suggestionNumber)}">${esc(doc.purchaseSuggestion.suggestionNumber)}</a><br>${badge(doc.purchaseSuggestion.status)}` : "<strong>-</strong>";
+    setInfo("Informasi MRP", [["MRP ID", doc.runNumber], ["Periode", month(doc.runDate)], ["Tipe Perhitungan", "Net Requirements"], ["PIC Planner", doc.runBy || "-"], ["Purchase Suggestion", suggestionLink, true], ["Status Dokumen", badge(doc.status), true]]);
+    setTable("Purchase Requirement - Customer / Bulan", ["Tipe", "Kode Part", "Nama / Material", "Forecast A", "Need Bulan A", "Actual Sales Order", "Forecast A+1", "Buffer %", "Buffer Qty", "Gross Req", "Material Warehouse", "WIP/FG × GW", "Covered Demand", "Outstanding PO (Belum Datang)", "Total Stock WH+WIP", "Net Req", "Order %", "Purchase Plan", "UOM", "Lead Time", "?"], groupedRows);
+    setSummary("Parameter Perencanaan", [["Planning Horizon", `${num(doc.planHorizon)} hari`], ["Cut-off Date", date(doc.cutoffDate)], ["Sumber MPS", doc.mpsNumber || "-"], ["Raw Material", `${num(rawMaterialCount)} baris`], ["Purchase Part", `${num(purchasePartCount)} baris`], ["Purchase Suggestion", doc.purchaseSuggestion?.suggestionNumber || "Belum dibuat"], ["Planned Orders", num(doc.totalPlannedOrders)]], doc.errorMessage || "MRP menghitung kebutuhan pembelian dari demand terbaru. Hasilnya masuk Purchase Suggestion untuk dikonfirmasi Purchasing sebelum PR dibuat.");
+    renderProcurementSetup(doc, allRequirements);
     renderWorkflow(doc, baseWorkflow(doc, "MRP Released"), ["DRAFT", "CALCULATION", String(doc.status || "RUNNING").toUpperCase()]);
   }
   function renderMps(doc) {
     const details = Array.isArray(doc.details) ? doc.details : [];
     const isGeneratedProcess = (row) => String(row.notes || "").startsWith("[MRP-PRODUCTION]");
+    const isChildFgReceipt = (row) => isGeneratedProcess(row)
+      && String(row.part?.itemType || row.itemType || "").trim().toUpperCase() === "FG";
     const receiptDetails = details.filter((row) => !isGeneratedProcess(row));
     // Legacy MPS headers may contain multiple forecast periods while all rows
     // retain the header's periodStart. Use the stored forecast offset to keep
@@ -306,7 +771,7 @@
       const candidates = receiptByCustomerPart.get(`${customerCode || ""}|${partCode}`) || [];
       return candidates.slice().sort((left, right) => Math.abs(new Date(left.startDate).getTime() - new Date(row.startDate).getTime()) - Math.abs(new Date(right.startDate).getTime() - new Date(row.startDate).getTime()))[0];
     };
-    const processDetails = details.filter((row) => isGeneratedProcess(row) && String(row.part?.itemType || "").toUpperCase() !== "FG").map((row) => {
+    const generatedDetails = details.filter(isGeneratedProcess).map((row) => {
       const sourceId = String(row.notes || "").match(/\[MPS-SOURCE:([^\]]+)\]/)?.[1];
       const sourcePart = String(row.notes || "").match(/;\s*source\s+(.+?)(?:;|$)/i)?.[1]?.trim();
       const source = receiptById.get(sourceId) || nearestParent(row.customerCode, sourcePart, row) || receiptByMonth.get(`${row.customerCode || ""}|${sourcePart || ""}|${scheduleMonthKey(row)}`) || receiptByLegacyKey.get(`${row.customerCode || ""}|${sourcePart || ""}|${number(row.forecastPeriodOffset)}`) || receiptByCustomerOffset.get(`${row.customerCode || ""}|${number(row.forecastPeriodOffset)}`);
@@ -314,9 +779,11 @@
       // their parent FG so buffer remains visible without altering history.
       return source ? { ...row, forecastQty: number(row.forecastQty) || number(source.forecastQty), actualSalesOrderQty: number(row.actualSalesOrderQty) || number(source.actualSalesOrderQty), bufferBaseQty: number(row.bufferBaseQty) || number(source.bufferBaseQty), bufferPercent: number(row.bufferPercent) || number(source.bufferPercent), bufferQty: number(row.bufferQty) || number(source.bufferQty), effectiveDemandQty: number(row.effectiveDemandQty) || number(source.effectiveDemandQty), productionPercent: number(row.productionPercent || 100) } : row;
     });
-    // FG bukan proses, tetapi tetap ditampilkan sebagai receipt agar PPIC dapat
-    // melihat Forecast, SO, Buffer, dan target MPS pada satu schedule.
-    const allVisibleDetails = [...receiptDetails, ...processDetails];
+    const childReceiptDetails = generatedDetails.filter(isChildFgReceipt);
+    const processDetails = generatedDetails.filter((row) => !isChildFgReceipt(row));
+    // Main FG is the demand receipt. A dependent FG is shown as an intermediate
+    // receipt between its nested BOM operations and the parent BOM chain.
+    const allVisibleDetails = [...receiptDetails, ...childReceiptDetails, ...processDetails];
     const qty = receiptDetails.reduce((sum, row) => sum + number(row.qtyPlanned), 0);
     const partCount = new Set(details.map((row) => row.partCode)).size;
     const primaryPart = receiptDetails[0]?.part?.partName || receiptDetails[0]?.partCode || "-";
@@ -324,6 +791,7 @@
     const customerCount = new Set(details.map((row) => row.customerCode || "Tanpa Customer")).size;
     const monthCount = new Set(receiptDetails.map(scheduleMonthKey)).size;
     const childCount = processDetails.length;
+    const childReceiptCount = childReceiptDetails.length;
     const isFinishedGood = (row) => String(row?.part?.itemType || row?.itemType || "").trim().toUpperCase() === "FG";
     const sourceFinishedGood = (row) => {
       const sourceId = String(row.notes || "").match(/\[MPS-SOURCE:([^\]]+)\]/)?.[1];
@@ -350,29 +818,74 @@
       const source = sourceFinishedGoods.get(`${row.customerCode || "Tanpa Customer"}|${finishedGoodCode(row)}|${scheduleMonthKey(row)}`);
       return source ? scheduleDate(source) : scheduleDate(row);
     };
-    const visibleDetails = preparePlanningView(allVisibleDetails, { customer: (row) => row.customerCode, month: (row) => finishedGoodMonth(row), part: (row) => finishedGoodCode(row) });
-    const groupedRows = groupedPlanningRows(visibleDetails, {
-      colSpan: 13,
+    const visibleDetails = preparePlanningView(allVisibleDetails, {
+      customer: (row) => row.customerCode,
+      month: (row) => finishedGoodMonth(row),
+      part: (row) => row.partCode,
+      parentFg: (row) => finishedGoodCode(row),
+      fixedGrouping: true,
+    });
+    const groupedRows = customGroupedPlanningRows(visibleDetails, {
+      colSpan: 21,
       customer: (row) => row.customerCode,
       month: finishedGoodMonth,
-      planPart: finishedGoodCode,
-      planPartLabel: "Finished Good",
-      planPartLabelFor: (value, rows) => planPartRow(rows[0] || {}).label,
-      planPartDisplay: (value, rows) => ({ code: value, name: finishedGoodName(rows[0] || {}) }),
+      planPart: (row) => row.partCode,
+      parentFg: finishedGoodCode,
+      planPartLabel: "Part",
+      planPartLabelFor: () => "Part",
+      planPartDisplay: (value, rows) => ({ code: value, name: rows[0]?.part?.partName || rows[0]?.part?.partNumber || "" }),
+      parentFgDisplay: (value, rows) => ({ code: value, name: finishedGoodName(rows[0] || {}) }),
       planPartInItems: true,
       renderItems: (group) => {
         const partGroups = new Map();
+        const hierarchyFor = (item) => {
+          if (!isGeneratedProcess(item)) return { level: 0, treePath: `0000|${item.partCode}`, parentPartCode: null, parentPartName: null };
+          const trace = item.bomHierarchy || (item.mrpNettingTrace || [])[0] || {};
+          const level = Math.max(number(trace.level ?? trace.levelMBOM ?? item.part?.bomLevel ?? item.part?.componentLevel), 1);
+          return {
+            level,
+            treePath: trace.treePath || `9999|${String(level).padStart(4, "0")}|${item.partCode}`,
+            parentPartCode: trace.parentPartCode || trace.parentRequirement?.partCode || null,
+            parentPartName: trace.parentPartName || trace.parentRequirement?.part?.partName || null,
+          };
+        };
         for (const item of group) {
-          const productionLevel = isGeneratedProcess(item) ? "Child / SFG Process" : "FG Receipt";
-          const partKey = `${productionLevel}|${item.partCode}`;
-          if (!partGroups.has(partKey)) partGroups.set(partKey, { first: item, productionLevel, items: [] });
+          const productionLevel = !isGeneratedProcess(item)
+            ? "FG Receipt"
+            : isChildFgReceipt(item)
+              ? "Child FG Receipt"
+              : "Child / SFG Process";
+          const hierarchy = hierarchyFor(item);
+          const partKey = `${productionLevel}|${item.partCode}|${hierarchy.treePath}`;
+          if (!partGroups.has(partKey)) partGroups.set(partKey, { first: item, productionLevel, hierarchy, items: [] });
           partGroups.get(partKey).items.push(item);
         }
-        return [...partGroups.values()].sort((a, b) => String(a.first.partCode).localeCompare(String(b.first.partCode))).map(({ first, productionLevel, items }) => {
+        // Display the BOM hierarchy from its parent receipt down to the deepest
+        // nested component. This is a structural view, not execution order.
+        // Nested BOM execution is bottom-up. processSequence (10/20/30) is
+        // local to one BOM and must not outrank the global BOM/component level;
+        // otherwise SPOT/WELD incorrectly move above the nested PRG receipt.
+        const processDepth = (row) => Math.max(
+          number(row?.part?.bomLevel),
+          number(row?.part?.componentLevel),
+        );
+        return [...partGroups.values()].sort((a, b) => {
+          const aMainReceipt = a.productionLevel === "FG Receipt";
+          const bMainReceipt = b.productionLevel === "FG Receipt";
+          // Present the parent BOM receipt as the header row, followed by its
+          // nested bottom-up execution chain.
+          if (aMainReceipt !== bMainReceipt) return aMainReceipt ? -1 : 1;
+          return String(a.hierarchy.treePath).localeCompare(String(b.hierarchy.treePath))
+            || a.hierarchy.level - b.hierarchy.level
+            || processDepth(a.first) - processDepth(b.first)
+            || number(a.first?.part?.processSequence) - number(b.first?.part?.processSequence)
+            || String(a.first.partCode).localeCompare(String(b.first.partCode));
+        }).map(({ first, productionLevel, hierarchy, items }) => {
           const detailIds = items.map((row) => row.id).filter(Boolean);
-          const parent = productionLevel === "Child / SFG Process" ? sourceFinishedGood(first) : null;
+          const generatedLine = productionLevel !== "FG Receipt";
+          const parent = generatedLine ? sourceFinishedGood(first) : null;
           const sourcePartForBuffer = String(first.notes || "").match(/;\s*source\s+(.+?)(?:;|$)/i)?.[1]?.trim();
-          const bufferParent = parent || (productionLevel === "Child / SFG Process" ? nearestParent(first.customerCode, sourcePartForBuffer, first) : null);
+          const bufferParent = parent || (generatedLine ? nearestParent(first.customerCode, sourcePartForBuffer, first) : null);
           const totalQty = items.reduce((sum, row) => sum + number(row.qtyPlanned), 0);
           const forecastQty = items.reduce((sum, row) => sum + number(row.forecastQty), 0);
           const salesOrderQty = items.reduce((sum, row) => sum + number(row.actualSalesOrderQty), 0);
@@ -382,46 +895,185 @@
           const start = items.reduce((value, row) => !value || new Date(scheduleDate(row)) < new Date(value) ? scheduleDate(row) : value, null);
           const end = items.reduce((value, row) => !value || new Date(scheduleEndDate(row)) > new Date(value) ? scheduleEndDate(row) : value, null);
           const statuses = [...new Set(items.map((row) => row.status || "Planned"))];
-          const partCodeCell = `<b>${esc(first.partCode || "-")}</b>`;
-          const partNameCell = esc(first.part?.partName || first.part?.partNumber || "-");
+          const treeLevel = Math.min(Math.max(number(hierarchy.level), 0), 14);
+          const parentLabel = hierarchy.parentPartCode
+            ? `<small class="ppic-tree-parent">Parent: ${esc(hierarchy.parentPartCode)}${hierarchy.parentPartName ? ` · ${esc(hierarchy.parentPartName)}` : ""}</small>`
+            : '<small class="ppic-tree-parent">Root FG</small>';
+          const partCodeCell = `<div class="ppic-mps-tree-code" style="--bom-level:${treeLevel}" data-bom-level="${treeLevel}"><span class="ppic-tree-connector" aria-hidden="true">${treeLevel ? "└─" : "●"}</span><span><b>${esc(first.partCode || "-")}</b>${parentLabel}</span></div>`;
+          const partNameCell = `${esc(first.part?.partName || first.part?.partNumber || "-")}${first.part?.partNumber ? `<small class="ppic-cell-sub">Part Number: ${esc(first.part.partNumber)}</small>` : ""}`;
           const processPath = Array.isArray(first.processPath) ? first.processPath : [];
-          const processCell = processPath.length
-            ? processPath.map((item, index) => `${index + 1}. ${esc(item.name || "Process")}${item.occurrenceCode ? ` (${esc(item.occurrenceCode)})` : ""}`).join(" → ")
+          const processCell = productionLevel === "Child FG Receipt"
+            ? `Receipt ${esc(first.mbom?.noReg || first.partCode || "nested BOM")}`
+            : processPath.length
+            ? processPath.map((item, index) => `${esc(item.routingNumber || item.sequence || (index + 1))}. ${esc(item.name || "Process")}${item.occurrenceCode ? ` (${esc(item.occurrenceCode)})` : ""}`).join(" → ")
             : "-";
           const bufferLabel = productionLevel === "FG Receipt" ? `${num(bufferPercent.length === 1 ? bufferPercent[0] : 0, 2)}%` : "-";
           const soReferences = [...new Set(items.flatMap((row) => String(row.soNumber || "").split(",")).map((value) => value.trim()).filter(Boolean))];
-          const soCell = salesOrderQty > 0 ? `<div class="ppic-so-reference"><b>${num(salesOrderQty, 2)}</b>${soReferences.map((so) => `<a href="/modules/sales/sales-orders/${encodeURIComponent(so)}">${esc(so)}</a>`).join("")}</div>` : "0";
           const editable = productionLevel === "FG Receipt";
+          const forecastNumber = editable ? (first.forecastDetail?.forecastNumber || doc.forecastNumber) : null;
+          const forecastReferenceCell = forecastNumber
+            ? `<a href="/modules/sales/forecasts/${encodeURIComponent(forecastNumber)}">${esc(forecastNumber)}</a>`
+            : "-";
+          const soReferenceCell = editable && soReferences.length
+            ? `<div class="ppic-so-reference">${soReferences.map((so) => `<a href="/modules/sales/sales-orders/${encodeURIComponent(so)}">${esc(so)}</a>`).join("")}</div>`
+            : "-";
+          const customerPhases = (doc.deliveryPlans || []).filter((phase) =>
+            String(phase.targetType || "").toUpperCase() === "CUSTOMER"
+            && phase.status !== "Cancelled"
+            && detailIds.includes(phase.mpsDetailId));
+          const allocatedByDetailId = new Map();
+          customerPhases.forEach((phase) => allocatedByDetailId.set(
+            phase.mpsDetailId,
+            number(allocatedByDetailId.get(phase.mpsDetailId)) + number(phase.qtyPlanned),
+          ));
+          const deliveryTarget = items.find((row) =>
+            number(row.qtyPlanned) - number(allocatedByDetailId.get(row.id)) > 0.000001);
+          const allocatedDeliveryQty = customerPhases.reduce((sum, phase) => sum + number(phase.qtyPlanned), 0);
+          const remainingDeliveryQty = Math.max(totalQty - allocatedDeliveryQty, 0);
+          const canEditDelivery = false;
+          const phaseRows = customerPhases.map((phase) => `<div class="ppic-delivery-inline-phase"><span><b>Phase ${num(phase.phaseNumber)}</b> · ${date(phase.plannedDate)} · ${num(phase.qtyPlanned, 3)} ${esc(phase.uomCode || "")}</span>${canEditDelivery ? `<button type="button" class="btn btn-sm btn-outline-danger" data-action="remove-delivery-phase" data-phase-id="${esc(phase.id)}" title="Batalkan phase">×</button>` : ""}</div>`).join("");
+          const deliveryCell = editable
+            ? `<div class="ppic-delivery-inline">${phaseRows || `<small class="ppic-cell-sub">Belum ada target Marketing</small>`}<small class="ppic-cell-sub">Terjadwal ${num(allocatedDeliveryQty, 3)} / ${num(totalQty, 3)} · sumber Forecast/SO</small></div>`
+            : "-";
           const bufferScope = first.bufferReferenceScope === "LINE" ? "line" : "parent";
-          const bufferCell = editable ? `<div class="ppic-buffer-editor"><div class="ppic-buffer-control"><input data-mps-buffer type="number" min="0" max="100" step="0.01" value="${esc(bufferPercent.length === 1 ? bufferPercent[0] : 0)}" aria-label="Buffer stock ${esc(first.partCode)}"><span>%</span><select data-mps-buffer-scope aria-label="Scope buffer"><option value="parent" ${bufferScope === "parent" ? "selected" : ""}>Parent FG</option><option value="line" ${bufferScope === "line" ? "selected" : ""}>Per baris</option></select></div><small class="ppic-buffer-source">${items.some((row) => row.bufferOverridden) ? (bufferScope === "parent" ? "Override Parent FG" : "Override per baris") : "Master FG"}</small></div>` : `<span>${num(bufferPercent.length === 1 ? bufferPercent[0] : 0, 2)}%</span><small class="ppic-buffer-source">Ikut parent FG</small>`;
-          const productionCell = editable ? `<div class="ppic-buffer-editor"><div class="ppic-buffer-control"><input data-mps-production type="number" min="0" max="100" step="0.01" value="${esc(productionPercent.length === 1 ? productionPercent[0] : 100)}" aria-label="Persentase produksi ${esc(first.partCode)}"><span>%</span><button type="button" data-action="save-mps-adjustment" data-mps-number="${esc(doc.mpsNumber)}" data-detail-ids="${esc(detailIds.join(","))}">Simpan</button></div><small class="ppic-buffer-source">Minimum: SO aktual</small></div>` : `<span>${num(productionPercent.length === 1 ? productionPercent[0] : 100, 2)}%</span><small class="ppic-buffer-source">Ikut parent FG</small>`;
-          return `<tr class="ppic-mps-process-row"><td>${badge(productionLevel)}</td><td>${partCodeCell}</td><td>${partNameCell}</td><td>${processCell}</td><td>${esc(period(start, end))}</td><td class="ppic-number">${num(forecastQty, 2)}</td><td class="ppic-number ppic-actual-so">${soCell}</td><td>${bufferCell}</td><td class="ppic-number ppic-buffer-qty">${num(bufferQty, 2)}</td><td>${productionCell}</td><td class="ppic-number ppic-plan-qty">${num(totalQty, 2)}</td><td>${esc(first.customerCode)}</td><td class="ppic-number">${num(Math.min(...items.map((row) => number(row.priority) || 1)))}</td><td>${badge(statuses.length === 1 ? statuses[0] : "Mixed")}</td></tr>`;
+          const bufferValue = bufferPercent.length === 1 ? bufferPercent[0] : 0;
+          const productionValue = productionPercent.length === 1 ? productionPercent[0] : 100;
+          const adjustmentData = `data-action="edit-mps-adjustment" data-mps-number="${esc(doc.mpsNumber)}" data-detail-ids="${esc(detailIds.join(","))}" data-part-code="${esc(first.partCode)}" data-buffer-percent="${esc(bufferValue)}" data-production-percent="${esc(productionValue)}" data-scope="${esc(bufferScope)}"`;
+          const bufferCell = editable ? `<div class="ppic-percent-cell"><b>${num(bufferValue, 2)}%</b><small class="ppic-buffer-source">${items.some((row) => row.bufferOverridden) ? (bufferScope === "parent" ? "Override Parent FG" : "Override per baris") : "Master FG"}</small><button type="button" class="ppic-percent-edit" ${adjustmentData} data-focus="buffer">Edit</button></div>` : `<span>${num(bufferValue, 2)}%</span><small class="ppic-buffer-source">Ikut parent FG</small>`;
+          const productionCell = editable ? `<div class="ppic-percent-cell"><b>${num(productionValue, 2)}%</b><small class="ppic-buffer-source">Minimum SO</small><button type="button" class="ppic-percent-edit" ${adjustmentData} data-focus="production">Edit</button></div>` : `<span>${num(productionValue, 2)}%</span><small class="ppic-buffer-source">Ikut parent FG</small>`;
+          // Inventory position is repeated on each MPS detail for the same
+          // part. Use one snapshot instead of summing it per process line.
+          const stockAvailable = Math.max(0, ...items.map((row) => number(row.stockAvailableQty)));
+          const stockOnHand = Math.max(0, ...items.map((row) => number(row.stockOnHandQty)));
+          const stockReserved = Math.max(0, ...items.map((row) => number(row.stockReservedQty)));
+          const effectiveDemand = forecastQty + bufferQty;
+          const formulaUom = first.uomCode || first.part?.uomCode || "pcs";
+          const formulaReferenceId = `mps:${doc.mpsNumber}:${first.partCode}:${formulaReferenceStore.size}`;
+          const stockLines = [...new Map(items.flatMap((item) => item.stockBreakdown?.lines || []).map((line) => [line.stockBalanceId || `${line.warehouseCode}|${line.rackCode}|${line.lotNumber}`, line])).values()];
+          const forecastNumbers = [...new Set(items.map((item) => item.forecastDetail?.forecastNumber || doc.forecastNumber).filter(Boolean))];
+          const mrpTraceRows = [...new Map(items.flatMap((item) => item.mrpNettingTrace || []).map((trace) => [trace.id, trace])).values()];
+          const nettingFactors = generatedLine && mrpTraceRows.length
+            ? mrpTraceRows.map((trace) => {
+              const gross = number(trace.grossRequirement);
+              const net = number(trace.netRequirement);
+              const covered = Math.max(gross - net, 0);
+              const ratio = number(trace.mbomDetail?.qty) || 1;
+              const parentDriver = trace.parentRequirement ? gross / ratio : 0;
+              const parentReduction = trace.parentRequirement ? Math.max(number(trace.parentRequirement.grossRequirement) - parentDriver, 0) : 0;
+              return {
+                title: `Level ${num(trace.levelMBOM)} · ${trace.partCode} · Produksi`,
+                meta: `${trace.parentRequirement ? `Driver ${trace.parentRequirement.partCode} ${num(parentDriver, 3)} dari gross ${num(trace.parentRequirement.grossRequirement, 3)}${parentReduction > 0 ? `; berkurang ${num(parentReduction, 3)} karena stock/supply parent` : ""}. × rasio BOM ${num(ratio, 6)} = gross ${num(gross, 3)}.` : `Gross kebutuhan ${num(gross, 3)}.`} Stock ${trace.partCode} menutup ${num(covered, 3)} sehingga net proses ${num(net, 3)}.`,
+                qty: `Jadwal MPS ${num(totalQty, 3)} ${formulaUom}`,
+                href: trace.runNumber ? `/modules/planning-ppic/mrp/${encodeURIComponent(trace.runNumber)}` : `/modules/inventory/stock-balances?q=${encodeURIComponent(trace.partCode)}`,
+              };
+            })
+            : generatedLine
+              ? [{
+                title: `${productionLevel} · ${first.partCode} · Produksi`,
+                meta: `Jadwal child ${num(totalQty, 3)} ${formulaUom} adalah hasil BOM explosion dan netting stock/WIP pada MRP ${first.mrpRunNumber || "terkait"}. Run lama yang belum menyimpan intermediate requirement tidak mempunyai rincian angka gross dan pengurang per level; run berikutnya menyimpan jejak lengkapnya.`,
+                qty: `Jadwal MPS ${num(totalQty, 3)} ${formulaUom}`,
+                href: first.mrpRunNumber ? `/modules/planning-ppic/mrp/${encodeURIComponent(first.mrpRunNumber)}` : `/modules/inventory/stock-balances?q=${encodeURIComponent(first.partCode)}`,
+              }]
+              : [{
+                title: `Level 0 · ${first.partCode} · Target FG`,
+                meta: `MPS menetapkan gross target ${num(totalQty, 3)} dari forecast, buffer, dan minimum SO. Stock FG ${num(stockAvailable, 3)} tidak dikurangkan di MPS; stock dinetting satu kali pada MRP.`,
+                qty: `Target ${num(totalQty, 3)} ${formulaUom}`,
+                href: `/modules/inventory/stock-balances?q=${encodeURIComponent(first.partCode)}`,
+              }];
+          formulaReferenceStore.set(formulaReferenceId, {
+            nettingFactors,
+            demands: items.map((item) => ({
+              title: generatedLine ? `${finishedGoodCode(item)} → ${item.partCode}` : item.partCode,
+              meta: generatedLine ? `${productionLevel} · hasil BOM explosion · ${processCell === "-" ? "tanpa routing" : "mengikuti routing part"}` : `Demand FG periode ${month(scheduleDate(item))} · Buffer base dari forecast bulan berikutnya`,
+              qty: `${num(item.qtyPlanned, 3)} ${item.uomCode || formulaUom}`,
+              href: generatedLine ? `/modules/manufacturing-bom/bill-of-materials?q=${encodeURIComponent(finishedGoodCode(item))}` : null,
+            })),
+            demandDocuments: [
+              ...forecastNumbers.map((forecastNumber) => ({ title: forecastNumber, meta: `Forecast ${month(scheduleDate(first))} · qty ${num(forecastQty, 3)} ${formulaUom}`, qty: `${num(forecastQty, 3)} ${formulaUom}`, href: `/modules/sales/forecasts/${encodeURIComponent(forecastNumber)}` })),
+              ...soReferences.map((so) => ({ title: so, meta: "Actual Sales Order sebagai target minimum", qty: `${num(salesOrderQty, 3)} ${formulaUom}`, href: `/modules/sales/sales-orders/${encodeURIComponent(so)}` })),
+            ],
+            warehouseStock: stockLines.map((line) => ({
+              title: [line.warehouseCode || "Warehouse", line.rackCode, line.lotNumber ? `Lot ${line.lotNumber}` : "Tanpa lot"].filter(Boolean).join(" / "),
+              meta: `${line.stockType || "Stock"} · OH ${num(line.qtyOnHand, 3)} · RSV ${num(line.qtyReserved, 3)} · QC ${num(line.qtyQC, 3)}`,
+              qty: `${num(line.qtyAvailable, 3)} ${line.uomCode || formulaUom}`,
+              href: `/modules/inventory/stock-balances?q=${encodeURIComponent(line.lotNumber || first.partCode)}`,
+            })),
+            wipStock: [],
+            purchaseOrders: [],
+          });
+          const formulaData = `data-action="show-formula-reference" data-formula-reference-id="${esc(formulaReferenceId)}" data-formula-scope="mps" data-generated-process="${generatedLine ? "true" : "false"}" data-part-code="${esc(first.partCode)}" data-uom="${esc(formulaUom)}" data-forecast="${esc(forecastQty)}" data-buffer-base="${esc(bufferParent?.bufferBaseQty || forecastQty)}" data-buffer-percent="${esc(bufferValue)}" data-stock-available="${esc(stockAvailable)}" data-buffer-qty="${esc(bufferQty)}" data-effective-demand="${esc(effectiveDemand)}" data-production-percent="${esc(productionValue)}" data-actual-sales-order="${esc(salesOrderQty)}" data-target="${esc(totalQty)}"`;
+          return `<tr class="ppic-mps-process-row"><td>${badge(productionLevel)}</td><td>${partCodeCell}</td><td>${partNameCell}</td><td>${processCell}</td><td>${esc(period(start, end))}</td><td>${forecastReferenceCell}</td><td class="ppic-number">${num(forecastQty, 2)}</td><td>${soReferenceCell}</td><td class="ppic-number ppic-actual-so">${num(salesOrderQty, 2)}</td><td class="ppic-number ppic-stock-available"><b>${num(stockAvailable, 3)}</b></td><td class="ppic-number ppic-stock-on-hand">${num(stockOnHand, 3)}</td><td class="ppic-number ppic-stock-reserved">${num(stockReserved, 3)}</td><td>${bufferCell}</td><td class="ppic-number ppic-buffer-qty">${num(bufferQty, 2)}</td><td>${productionCell}</td><td class="ppic-number ppic-plan-qty">${num(totalQty, 2)}</td><td>${esc(first.customerCode)}</td><td>${deliveryCell}</td><td class="ppic-number">${num(Math.min(...items.map((row) => number(row.priority) || 1)))}</td><td>${badge(statuses.length === 1 ? statuses[0] : "Mixed")}</td><td class="ppic-formula-help-cell"><button type="button" class="ppic-formula-help" ${formulaData} aria-label="Lihat rumus MPS ${esc(first.partCode)}">?</button></td></tr>`;
         });
       },
-    });
+    }, ["customer", "month"]);
     const productionPlans = doc.productionPlans || [];
     const productionLinks = productionPlans.length ? productionPlans.map((plan) => `<a href="/modules/planning-ppic/monthly-plan/${encodeURIComponent(plan.planNumber)}">${esc(plan.planNumber)} (${num(plan._count?.details)} baris)</a>`).join("<br>") : "<strong>-</strong>";
-    const horizonRows = [...receiptDetails, ...processDetails];
+    const horizonRows = allVisibleDetails;
     const horizonStart = horizonRows.reduce((value, row) => !value || new Date(scheduleDate(row)) < new Date(value) ? scheduleDate(row) : value, null) || doc.periodStart;
     const horizonEnd = horizonRows.reduce((value, row) => !value || new Date(scheduleEndDate(row)) > new Date(value) ? scheduleEndDate(row) : value, null) || doc.periodEnd;
     setInfo("Informasi MPS", [["MPS ID", doc.mpsNumber], ["Produk Utama", primaryPart], ["Sumber Forecast", doc.forecastNumber || "-"], ["Horizon Perencanaan", period(horizonStart, horizonEnd)], ["Output Production Planning", productionLinks, true], ["Status Dokumen", badge(doc.status), true]]);
     const totalBufferQty = receiptDetails.reduce((sum, row) => sum + number(row.bufferQty), 0);
-    setTable("FG Receipt & Child / SFG Process Schedule", ["Tipe", "Part Code", "Part Name", "Proses", "Periode / Schedule", "Forecast", "Actual SO", "Buffer %", "Buffer Qty", "Produksi %", "Target MPS", "Customer", "Prioritas", "Status"], groupedRows);
-    setSummary("Kalkulasi Rencana Produksi", [["Target FG Receipt", num(qty, 2)], ["Buffer Stock MPS", num(totalBufferQty, 2)], ["Production Planning", `${num((doc.productionPlans || []).length)} plan`], ["Jumlah Customer", num(customerCount)], ["Jumlah Bulan", num(monthCount)], ["Child / SFG Process", `${num(childCount)} baris`], ["Jumlah Part", `${num(partCount)} part`], ["MBOM Process", `${num(mbomCount)} baris`]], "FG hanya menjadi target receipt, bukan proses. Buffer MPS bulan A = Buffer % master FG × forecast bulan A+1. Demand MRP tetap memakai nilai terbesar antara Forecast + Buffer dan SO aktual.");
+    setTable("FG Receipt & Child / SFG Process Schedule", ["Tipe", "Part Code", "Part Name", "Proses", "Periode / Schedule", "Forecast Ref", "Forecast Qty", "SO Ref", "Actual SO", "Stock Available", "Stock On Hand", "Stock Reserved", "Buffer %", "Buffer Qty", "Produksi %", "Target MPS", "Customer", "Delivery Customer", "Prioritas", "Status", "?"], groupedRows);
+    const readiness = doc.readiness || { ok: true, blockingCount: 0, warningCount: 0, issues: [] };
+    const phases = (Array.isArray(doc.deliveryPlans) ? doc.deliveryPlans : [])
+      .filter((item) => String(item.targetType || "").toUpperCase() === "CUSTOMER");
+    const phaseText = phases.length ? phases.map((item) => `#${item.phaseNumber} ke Customer ${item.targetCode} · ${item.partCode} · ${num(item.qtyPlanned, 2)} ${item.uomCode || ""} · ${date(item.plannedDate)}`).join("\n") : "Belum ada phase delivery customer.";
+    setSummary("Kalkulasi Rencana Produksi", [["Target FG Receipt", num(qty, 2)], ["Buffer Stock MPS", num(totalBufferQty, 2)], ["Production Planning", `${num((doc.productionPlans || []).length)} plan`], ["Jumlah Customer", num(customerCount)], ["Jumlah Bulan", num(monthCount)], ["Child FG Receipt", `${num(childReceiptCount)} baris`], ["Child / SFG Process", `${num(childCount)} baris`], ["Phase Delivery", `${num(phases.length)} phase`], ["Readiness", readiness.ok ? "Ready" : `${num(readiness.blockingCount)} blocker`], ["Warning Supplier", num(readiness.warningCount)]], `${phaseText}\n\nFG utama menjadi target demand. FG dari nested BOM ditampilkan sebagai receipt antara, bukan demand tambahan. Readiness memeriksa UOM, routing, mesin, cycle time, dan supplier sebelum MPS dikonfirmasi.`);
+    renderReadinessLinks(readiness);
     renderWorkflow(doc, baseWorkflow(doc, "Production Release"), ["DRAFT", "PLANNER", "PPIC", String(doc.status || "DRAFT").toUpperCase()]);
   }
   function renderMonthly(doc) {
     const details = Array.isArray(doc.details) ? doc.details : [];
     const isProcess = (row) => String(row.notes || "").includes("[MRP-PRODUCTION]");
+    const isChildReceipt = (row) => isProcess(row)
+      && String(row.part?.itemType || row.itemType || "").trim().toUpperCase() === "FG";
     const receiptDetails = details.filter((row) => !isProcess(row));
     const target = receiptDetails.reduce((sum, row) => sum + number(row.qtyPlanned), 0);
     const actual = receiptDetails.reduce((sum, row) => sum + number(row.qtyReleased), 0);
     const bufferQty = receiptDetails.reduce((sum, row) => sum + number(row.bufferQty), 0);
     const forecastQty = receiptDetails.reduce((sum, row) => sum + number(row.forecastQty), 0);
     const actualSalesOrderQty = receiptDetails.reduce((sum, row) => sum + number(row.actualSalesOrderQty), 0);
+    const visibleDetails = preparePlanningView(details, {
+      customer: (row) => row.planningCustomerCode,
+      month: (row) => row.planningMonth || doc.planMonth,
+      part: (row) => row.partCode,
+      parentFg: (row) => row.parentFgPartCode || row.partCode,
+    });
+    const renderPlanRow = (row) => {
+      const achievement = number(row.qtyPlanned) ? Math.round(number(row.qtyReleased) / number(row.qtyPlanned) * 100) : 0;
+      const receipt = !isProcess(row);
+      const type = receipt ? "FG Receipt" : isChildReceipt(row) ? "Child FG Receipt" : "Child / SFG Process";
+      const remaining = Math.max(number(row.qtyPlanned) - number(row.qtyReleased), 0);
+      const traces = (row.manufacturingOrders || []).map((mo) => {
+        const dpp = mo.dailyProductionPlans || [];
+        const dppLabel = dpp.length
+          ? `<small class="d-block text-muted">DPP ${dpp.length} hari · ${dpp.map((item) => esc(item.scheduleNumber)).join(", ")}</small>`
+          : `<small class="d-block text-warning">DPP belum dibuat</small>`;
+        return `<a href="/modules/production/manufacturing-orders/${encodeURIComponent(mo.moNumber)}">${esc(mo.moNumber)} · ${num(mo.qtyPlanned, 2)} · ${esc(mo.status)}</a>${dppLabel}`;
+      }).join("<br>");
+      const releaseInput = ["Released", "In Progress"].includes(doc.status) && remaining > 0
+        ? `<div class="ppic-buffer-editor"><input data-mpp-release-qty data-line-number="${esc(row.lineNumber)}" type="number" min="0" max="${esc(remaining)}" step="0.001" value="${esc(remaining)}"><small class="ppic-cell-sub">Release MO · sisa ${num(remaining, 2)} ${esc(row.uomCode || "")}</small></div>`
+        : "";
+      const reference = `${traces || esc(row.manufacturingOrderNumber || row.plannedOrderNumber || row.mpsDetailId || "-")}${releaseInput}`;
+      return `<tr><td>${badge(type)}</td><td><b>${esc(row.partCode)}</b></td><td>${reference}</td><td class="ppic-number">${receipt ? num(row.forecastQty, 2) : "-"}</td><td class="ppic-number ppic-actual-so">${receipt ? num(row.actualSalesOrderQty, 2) : "-"}</td><td class="ppic-number">${receipt ? `${num(row.bufferPercent, 2)}%` : "-"}</td><td class="ppic-number ppic-buffer-qty">${receipt ? num(row.bufferQty, 2) : "-"}</td><td class="ppic-number">${receipt ? `${num(row.productionPercent ?? 100, 2)}%` : "-"}</td><td class="ppic-number">${num(row.qtyPlanned, 2)} ${esc(row.uomCode || "")}</td><td class="ppic-number">${num(row.qtyReleased, 2)} ${esc(row.uomCode || "")}</td><td class="ppic-number ppic-achievement ${achievement >= 100 ? "over" : achievement >= 90 ? "good" : "warn"}">${num(achievement)}%</td><td>${progressBar(achievement)}</td></tr>`;
+    };
+    const groupedRows = groupedPlanningRows(visibleDetails, {
+      colSpan: 12,
+      customer: (row) => row.planningCustomerCode,
+      month: (row) => row.planningMonth || doc.planMonth,
+      planPart: (row) => row.partCode,
+      parentFg: (row) => row.parentFgPartCode || row.partCode,
+      planPartLabel: "Part",
+      planPartLabelFor: () => "Part",
+      planPartDisplay: (value, rows) => ({ code: value, name: rows[0]?.part?.partName || rows[0]?.part?.partNumber || "" }),
+      parentFgDisplay: (value, rows) => ({ code: value, name: rows[0]?.parentFgPartName || "" }),
+      planPartInItems: true,
+      renderItems: (group) => group.map(renderPlanRow),
+    });
     setInfo("Informasi Rencana Produksi Bulanan", [["Rencana ID", doc.planNumber], ["Bulan Target", month(doc.planMonth)], ["Periode", period(doc.periodStart, doc.periodEnd)], ["Sumber Data", doc.sourceType || "Planned Order"], ["Jumlah Baris", num(details.length)], ["Status Plan", badge(doc.status), true]]);
-    setTable("Target Receipt & Proses Produksi", ["Tipe", "ID Produk", "Referensi", "Forecast", "Actual SO", "Buffer %", "Buffer Qty", "Produksi %", "Target Plan", "Realisasi", "Achievement", "Progress Visual"], details.map((row) => { const achievement = number(row.qtyPlanned) ? Math.round(number(row.qtyReleased) / number(row.qtyPlanned) * 100) : 0; const receipt = !isProcess(row); return `<tr><td>${badge(isProcess(row) ? "Child / SFG Process" : "FG Receipt")}</td><td><b>${esc(row.partCode)}</b></td><td>${esc(row.manufacturingOrderNumber || row.plannedOrderNumber || row.mpsDetailId || "-")}</td><td class="ppic-number">${receipt ? num(row.forecastQty, 2) : "-"}</td><td class="ppic-number ppic-actual-so">${receipt ? num(row.actualSalesOrderQty, 2) : "-"}</td><td class="ppic-number">${receipt ? `${num(row.bufferPercent, 2)}%` : "-"}</td><td class="ppic-number ppic-buffer-qty">${receipt ? num(row.bufferQty, 2) : "-"}</td><td class="ppic-number">${receipt ? `${num(row.productionPercent ?? 100, 2)}%` : "-"}</td><td class="ppic-number">${num(row.qtyPlanned, 2)} ${esc(row.uomCode || "")}</td><td class="ppic-number">${num(row.qtyReleased, 2)} ${esc(row.uomCode || "")}</td><td class="ppic-number ppic-achievement ${achievement >= 100 ? "over" : achievement >= 90 ? "good" : "warn"}">${num(achievement)}%</td><td>${progressBar(achievement)}</td></tr>`; }));
-    setSummary("Resource Summary & Utilisation", [["Forecast FG", num(forecastQty, 2)], ["Actual SO", num(actualSalesOrderQty, 2)], ["Buffer Stock", num(bufferQty, 2)], ["Total Target", num(target, 2)], ["Total Realisasi", num(actual, 2)], ["Outstanding", num(Math.max(target - actual, 0), 2)], ["Achievement", `${target ? num(actual / target * 100, 1) : 0}%`], ["Confirmed By", doc.confirmedBy || "-"], ["Released By", doc.releasedBy || "-"]], doc.notes);
+    setTable("Target Receipt & Proses Produksi", ["Tipe", "ID Produk", "MO / Referensi & Partial Release", "Forecast", "Actual SO", "Buffer %", "Buffer Qty", "Produksi %", "Target Plan", "Realisasi", "Achievement", "Progress Visual"], groupedRows);
+    const readiness = doc.materialReadiness || { ready: false, summary: { blocking: 0, warning: 0 } };
+    setSummary("Resource Summary & Utilisation", [["Forecast FG", num(forecastQty, 2)], ["Actual SO", num(actualSalesOrderQty, 2)], ["Buffer Stock", num(bufferQty, 2)], ["Total Target", num(target, 2)], ["Total Realisasi", num(actual, 2)], ["Outstanding", num(Math.max(target - actual, 0), 2)], ["Stock Covered", num(readiness.summary?.stockCoveredQty)], ["Stock Shortage", num(readiness.summary?.stockShortageQty)], ["Material Blocking", num(readiness.summary?.blocking)], ["Material Warning", num(readiness.summary?.warning)], ["Achievement", `${target ? num(actual / target * 100, 1) : 0}%`], ["Confirmed By", doc.confirmedBy || "-"], ["Released By", doc.releasedBy || "-"]], doc.notes);
     renderWorkflow(doc, baseWorkflow(doc, "Factory Release"), ["DRAFT", "PPIC", "FACTORY", String(doc.status || "DRAFT").toUpperCase()]);
   }
   function renderConsume(doc) {
@@ -435,6 +1087,8 @@
   }
   function render(doc) {
     currentDoc = doc;
+    formulaReferenceStore.clear();
+    setExcelTable(true);
     $("ppic-detail-title").textContent = config.title;
     $("ppic-detail-key").textContent = key;
     headerActions(doc);
@@ -447,13 +1101,57 @@
   }
   async function load() {
     try {
-      const doc = await api(`/modules/api/planning-ppic/${config.endpoint}/${encodeURIComponent(key)}`);
+      const [doc, suppliers] = await Promise.all([
+        api(`/modules/api/planning-ppic/${config.endpoint}/${encodeURIComponent(key)}`),
+        Promise.resolve([]),
+      ]);
+      supplierCatalog = Array.isArray(suppliers) ? suppliers : (suppliers.data || suppliers.items || []);
       render(doc);
     } catch (error) {
       $("ppic-detail-loading").classList.add("d-none");
       showAlert(error.message);
     }
   }
+  document.addEventListener("input", (event) => {
+    const row = event.target.closest("[data-procurement-row]");
+    if (!row) return;
+    if (!event.target.matches("[data-procurement-package-qty], [data-procurement-conversion-factor], [data-allocation-qty]")) return;
+    if (row.dataset.rawMaterial !== "true") return;
+    const packageQty = number(row.querySelector("[data-procurement-package-qty]")?.value);
+    const conversionFactor = number(row.querySelector("[data-procurement-conversion-factor]")?.value);
+    const conversionUom = row.querySelector("[data-procurement-conversion-uom]")?.value || "";
+    const purchaseQty = packageQty * conversionFactor;
+    const total = row.querySelector("[data-procurement-total]");
+    if (total) total.textContent = `${num(purchaseQty, 3)} ${conversionUom}`;
+    row.querySelectorAll(".ppic-allocation-line em").forEach((node) => { node.textContent = conversionUom; });
+    const allocationQty = [...row.querySelectorAll(".ppic-allocation-line")].filter((line) => line.querySelector("[data-allocation-enabled]")?.checked).reduce((sum, line) => sum + number(line.querySelector("[data-allocation-qty]")?.value), 0);
+    const allocationStatus = row.querySelector("[data-allocation-total]");
+    if (allocationStatus) {
+      allocationStatus.textContent = `Alokasi ${num(allocationQty, 3)} / ${num(purchaseQty, 3)} ${conversionUom}`;
+      allocationStatus.classList.toggle("match", Math.abs(allocationQty - purchaseQty) < 0.001);
+      allocationStatus.classList.toggle("warning", Math.abs(allocationQty - purchaseQty) >= 0.001);
+    }
+  });
+  document.addEventListener("change", (event) => {
+    if (event.target.id === "ppic-delivery-target-type" || event.target.id === "ppic-delivery-detail") {
+      refreshDeliveryFormOptions();
+      return;
+    }
+    if (event.target.id === "ppic-procurement-check-all") {
+      document.querySelectorAll("[data-procurement-selected]:not(:disabled)").forEach((field) => { field.checked = event.target.checked; });
+      return;
+    }
+    if (event.target.matches("[data-procurement-conversion-uom]")) {
+      event.target.closest("[data-procurement-row]")?.querySelector("[data-procurement-conversion-factor]")?.dispatchEvent(new Event("input", { bubbles: true }));
+      return;
+    }
+    if (event.target.matches("[data-allocation-enabled]")) {
+      const details = event.target.closest(".ppic-allocation-details");
+      const summary = details?.querySelector("summary");
+      if (summary) summary.firstChild.textContent = `${details.querySelectorAll("[data-allocation-enabled]:checked").length} alokasi `;
+      event.target.closest("[data-procurement-row]")?.querySelector("[data-allocation-qty]")?.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  });
   document.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-action]");
     if (!button) return;
@@ -467,44 +1165,35 @@
       refreshGroupedRows();
       return;
     }
+    if (button.dataset.action === "focus-mrp-procurement") {
+      $("ppic-procurement-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    if (button.dataset.action === "edit-mps-adjustment") {
+      openMpsAdjustmentDialog(button);
+      return;
+    }
+    if (button.dataset.action === "edit-mrp-percentage") {
+      openMrpPercentageDialog(button);
+      return;
+    }
+    if (button.dataset.action === "show-formula-reference") {
+      openFormulaReference(button);
+      return;
+    }
     button.disabled = true;
     try {
-      if (button.dataset.action === "save-mps-adjustment") {
-        const row = button.closest("tr");
-        const bufferPercent = number(row?.querySelector("[data-mps-buffer]")?.value);
-        const productionPercent = number(row?.querySelector("[data-mps-production]")?.value);
-        const scope = row?.querySelector("[data-mps-buffer-scope]")?.value || "parent";
-        const detailIds = String(button.dataset.detailIds || "").split(",").filter(Boolean);
-        await api(`/modules/api/planning-ppic/mps/${encodeURIComponent(button.dataset.mpsNumber || key)}/adjustments`, {
-          method: "PATCH", body: JSON.stringify({ detailIds, bufferPercent, productionPercent, scope }),
-        });
-        showAlert("Buffer FG dan persentase produksi berhasil diperbarui; target tidak dapat lebih kecil dari SO aktual.", "success");
+      if (button.dataset.action === "save-mrp-procurement") {
+        const orders = collectProcurementOrders(false);
+        if (!orders.length) return showAlert("Belum ada Planned Order yang dapat disiapkan.", "warning");
+        const result = await api(`/modules/api/planning-ppic/mrp/${encodeURIComponent(key)}/planned-orders/procurement`, { method: "PATCH", body: JSON.stringify({ orders }) });
+        showAlert(result.message || "Supplier, lot pembelian, dan alokasi PPIC berhasil disimpan.", "success");
         setTimeout(() => location.reload(), 500);
-      } else if (button.dataset.action === "save-mrp-buffer") {
-        const editor = button.closest(".ppic-buffer-editor");
-        const bufferPercent = number(editor?.querySelector("[data-mrp-buffer]")?.value);
-        const scope = editor?.querySelector("[data-mrp-buffer-scope]")?.value || "parent";
-        const requirementIds = String(button.dataset.requirementIds || "").split(",").filter(Boolean);
-        await api(`/modules/api/planning-ppic/mrp/${encodeURIComponent(button.dataset.runNumber || key)}/requirements/buffer`, {
-          method: "PATCH",
-          body: JSON.stringify({ requirementIds, bufferPercent, scope }),
-        });
-        showAlert("Buffer stock dan purchase plan berhasil dihitung ulang.", "success");
-        setTimeout(() => location.reload(), 500);
-      } else if (button.dataset.action === "save-mrp-order-percent") {
-        const editor = button.closest(".ppic-buffer-editor");
-        const orderPercent = number(editor?.querySelector("input")?.value);
-        const requirementIds = String(button.dataset.requirementIds || "").split(",").filter(Boolean);
-        await api(`/modules/api/planning-ppic/mrp/${encodeURIComponent(button.dataset.runNumber || key)}/requirements/order-percent`, {
-          method: "PATCH",
-          body: JSON.stringify({ requirementIds, orderPercent }),
-        });
-        showAlert("Order % dan purchase plan berhasil dihitung ulang; SO aktual tetap menjadi minimum.", "success");
-        setTimeout(() => location.reload(), 500);
-      } else if (button.dataset.action === "make-purchase-request") {
-        if (!confirm(`Buat Purchase Request dari planned purchase order MRP ${key}?`)) return;
-        const result = await api(`/modules/api/planning-ppic/mrp/${encodeURIComponent(key)}/output/purchase-request`, { method: "POST", body: "{}" });
-        showAlert(result.message || `Purchase Request ${result.purchaseRequest?.prNumber || result.prNumbers?.[0] || ""} berhasil dibuat.`, "success");
+      } else if (button.dataset.action === "make-purchase-suggestion") {
+        if (!confirm(`Buat Purchase Suggestion dari kebutuhan MRP ${key}? Purchasing akan mengonfirmasi supplier sebelum PR dibuat.`)) return;
+        const result = await api(`/modules/api/planning-ppic/mrp/${encodeURIComponent(key)}/output/purchase-suggestions`, { method: "POST", body: "{}" });
+        showAlert(`Purchase Suggestion ${result.suggestionNumber} berhasil disiapkan.`, "success");
+        setTimeout(() => { location.href = `/modules/purchasing/purchase-suggestions/${encodeURIComponent(result.suggestionNumber)}`; }, 450);
       } else if (button.dataset.action === "make-mrp-production-plan") {
         if (!confirm(`Buat Production Planning dari MRP ${key}?`)) return;
         const result = await api(`/modules/api/planning-ppic/mrp/${encodeURIComponent(key)}/output/production-plan`, { method: "POST", body: "{}" });
@@ -514,6 +1203,15 @@
         if (!confirm(`Konfirmasi MPS ${key}?`)) return;
         await api(`/modules/api/planning-ppic/mps/${encodeURIComponent(key)}/confirm`, { method: "PATCH", body: "{}" });
         location.reload();
+      } else if (button.dataset.action === "add-delivery-phase") {
+        openInlineDeliveryForm(button);
+      } else if (button.dataset.action === "cancel-delivery-phase") {
+        closeInlineDeliveryForm();
+      } else if (button.dataset.action === "remove-delivery-phase") {
+        if (!confirm("Batalkan phase delivery ini?")) return;
+        await api(`/modules/api/planning-ppic/mps/${encodeURIComponent(key)}/delivery-phases/${encodeURIComponent(button.dataset.phaseId)}/remove`, { method: "PATCH", body: "{}" });
+        showAlert("Phase delivery dibatalkan.", "success");
+        setTimeout(() => location.reload(), 350);
       } else if (button.dataset.action === "run-mrp") {
         if (!confirm(`Jalankan MRP untuk ${key}?`)) return;
         const generated = await api("/modules/api/planning-ppic/mrp/generate-number");
@@ -521,7 +1219,7 @@
         location.href = `/modules/planning-ppic/mrp/${encodeURIComponent(result.runNumber || generated.runNumber)}`;
       } else if (button.dataset.action === "make-production-plan") {
         if (!confirm(`Buat Production Plan dari ${key}? MRP harus sudah Completed.`)) return;
-        const input = window.prompt("Persentase forecast untuk Production Plan (0-100). SO aktual tetap menjadi minimum.", "100");
+        const input = await window.formPrompt("Persentase forecast untuk Production Plan (0-100). SO aktual tetap menjadi minimum.", "100", { title: "Production Plan" });
         if (input === null) return;
         const productionPercent = Number(input);
         if (!Number.isFinite(productionPercent) || productionPercent < 0 || productionPercent > 100) return showAlert("Persentase Production Plan harus antara 0 sampai 100.", "warning");
@@ -537,18 +1235,54 @@
         await api(`/modules/api/planning-ppic/monthly-plan/${encodeURIComponent(key)}/release`, { method: "POST", body: JSON.stringify({ shiftHours: 8, shiftsPerDay: 1, efficiencyPercent: 85 }) });
         location.reload();
       } else if (button.dataset.action === "release-plan-to-mo") {
-        const details = (currentDoc?.details || []).filter((row) => number(row.qtyPlanned) > number(row.qtyReleased) && !["Cancelled", "Converted"].includes(row.status));
+        const releaseByLine = new Map([...document.querySelectorAll("[data-mpp-release-qty]")].map((input) => [number(input.dataset.lineNumber), number(input.value)]));
+        const details = (currentDoc?.details || []).filter((row) => number(row.qtyPlanned) > number(row.qtyReleased) && !["Cancelled", "Converted"].includes(row.status) && number(releaseByLine.get(number(row.lineNumber))) > 0);
         if (!details.length) return showAlert("Seluruh line Production Plan sudah direlease ke MO.", "info");
-        if (!confirm(`Release ${details.length} line ${key} menjadi Manufacturing Order?`)) return;
-        await api(`/modules/api/planning-ppic/monthly-plan/${encodeURIComponent(key)}/release-mos`, { method: "POST", body: JSON.stringify({ items: details.map((row) => ({ referenceType: "MonthlyProductionPlan", monthlyProductionPlanNumber: key, monthlyProductionPlanLineNumber: row.lineNumber, qtyPlanned: number(row.qtyPlanned) - number(row.qtyReleased), plannedStartDate: currentDoc.periodStart, plannedEndDate: row.requiredDate || currentDoc.periodEnd, status: "Planned" })) }) });
-        location.href = "/modules/production/manufacturing-orders";
+        if (!confirm(`Release partial/full ${details.length} line ${key} menjadi Manufacturing Order?`)) return;
+        await api(`/modules/api/planning-ppic/monthly-plan/${encodeURIComponent(key)}/release-mos`, { method: "POST", body: JSON.stringify({ items: details.map((row) => ({ referenceType: "MonthlyProductionPlan", monthlyProductionPlanNumber: key, monthlyProductionPlanLineNumber: row.lineNumber, qtyPlanned: Math.min(number(releaseByLine.get(number(row.lineNumber))), number(row.qtyPlanned) - number(row.qtyReleased)), plannedStartDate: currentDoc.periodStart, plannedEndDate: row.requiredDate || currentDoc.periodEnd, status: "Planned" })) }) });
+        location.reload();
+      } else if (button.dataset.action === "convert-daily-plans") {
+        if (!confirm(`Publish draft allocation ${key} menjadi Daily Production Plan?`)) return;
+        const result = await api(`/modules/api/planning-ppic/monthly-plan/${encodeURIComponent(key)}/daily-plans`, { method: "POST", body: JSON.stringify({ allowPartial: Boolean(currentDoc?.capacityOverrideApproved) }) });
+        showAlert(`Daily Production Plan: ${number(result?.summary?.createdCount)} baru, ${number(result?.summary?.updatedCount)} diperbarui.`, result?.summary?.skippedCapacityCount ? "warning" : "success");
+        setTimeout(() => { location.href = "/modules/planning-ppic/daily-production-plans"; }, 450);
       } else if (button.dataset.action === "make-mps") {
-        if (!confirm(`Buat Draft MPS dari ${key}?`)) return;
-        const result = await api("/modules/api/planning-ppic/mps/from-forecast", { method: "POST", body: JSON.stringify({ forecastNumber: key }) });
+        const months = currentDoc?.consumption?.remainingMonths || [];
+        if (!confirm(`Buat Draft MPS ${months.length ? `untuk ${months.join(", ")}` : ""} dari ${key}?`)) return;
+        const result = await api("/modules/api/planning-ppic/mps/from-forecast", { method: "POST", body: JSON.stringify({ forecastNumber: key, months: months.length ? months : undefined }) });
         location.href = result.items?.length > 1 ? "/modules/planning-ppic/mps" : `/modules/planning-ppic/mps/${encodeURIComponent(result.mpsNumber)}`;
+      } else if (button.dataset.action === "close-forecast") {
+        if (!confirm(`Tutup forecast ${key}? Pastikan seluruh outstanding SO sudah tercakup.`)) return;
+        await api(`/modules/api/planning-ppic/forecasts/${encodeURIComponent(key)}/close`, { method: "POST", body: "{}" });
+        location.reload();
       }
     } catch (error) { showAlert(error.message); }
     finally { button.disabled = false; }
+  });
+  $("ppic-delivery-plan-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = event.submitter;
+    if (submit) submit.disabled = true;
+    try {
+      const body = {
+        mpsDetailId: $("ppic-delivery-detail").value,
+        targetType: "CUSTOMER",
+        targetCode: $("ppic-delivery-target").value,
+        plannedDate: $("ppic-delivery-date").value,
+        qtyPlanned: number($("ppic-delivery-qty").value),
+        notes: $("ppic-delivery-notes").value.trim() || null,
+      };
+      if (!body.mpsDetailId || !body.targetCode || !body.plannedDate || body.qtyPlanned <= 0) {
+        return showAlert("Part, tujuan, tanggal, dan qty phase wajib diisi.", "warning");
+      }
+      await api(`/modules/api/planning-ppic/mps/${encodeURIComponent(key)}/delivery-phases`, { method: "POST", body: JSON.stringify(body) });
+      showAlert("Phase delivery berhasil ditambahkan.", "success");
+      setTimeout(() => location.reload(), 350);
+    } catch (error) {
+      showAlert(error.message);
+    } finally {
+      if (submit) submit.disabled = false;
+    }
   });
   load();
 })();

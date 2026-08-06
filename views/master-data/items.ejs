@@ -6,7 +6,7 @@
     <div class="toolbar-search"><%- include('../partials/icon', { name: 'search' }) %><input id="item-search" type="search" placeholder="Cari data..." aria-label="Cari item"></div>
     <button class="btn btn-filter" @click="filterOpen = !filterOpen"><%- include('../partials/icon', { name: 'filter' }) %> Filter</button>
     <div class="toolbar-spacer"></div>
-    <div class="list-view-toolbar" aria-label="Mode tampilan"><button type="button" data-list-view="table" class="active">☷</button><button type="button" data-list-view="gallery">▦</button></div>
+    <%- include('../partials/view-switcher') %>
     <button class="btn btn-export">Export</button>
     <button class="btn btn-primary brand-button"><%- include('../partials/icon', { name: 'plus' }) %> Tambah Baru</button>
   </section>

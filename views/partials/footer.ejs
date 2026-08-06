@@ -1,4 +1,7 @@
   <div id="toast-stack" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+  <% if (typeof requiresAuth !== 'undefined' && requiresAuth) { %>
+    <%- include('page-context-panel') %>
+  <% } %>
   <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="/vendor/jquery/jquery.min.js"></script>
   <script src="/vendor/datatables/datatables.min.js"></script>
@@ -7,6 +10,9 @@
   <script src="/vendor/mqtt/mqtt.min.js"></script>
   <script src="/vendor/apexcharts/apexcharts.min.js"></script>
   <script src="/js/session.js"></script>
+  <% if (typeof requiresAuth !== 'undefined' && requiresAuth) { %><script src="/js/page-context.js"></script><% } %>
+  <script src="/js/shared-data-table.js"></script>
+  <script src="/js/form-dialog.js"></script>
   <script src="/js/gallery-view.js"></script>
   <link rel="stylesheet" href="/css/workflow-views.css">
   <script>window.REALTIME_CONFIG = <%- JSON.stringify({ socketUrl: typeof socketUrl === 'undefined' ? '' : socketUrl, mqttUrl: typeof mqttUrl === 'undefined' ? '' : mqttUrl }) %>;</script>

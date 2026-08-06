@@ -1,10 +1,15 @@
 <header class="module-header">
   <div class="app-container module-header-row">
-    <a class="module-brand" href="/modules"><span class="module-brand-mark">N</span><span>NexGen ERP</span></a>
+    <a class="module-brand customer-brand" href="/modules" aria-label="PT. Mitsutoyo Indonesia">
+      <img class="customer-brand-logo customer-brand-logo--module" src="/img/mitsutoyo-indonesia-logo.png" alt="PT. Mitsutoyo Indonesia">
+    </a>
     <nav class="module-nav" aria-label="Navigasi modul">
       <a class="<%= !activeModule ? 'active' : '' %>" href="/modules">Semua Modul</a>
       <% modules.forEach(item => { %><a class="<%= activeModule === item.slug ? 'active' : '' %>" href="/modules/<%= item.slug %>"><%= item.shortLabel %></a><% }) %>
+      <a class="<%= activeModule === 'log-center' ? 'active' : '' %>" href="/logs">Logs</a>
+      <a class="<%= activeModule === 'maintenance' ? 'active' : '' %>" href="/maintenance">Maintenance</a>
     </nav>
+    <%- include('context-navbar-actions') %>
     <div class="module-user">
       <span class="module-user-avatar" data-user-avatar>U</span>
       <span class="module-user-name" data-user-name>User</span>

@@ -10,10 +10,27 @@
   let monthlyRows = [];
   const config = {
     mrp: { title: "Material Requirements Planning", subtitle: "Perhitungan kebutuhan material dan planned order dari MPS yang sudah dikonfirmasi.", url: "/modules/api/planning-ppic/material-requirements-planning?start=0&length=100", primary: "Run MRP", head: ["No", "MRP ID", "MPS", "Periode", "Requirements", "Planned Order", "Status", "Aksi"] },
-    mps: { title: "Master Production Schedule", subtitle: "Jadwal induk produksi yang dihasilkan dari forecast bulanan customer.", url: "/modules/api/planning-ppic/master-production-schedule?start=0&length=100", primary: "Create MPS", head: ["No", "MPS ID", "Periode", "Forecast", "Produk / Part", "Qty Plan", "Status", "Aksi"] },
+    mps: { title: "Master Production Schedule", subtitle: "Satu jadwal induk per bulan dari konsolidasi Forecast dan Sales Order.", url: "/modules/api/planning-ppic/master-production-schedule?start=0&length=100", primary: "Hitung Ulang Bulan Dipilih", head: ["No", "MPS ID", "Periode", "Demand Sources", "Produk / Part", "Qty Plan", "Status", "Aksi"] },
     "monthly-plan": { title: "Monthly Production Plans", subtitle: "Target produksi, kapasitas, dan realisasi per bulan.", url: "/modules/api/planning-ppic/monthly-plan?start=0&length=100", primary: "Create New Plan", head: ["No", "Plan ID", "Bulan", "Target Qty", "Actual Qty", "Progress", "Status", "Aksi"] },
-    "consume-forecast": { title: "Material Consume Forecast", subtitle: "Monitor forecast customer yang telah digunakan sebagai demand planning.", url: "/modules/api/planning-ppic/consume-forecast?start=0&length=100", primary: "Create Forecast", head: ["No", "Forecast ID", "Periode", "Customer", "Forecast Qty", "Status", "Aksi"] },
+    "consume-forecast": { title: "Consume Forecast Bulanan", subtitle: "Konsolidasi Forecast dan Sales Order per bulan.", url: "/modules/api/planning-ppic/consume-forecast/monthly", primary: "Create Forecast", head: ["No", "Bulan", "Forecast", "SO Aktual", "Demand Efektif", "Part", "Target Terdekat", "MPS", "Aksi"] },
   }[tab];
+  const gallery = window.ListGallery?.init({
+    root: "#ppic-list-root",
+    storageKey: `ppic-view:${tab}`,
+    title: (row) => (tab === "mrp" ? row.planNumber : null) || row.runNumber || row.mpsNumber || row.planNumber || row.forecastNumber || "PPIC",
+    subtitle: (row) => row.partName || row.customerCode || row.mpsNumber || config?.title || "PPIC",
+    status: (row) => row.status || "Tanpa Status",
+    card: (row) => {
+      const key = row.runNumber || row.mpsNumber || row.planNumber || row.forecastNumber;
+      const metrics = [
+        ["Periode", row.periodStart || row.runDate || row.planMonth],
+        ["Forecast", row.forecastNumber],
+        ["Qty Plan", row.totalPlannedQty ?? row.targetQty ?? row.totalForecastQty],
+        ["Status", row.status],
+      ].map(([label, value]) => `<div><span>${esc(label)}</span><strong>${esc(value ?? "-")}</strong></div>`).join("");
+      return `<article class="list-gallery-card"><div class="list-gallery-card-head"><div><h3>${esc(key || config.title)}</h3><small>${esc(row.customerCode || row.mpsNumber || config.title)}</small></div>${badge(row.status)}</div><div class="list-gallery-meta">${metrics}</div>${key ? `<div class="list-gallery-actions"><a href="${detailLink(key)}">Lihat detail</a></div>` : ""}</article>`;
+    },
+  });
   async function api(url, options = {}) {
     const response = await fetch(url, { ...options, headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" } });
     const payload = await response.json().catch(() => ({}));
@@ -61,19 +78,22 @@
   }
   function detailLink(key) { return `/modules/planning-ppic/${tab}/${encodeURIComponent(key)}`; }
   function action(row) {
-    if (tab === "consume-forecast") return row.status === "Confirmed" ? `<button class="ppic-link-btn" data-make-mps="${esc(row.forecastNumber)}">Buat MPS</button>` : `<a class="ppic-link-btn" href="/modules/sales/forecasts/${encodeURIComponent(row.forecastNumber)}">Lihat</a>`;
+    if (tab === "consume-forecast") {
+      return `<button class="ppic-link-btn" data-make-mps="MONTHLY" data-months="${esc(String(row.month).slice(0,7))}">${row.mpsNumber ? "Hitung ulang" : "Buat MPS"}</button>`;
+    }
     if (tab === "mps") return row.status === "Draft" ? `<button class="ppic-link-btn" data-confirm-mps="${esc(row.mpsNumber)}">Confirm</button>` : row.status === "Confirmed" ? `<button class="ppic-link-btn" data-run-mrp="${esc(row.mpsNumber)}">Run MRP</button> <button class="ppic-link-btn" data-make-plan="${esc(row.mpsNumber)}">Production Plan</button>` : "-";
     return "-";
   }
   function render() {
     const query = $("ppic-search").value.toLowerCase();
     const visible = rows.filter((row) => JSON.stringify(row).toLowerCase().includes(query));
+    gallery?.setRows(visible);
     $("ppic-head").innerHTML = `<tr>${config.head.map((head) => `<th>${head}</th>`).join("")}</tr>`;
     $("ppic-rows").innerHTML = visible.map((row, index) => {
-      if (tab === "mrp") return `<tr><td>${index + 1}</td><td><a class="ppic-id" href="${detailLink(row.runNumber)}">${esc(row.runNumber)}</a></td><td>${esc(row.mpsNumber)}</td><td>${date(row.runDate)}</td><td class="ppic-number">${num(row.totalRequirements)}</td><td class="ppic-number">${num(row.totalPlannedOrders)}</td><td>${badge(row.status)}</td><td>${action(row)}</td></tr>`;
-      if (tab === "mps") return `<tr><td>${index + 1}</td><td><a class="ppic-id" href="${detailLink(row.mpsNumber)}">${esc(row.mpsNumber)}</a></td><td>${date(row.periodStart)} — ${date(row.periodEnd)}</td><td>${esc(row.forecastNumber)}</td><td>${num(row.partCount)} part</td><td class="ppic-number">${num(row.totalPlannedQty)}</td><td>${badge(row.status)}</td><td>${action(row)}</td></tr>`;
+      if (tab === "mrp") return `<tr><td>${index + 1}</td><td><a class="ppic-id" href="${detailLink(row.runNumber)}">${esc(row.planNumber || row.runNumber)}</a>${row.planRevision ? `<small class="d-block text-muted">Rev. ${num(row.planRevision)}</small>` : ""}</td><td>${esc(row.mpsNumber)}</td><td>${date(row.runDate)}</td><td class="ppic-number">${num(row.totalRequirements)}</td><td class="ppic-number">${num(row.totalPlannedOrders)}</td><td>${badge(row.status)}</td><td>${action(row)}</td></tr>`;
+      if (tab === "mps") { const sources = [...(row.forecastNumbers || []), ...(row.soNumbers || [])].join(", ") || row.forecastNumber || "-"; return `<tr><td>${index + 1}</td><td><a class="ppic-id" href="${detailLink(row.mpsNumber)}">${esc(row.mpsNumber)}</a></td><td>${date(row.periodStart)} — ${date(row.periodEnd)}</td><td>${esc(sources)}</td><td>${num(row.partCount)} part</td><td class="ppic-number">${num(row.totalPlannedQty)}</td><td>${badge(row.status)}</td><td>${action(row)}</td></tr>`; }
       if (tab === "monthly-plan") { const target = Number(row.targetQty || 0); const actual = Number(row.actualQty || 0); const progress = target ? Math.round(actual / target * 100) : 0; return `<tr><td>${index + 1}</td><td><a class="ppic-id" href="${detailLink(row.planNumber)}">${esc(row.planNumber)}</a></td><td>${date(row.planMonth)}</td><td class="ppic-number">${num(target)}</td><td class="ppic-number">${num(actual)}</td><td class="ppic-number">${progress}%</td><td>${badge(row.status)}</td><td>-</td></tr>`; }
-      return `<tr><td>${index + 1}</td><td><a class="ppic-id" href="${detailLink(row.forecastNumber)}">${esc(row.forecastNumber)}</a></td><td>${date(row.periodStart)} — ${date(row.periodEnd)}</td><td>${esc(row.customerCode)}</td><td class="ppic-number">${num(row.totalForecastQty)}</td><td>${badge(row.status)}</td><td>${action(row)}</td></tr>`;
+      return `<tr><td>${index + 1}</td><td><b>${esc(String(row.month).slice(0,7))}</b></td><td class="ppic-number">${num(row.forecastQty)}<small class="d-block text-muted">${num(row.forecastCount)} forecast</small></td><td class="ppic-number">${num(row.actualSalesOrderQty)}</td><td class="ppic-number"><b>${num(row.effectiveDemandQty)}</b></td><td>${num(row.partCount)} part</td><td>${row.earliestDeliveryDate?date(row.earliestDeliveryDate):"-"}<small class="d-block text-muted">${num(row.deliveryPhaseCount)} phase</small></td><td>${row.mpsNumber?`<a class="ppic-id" href="/modules/planning-ppic/mps/${encodeURIComponent(row.mpsNumber)}">${esc(row.mpsNumber)}</a>${row.replanRequired?'<span class="ppic-badge cancelled d-block mt-1">Replan diperlukan</span>':''}`:badge(row.mpsStatus)}</td><td>${action(row)}</td></tr>`;
     }).join("") || `<tr><td colspan="${config.head.length}" class="ppic-empty">Belum ada data ${esc(config.title)}</td></tr>`;
     $("ppic-footer").innerHTML = `Menampilkan <b>${visible.length}</b> dari <b>${rows.length}</b> data`;
   }
@@ -84,15 +104,36 @@
   $("ppic-search").addEventListener("input", render);
   ["mps-summary-group", "mps-summary-month", "mps-summary-forecast", "mps-summary-customer", "mps-summary-scope"].forEach((id) => $(id)?.addEventListener("change", renderMonthlySummary));
   $("ppic-filter").addEventListener("click", () => showAlert("Filter lanjutan akan mengikuti periode, customer, dan status dokumen.", "info"));
-  $("ppic-primary").addEventListener("click", () => { if (tab === "consume-forecast") location.href = "/modules/sales/forecasts/new"; else if (tab === "mps") showAlert("Buat MPS dari baris Forecast Confirmed pada tab Consume Forecast.", "info"); else if (tab === "mrp") showAlert("Jalankan MRP dari baris MPS yang berstatus Confirmed pada tab MPS.", "info"); else showAlert("Production Plan dibuat dari MPS Confirmed setelah MRP Completed.", "info"); });
+  $("ppic-primary").addEventListener("click", async () => {
+    if (tab === "consume-forecast") return void (location.href = "/modules/sales/forecasts/new");
+    if (tab === "mps") {
+      const month = $("mps-summary-month")?.value;
+      if (!month) return showAlert("Pilih satu bulan pada filter Bulan sebelum menghitung ulang MPS.", "warning");
+      if (!confirm(`Hitung ulang MPS ${month} dari Forecast, SO, dan saldo stock terbaru?`)) return;
+      const button = $("ppic-primary");
+      button.disabled = true;
+      try {
+        await api("/modules/api/planning-ppic/mps/monthly-sync", { method: "POST", body: JSON.stringify({ months: [month] }) });
+        showAlert(`MPS ${month} sudah diperbarui. Jalankan MRP secara manual setelah MPS dikonfirmasi.`, "success");
+        await Promise.all([load(), loadMonthlySummary()]);
+      } catch (error) {
+        showAlert(error.message);
+      } finally {
+        button.disabled = false;
+      }
+      return;
+    }
+    if (tab === "mrp") showAlert("Jalankan MRP dari baris MPS yang berstatus Confirmed pada tab MPS.", "info");
+    else showAlert("Production Plan dibuat dari MPS Confirmed setelah MRP Completed.", "info");
+  });
   document.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-make-mps],[data-confirm-mps],[data-run-mrp],[data-make-plan]");
     if (!button) return;
     button.disabled = true;
     try {
-      if (button.dataset.makeMps) { if (!confirm(`Buat Draft MPS dari ${button.dataset.makeMps}?`)) return; const result = await api("/modules/api/planning-ppic/mps/from-forecast", { method: "POST", body: JSON.stringify({ forecastNumber: button.dataset.makeMps }) }); location.href = result.items?.length > 1 ? "/modules/planning-ppic/mps" : `/modules/planning-ppic/mps/${encodeURIComponent(result.mpsNumber)}`; }
+      if (button.dataset.makeMps) { const months = button.dataset.months || ""; if (!confirm(`Konsolidasikan seluruh Forecast dan SO ${months ? `untuk ${months}` : ""} ke MPS bulanan?`)) return; const monthlyMode=button.dataset.makeMps==="MONTHLY";const result = await api(monthlyMode?"/modules/api/planning-ppic/mps/monthly-sync":"/modules/api/planning-ppic/mps/from-forecast", { method: "POST", body: JSON.stringify({ ...(monthlyMode?{}:{forecastNumber:button.dataset.makeMps}), months: months ? months.split(",").filter(Boolean) : undefined }) }); const docs = Array.isArray(result) ? result : (result.items || []); location.href = docs.length > 1 ? "/modules/planning-ppic/mps" : `/modules/planning-ppic/mps/${encodeURIComponent(docs[0]?.mpsNumber || "")}`; }
       else if (button.dataset.confirmMps) { if (!confirm(`Konfirmasi MPS ${button.dataset.confirmMps}?`)) return; await api(`/modules/api/planning-ppic/mps/${encodeURIComponent(button.dataset.confirmMps)}/confirm`, { method: "PATCH", body: "{}" }); await load(); }
-      else if (button.dataset.makePlan) { if (!confirm(`Buat Production Plan dari ${button.dataset.makePlan}?`)) return; const input = window.prompt("Persentase forecast untuk Production Plan (0-100). SO aktual tetap menjadi minimum.", "100"); if (input === null) return; const productionPercent = Number(input); if (!Number.isFinite(productionPercent) || productionPercent < 0 || productionPercent > 100) return showAlert("Persentase Production Plan harus antara 0 sampai 100.", "warning"); const result = await api("/modules/api/planning-ppic/monthly-plan/from-mps", { method: "POST", body: JSON.stringify({ mpsNumber: button.dataset.makePlan, productionPercent }) }); const firstPlan = result.items?.[0]?.planNumber; location.href = firstPlan ? `/modules/planning-ppic/monthly-plan/${encodeURIComponent(firstPlan)}` : "/modules/planning-ppic/monthly-plan"; }
+      else if (button.dataset.makePlan) { if (!confirm(`Buat Production Plan dari ${button.dataset.makePlan}?`)) return; const input = await window.formPrompt("Persentase forecast untuk Production Plan (0-100). SO aktual tetap menjadi minimum.", "100", { title: "Production Plan" }); if (input === null) return; const productionPercent = Number(input); if (!Number.isFinite(productionPercent) || productionPercent < 0 || productionPercent > 100) return showAlert("Persentase Production Plan harus antara 0 sampai 100.", "warning"); const result = await api("/modules/api/planning-ppic/monthly-plan/from-mps", { method: "POST", body: JSON.stringify({ mpsNumber: button.dataset.makePlan, productionPercent }) }); const firstPlan = result.items?.[0]?.planNumber; location.href = firstPlan ? `/modules/planning-ppic/monthly-plan/${encodeURIComponent(firstPlan)}` : "/modules/planning-ppic/monthly-plan"; }
       else { if (!confirm(`Jalankan MRP untuk ${button.dataset.runMrp}?`)) return; const generated = await api("/modules/api/planning-ppic/mrp/generate-number"); const result = await api("/modules/api/planning-ppic/mrp/run", { method: "POST", body: JSON.stringify({ runNumber: generated.runNumber, mpsNumber: button.dataset.runMrp }) }); location.href = `/modules/planning-ppic/mrp/${encodeURIComponent(result.runNumber || generated.runNumber)}`; }
     } catch (error) { showAlert(error.message); }
     finally { button.disabled = false; }

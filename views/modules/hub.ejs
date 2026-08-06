@@ -1,18 +1,21 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: '' }) %>
 <main class="module-hub app-container">
   <nav class="module-breadcrumb"><a href="/modules">Modul</a><span>/</span><b><%= module.label %></b></nav>
   <section class="module-title-block module-title-block--<%= module.color %>">
     <span class="module-title-icon"><%- include('../partials/icon', { name: module.icon }) %></span>
-    <div><p class="eyebrow">Modul</p><h1><%= module.label %></h1><p><%= module.description %></p></div>
+    <div><h1><%= module.label %></h1></div>
   </section>
+  <% if (['sales', 'manufacturing-bom'].includes(module.slug)) { %>
+    <%- include('../partials/executive-dashboard', { executiveModule: module.slug }) %>
+  <% } %>
   <section class="module-menu-grid">
-    <% module.pages.forEach(page => { %>
+    <% module.pages.filter(page => !page.navHidden).forEach(page => { %>
       <a class="module-menu-card" href="/modules/<%= module.slug %>/<%= page.slug %>">
         <span class="module-menu-icon"><%- include('../partials/icon', { name: page.kind === 'report' ? 'file' : 'box' }) %></span>
         <span><b><%= page.label %></b><small><%= page.description %></small></span>
-        <em class="api-state <%= page.apiReady ? 'ready' : 'waiting' %>"><%= page.apiReady ? 'API aktif' : 'Frontend siap' %></em>
-        <span class="module-menu-arrow">→</span>
+        <span class="module-menu-arrow">&rarr;</span>
       </a>
     <% }) %>
   </section>

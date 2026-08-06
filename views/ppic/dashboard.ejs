@@ -1,18 +1,26 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
-<nav class="ppic-subnav" aria-label="Navigasi PPIC"><div class="app-container ppic-subnav-inner">
-  <a href="/modules/planning-ppic/mrp/general">MRP General</a><a class="<%= activePpicTab === 'mrp' ? 'active' : '' %>" href="/modules/planning-ppic/mrp">MRP Header</a><a href="/modules/planning-ppic/mps/general">MPS General</a><a class="<%= activePpicTab === 'mps' ? 'active' : '' %>" href="/modules/planning-ppic/mps">MPS Header</a><a class="<%= activePpicTab === 'monthly-plan' ? 'active' : '' %>" href="/modules/planning-ppic/monthly-plan">Monthly Plan</a><a class="<%= activePpicTab === 'consume-forecast' ? 'active' : '' %>" href="/modules/planning-ppic/consume-forecast">Consume Forecast</a><a class="<%= activePpicTab === 'capacity-planning' ? 'active' : '' %>" href="/modules/planning-ppic/capacity-planning">Capacity Planning</a>
-</div></nav>
-<main class="ppic-page">
-  <section class="ppic-toolbar app-container">
-    <div class="ppic-breadcrumb"><span>PPIC</span><i>/</i><b id="ppic-breadcrumb"><%= title %></b></div>
-    <div class="ppic-controls"><label class="ppic-search">⌕ <input id="ppic-search" type="search" placeholder="Cari data PPIC..."></label><button id="ppic-filter" class="btn btn-outline-secondary">Filter</button></div>
-    <div class="ppic-actions"><button id="ppic-export" class="btn btn-outline-secondary">Export</button><button id="ppic-primary" class="btn btn-primary brand-button"></button></div>
+<%- include('../partials/module-subnav', { activePage: activePpicTab }) %>
+<main class="entity-page ppic-page ppic-master-list-page">
+  <section class="entity-toolbar ppic-toolbar ppic-master-toolbar app-container">
+    <div class="entity-title"><span>Planning PPIC</span><b>/</b><strong id="ppic-breadcrumb"><%= title %></strong></div>
+    <label class="toolbar-search ppic-search"><%- include('../partials/icon', { name: 'search' }) %><input id="ppic-search" type="search" placeholder="Cari data PPIC..."></label>
+    <button id="ppic-filter" class="btn btn-outline-secondary" type="button">Filter</button>
+    <div class="toolbar-spacer"></div>
+    <%- include('../partials/view-switcher') %>
+    <button id="ppic-export" class="btn btn-export" type="button">Export CSV</button>
+    <button id="ppic-primary" class="btn btn-primary brand-button" type="button"></button>
   </section>
-  <section class="ppic-content app-container">
-    <div id="ppic-alert" class="alert d-none"></div>
-    <div class="ppic-heading"><h1 id="ppic-title"></h1><p id="ppic-subtitle"></p></div>
-    <section class="ppic-table-card"><div class="table-responsive"><table class="table ppic-table"><thead id="ppic-head"></thead><tbody id="ppic-rows"></tbody></table></div><div id="ppic-footer" class="ppic-footer"></div></section>
+  <section class="ppic-content dashboard-content">
+    <div id="ppic-alert" class="alert d-none mx-4 mt-3"></div>
+    <div class="visually-hidden"><h1 id="ppic-title"></h1><p id="ppic-subtitle"></p></div>
+    <section id="ppic-list-root" class="table-shell entity-table-shell ppic-table-card ppic-master-table">
+      <div class="list-table-view">
+        <table class="table ppic-table"><thead id="ppic-head"></thead><tbody id="ppic-rows"></tbody></table>
+        <div id="ppic-footer" class="ppic-footer"></div>
+      </div>
+      <div class="list-gallery is-hidden" aria-live="polite"></div>
+    </section>
   </section>
 </main>
 <script id="ppic-page-config" type="application/json"><%- JSON.stringify({ activeTab: activePpicTab }).replace(/</g, '\\u003c') %></script>

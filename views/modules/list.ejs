@@ -1,24 +1,31 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
-<main class="module-data-page app-container">
-  <nav class="module-breadcrumb"><a href="/modules">Modul</a><span>/</span><a href="/modules/<%= module.slug %>"><%= module.label %></a><span>/</span><b><%= page.label %></b></nav>
-  <section class="module-data-head">
-    <div><h1><%= page.label %></h1><p><%= page.description %></p></div>
-    <div class="module-data-actions">
-      <label class="module-search"><%- include('../partials/icon', { name: 'search' }) %><input id="module-search" type="search" placeholder="Cari data..."></label>
-      <button id="module-export" class="btn btn-outline-secondary">Export CSV</button>
-      <div class="list-view-toolbar" aria-label="Mode tampilan"><button type="button" data-list-view="table" class="active">☷</button><button type="button" data-list-view="gallery">▦</button></div>
-      <button class="btn btn-primary brand-button" disabled title="Form transaksi akan mengikuti approval dan workflow backend"><%- include('../partials/icon', { name: 'plus' }) %> Tambah</button>
-    </div>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<main class="entity-page module-master-list-page">
+  <section class="entity-toolbar module-master-toolbar app-container">
+    <div class="entity-title"><span><%= module.label %></span><b>/</b><strong><%= page.label %></strong></div>
+    <label class="toolbar-search module-master-search">
+      <%- include('../partials/icon', { name: 'search' }) %>
+      <input id="module-search" type="search" placeholder="Cari data..." aria-label="Cari <%= page.label %>">
+    </label>
+    <div class="toolbar-spacer"></div>
+    <%- include('../partials/view-switcher') %>
+    <button id="module-export" class="btn btn-export" type="button">Export CSV</button>
+    <% if (page.createRoute) { %>
+      <a class="btn btn-primary brand-button" href="<%= page.createRoute %>"><%- include('../partials/icon', { name: 'plus' }) %> Tambah Baru</a>
+    <% } %>
   </section>
   <% if (!page.apiReady) { %>
-    <section class="api-notice"><span>Frontend siap</span><div><b>API <%= page.label %> belum tersedia di backend</b><p>Layout, tabel, pencarian, export, dan navigasi sudah disiapkan. Data akan tampil otomatis setelah endpoint diaktifkan.</p></div></section>
+    <section class="api-notice mx-4 mt-3"><span>Belum tersedia</span><div><b>API <%= page.label %> belum tersedia</b></div></section>
   <% } %>
-  <div id="module-alert" class="alert alert-warning d-none" role="alert"></div>
-  <section id="module-list-root" class="module-table-shell"><div class="list-table-view">
-    <table id="module-table" class="table align-middle w-100">
-      <thead><tr><% page.columns.forEach(column => { %><th><%= column.label %></th><% }) %><th>AKSI</th></tr></thead>
-    </table></div><div class="list-gallery is-hidden" aria-live="polite"></div>
+  <div id="module-alert" class="alert alert-warning mx-4 mt-3 d-none" role="alert"></div>
+  <section id="module-list-root" class="table-shell entity-table-shell module-master-table">
+    <div class="list-table-view">
+      <table id="module-table" class="table align-middle w-100">
+        <thead><tr><% page.columns.forEach(column => { %><th><%= column.label %></th><% }) %><th>AKSI</th></tr></thead>
+      </table>
+    </div>
+    <div class="list-gallery is-hidden" aria-live="polite"></div>
   </section>
 </main>
 <div class="modal fade" id="module-detail-modal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h2 class="modal-title fs-5">Detail <%= page.label %></h2><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="module-detail-body"></div></div></div></div>

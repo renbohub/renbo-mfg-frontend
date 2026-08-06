@@ -1,17 +1,18 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
-<nav class="ops-subnav ops-subnav--<%= module.color %>" aria-label="Navigasi <%= module.label %>">
-  <div class="app-container ops-subnav-inner">
-    <% module.pages.forEach(item => { %>
-      <a class="<%= item.slug === page.slug ? 'active' : '' %> <%= !item.apiReady ? 'disabled' : '' %>" href="<%= item.apiReady ? '/modules/' + module.slug + '/' + item.slug : '#' %>" <%= !item.apiReady ? 'aria-disabled="true"' : '' %>><%= item.label %></a>
-    <% }) %>
-  </div>
-</nav>
-<main class="ops-page app-container">
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<main class="ops-page app-container <%= module.slug === 'purchasing' && page.slug === 'purchase-suggestions' ? 'purchase-suggestion-page' : '' %> <%= module.slug === 'production' ? 'production-detail-page' : '' %>">
   <nav class="module-breadcrumb"><a href="/modules">Modul</a><span>/</span><a href="/modules/<%= module.slug %>"><%= module.label %></a><span>/</span><a href="/modules/<%= module.slug %>/<%= page.slug %>"><%= page.label %></a><span>/</span><b><%= recordKey %></b></nav>
   <section class="ops-detail-titlebar">
     <div><p class="ops-eyebrow"><%= page.label %></p><h1 id="ops-detail-title"><%= recordKey %></h1><p id="ops-detail-subtitle">Memuat detail dokumen...</p></div>
-    <div id="ops-detail-actions" class="ops-title-actions"><a class="btn btn-outline-secondary" href="/modules/<%= module.slug %>/<%= page.slug %>">← Kembali</a></div>
+    <div id="ops-detail-actions" class="ops-title-actions">
+      <% if (module.slug === 'purchasing' && page.slug === 'purchase-requisitions') { %><a id="pr-edit-link" class="btn btn-outline-primary" href="/modules/purchasing/purchase-requisitions/<%= encodeURIComponent(recordKey) %>/edit<%= purchaseCategory ? '?category=' + purchaseCategory : '' %>">Edit PR</a><% } %>
+      <% if (module.slug === 'purchasing' && page.slug === 'purchase-order') { %><a class="btn btn-outline-primary" href="/modules/purchasing/purchase-order/<%= encodeURIComponent(recordKey) %>/edit">Edit PO</a><% } %>
+      <% if (module.slug === 'purchasing' && page.slug === 'purchase-invoices') { %><a class="btn btn-outline-primary" href="/modules/purchasing/purchase-invoices/<%= encodeURIComponent(recordKey) %>/edit">Edit Invoice</a><% } %>
+      <% if (module.slug === 'production' && page.slug === 'production-logs') { %><a id="production-log-edit-link" class="btn btn-outline-primary" href="/modules/production/production-logs/<%= encodeURIComponent(recordKey) %>/edit">Edit Log</a><% } %>
+      <% if (module.slug === 'production' && page.createRoute && !['production-logs', 'daily-production-schedules'].includes(page.slug)) { %><a class="btn btn-outline-primary" href="/modules/production/<%= page.slug %>/<%= encodeURIComponent(recordKey) %>/edit">Edit</a><% } %>
+      <a class="btn btn-outline-secondary" href="/modules/<%= module.slug %>/<%= page.slug %><%= purchaseCategory ? '?category=' + purchaseCategory : '' %>">← Kembali</a>
+    </div>
   </section>
   <div id="ops-detail-alert" class="alert d-none" role="alert"></div>
   <section id="ops-detail-loading" class="ops-detail-loading">Memuat detail <%= page.label %>...</section>
@@ -26,5 +27,5 @@
     </aside>
   </div>
 </main>
-<script id="ops-detail-config" type="application/json"><%- JSON.stringify({ module: module.slug, moduleLabel: module.label, page, recordKey }).replace(/</g, '\\u003c') %></script>
+<script id="ops-detail-config" type="application/json"><%- JSON.stringify({ module: module.slug, moduleLabel: module.label, page, recordKey, purchaseCategory }).replace(/</g, '\\u003c') %></script>
 <%- include('../partials/footer') %>

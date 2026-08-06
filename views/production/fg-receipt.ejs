@@ -1,0 +1,76 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<main class="ops-page app-container fg-receipt-page">
+  <nav class="module-breadcrumb"><a href="/modules/production">Production</a><span>/</span><b>FG Receipt</b></nav>
+
+  <section class="ops-detail-titlebar fg-receipt-titlebar">
+    <div>
+      <p class="ops-eyebrow">Production · Inventory</p>
+      <h1>FG Receipt</h1>
+      <p>Terima hasil proses final yang sudah lolos QC menjadi Finished Goods. Seluruh referensi sumber tetap dapat ditelusuri.</p>
+    </div>
+    <button id="fg-refresh" class="btn btn-outline-secondary" type="button">Refresh</button>
+  </section>
+
+  <div id="fg-alert" class="alert d-none" role="alert"></div>
+
+  <section class="fg-summary" aria-label="Ringkasan FG Receipt">
+    <article><span>Open Receipt</span><strong id="fg-pending-count">—</strong><small>ready dan menunggu proses/QC</small></article>
+    <article><span>Pending Qty</span><strong id="fg-pending-qty">—</strong><small>dipisahkan per UOM</small></article>
+    <article><span>Receipt History</span><strong id="fg-history-count">—</strong><small>movement aktif</small></article>
+  </section>
+
+  <section class="ops-detail-card fg-workspace">
+    <header class="fg-toolbar">
+      <nav class="fg-tabs" aria-label="Tampilan FG Receipt">
+        <button class="active" type="button" data-fg-tab="pending">Pending Receipt <span id="fg-tab-pending-count">0</span></button>
+        <button type="button" data-fg-tab="history">History <span id="fg-tab-history-count">0</span></button>
+      </nav>
+      <label class="fg-search"><span class="visually-hidden">Cari data</span><input id="fg-search" class="form-control" type="search" placeholder="Cari QC, MO, WO, log, part, lot, atau warehouse..."></label>
+    </header>
+
+    <div id="fg-loading" class="fg-state">Memuat FG Receipt...</div>
+    <div id="fg-pending-panel" class="fg-panel d-none">
+      <div class="fg-table-wrap">
+        <table class="table fg-table fg-pending-table">
+          <thead><tr><th>QC / Receipt Source</th><th>Status</th><th>Production Log</th><th>MO / WO</th><th>Source WIP</th><th>Source Location</th><th>Finished Goods</th><th>Passed</th><th>Received</th><th>Pending</th><th>Aksi / Resolusi</th></tr></thead>
+          <tbody id="fg-pending-body"></tbody>
+        </table>
+      </div>
+      <div id="fg-pending-empty" class="fg-empty d-none"><strong>Tidak ada FG yang menunggu receipt.</strong><span>Selesaikan QC pada proses final atau lihat tab History untuk receipt yang sudah diposting.</span></div>
+    </div>
+
+    <div id="fg-history-panel" class="fg-panel d-none">
+      <div class="fg-table-wrap">
+        <table class="table fg-table fg-history-table">
+          <thead><tr><th>Receipt Ref</th><th>Received At</th><th>QC Inspection</th><th>MO / WO</th><th>Production Log</th><th>Finished Goods</th><th>Target Location</th><th>Qty Received</th><th>Operator</th><th>Aksi</th></tr></thead>
+          <tbody id="fg-history-body"></tbody>
+        </table>
+      </div>
+      <div id="fg-history-empty" class="fg-empty d-none"><strong>Belum ada history FG Receipt.</strong><span>Receipt yang berhasil diposting akan muncul di sini.</span></div>
+    </div>
+  </section>
+</main>
+
+<div id="fg-receive-modal" class="fg-modal-backdrop d-none" role="dialog" aria-modal="true" aria-labelledby="fg-modal-title">
+  <form id="fg-receive-form" class="fg-modal">
+    <header>
+      <div><p class="ops-eyebrow">Receive Finished Goods</p><h2 id="fg-modal-title">FG Receipt</h2><p id="fg-modal-subtitle">—</p></div>
+      <button class="btn-close" type="button" data-fg-close aria-label="Tutup"></button>
+    </header>
+    <div class="fg-modal-body">
+      <div id="fg-modal-alert" class="alert d-none" role="alert"></div>
+      <section id="fg-modal-reference" class="fg-modal-reference"></section>
+      <div class="fg-form-grid">
+        <label><span>Qty Receipt *</span><input id="fg-receive-qty" class="form-control" type="number" min="0" required><small id="fg-qty-help">—</small></label>
+        <label><span>Warehouse Tujuan *</span><select id="fg-warehouse" class="form-select" required><option value="">Pilih warehouse...</option></select></label>
+        <label><span>Rack Tujuan</span><select id="fg-rack" class="form-select"><option value="">Tanpa rack</option></select><small>Daftar rack mengikuti warehouse.</small></label>
+        <label><span>Lot / Batch</span><input id="fg-lot" class="form-control" maxlength="100" placeholder="Lot FG"></label>
+        <label class="fg-notes"><span>Catatan</span><textarea id="fg-notes" class="form-control" rows="3" placeholder="Catatan penerimaan (opsional)"></textarea></label>
+      </div>
+    </div>
+    <footer><button class="btn btn-outline-secondary" type="button" data-fg-close>Batal</button><button id="fg-submit" class="btn btn-primary brand-button" type="submit">Post FG Receipt</button></footer>
+  </form>
+</div>
+<%- include('../partials/footer') %>

@@ -6,7 +6,7 @@
     <div class="toolbar-search"><%- include('../partials/icon', { name: 'search' }) %><input id="entity-search" type="search" placeholder="Cari <%= config.singular.toLowerCase() %>..."></div>
     <select id="deleted-filter" class="form-select deleted-filter" aria-label="Status data"><option value="false">Data aktif</option><option value="true">Data terhapus</option></select>
     <div class="toolbar-spacer"></div>
-    <div class="list-view-toolbar" aria-label="Mode tampilan"><button type="button" data-list-view="table" class="active">☷</button><button type="button" data-list-view="gallery">▦</button></div>
+    <%- include('../partials/view-switcher') %>
     <button id="bulk-delete" class="btn btn-outline-danger d-none">Hapus terpilih</button>
     <button id="export-data" class="btn btn-export">Export CSV</button>
     <a class="btn btn-primary brand-button" href="/master-data/<%= config.slug %>/new"><%- include('../partials/icon', { name: 'plus' }) %> Tambah Baru</a>

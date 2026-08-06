@@ -1,0 +1,21 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<main class="ops-page app-container">
+  <nav class="module-breadcrumb"><a href="/modules/production">Production</a><span>/</span><a href="/modules/production/<%= page.slug %>"><%= page.label %></a><span>/</span><b><%= mode === 'edit' ? 'Edit' : 'Buat' %></b></nav>
+  <section class="ops-detail-titlebar">
+    <div><p class="ops-eyebrow">Production Execution</p><h1><%= mode === 'edit' ? 'Edit' : 'Buat' %> <%= page.label %></h1><p>Form operasional terhubung langsung ke validasi, relasi, dan audit trail backend.</p></div>
+    <a class="btn btn-outline-secondary" href="/modules/production/<%= page.slug %>">Kembali</a>
+  </section>
+  <div id="production-shared-alert" class="alert d-none" role="alert"></div>
+  <form id="production-shared-form" class="ops-detail-card">
+    <div class="module-form-section-title">Informasi <%= page.label %><span class="form-required-note">* Field wajib</span></div>
+    <div id="production-shared-fields" class="ops-detail-fields"></div>
+    <div class="module-form-actions">
+      <a class="btn btn-outline-secondary" href="/modules/production/<%= page.slug %>">Batal</a>
+      <button id="production-shared-submit" class="btn btn-primary brand-button" type="submit">Simpan</button>
+    </div>
+  </form>
+</main>
+<script id="production-shared-config" type="application/json"><%- JSON.stringify({ page, mode, recordKey }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

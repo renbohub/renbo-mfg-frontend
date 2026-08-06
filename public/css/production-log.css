@@ -1,0 +1,74 @@
+.production-log-page{max-width:1440px}
+.production-log-page .module-breadcrumb{margin-bottom:16px}
+.production-log-page .ops-detail-titlebar{align-items:center;margin-bottom:24px}
+.production-log-page .ops-detail-titlebar>div{max-width:820px}
+.production-log-page .ops-detail-titlebar h1{font-size:30px;letter-spacing:-.025em}
+.production-log-form{display:grid;max-width:1180px!important;margin:0 auto;gap:16px;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;overflow:visible!important}
+.production-log-section{overflow:hidden;border:1px solid #e1e6ed;border-radius:14px;background:#fff;box-shadow:0 5px 18px rgba(15,23,42,.045)}
+.production-log-section-header{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:12px;min-height:72px;padding:15px 20px;border-bottom:1px solid #e9edf2;background:#fbfcfe}
+.production-log-section-header.module-form-section-title{display:grid;padding:15px 20px;font-size:inherit}
+.production-log-section-header.module-form-section-title::before{display:none;content:none}
+.production-log-step{width:32px;height:32px;display:grid;place-items:center;border-radius:10px;background:#ebe9ff;color:#4f46e5;font-size:13px;font-weight:800}
+.production-log-section-header h2{margin:0;color:#202536;font-size:14px;font-weight:760}
+.production-log-section-header p{margin:3px 0 0;color:#7b8494;font-size:10px;line-height:1.45}
+.production-log-section-header .form-required-note{color:#98a2b3;font-size:9px;white-space:nowrap}
+.production-log-form .ops-detail-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding:20px;background:transparent}
+.production-log-form .ops-detail-fields label{display:block;min-width:0;margin:0}
+.production-log-form .ops-detail-fields label.span-2{grid-column:1/-1}
+.production-log-form label>span,.production-downtime-grid label>span{display:flex;align-items:center;gap:5px;margin-bottom:7px;color:#475467;font-size:10px;font-weight:720}
+.production-log-form label>span small{color:#98a2b3;font-size:8px;font-weight:600;text-transform:uppercase}
+.production-log-form input,.production-log-form select,.production-log-form textarea{width:100%;min-height:42px;padding:9px 11px;border:1px solid #d7dde6;border-radius:8px;background:#fff;color:#273142;font-size:12px;outline:none;transition:border-color .16s,box-shadow .16s,background .16s}
+.production-log-form textarea{min-height:92px;resize:vertical}
+.production-log-form input:focus,.production-log-form select:focus,.production-log-form textarea:focus{border-color:#756bed;box-shadow:0 0 0 3px rgba(79,70,229,.1)}
+.production-log-form input[readonly]{border-color:#e4e8ee;background:#f5f7fa!important;color:#667085}
+.production-log-form .form-help{display:block;margin-top:7px;color:#7b8494;font-size:10px;line-height:1.45}
+.production-reference-fields{grid-template-columns:repeat(4,minmax(0,1fr))!important;padding-top:18px!important}
+.production-result-fields{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+.production-output-field input{border-color:#b9b3fb;background:#fafaff}
+.production-reject-field input{border-color:#fecaca;background:#fffafa}
+.production-good-field input{border-color:#a7e3ca!important;background:#f0fdf7!important;color:#067647!important;font-weight:800}
+.production-notes-fields{grid-template-columns:minmax(260px,.7fr) minmax(0,1.3fr)!important;align-items:start}
+.production-log-plan-summary{display:grid;grid-template-columns:1.2fr 1.3fr 1fr 1fr .7fr;gap:1px;margin:0 20px;border:1px solid #e1e6ed;border-radius:10px;overflow:hidden;background:#e9edf2}
+.production-log-plan-summary>div{min-width:0;padding:13px 15px;background:#f8fafc}
+.production-log-plan-summary small,.production-log-plan-summary strong{display:block}
+.production-log-plan-summary small{margin-bottom:4px;color:#7b8494;font-size:8px;font-weight:750;letter-spacing:.05em;text-transform:uppercase}
+.production-log-plan-summary strong{overflow:hidden;color:#273142;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.production-log-plan-summary.is-empty{display:flex;align-items:center;min-height:54px;padding:0 16px;border-style:dashed;background:#fafbfc;color:#7b8494;font-size:10px}
+.production-log-section-head{grid-template-columns:34px minmax(0,1fr) auto}
+.production-downtime-actions{display:flex;align-items:center;gap:12px}
+.production-downtime-actions>span{padding:7px 10px;border-radius:8px;background:#f4f5f7;color:#667085;font-size:10px;white-space:nowrap}
+.production-downtime-actions strong{margin:0 2px;color:#b42318;font-size:13px}
+.production-downtime-actions .btn{min-height:34px;border-radius:8px;font-size:10px;font-weight:700}
+.production-downtime-list{display:grid;gap:12px;padding:18px 20px 20px}
+.production-downtime-list:empty::before{content:"Tidak ada downtime pada log ini.";display:grid;min-height:68px;place-items:center;border:1px dashed #d7dde6;border-radius:10px;background:#fbfcfd;color:#98a2b3;font-size:10px}
+.production-downtime-row{overflow:hidden;border:1px solid #dde3eb;border-radius:11px;background:#fbfcfd}
+.production-downtime-row-head{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;border-bottom:1px solid #e8ecf1;background:#f4f6f9}
+.production-downtime-row-head strong{color:#344054;font-size:10px}
+.production-downtime-row-head .btn{font-size:9px}
+.production-downtime-grid{display:grid;grid-template-columns:1.1fr .7fr .7fr .8fr 1.6fr 1.2fr;gap:12px;padding:14px}
+.production-downtime-grid label{min-width:0;margin:0}
+.production-downtime-grid input,.production-downtime-grid select{min-height:38px;padding:7px 9px;font-size:10px}
+.production-log-form .field-required>span:after{color:#d92d20;content:" *"}
+.production-log-form .module-form-actions{position:static;display:flex;align-items:center;justify-content:flex-end;gap:9px;padding:15px 16px;border:1px solid #dfe4eb;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(15,23,42,.05)}
+.module-form-actions .btn{min-height:40px;padding-inline:18px;border-radius:8px;font-size:11px;font-weight:700}
+.report-toolbar-field{display:flex;align-items:center;gap:7px;color:#667085;font-size:10px;font-weight:700;white-space:nowrap}
+.report-toolbar-field input,.report-toolbar-field select{height:36px;border:1px solid #d7dce3;border-radius:7px;background:#fff;padding:6px 9px;color:#344054;font-size:11px}
+@media(max-width:1100px){
+  .production-reference-fields{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .production-log-plan-summary{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .production-downtime-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .production-downtime-reason,.production-downtime-notes{grid-column:span 2}
+}
+@media(max-width:700px){
+  .production-log-page .ops-detail-titlebar .btn{margin-top:14px}
+  .production-log-form .ops-detail-fields,.production-reference-fields,.production-result-fields,.production-notes-fields{grid-template-columns:1fr!important;padding:16px}
+  .production-log-section-header,.production-log-section-head{grid-template-columns:32px minmax(0,1fr);padding:14px 16px}
+  .production-log-section-header .form-required-note,.production-downtime-actions{grid-column:1/-1}
+  .production-downtime-actions{width:100%;justify-content:space-between;padding-top:5px}
+  .production-log-plan-summary{grid-template-columns:1fr;margin:0 16px}
+  .production-downtime-list{padding:16px}
+  .production-downtime-grid{grid-template-columns:1fr}
+  .production-downtime-reason,.production-downtime-notes{grid-column:auto}
+  .report-toolbar-field{width:100%}
+  .report-toolbar-field input,.report-toolbar-field select{flex:1}
+}

@@ -1,21 +1,40 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
-<% if (['inventory','production','purchasing','incoming','outgoing'].includes(module.slug)) { %>
-<nav class="ops-subnav ops-subnav--<%= module.color %>" aria-label="Navigasi <%= module.label %>"><div class="app-container ops-subnav-inner">
-  <% module.pages.forEach(item => { %><a class="<%= item.slug === page.slug ? 'active' : '' %> <%= !item.apiReady ? 'disabled' : '' %>" href="<%= item.apiReady ? '/modules/' + module.slug + '/' + item.slug : '#' %>" <%= !item.apiReady ? 'aria-disabled="true"' : '' %>><%= item.label %></a><% }) %>
-</div></nav>
-<% } %>
-<main class="module-data-page app-container">
-  <nav class="module-breadcrumb"><a href="/modules">Modul</a><span>/</span><a href="/modules/<%= module.slug %>"><%= module.label %></a><span>/</span><b><%= page.label %></b></nav>
-  <section class="module-data-head"><div><h1><%= page.label %></h1><p><%= page.description %></p></div><button class="btn btn-outline-secondary" onclick="window.print()">Cetak Laporan</button></section>
-  <% if (!page.apiReady) { %><section class="api-notice"><span>Frontend siap</span><div><b>Endpoint laporan belum tersedia</b><p>Komponen ringkasan dan area visualisasi sudah siap dihubungkan ke backend.</p></div></section><% } %>
-  <section class="report-stat-grid">
-    <article><small>Total Dokumen</small><strong id="report-total">—</strong><span>Periode berjalan</span></article>
-    <article><small>Open / Process</small><strong id="report-open">—</strong><span>Memerlukan tindak lanjut</span></article>
-    <article><small>Completed</small><strong id="report-completed">—</strong><span>Proses selesai</span></article>
-    <article><small>Performance</small><strong id="report-performance">—</strong><span>Realisasi terhadap rencana</span></article>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<main class="entity-page report-page module-report-page">
+  <section class="entity-toolbar report-master-toolbar app-container">
+    <div class="entity-title"><span><%= module.label %></span><b>/</b><strong><%= page.label %></strong></div>
+    <label class="toolbar-search report-master-search"><%- include('../partials/icon', { name: 'search' }) %><input id="report-search" type="search" placeholder="Cari nomor, part, customer, lot..."></label>
+    <% if (page.reportMode === 'production-machine') { %>
+      <label class="report-toolbar-field"><span>Bulan</span><input id="report-month" type="month" value="<%= new Date().toISOString().slice(0, 7) %>"></label>
+      <label class="report-toolbar-field"><span>Mesin</span><select id="report-machine"><option value="">Semua mesin</option></select></label>
+    <% } %>
+    <div class="toolbar-spacer"></div>
+    <%- include('../partials/view-switcher') %>
+    <button id="report-refresh" class="btn btn-outline-secondary" type="button">Refresh</button>
+    <button id="report-export" class="btn btn-export" type="button">Export CSV</button>
+    <button class="btn btn-primary brand-button" type="button" onclick="window.print()">Cetak</button>
   </section>
-  <section class="report-panels"><article><div><h2>Ringkasan Aktivitas</h2><p>Distribusi status pada periode berjalan</p></div><div id="report-chart"></div></article><article class="report-empty"><%- include('../partials/icon', { name: 'file' }) %><h2><%= page.apiReady ? 'Memuat laporan' : 'Menunggu data backend' %></h2><p>Tidak ada data contoh yang ditampilkan agar informasi operasional tetap akurat.</p></article></section>
+  <% if (!page.apiReady) { %><section class="api-notice mx-4 mt-3"><span>Belum tersedia</span><div><b>Endpoint laporan belum tersedia</b></div></section><% } %>
+  <div id="report-alert" class="alert alert-warning mx-4 mt-3 d-none" role="alert"></div>
+  <div class="report-content app-container">
+    <section class="report-stat-grid">
+      <% for (let index = 0; index < 4; index += 1) { %>
+        <article><small id="report-label-<%= index %>">Memuat</small><strong id="report-value-<%= index %>">—</strong><span id="report-note-<%= index %>">Data terkini</span></article>
+      <% } %>
+    </section>
+    <section class="report-panels report-panels--p2">
+      <article><div><h2>Analitik &amp; Perbandingan</h2><p><%= page.reportMode === 'production-machine' ? 'Perbandingan output, good, NG, dan downtime per mesin.' : 'Ringkasan berdasarkan filter aktif.' %></p></div><div id="report-chart"></div></article>
+      <article class="report-insight-panel"><div><h2><%= page.reportMode === 'production-machine' ? 'Ringkasan Produksi' : 'Audit Coverage' %></h2><p><%= page.reportMode === 'production-machine' ? 'Gross time dikurangi seluruh downtime menjadi net process time.' : 'Readiness, missing cost, aging, atau gap data tanpa mengubah transaksi existing.' %></p></div><div id="report-insights" class="report-insights"><span>Memuat insight...</span></div></article>
+    </section>
+  </div>
+  <section id="report-list-root" class="table-shell entity-table-shell report-detail-card report-master-table">
+    <header class="ops-card-head app-container"><div><h2>Detail <%= page.label %></h2><p>Data dapat dicari, dicetak, dan diekspor untuk rekonsiliasi.</p></div><span id="report-count" class="ops-live-label"><i></i> Memuat</span></header>
+    <div class="list-table-view">
+      <table class="table align-middle w-100 report-detail-table"><thead><tr><% (page.reportColumns || []).forEach(column => { %><th><%= column.label %></th><% }) %></tr></thead><tbody id="report-rows"><tr><td colspan="<%= Math.max((page.reportColumns || []).length, 1) %>" class="text-center p-4">Memuat laporan...</td></tr></tbody></table>
+    </div>
+    <div class="list-gallery is-hidden" aria-live="polite"></div>
+  </section>
 </main>
 <script id="module-page-config" type="application/json"><%- JSON.stringify({ module: module.slug, ...page }).replace(/</g, '\\u003c') %></script>
 <%- include('../partials/footer') %>

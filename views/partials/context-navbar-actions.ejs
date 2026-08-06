@@ -1,0 +1,26 @@
+<div class="context-navbar-actions" aria-label="Log halaman">
+  <label class="ui-language-control" title="Bahasa">
+    <span class="visually-hidden">Bahasa</span>
+    <select data-ui-language aria-label="Bahasa">
+      <option value="id">ID</option>
+      <option value="en">EN</option>
+      <option value="ja">日本語</option>
+    </select>
+  </label>
+  <button class="context-nav-button ui-theme-toggle" type="button" title="Ganti tema" aria-label="Ganti tema" data-ui-theme-toggle>
+    <span class="ui-theme-toggle__light" aria-hidden="true">&#9728;</span>
+    <span class="ui-theme-toggle__dark" aria-hidden="true">&#9790;</span>
+  </button>
+  <button class="context-nav-button" type="button" title="Log aktivitas halaman" aria-label="Buka log aktivitas halaman" data-context-open="activities" data-bs-toggle="offcanvas" data-bs-target="#page-context-panel">
+    <%- include('icon', { name: 'bell' }) %>
+    <span class="context-nav-badge d-none" data-context-nav-count="activities">0</span>
+  </button>
+  <button class="context-nav-button context-nav-button--alarm" type="button" title="Alarm, blocker, dan error halaman" aria-label="Buka alarm dan error halaman" data-context-open="errors" data-bs-toggle="offcanvas" data-bs-target="#page-context-panel">
+    <%- include('icon', { name: 'alert' }) %>
+    <span class="context-nav-badge d-none" data-context-nav-count="errors">0</span>
+  </button>
+  <button class="context-nav-button" type="button" title="Komentar halaman" aria-label="Buka komentar halaman" data-context-open="comments" data-bs-toggle="offcanvas" data-bs-target="#page-context-panel">
+    <%- include('icon', { name: 'comment' }) %>
+    <span class="context-nav-badge d-none" data-context-nav-count="comments">0</span>
+  </button>
+</div>

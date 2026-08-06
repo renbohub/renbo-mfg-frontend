@@ -1,0 +1,104 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<main class="ops-page app-container production-log-page">
+  <nav class="module-breadcrumb"><a href="/modules/production">Production</a><span>/</span><a href="/modules/production/production-logs">Production Logs</a><span>/</span><b><%= mode === 'edit' ? 'Edit' : 'Buat' %></b></nav>
+  <section class="ops-detail-titlebar">
+    <div>
+      <p class="ops-eyebrow">Production Log</p>
+      <h1><%= mode === 'edit' ? 'Edit Hasil Produksi' : 'Catat Hasil Produksi' %></h1>
+      <p>Pilih Daily Production Plan, lalu isi hasil aktual, NG, dan downtime. Referensi MO, WO, mesin, serta proses terisi otomatis.</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="/modules/production/production-logs">Kembali</a>
+  </section>
+
+  <div id="production-log-alert" class="alert d-none" role="alert"></div>
+  <form id="production-log-form" class="ops-detail-card production-log-form" data-mode="<%= mode %>" data-record-key="<%= recordKey || '' %>">
+    <section class="production-log-section">
+      <header class="production-log-section-header module-form-section-title">
+        <span class="production-log-step">1</span>
+        <div><h2>Pilih pekerjaan</h2><p>Hubungkan hasil produksi dengan Daily Production Plan yang sedang berjalan.</p></div>
+        <span class="form-required-note">* Wajib diisi</span>
+      </header>
+      <div class="ops-detail-fields">
+        <label class="span-2">
+          <span>Daily Production Plan *</span>
+          <select id="scheduleNumber" required>
+            <option value="">Memuat Daily Production Plan...</option>
+          </select>
+          <small class="form-help">Hanya Daily Plan berstatus In Progress yang bisa dicatat. Jika masih Released, mulai jadwal terlebih dahulu.</small>
+        </label>
+      </div>
+      <div id="production-log-plan-summary" class="production-log-plan-summary is-empty">
+        <span>Pilih Daily Production Plan untuk mengisi referensi produksi otomatis.</span>
+      </div>
+      <div class="ops-detail-fields production-reference-fields">
+        <label><span>Tanggal *</span><input id="logDate" type="date" required></label>
+        <label><span>Shift *</span><select id="shift" required><option value="1A">1A</option><option value="1B">1B</option><option value="2A">2A</option><option value="2B">2B</option><option value="3A">3A</option><option value="3C">3C</option></select></label>
+        <label><span>MO Reference *</span><input id="moNumber" readonly required></label>
+        <label><span>WO Reference</span><input id="woNumber" readonly></label>
+        <label><span>Mesin</span><input id="machineCode" readonly></label>
+        <label><span>Proses</span><input id="processCode" readonly></label>
+        <label><span>Operator *</span><input id="operatorName" autocomplete="name" required placeholder="Nama operator"></label>
+        <label><span>Target pada log ini</span><input id="qtyPlanned" type="number" min="0" step="any" readonly></label>
+      </div>
+    </section>
+
+    <section class="production-log-section">
+      <header class="production-log-section-header module-form-section-title">
+        <span class="production-log-step">2</span>
+        <div><h2>Waktu dan hasil produksi</h2><p>Isi waktu aktual serta jumlah hasil produksi pada log ini.</p></div>
+      </header>
+      <div class="ops-detail-fields production-result-fields">
+        <label><span>Mulai Proses *</span><input id="startTime" type="time" required></label>
+        <label><span>Selesai Proses *</span><input id="endTime" type="time" required></label>
+        <label class="production-output-field"><span>Qty Produced *</span><input id="qtyProduced" type="number" min="0" step="any" required placeholder="0"></label>
+        <label class="production-reject-field"><span>Qty NG</span><input id="qtyReject" type="number" min="0" step="any" value="0"></label>
+        <label class="production-good-field"><span>Qty Good <small>otomatis</small></span><input id="qtyGood" type="number" min="0" step="any" value="0" readonly></label>
+        <label><span>NG Reason</span><input id="rejectReason" placeholder="Wajib jika Qty NG lebih dari 0"></label>
+      </div>
+    </section>
+
+    <section class="production-log-section production-downtime-section">
+      <header class="production-log-section-header production-log-section-head module-form-section-title">
+        <span class="production-log-step">3</span>
+        <div><h2>Downtime</h2><p>Tambahkan hanya jika ada waktu berhenti selama proses produksi.</p></div>
+        <div class="production-downtime-actions">
+          <span>Total downtime <strong id="downtime-total">0</strong> menit</span>
+          <button id="add-downtime" class="btn btn-outline-primary btn-sm" type="button">+ Tambah Downtime</button>
+        </div>
+      </header>
+      <div id="downtime-rows" class="production-downtime-list"></div>
+      <template id="downtime-row-template">
+        <article class="production-downtime-row">
+          <div class="production-downtime-row-head"><strong>Downtime <span data-downtime-number></span></strong><button class="btn btn-sm btn-outline-danger" type="button" data-remove-downtime>Hapus</button></div>
+          <div class="production-downtime-grid">
+            <label><span>Jenis *</span><select data-downtime-category required><option value="SETUP_DANDORI">Setup / Dandori</option><option value="DIES_QD">Dies / QD</option><option value="MATERIAL_COIL">Material / Coil</option><option value="MACHINE_TROUBLE">Machine Trouble</option><option value="QUALITY">Quality / NG Check</option><option value="BRIEFING">Briefing</option><option value="BREAK">Break</option><option value="WAITING">Waiting</option><option value="OTHER">Lainnya</option></select></label>
+            <label><span>Mulai</span><input type="time" data-downtime-start></label>
+            <label><span>Selesai</span><input type="time" data-downtime-end></label>
+            <label><span>Durasi (menit) *</span><input type="number" min="0.1" step="0.1" data-downtime-duration required placeholder="0"></label>
+            <label class="production-downtime-reason"><span>Alasan *</span><input data-downtime-reason required placeholder="Contoh: ganti dies untuk part berikutnya"></label>
+            <label class="production-downtime-notes"><span>Catatan</span><input data-downtime-notes placeholder="Opsional"></label>
+          </div>
+        </article>
+      </template>
+    </section>
+
+    <section class="production-log-section">
+      <header class="production-log-section-header module-form-section-title">
+        <span class="production-log-step">4</span>
+        <div><h2>Catatan dan bukti</h2><p>Tambahkan bukti atau informasi untuk supervisor dan shift berikutnya jika diperlukan.</p></div>
+      </header>
+      <div class="ops-detail-fields production-notes-fields">
+        <label><span>Attachment URL</span><input id="attachmentUrl" type="url" placeholder="https://..."></label>
+        <label><span>Keterangan</span><textarea id="notes" rows="3" placeholder="Informasi tambahan untuk supervisor atau shift berikutnya"></textarea></label>
+      </div>
+    </section>
+
+    <div class="module-form-actions">
+      <a class="btn btn-outline-secondary" href="/modules/production/production-logs">Batal</a>
+      <button id="production-log-submit" class="btn btn-primary brand-button" type="submit">Simpan Production Log</button>
+    </div>
+  </form>
+</main>
+<%- include('../partials/footer') %>

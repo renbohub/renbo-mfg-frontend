@@ -11,3 +11,348 @@
 .ppic-detail-table td:last-child {
   border-right: 1px solid #eef0f4;
 }
+
+/* Dense spreadsheet view shared by every PPIC document detail grid. */
+.ppic-excel-sheet {
+  max-height: min(68vh, 760px);
+  overflow: auto;
+  border: 1px solid #d7dce3;
+  border-radius: 6px;
+  scrollbar-gutter: stable;
+}
+.ppic-excel-table {
+  min-width: var(--ppic-excel-min-width, 1100px);
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: auto;
+  font-size: 11px;
+}
+.ppic-excel-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  height: 34px;
+  padding: 5px 8px;
+  background: #eef2f7;
+  border-bottom: 1px solid #aeb7c4;
+  color: #344054;
+  font-size: 10px;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+.ppic-excel-table tbody tr:not(.ppic-group-row) > td {
+  height: 34px;
+  max-height: 34px;
+  padding: 4px 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: #fff;
+}
+.ppic-excel-table tbody tr:not(.ppic-group-row):nth-child(even) > td {
+  background: #fafbfc;
+}
+.ppic-excel-table tbody tr:not(.ppic-group-row):hover > td {
+  background: #eef6ff;
+}
+.ppic-excel-table .ppic-cell-sub,
+.ppic-excel-table .ppic-buffer-source {
+  display: inline;
+  margin: 0 0 0 6px;
+  font-size: 10px;
+}
+.ppic-excel-table .ppic-so-reference,
+.ppic-excel-table .ppic-delivery-inline,
+.ppic-excel-table .ppic-delivery-inline-phase,
+.ppic-excel-table .ppic-buffer-editor,
+.ppic-excel-table .ppic-buffer-control {
+  display: inline-flex;
+  align-items: center;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 5px;
+  min-width: 0;
+  width: auto;
+  white-space: nowrap;
+}
+.ppic-excel-table .ppic-delivery-inline-phase {
+  width: auto;
+  padding: 2px 5px;
+}
+.ppic-excel-table .ppic-so-reference a + a::before {
+  content: ", ";
+  color: #98a2b3;
+}
+.ppic-excel-table .ppic-delivery-inline-phase + .ppic-delivery-inline-phase::before {
+  content: ";";
+  color: #98a2b3;
+}
+.ppic-excel-table input,
+.ppic-excel-table select,
+.ppic-excel-table button {
+  min-height: 24px;
+  height: 24px;
+  padding-top: 1px;
+  padding-bottom: 1px;
+  font-size: 10px;
+}
+.ppic-excel-table th:nth-child(1),
+.ppic-excel-table tbody tr:not(.ppic-group-row) > td:not(.ppic-empty):nth-child(1) {
+  position: sticky;
+  left: 0;
+  width: 128px;
+  min-width: 128px;
+  max-width: 128px;
+}
+.ppic-excel-table th:nth-child(2),
+.ppic-excel-table tbody tr:not(.ppic-group-row) > td:not(.ppic-empty):nth-child(2) {
+  position: sticky;
+  left: 128px;
+  width: 145px;
+  min-width: 145px;
+  max-width: 145px;
+}
+.ppic-excel-table th:nth-child(3),
+.ppic-excel-table tbody tr:not(.ppic-group-row) > td:not(.ppic-empty):nth-child(3) {
+  position: sticky;
+  left: 273px;
+  width: 210px;
+  min-width: 210px;
+  max-width: 210px;
+  box-shadow: 5px 0 7px -6px rgba(15, 23, 42, .55);
+}
+.ppic-excel-table thead th:nth-child(-n+3) {
+  z-index: 8;
+  background: #e5eaf1;
+}
+.ppic-excel-table tbody tr:not(.ppic-group-row) > td:not(.ppic-empty):nth-child(-n+3) {
+  z-index: 3;
+}
+.ppic-excel-table.ppic-mps-excel-table th:nth-child(4),
+.ppic-excel-table.ppic-mps-excel-table td:nth-child(4) {
+  width: 260px;
+  min-width: 260px;
+  max-width: 260px;
+}
+.ppic-excel-table.ppic-mps-excel-table th:nth-child(18),
+.ppic-excel-table.ppic-mps-excel-table td:nth-child(18) {
+  width: 300px;
+  min-width: 300px;
+  max-width: 300px;
+}
+.ppic-excel-table .ppic-number {
+  font-variant-numeric: tabular-nums;
+}
+.ppic-percent-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.ppic-percent-cell > b {
+  min-width: 38px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ppic-percent-edit {
+  border: 1px solid #c7d2fe;
+  border-radius: 5px;
+  background: #eef2ff;
+  color: #4338ca;
+  padding: 2px 7px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ppic-percent-edit:hover {
+  background: #e0e7ff;
+}
+.ppic-adjustment-modal {
+  width: min(620px, 100%);
+}
+.ppic-adjustment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.ppic-adjustment-grid label {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ppic-adjustment-grid label > small {
+  color: #667085;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.ppic-adjustment-grid .ppic-adjustment-scope {
+  grid-column: 1 / -1;
+}
+.ppic-adjustment-grid-single {
+  grid-template-columns: 1fr;
+}
+@media (max-width: 640px) {
+  .ppic-adjustment-grid {
+    grid-template-columns: 1fr;
+  }
+  .ppic-adjustment-grid .ppic-adjustment-scope {
+    grid-column: auto;
+  }
+}
+.ppic-formula-help-cell {
+  min-width: 42px;
+  text-align: center !important;
+  white-space: nowrap;
+}
+.ppic-formula-help {
+  align-items: center;
+  background: #f5f3ff;
+  border: 1px solid #c4b5fd;
+  border-radius: 50%;
+  color: #5b21b6;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  height: 24px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  width: 24px;
+}
+.ppic-formula-help:hover,
+.ppic-formula-help:focus-visible {
+  background: #ede9fe;
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, .15);
+  outline: 0;
+}
+.ppic-formula-modal {
+  max-width: 760px;
+  width: min(760px, 100%);
+}
+.ppic-formula-intro,
+.ppic-formula-note {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 0 0 16px;
+}
+.ppic-formula-note {
+  background: #f8fafc;
+  border-left: 3px solid #a78bfa;
+  margin: 16px 0 0;
+  padding: 10px 12px;
+}
+.ppic-formula-list {
+  display: grid;
+  gap: 10px;
+}
+.ppic-formula-row {
+  align-items: center;
+  background: #fbfcfe;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 42%);
+  padding: 11px 12px;
+}
+.ppic-formula-row b {
+  color: #111827;
+  display: block;
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+.ppic-formula-row code {
+  color: #596579;
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: normal;
+}
+.ppic-formula-row > strong {
+  background: #fff;
+  border: 1px solid #dbe2ea;
+  border-radius: 6px;
+  color: #312e81;
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 8px 9px;
+  text-align: right;
+}
+.ppic-formula-provenance {
+  border-top: 1px solid #e5e7eb;
+  margin-top: 18px;
+  padding-top: 16px;
+}
+.ppic-formula-provenance > h2 {
+  color: #111827;
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+.ppic-formula-source-section + .ppic-formula-source-section {
+  margin-top: 14px;
+}
+.ppic-formula-source-section h3 {
+  color: #475467;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .03em;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+.ppic-formula-source-list {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.ppic-formula-source-list article {
+  align-items: center;
+  background: #fff;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 9px 11px;
+}
+.ppic-formula-source-list article + article {
+  border-top: 1px solid #edf0f3;
+}
+.ppic-formula-source-list article b,
+.ppic-formula-source-list article small {
+  display: block;
+}
+.ppic-formula-source-list article a {
+  color: #4338ca;
+  text-decoration: none;
+}
+.ppic-formula-source-list article small {
+  color: #667085;
+  font-size: 10px;
+  line-height: 1.45;
+  margin-top: 3px;
+}
+.ppic-formula-source-list article > strong {
+  color: #111827;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ppic-formula-source-list > p {
+  color: #98a2b3;
+  font-size: 11px;
+  margin: 0;
+  padding: 10px 11px;
+}
+@media (max-width: 640px) {
+  .ppic-formula-row {
+    grid-template-columns: 1fr;
+  }
+  .ppic-formula-row > strong {
+    text-align: left;
+  }
+}

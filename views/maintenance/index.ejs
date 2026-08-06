@@ -1,0 +1,27 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<main class="entity-page app-container maintenance-page">
+  <section class="entity-toolbar">
+    <div class="entity-title"><span>System</span><b>/</b><strong>Maintenance Data</strong></div>
+  </section>
+  <section class="maintenance-card">
+    <div class="maintenance-eyebrow">DANGER ZONE / SUPER ADMIN</div>
+    <h1>Reset Sales & Planning</h1>
+    <p class="maintenance-warning">Menghapus permanen Sales Order, Forecast, MPS, MRP, planned order, pegging, reservation SO, dan delivery schedule. Master data, user, BOM, inventory, purchasing, dan production tidak ikut dihapus.</p>
+    <div id="maintenance-alert" class="alert d-none" role="alert"></div>
+    <div class="maintenance-summary">
+      <div><small>Sales Order</small><strong id="count-salesOrderHeader">-</strong></div>
+      <div><small>Forecast</small><strong id="count-forecast">-</strong></div>
+      <div><small>MPS</small><strong id="count-mPS">-</strong></div>
+      <div><small>MRP Run</small><strong id="count-mRPRun">-</strong></div>
+    </div>
+    <div class="maintenance-actions">
+      <button id="refresh-maintenance" type="button" class="btn btn-outline-secondary">Refresh Status</button>
+      <button id="reset-demand-flow" type="button" class="btn btn-danger">Reset SO + Forecast + MPS + MRP</button>
+      <button id="reset-planning-flow" type="button" class="btn btn-warning">Reset MRP sampai Delivery</button>
+    </div>
+    <p class="maintenance-note">Reset demand membutuhkan <code>RESET_SO_MPS_MRP_FORECAST</code>. Reset planning membutuhkan <code>RESET_MPS_TO_DELIVERY</code>; keduanya hanya dapat dijalankan oleh Super Admin.</p>
+  </section>
+</main>
+<script id="maintenance-config" type="application/json"><%- JSON.stringify({ requiresAuth: true }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

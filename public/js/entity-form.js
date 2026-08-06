@@ -13,11 +13,25 @@
   function toInputDate(value, includeTime) { if (!value) return ""; const date = new Date(value); const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString(); return includeTime ? local.slice(0, 16) : local.slice(0, 10); }
 
   async function loadLookup(select) {
-    const response = await fetch(`/master-data/api/${select.dataset.lookup}?start=0&length=500`, { headers: authHeaders() });
+    const field = config.fields.find((item) => item.name === select.name) || {};
+    const params = new URLSearchParams({ start: "0", length: "500" });
+    Object.entries(field.lookupQuery || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+    });
+    const response = await fetch(`/master-data/api/${select.dataset.lookup}?${params.toString()}`, { headers: authHeaders() });
     if (response.status === 401) return redirectLogin();
     const payload = await response.json().catch(() => ({ data: [] }));
     const current = select.value; select.innerHTML = `<option value="">Pilih ${select.closest('.form-field').querySelector('.form-label').textContent.replace('*','').trim().toLowerCase()}</option>`;
     (payload.data || []).forEach((item) => { const option = document.createElement("option"); option.value = valueAt(item, select.dataset.valueKey) ?? ""; const label = valueAt(item, select.dataset.labelKey) || option.value; option.textContent = select.dataset.showValue === "true" && String(label) !== String(option.value) ? `${option.value} — ${label}` : label; select.appendChild(option); });
+    if (Array.isArray(field.labelKeys)) {
+      (payload.data || []).forEach((item, index) => {
+        const label = field.labelKeys
+          .map((key) => valueAt(item, key))
+          .filter((value) => value !== undefined && value !== null && String(value).trim() !== "")
+          .join(" \u2014 ");
+        if (label && select.options[index + 1]) select.options[index + 1].textContent = label;
+      });
+    }
     select.value = current;
   }
 
@@ -37,6 +51,16 @@
       else input.value = value ?? "";
     });
   }
+  function focusRequestedField() {
+    const focus = new URLSearchParams(location.search).get("focus");
+    const names = focus === "uom"
+      ? ["productionUomCode", "baseUomCode", "purchaseUomCode", "stockUomCode"]
+      : focus === "supplier" ? ["supplierId"] : [];
+    const input = names.map((name) => form.elements[name]).find(Boolean);
+    if (!input) return;
+    input.closest(".form-field")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => input.focus(), 250);
+  }
 
   async function initialize() {
     try {
@@ -44,7 +68,7 @@
       if (mode === "edit") {
         const response = await fetch(`/master-data/api/${config.slug}/${encodeURIComponent(recordKey)}`, { headers: authHeaders() });
         if (response.status === 401) return redirectLogin();
-        const payload = await response.json(); if (!response.ok) throw new Error(payload.message || "Data gagal dibuka."); populate(payload);
+        const payload = await response.json(); if (!response.ok) throw new Error(payload.message || "Data gagal dibuka."); populate(payload); focusRequestedField();
       } else if (config.generateCode) {
         const response = await fetch(`/master-data/api/${config.slug}/generate-code`, { headers: authHeaders() });
         const payload = await response.json().catch(() => ({}));
@@ -64,7 +88,7 @@
           const input = form.elements[field.name]; if (!input) return;
           if (field.type === "file") [...input.files].forEach((file) => body.append(field.name, file));
           else if (field.type === "checkbox") body.append(field.name, input.checked ? "true" : "false");
-          else if (field.multiple) body.append(field.name, JSON.stringify([...input.selectedOptions].map((option) => option.value)));
+          else if (field.multiple) body.append(field.name, JSON.stringify([...input.selectedOptions].map((option) => option.value).filter(Boolean)));
           else if (input.value !== "") body.append(field.name, input.value);
         });
       } else {
@@ -72,7 +96,7 @@
         config.fields.forEach((field) => {
           const input = form.elements[field.name]; if (!input || field.type === "file") return;
           if (field.type === "checkbox") data[field.name] = input.checked;
-          else if (field.multiple) data[field.name] = [...input.selectedOptions].map((option) => option.value);
+          else if (field.multiple) data[field.name] = [...input.selectedOptions].map((option) => option.value).filter(Boolean);
           else if (input.value !== "") {
             if (field.type === "number") data[field.name] = Number(input.value);
             else if (field.type === "json") { try { data[field.name] = JSON.parse(input.value); } catch { throw new Error(`${field.label} harus berupa JSON yang valid.`); } }

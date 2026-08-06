@@ -2,7 +2,7 @@
   const config = JSON.parse(document.getElementById("bom-editor-config").textContent);
   const editable = config.mode !== "view";
   const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
-  const state = { parts: [], materials: [], customers: [], uoms: [], processMaster: [], machines: [], numberingRules: new Map(), boms: [], drafts: [], bomByPartId: new Map(), expandedBoms: new Set(), nodes: [], selectedId: null, scale: 1, rootX: 990, rootY: 42, canvasWidth: 2200, canvasHeight: 1400, recordId: "", noReg: config.recordKey || "", quickPartKind: "child", pendingPartCounter: 0, draftId: config.mode === "draft" ? config.recordKey : "", draftUpdatedAt: "", draftAutosaveTimer: null, draftSaving: false, draftDirty: false, approving: false };
+  const state = { parts: [], materials: [], materialForms: [], customers: [], uoms: [], processMaster: [], machines: [], numberingRules: new Map(), boms: [], drafts: [], bomByPartId: new Map(), expandedBoms: new Set(), nodes: [], selectedId: null, scale: 1, rootX: 990, rootY: 42, canvasWidth: 2200, canvasHeight: 1400, recordId: "", noReg: config.recordKey || "", quickPartKind: "child", quickInsertBefore: null, pendingSequenceShift: null, sequenceInsertionPolicy: { locked: false, strategy: "SHIFT_MAIN_SEQUENCE", usage: {} }, pendingPartCounter: 0, draftId: config.mode === "draft" ? config.recordKey : "", draftUpdatedAt: "", draftAutosaveTimer: null, draftSaving: false, draftDirty: false, approving: false };
   const canvas = document.getElementById("bom-canvas");
   const viewport = document.getElementById("bom-canvas-viewport");
   const alertBox = document.getElementById("bom-alert");
@@ -44,9 +44,10 @@
 
   async function initialize() {
     try {
-      const [partsPayload, materialPayload, customerPayload, uomPayload, bomPayload, processPayload, machinePayload, numberingPayload, draftPayload] = await Promise.all([
+      const [partsPayload, materialPayload, materialFormPayload, customerPayload, uomPayload, bomPayload, processPayload, machinePayload, numberingPayload, draftPayload] = await Promise.all([
         fetchJson("/master-data/api/parts?start=0&length=500&isDeleted=false"),
         fetchJson("/master-data/api/materials?start=0&length=500&isDeleted=false"),
+        fetchJson("/master-data/api/material-forms?start=0&length=100&isDeleted=false"),
         fetchJson("/master-data/api/customers?start=0&length=500&isDeleted=false"),
         fetchJson("/master-data/api/uom?start=0&length=500&isDeleted=false"),
         fetchJson("/modules/api/manufacturing-bom/bill-of-materials?start=0&length=500&includeDetails=false"),
@@ -57,6 +58,7 @@
       ]);
       state.parts = (partsPayload.data || []).filter((part) => part.canUseInBom !== false);
       state.materials = materialPayload.data || [];
+      state.materialForms = materialFormPayload.data || [];
       state.customers = customerPayload.data || [];
       state.uoms = uomPayload.data || [];
       state.processMaster = processPayload.data || [];
@@ -72,10 +74,21 @@
       setOptions(document.getElementById("quick-part-uom"), state.uoms, "uomCode", (item) => `${item.uomCode} — ${item.uomName || item.uomCode}`, "Pilih UOM");
       setOptions(document.getElementById("quick-customer-code"), state.customers, "customerCode", (item) => `${item.customerCode} — ${item.customerName || item.customerCode}`, "Pilih customer");
       setOptions(document.getElementById("quick-material-id"), state.materials, "id", (item) => `${item.materialCode} — ${item.materialName || item.spec || item.materialCode}`, "Pilih master material");
+      setOptions(document.getElementById("node-material-form"), state.materialForms, "id", (item) => `${item.symbol} · ${item.formName}`, "Pilih form");
+      setOptions(document.getElementById("node-material-alt-form"), state.materialForms, "id", (item) => `${item.symbol} · ${item.formName}`, "Tidak digunakan");
       renderRecentBoms(state.boms.slice(0, 10));
       renderRecentDrafts(state.drafts.slice(0, 10));
       renderPalette();
-      if (config.mode === "draft") await loadDraft(); else if (config.mode !== "create") await loadRecord(); else { renderRoot(); autoLayout(); fitCanvas(); }
+      if (config.mode === "draft") await loadDraft(); else if (config.mode !== "create") await loadRecord(); else {
+        const requestedPartCode = new URLSearchParams(location.search).get("partCode");
+        const requestedPart = state.parts.find((part) => String(part.partCode) === String(requestedPartCode));
+        if (requestedPart) {
+          rootPart.value = requestedPart.id;
+          rootUom.value = requestedPart.productionUomCode || requestedPart.baseUomCode || "";
+          document.getElementById("bom-page-title").textContent = `BOM Baru · ${requestedPart.partCode}`;
+        }
+        renderRoot(); autoLayout(); fitCanvas();
+      }
     } catch (error) { showError(error.message); }
   }
 
@@ -92,6 +105,7 @@
   async function loadRecord() {
     const record = await fetchJson(`/modules/api/manufacturing-bom/bill-of-materials/${encodeURIComponent(config.recordKey)}`);
     state.recordId = record.id; state.noReg = record.noReg;
+    state.sequenceInsertionPolicy = record.sequenceInsertionPolicy || state.sequenceInsertionPolicy;
     rootPart.value = record.partId || ""; rootUom.value = record.uomCode || "";
     document.getElementById("bom-revision").value = record.revision || 1;
     document.getElementById("bom-effective").value = dateInput(record.effectiveDate);
@@ -99,12 +113,21 @@
     document.getElementById("bom-notes").value = record.notes || "";
     document.getElementById("bom-page-title").textContent = record.noReg || config.recordKey;
     state.nodes = (record.details || []).filter((item) => !item.isDeleted).map((item, index) => ({
-      id: item.id, clientKey: item.id || createKey(), parentDetailId: item.parentDetailId || null, partId: item.partId || "", linkedBom: (item.part?.mbomHeaders || []).find((bom) => bom.noReg !== record.noReg) || null, qty: Number(item.qty || 0), uomCode: item.uomCode || "", category: item.category || "Purchase", assemblyPolicyOverride: item.assemblyPolicyOverride || "DEFAULT", leadTime: Number(item.leadTime || 0), leadTimeUnit: item.leadTimeUnit || "HOUR", materialThickness: item.materialThickness, materialWidth: item.materialWidth, materialPitch: item.materialPitch, materialCavity: item.materialCavity, materialDensity: item.materialDensity, grossWeight: Number(item.grossWeight || 0), notes: item.notes || "", processes: item.mbomProcesses || [], x: 860 + (index % 4) * 260, y: 230 + Math.floor(index / 4) * 180
+      id: item.id, clientKey: item.id || createKey(), parentDetailId: item.parentDetailId || null, partId: item.partId || "", linkedBom: (item.part?.mbomHeaders || []).find((bom) => bom.noReg !== record.noReg) || null, qty: Number(item.qty || 0), uomCode: item.uomCode || "", category: item.category || "Purchase", assemblyPolicyOverride: item.assemblyPolicyOverride || "DEFAULT", leadTime: Number(item.leadTime || 0), leadTimeUnit: item.leadTimeUnit || "HOUR", materialThickness: item.materialThickness, materialWidth: item.materialWidth, materialPitch: item.materialPitch, materialCavity: item.materialCavity, materialDensity: item.materialDensity, materialFormId: item.materialFormId, materialScheme: item.materialScheme || "DEFAULT", defaultGrossWeight: item.defaultGrossWeight, alternateMaterialFormId: item.alternateMaterialFormId, alternateMaterialPitch: item.alternateMaterialPitch, alternateMaterialCavity: item.alternateMaterialCavity, alternateGrossWeight: item.alternateGrossWeight, grossWeight: Number(item.grossWeight || 0), notes: item.notes || "", processes: item.mbomProcesses || [], x: 860 + (index % 4) * 260, y: 230 + Math.floor(index / 4) * 180
     }));
     for (const node of [...state.nodes]) {
       if (node.linkedBom) await expandLinkedBom(node, node.linkedBom, new Set([record.noReg]));
     }
     renderRoot(); autoLayout(); fitCanvas();
+    const focusPartCode = new URLSearchParams(location.search).get("focusPart");
+    const focusNode = focusPartCode
+      ? state.nodes.find((node) => String(partById(node.partId).partCode) === String(focusPartCode))
+      : null;
+    if (focusNode) {
+      state.selectedId = nodeKey(focusNode);
+      renderAll();
+      renderInspector();
+    }
   }
 
   function draftSnapshot() {
@@ -113,7 +136,7 @@
       const clean = { ...part }; delete clean._createdThisSave; return clean;
     });
     const nodes = state.nodes.filter((node) => !node.external).map((node) => ({
-      clientKey: node.clientKey || node.id || createKey(), parentDetailId: node.parentDetailId || null, partId: node.partId, qty: Number(node.qty || 0), uomCode: node.uomCode || "", category: node.category || "Purchase", assemblyPolicyOverride: node.assemblyPolicyOverride || "DEFAULT", leadTime: Number(node.leadTime || 0), leadTimeUnit: node.leadTimeUnit || "HOUR", materialThickness: node.materialThickness, materialWidth: node.materialWidth, materialPitch: node.materialPitch, materialCavity: node.materialCavity, materialDensity: node.materialDensity, grossWeight: Number(node.grossWeight || 0), notes: node.notes || "", processes: node.processes || [], x: Number(node.x || 0), y: Number(node.y || 0), linkedBom: node.linkedBom || null,
+      clientKey: node.clientKey || node.id || createKey(), parentDetailId: node.parentDetailId || null, partId: node.partId, qty: Number(node.qty || 0), uomCode: node.uomCode || "", category: node.category || "Purchase", assemblyPolicyOverride: node.assemblyPolicyOverride || "DEFAULT", leadTime: Number(node.leadTime || 0), leadTimeUnit: node.leadTimeUnit || "HOUR", materialThickness: node.materialThickness, materialWidth: node.materialWidth, materialPitch: node.materialPitch, materialCavity: node.materialCavity, materialDensity: node.materialDensity, materialFormId: node.materialFormId, materialScheme: node.materialScheme || "DEFAULT", defaultGrossWeight: node.defaultGrossWeight, alternateMaterialFormId: node.alternateMaterialFormId, alternateMaterialPitch: node.alternateMaterialPitch, alternateMaterialCavity: node.alternateMaterialCavity, alternateGrossWeight: node.alternateGrossWeight, grossWeight: Number(node.grossWeight || 0), notes: node.notes || "", processes: node.processes || [], x: Number(node.x || 0), y: Number(node.y || 0), linkedBom: node.linkedBom || null,
     }));
     return {
       version: 1,
@@ -184,7 +207,7 @@
   function renderRoot() {
     const part = partById(rootPart.value); const root = document.getElementById("bom-root-node");
     root.classList.remove("bom-part-fg", "bom-part-wip", "bom-part-purchase", "bom-part-material", "bom-part-default"); root.classList.add(partVisualClass(part));
-    root.innerHTML = `<small>PRODUK UTAMA</small><b>${escapeHtml(part.partCode || part.partNumber || "Pilih produk utama")}</b><span>${escapeHtml(part.partName || "Root BOM")}</span>${editable ? '<div class="bom-node-footer"><span>Root BOM</span><button type="button" data-root-add title="Tambah part ke root">＋</button></div>' : ""}`;
+    root.innerHTML = `<small>PRODUK UTAMA</small><b>${escapeHtml(part.partCode || part.partNumber || "Pilih produk utama")}</b><span class="bom-node-part-number">Part No: ${escapeHtml(part.partNumber || "—")}</span><span>${escapeHtml(part.partName || "Root BOM")}</span>${editable ? '<div class="bom-node-footer"><span>Root BOM</span><button type="button" data-root-add title="Tambah part ke root">＋</button></div>' : ""}`;
     root.querySelector("[data-root-add]")?.addEventListener("click", (event) => { event.stopPropagation(); state.selectedId = null; openAddKindMenu(); });
   }
 
@@ -220,7 +243,7 @@
         uomCode: item.uomCode || "",
         category: item.category || "Purchase",
         assemblyPolicyOverride: item.assemblyPolicyOverride || "DEFAULT",
-        leadTime: Number(item.leadTime || 0), leadTimeUnit: item.leadTimeUnit || "HOUR", materialThickness: item.materialThickness, materialWidth: item.materialWidth, materialPitch: item.materialPitch, materialCavity: item.materialCavity, materialDensity: item.materialDensity, grossWeight: Number(item.grossWeight || 0),
+        leadTime: Number(item.leadTime || 0), leadTimeUnit: item.leadTimeUnit || "HOUR", materialThickness: item.materialThickness, materialWidth: item.materialWidth, materialPitch: item.materialPitch, materialCavity: item.materialCavity, materialDensity: item.materialDensity, materialFormId: item.materialFormId, materialScheme: item.materialScheme || "DEFAULT", defaultGrossWeight: item.defaultGrossWeight, alternateMaterialFormId: item.alternateMaterialFormId, alternateMaterialPitch: item.alternateMaterialPitch, alternateMaterialCavity: item.alternateMaterialCavity, alternateGrossWeight: item.alternateGrossWeight, grossWeight: Number(item.grossWeight || 0),
         notes: item.notes || "",
         processes: item.mbomProcesses || [],
         external: true,
@@ -258,7 +281,8 @@
       groups.get(groupKey).items.push({ nodeIndex, processIndex, process });
     }));
     groups.forEach(({ items, processId }) => {
-      items.sort((a, b) => a.nodeIndex - b.nodeIndex || Number(a.process.sequence || 0) - Number(b.process.sequence || 0) || a.processIndex - b.processIndex);
+      // Proses pertama adalah kartu paling bawah (alur produksi dibaca dari bawah ke atas).
+      items.sort((a, b) => b.nodeIndex - a.nodeIndex || Number(a.process.sequence || 0) - Number(b.process.sequence || 0) || a.processIndex - b.processIndex);
       const master = state.processMaster.find((item) => item.id === processId); const code = master?.processCode || "PROCESS";
       items.forEach((item, index) => { item.process.occurrenceCode = items.length === 1 ? code : `${code}-${index + 1}`; item.process.notes = item.process.occurrenceCode; });
     });
@@ -334,7 +358,11 @@
     node.materialPitch = node.materialPitch ?? base.length ?? null;
     node.materialCavity = node.materialCavity ?? base.cavity ?? 1;
     const thickness = Number(node.materialThickness || 0); const width = Number(node.materialWidth || 0); const pitch = Number(node.materialPitch || 0); const cavity = Math.max(1, Number(node.materialCavity || 1)); const density = Number(node.materialDensity || 0);
-    node.grossWeight = thickness > 0 && width > 0 && pitch > 0 && density > 0 ? thickness * width * pitch * density / cavity : 0;
+    node.materialFormId = node.materialFormId || null;
+    node.defaultGrossWeight = thickness > 0 && width > 0 && pitch > 0 && density > 0 ? thickness * width * pitch * density / cavity : 0;
+    const altPitch = Number(node.alternateMaterialPitch || 0); const altCavity = Math.max(1, Number(node.alternateMaterialCavity || 1));
+    node.alternateGrossWeight = thickness > 0 && width > 0 && altPitch > 0 && density > 0 ? thickness * width * altPitch * density / altCavity : null;
+    node.grossWeight = node.materialScheme === "ALTERNATIVE" && node.alternateGrossWeight ? node.alternateGrossWeight : node.defaultGrossWeight;
     return { part, material, parentPart, base, grossWeight: node.grossWeight };
   }
 
@@ -349,7 +377,7 @@
       const linkedBom = item.linkedBom || linkedBomForPart(item.partId); const materialInfo = materialConsumption(item);
       const createsChildBom = part.itemType === "FG";
       const bomAction = linkedBom ? `<a class="bom-node-linked" href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(linkedBom.noReg)}/edit">Edit BOM · ${escapeHtml(linkedBom.noReg)}</a>` : item.external ? `<a class="bom-node-linked external" href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(item.sourceBomNoReg)}/edit">Referensi · ${escapeHtml(item.sourceBomNoReg)}</a>` : editable && createsChildBom ? '<span class="bom-node-linked new">BOM Turunan Baru</span>' : "";
-      element.innerHTML = `<small>${item.external ? "BOM REFERENSI" : `LEVEL ${computeLevel(item) + 1}`} · ${escapeHtml(item.category)}</small><b>${escapeHtml(part.partCode || part.partNumber || "Pilih Part")}</b><span class="bom-node-meta">${escapeHtml(part.partName || "Komponen BOM")}</span>${bomAction}${materialInfo ? `<span class="bom-node-material-weight">${materialInfo.material ? escapeHtml(materialInfo.material.materialCode) : "Material belum terhubung"} · Gross ${Number(item.grossWeight || 0).toFixed(6)} kg/pcs</span>` : ""}${processBadges ? `<div class="bom-node-process-badges">${processBadges}</div>` : ""}<div class="bom-node-footer"><span>${new Intl.NumberFormat("id-ID").format(item.qty || 0)} ${escapeHtml(item.uomCode || "")}</span>${editable && !item.external ? '<button type="button" data-card-add title="Tambah part di bawah card ini">＋</button>' : ""}</div>`;
+      element.innerHTML = `<small>${item.external ? "BOM REFERENSI" : `LEVEL ${computeLevel(item) + 1}`} · ${escapeHtml(item.category)}</small><b>${escapeHtml(part.partCode || part.partNumber || "Pilih Part")}</b><span class="bom-node-part-number">Part No: ${escapeHtml(part.partNumber || "—")}</span><span class="bom-node-meta">${escapeHtml(part.partName || "Komponen BOM")}</span>${bomAction}${materialInfo ? `<span class="bom-node-material-weight">${materialInfo.material ? escapeHtml(materialInfo.material.materialCode) : "Material belum terhubung"} · Gross ${Number(item.grossWeight || 0).toFixed(6)} kg/pcs</span>` : ""}${processBadges ? `<div class="bom-node-process-badges">${processBadges}</div>` : ""}<div class="bom-node-footer"><span>${new Intl.NumberFormat("id-ID").format(item.qty || 0)} ${escapeHtml(item.uomCode || "")}</span>${editable && !item.external ? '<button type="button" data-card-add title="Tambah part di bawah card ini">＋</button>' : ""}</div>`;
       element.querySelector(".bom-node-linked[href]")?.addEventListener("click", (event) => event.stopPropagation());
       element.addEventListener("click", (event) => { event.stopPropagation(); const addButton = event.target.closest("[data-card-add]"); state.selectedId = key; renderAll(); renderInspector(); if (addButton) openAddKindMenu(); });
       if (editable && !item.external) attachDrag(element, item);
@@ -430,15 +458,34 @@
     document.getElementById("node-category").value = node.category; document.getElementById("node-policy").value = node.assemblyPolicyOverride; document.getElementById("node-lead-time").value = node.leadTime || 0; document.getElementById("node-lead-time-unit").value = node.leadTimeUnit || "HOUR"; document.getElementById("node-notes").value = node.notes || "";
     const materialInfo = materialConsumption(node); const materialSection = document.getElementById("node-material-consumption"); materialSection.classList.toggle("d-none", !materialInfo);
     if (materialInfo) { document.getElementById("node-material-name").textContent = materialInfo.material ? `${materialInfo.material.materialCode} — ${materialInfo.material.materialName || materialInfo.material.spec || ""}` : "Part raw material belum terhubung ke Master Material"; const materialLink = document.getElementById("node-material-link"); materialLink.href = materialInfo.material ? `/master-data/materials/${encodeURIComponent(materialInfo.material.materialCode)}` : `/master-data/parts/${encodeURIComponent(materialInfo.part.partCode || materialInfo.part.id)}/edit?key=${encodeURIComponent(materialInfo.part.partCode || materialInfo.part.id)}`; materialLink.textContent = materialInfo.material ? "Lihat Material" : "Hubungkan Part"; document.getElementById("node-material-thickness").value = node.materialThickness ?? ""; document.getElementById("node-material-width").value = node.materialWidth ?? ""; document.getElementById("node-material-pitch").value = node.materialPitch ?? ""; document.getElementById("node-material-cavity").value = node.materialCavity ?? 1; document.getElementById("node-material-density").value = node.materialDensity ?? ""; document.getElementById("node-gross-weight").value = Number(node.grossWeight || 0).toFixed(6); document.getElementById("node-material-formula").textContent = materialInfo.material ? "Gross kg/pcs = T × W × P × Density (kg/mm³) ÷ Cavity" : "Hubungkan Part ini ke Master Material agar T, W, density dan gross weight dapat dihitung."; }
+    if (materialInfo) {
+      document.getElementById("node-material-form").value = node.materialFormId || "";
+      document.getElementById("node-material-scheme").value = node.materialScheme || "DEFAULT";
+      document.getElementById("node-material-alt-form").value = node.alternateMaterialFormId || "";
+      document.getElementById("node-material-alt-pitch").value = node.alternateMaterialPitch ?? "";
+      document.getElementById("node-material-alt-cavity").value = node.alternateMaterialCavity ?? 1;
+      document.getElementById("node-material-alt-gross").value = Number(node.alternateGrossWeight || 0).toFixed(6);
+    }
     renderNodeProcesses(node);
     inspectorForm.querySelectorAll("input,select,textarea,button").forEach((input) => input.disabled = !editable || Boolean(node.external));
+    const insertButton = document.getElementById("node-insert-before");
+    if (insertButton) {
+      const canInsert = editable && !node.external && !part.isPending
+        && (part.itemType === "WIP" || (part.itemType === "RAW" && part.rawType === "MATERIAL"))
+        && Number(part.processSequence || 0) > 0;
+      insertButton.disabled = !canInsert;
+      insertButton.title = canInsert
+        ? (state.sequenceInsertionPolicy.locked ? "Sisipkan dengan slot sequence tanpa mengubah kode lama" : "Sisipkan dan geser sequence utama setelahnya")
+        : "Pilih child process yang sudah memiliki sequence.";
+    }
   }
 
   function processLabel(processId) { const item = state.processMaster.find((process) => process.id === processId); return item?.processName || item?.processCode || "Pilih proses"; }
   function renderNodeProcesses(node) {
     assignProcessOccurrenceCodes();
     const target = document.getElementById("node-process-list"); node.processes = (node.processes || []).sort((a, b) => Number(a.sequence || 0) - Number(b.sequence || 0)); const processes = node.processes;
-    target.innerHTML = processes.length ? processes.map((process, index) => `<div class="bom-process-row" data-process-index="${index}"><input class="form-control" data-process-field="sequence" type="number" min="1" value="${Number(process.sequence || 0)}" title="Order proses dalam part"><select class="form-select" data-process-field="processId"><option value="">Pilih proses</option>${state.processMaster.map((item) => `<option value="${item.id}" ${item.id === process.processId ? "selected" : ""}>${escapeHtml(item.processCode || "")} · ${escapeHtml(item.processName || "")}</option>`).join("")}</select><span class="bom-process-occurrence"><b>Routing ${escapeHtml(process.routingNumber || "-")}</b> · Kode BOM: <b>${escapeHtml(process.occurrenceCode || "-")}</b></span><select class="form-select" data-process-field="machineId"><option value="">Tanpa mesin</option>${state.machines.map((item) => `<option value="${item.id}" ${item.id === process.machineId ? "selected" : ""}>${escapeHtml(item.machineCode || item.machineName || "Mesin")}</option>`).join("")}</select><input class="form-control" data-process-field="cycleTime" type="number" min="0" step="0.01" value="${Number(process.cycleTime || 0)}" title="Cycle time (detik)"><button type="button" data-remove-process title="Hapus proses">×</button></div>`).join("") : '<div class="bom-process-empty">Belum ada sequence proses.</div>';
+    const specifications = [...new Map(state.machines.filter((machine) => machine.machineSpecificationCode).map((machine) => [machine.machineSpecificationCode, machine])).values()];
+    target.innerHTML = processes.length ? processes.map((process, index) => { const selectedSpec = process.machineSpecificationCode || process.machine?.machineSpecificationCode || state.machines.find((machine) => machine.id === process.machineId)?.machineSpecificationCode || ""; process.machineSpecificationCode = selectedSpec; const eligibleCount = state.machines.filter((machine) => machine.machineSpecificationCode === selectedSpec && machine.status === "Active").length; return `<div class="bom-process-row" data-process-index="${index}"><input class="form-control" data-process-field="sequence" type="number" min="1" value="${Number(process.sequence || 0)}" title="Order proses dalam part"><select class="form-select" data-process-field="processId"><option value="">Pilih proses</option>${state.processMaster.map((item) => `<option value="${item.id}" ${item.id === process.processId ? "selected" : ""}>${escapeHtml(item.processCode || "")} · ${escapeHtml(item.processName || "")}</option>`).join("")}</select><span class="bom-process-occurrence"><b>Routing ${escapeHtml(process.routingNumber || "-")}</b> · Kode BOM: <b>${escapeHtml(process.occurrenceCode || "-")}</b></span><select class="form-select" data-process-field="machineSpecificationCode"><option value="">Pilih machine specification</option>${specifications.map((item) => `<option value="${escapeHtml(item.machineSpecificationCode)}" ${item.machineSpecificationCode === selectedSpec ? "selected" : ""}>${escapeHtml(item.machineSpecificationCode)} · ${escapeHtml(item.machineSpecificationName || item.machineSpecificationCode)}</option>`).join("")}</select><small>${eligibleCount} mesin aktif eligible; mesin aktual dipilih di Capacity Planning</small><input class="form-control" data-process-field="cycleTime" type="number" min="0" step="0.01" value="${Number(process.cycleTime || 0)}" title="Cycle time (detik)"><button type="button" data-remove-process title="Hapus proses">×</button></div>`; }).join("") : '<div class="bom-process-empty">Belum ada sequence proses.</div>';
     if (!editable) target.querySelectorAll("input,select,button").forEach((control) => control.disabled = true);
   }
 
@@ -512,22 +559,20 @@
     const root = partById(rootPart.value); if (root.id && !parts.some((part) => part.id === root.id)) parts.push(root);
     return parts;
   }
-  function sequenceSourcePart(partType, kind = state.quickPartKind) {
+  function sequenceSourcePart(kind = state.quickPartKind) {
     if (kind === "fg" || kind === "purchase") return {};
-    if (partType === "COMP" && kind === "child") return partById(rootPart.value);
-    return insertionAncestorParts().find((part) => part.itemType === "FG" && part.partType !== "COMP") || {};
+    return insertionAncestorParts().find((part) => part.itemType === "FG") || {};
   }
   function renderSequenceSourceHint() {
-    const partType = state.quickPartKind === "material" ? "STANDARD" : document.getElementById("quick-part-type").value;
-    const source = sequenceSourcePart(partType);
-    document.getElementById("quick-sequence-source").textContent = source.id ? `SEQ mengikuti ${partType === "COMP" ? "Produk Utama" : "FG non-component"}: ${source.partCode}.` : "Belum ada sumber SEQ yang sesuai pada jalur parent.";
+    const source = sequenceSourcePart();
+    document.getElementById("quick-sequence-source").textContent = source.id ? `SEQ mengikuti FG parent terdekat: ${source.partCode}.` : "Belum ada FG parent pada jalur ini sebagai sumber SEQ.";
   }
   function openAddKindMenu() {
     document.getElementById("bom-add-kind-dialog").showModal();
   }
-  function quickNumberingRule(kind = state.quickPartKind) {
+  function quickNumberingRule() {
     const partType = document.getElementById("quick-part-type")?.value || "STANDARD";
-    const key = partType === "COMP" && kind === "child" ? "PART_CHILD_COMPONENT" : "PART_CHILD_NON_COMPONENT";
+    const key = partType === "COMP" ? "PART_CHILD_COMPONENT" : "PART_CHILD_NON_COMPONENT";
     return state.numberingRules.get(key) || { processStep: 10, insertionStart: 11, siblingAlphaMode: "SAME_PROCESS", inheritBranchAlpha: true };
   }
   function nextSiblingProcessOrder() {
@@ -620,13 +665,16 @@
         return;
       }
       if (part.itemType === "WIP" && parentPart.id && parentPart.partType !== "COMP") part.partType = "STANDARD";
-      const ruleKey = part.partType === "COMP" ? "PART_CHILD_COMPONENT" : "PART_CHILD_NON_COMPONENT"; const rule = state.numberingRules.get(ruleKey) || {}; const step = Math.max(1, Number(rule.processStep || 10)); const scopeKey = processSequenceScopeKey(node); let sequenceCursor = sequenceCursorByScope.get(scopeKey) || 0; sequenceCursor = Math.floor(sequenceCursor / step) * step + step; sequenceCursorByScope.set(scopeKey, sequenceCursor);
+      const ruleKey = part.partType === "COMP" ? "PART_CHILD_COMPONENT" : "PART_CHILD_NON_COMPONENT"; const rule = state.numberingRules.get(ruleKey) || {}; const step = Math.max(1, Number(rule.processStep || 10)); const scopeKey = processSequenceScopeKey(node); let sequenceCursor = sequenceCursorByScope.get(scopeKey) || 0;
+      const fixedSequence = Number(part.pendingPayload?.fixedProcessSequence || 0);
+      sequenceCursor = fixedSequence > 0 ? fixedSequence : Math.floor(sequenceCursor / step) * step + step;
+      sequenceCursorByScope.set(scopeKey, Math.max(sequenceCursorByScope.get(scopeKey) || 0, sequenceCursor));
       let branchCode = "";
       if (part.itemType === "WIP") {
         const siblings = localNodes.filter((item) => (item.parentDetailId || null) === (node.parentDetailId || null) && partById(item.partId).itemType === "WIP"); const siblingIndex = siblings.findIndex((item) => nodeKey(item) === nodeKey(node));
         const inheritedBranch = parentPart.itemType === "WIP" ? String(parentPart.branchCode || "") : ""; branchCode = siblings.length > 1 ? `${inheritedBranch}${alphaSequence(Math.max(0, siblingIndex))}` : inheritedBranch;
       }
-      const source = sequenceSourceForNode(node, part.partType); const pendingPayload = { ...(part.pendingPayload || {}), partType: part.partType, componentLevel: Math.max(1, Math.floor(sequenceCursor / step)), processOrder: Math.max(1, Math.floor(sequenceCursor / step)), sequenceSourcePartCode: source.partCode || "", parentBranchCode: parentPart.itemType === "WIP" ? parentPart.branchCode || "" : "", reserveBranchAlpha: part.itemType === "WIP" };
+      const source = sequenceSourceForNode(node); const pendingPayload = { ...(part.pendingPayload || {}), partType: part.partType, componentLevel: Math.max(1, Math.floor(sequenceCursor / step)), processOrder: Math.max(1, Math.floor(sequenceCursor / step)), fixedProcessSequence: fixedSequence > 0 ? fixedSequence : undefined, sequenceSourcePartCode: source.partCode || "", parentBranchCode: parentPart.itemType === "WIP" ? parentPart.branchCode || "" : "", reserveBranchAlpha: part.itemType === "WIP" };
       part.partCode = previewChildCode(pendingPayload, sequenceCursor, branchCode); part.branchCode = branchCode; part.processSequence = sequenceCursor; part.componentLevel = pendingPayload.componentLevel; part.bomLevel = level; part.pendingRuleKey = ruleKey; part.pendingPayload = pendingPayload;
     });
   }
@@ -636,29 +684,102 @@
     if (kind === "purchase") return part.itemType === "RAW" && part.rawType === "PURCHASE_PART";
     return part.itemType === "RAW" && part.rawType === "MATERIAL";
   }
-  function openQuickPartDialog(kind) {
-    state.quickPartKind = kind; const fg = kind === "fg"; const material = kind === "material"; const purchase = kind === "purchase";
-    const labels = fg ? ["FINISHED GOOD", "Tambah FG"] : material ? ["RAW MATERIAL", "Tambah Raw Material"] : purchase ? ["PURCHASE PART", "Tambah Purchase Part"] : ["CHILD PART", "Tambah Child Part"];
+  function openQuickPartDialog(kind, options = {}) {
+    state.quickPartKind = kind;
+    state.quickInsertBefore = options.insertBefore || null;
+    const inserting = Boolean(state.quickInsertBefore); const fg = kind === "fg"; const material = kind === "material"; const purchase = kind === "purchase";
+    const labels = inserting ? ["SISIP PROSES", "Tambah Child di Atas"] : fg ? ["FINISHED GOOD", "Tambah FG"] : material ? ["RAW MATERIAL", "Tambah Raw Material"] : purchase ? ["PURCHASE PART", "Tambah Purchase Part"] : ["CHILD PART", "Tambah Child Part"];
     document.getElementById("bom-part-kind-label").textContent = labels[0];
     document.getElementById("bom-part-dialog-title").textContent = labels[1];
-    document.getElementById("quick-part-type-wrap").classList.toggle("bom-field-disabled", material || purchase);
-    document.getElementById("quick-part-type").disabled = material || purchase;
+    document.getElementById("quick-part-type-wrap").classList.toggle("bom-field-disabled", purchase);
+    document.getElementById("quick-part-type").disabled = purchase;
     document.getElementById("quick-part-type").value = material || purchase || fg ? "STANDARD" : "COMP";
-    document.getElementById("quick-part-level-wrap").classList.toggle("d-none", purchase || fg || isNewBomMode());
-    document.getElementById("quick-position-mode-wrap").classList.toggle("d-none", purchase || fg || isNewBomMode());
-    document.getElementById("quick-position-mode").classList.toggle("d-none", purchase || fg || isNewBomMode());
+    document.getElementById("quick-part-level-wrap").classList.toggle("d-none", inserting || purchase || fg || isNewBomMode());
+    document.getElementById("quick-position-mode-wrap").classList.toggle("d-none", inserting || purchase || fg || isNewBomMode());
+    document.getElementById("quick-position-mode").classList.toggle("d-none", inserting || purchase || fg || isNewBomMode());
     document.getElementById("quick-has-drawing-wrap").classList.toggle("d-none", !purchase);
     document.getElementById("quick-material-wrap").classList.toggle("d-none", !material);
     if (!material) document.getElementById("quick-material-id").value = "";
     document.getElementById("quick-has-drawing").checked = false;
-    document.getElementById("quick-part-level").value = nextSiblingProcessOrder();
-    document.getElementById("quick-position-mode").value = "MAIN";
-    renderSequenceSourceHint();
+    document.getElementById("quick-part-level").value = inserting ? Math.max(1, Math.floor(state.quickInsertBefore.fixedSequence / state.quickInsertBefore.step)) : nextSiblingProcessOrder();
+    document.getElementById("quick-position-mode").value = inserting && state.sequenceInsertionPolicy.locked ? "INSERT" : "MAIN";
+    if (inserting) {
+      document.getElementById("quick-sequence-source").textContent = state.quickInsertBefore.shiftExisting
+        ? `Sequence ${String(state.quickInsertBefore.targetSequence).padStart(3, "0")} dipakai part baru; part lama dan setelahnya digeser +${state.quickInsertBefore.step}.`
+        : `Kode lama tetap. Part baru memakai slot ${String(state.quickInsertBefore.fixedSequence).padStart(3, "0")} sebelum ${String(state.quickInsertBefore.targetSequence).padStart(3, "0")}.`;
+    } else renderSequenceSourceHint();
     const customerCode = inheritedCustomerCode(); document.getElementById("quick-customer-code").value = customerCode;
     const existing = state.parts.filter((part) => partMatchesQuickKind(part, kind) && (purchase || !customerCode || part.customerCode === customerCode || part.customerCodes?.includes(customerCode)));
     setOptions(document.getElementById("quick-existing-part"), existing, "id", optionLabel, "Pilih part existing");
+    document.querySelector(".bom-existing-part")?.classList.toggle("d-none", inserting);
+    document.querySelector(".bom-dialog-divider")?.classList.toggle("d-none", inserting);
     document.getElementById("quick-existing-hint").textContent = customerCode && !purchase ? `Difilter mengikuti customer parent: ${customerCode}.` : "Daftar difilter mengikuti tipe part.";
     document.getElementById("bom-part-create-error").classList.add("d-none"); document.getElementById("bom-part-dialog").showModal();
+  }
+
+  function openInsertBeforeDialog() {
+    clearError();
+    const target = selectedNode(); const targetPart = partById(target?.partId);
+    if (!target || target.external || targetPart.isPending) return showError("Pilih child process existing yang akan diberi proses sebelumnya.");
+    if (state.pendingSequenceShift) return showError("Simpan perubahan sisipan yang sedang aktif sebelum membuat sisipan berikutnya.");
+    const targetSequence = Number(targetPart.processSequence || 0);
+    if (!(targetSequence > 0) || !(targetPart.itemType === "WIP" || (targetPart.itemType === "RAW" && targetPart.rawType === "MATERIAL"))) {
+      return showError("Child terpilih belum memiliki process sequence yang dapat disisipi.");
+    }
+    const ruleKey = targetPart.partType === "COMP" ? "PART_CHILD_COMPONENT" : "PART_CHILD_NON_COMPONENT";
+    const step = Math.max(1, Number(state.numberingRules.get(ruleKey)?.processStep || 10));
+    let fixedSequence = targetSequence;
+    const shiftExisting = !state.sequenceInsertionPolicy.locked;
+    if (!shiftExisting) {
+      const previousMain = Math.max(0, Math.floor((targetSequence - 1) / step) * step);
+      const used = new Set(state.nodes.filter((node) => !node.external && processSequenceScopeKey(node) === processSequenceScopeKey(target)).map((node) => Number(partById(node.partId).processSequence || 0)));
+      fixedSequence = previousMain + 1;
+      while (fixedSequence < targetSequence && used.has(fixedSequence)) fixedSequence += 1;
+      if (fixedSequence >= targetSequence) return showError(`Slot sisipan sebelum ${String(targetSequence).padStart(3, "0")} sudah penuh.`);
+    }
+    openQuickPartDialog("child", {
+      insertBefore: {
+        targetKey: nodeKey(target),
+        originalParentId: target.parentDetailId || null,
+        targetSequence,
+        fixedSequence,
+        shiftExisting,
+        step,
+        scopeKey: processSequenceScopeKey(target),
+      },
+    });
+  }
+
+  function replacePartProcessSequence(partCode, processSequence) {
+    const suffix = `-${String(processSequence).padStart(3, "0")}`;
+    return /-\d{2,3}$/.test(String(partCode || "")) ? String(partCode).replace(/-\d{2,3}$/, suffix) : `${partCode}${suffix}`;
+  }
+
+  function previewSequenceShift(context) {
+    if (!context?.shiftExisting) return null;
+    const affected = new Map();
+    state.nodes.filter((node) => !node.external && processSequenceScopeKey(node) === context.scopeKey).forEach((node) => {
+      const part = partById(node.partId); const sequence = Number(part.processSequence || 0);
+      if (!part.isPending && part.id && sequence >= context.targetSequence) affected.set(part.id, part);
+    });
+    if (!affected.size) throw new Error("Part sequence yang akan digeser tidak ditemukan.");
+    const originals = [...affected.values()].map((part) => ({ id: part.id, partCode: part.partCode, processSequence: Number(part.processSequence), componentLevel: Number(part.componentLevel || 0) }));
+    originals.forEach((original) => {
+      const part = partById(original.id); const nextSequence = original.processSequence + context.step;
+      part.partCode = replacePartProcessSequence(original.partCode, nextSequence);
+      part.processSequence = nextSequence;
+      part.componentLevel = Math.max(1, Math.floor(nextSequence / context.step));
+    });
+    state.pendingSequenceShift = { mbomHeaderId: state.recordId, partIds: originals.map((item) => item.id), fromSequence: context.targetSequence, shiftBy: context.step, originals, applied: false };
+    return state.pendingSequenceShift;
+  }
+
+  function restoreSequenceShiftPreview(shift = state.pendingSequenceShift) {
+    (shift?.originals || []).forEach((original) => {
+      const part = partById(original.id);
+      if (part.id) Object.assign(part, { partCode: original.partCode, processSequence: original.processSequence, componentLevel: original.componentLevel });
+    });
+    if (state.pendingSequenceShift === shift) state.pendingSequenceShift = null;
   }
   function addExistingQuickPart() {
     const partId = document.getElementById("quick-existing-part").value; const errorBox = document.getElementById("bom-part-create-error");
@@ -668,48 +789,52 @@
   }
   async function createQuickPart(event) {
     event.preventDefault(); const fg = state.quickPartKind === "fg"; const material = state.quickPartKind === "material"; const purchase = state.quickPartKind === "purchase"; const raw = material || purchase; const errorBox = document.getElementById("bom-part-create-error"); const submit = document.getElementById("bom-part-create-submit");
+    const insertContext = state.quickInsertBefore; const insertTarget = insertContext ? state.nodes.find((node) => nodeKey(node) === insertContext.targetKey) : null;
     const customerCode = document.getElementById("quick-customer-code").value || null; const hasDrawing = purchase && document.getElementById("quick-has-drawing").checked;
-    const processOrder = Number(document.getElementById("quick-part-level").value || 1); const isInsertion = document.getElementById("quick-position-mode").value === "INSERT";
-    const parentKey = state.selectedId || null; const parentPart = partById(selectedNode()?.partId || rootPart.value); const siblings = state.nodes.filter((node) => !node.external && (node.parentDetailId || null) === parentKey).map((node) => partById(node.partId));
-    const rule = quickNumberingRule(material ? "material" : "child"); const step = Math.max(1, Number(rule.processStep || 10)); const insertionOffset = Math.max(1, Number(rule.insertionStart || step + 1) - step); const expectedSequence = processOrder * step + (isInsertion ? insertionOffset : 0);
-    const sameProcessSiblings = isInsertion ? [] : siblings.filter((part) => part.itemType !== "FG" && Number(part.processSequence) === expectedSequence);
-    const partType = material || purchase ? "STANDARD" : document.getElementById("quick-part-type").value; const sequenceSource = sequenceSourcePart(partType, state.quickPartKind);
-    const payload = { partName: document.getElementById("quick-part-name").value.trim(), partNumber: document.getElementById("quick-part-number").value.trim() || null, customerCode, noRevisi: document.getElementById("quick-part-revision").value.trim() || "00", itemType: fg ? "FG" : raw ? "RAW" : "WIP", rawType: material ? "MATERIAL" : purchase ? "PURCHASE_PART" : null, materialId: material ? document.getElementById("quick-material-id").value || null : null, partType, hasDrawing, componentLevel: purchase || fg ? 0 : processOrder, processOrder: purchase || fg ? undefined : processOrder, isInsertion: purchase || fg ? false : isInsertion, sequenceSourcePartCode: sequenceSource.partCode || "", parentBranchCode: raw ? "" : parentPart.branchCode || "", siblingBranchCodes: raw ? [] : sameProcessSiblings.map((part) => part.branchCode || ""), siblingPartIds: raw ? [] : sameProcessSiblings.map((part) => part.id).filter(Boolean), reserveBranchAlpha: !fg && !raw, usedProcessSequences: siblings.map((part) => Number(part.processSequence)).filter((value) => value > 0), status: "Active", canPurchase: raw, canManufacture: fg || !raw, canSell: fg, canStore: true, canUseInBom: true, canSubcontract: false, canTrackLot: raw, canTrackSerial: false };
+    const processOrder = insertContext ? Math.max(1, Math.floor(insertContext.fixedSequence / insertContext.step)) : Number(document.getElementById("quick-part-level").value || 1); const isInsertion = insertContext ? !insertContext.shiftExisting : document.getElementById("quick-position-mode").value === "INSERT";
+    const parentKey = insertContext ? insertContext.originalParentId : state.selectedId || null; const parentNode = state.nodes.find((node) => nodeKey(node) === parentKey); const parentPart = partById(parentNode?.partId || rootPart.value); const siblings = state.nodes.filter((node) => !node.external && (node.parentDetailId || null) === (parentKey || null)).map((node) => partById(node.partId)); const numberingSiblings = insertTarget ? siblings.filter((part) => part.id !== insertTarget.partId) : siblings;
+    const rule = quickNumberingRule(); const step = Math.max(1, Number(rule.processStep || 10)); const insertionOffset = Math.max(1, Number(rule.insertionStart || step + 1) - step); const expectedSequence = insertContext ? insertContext.fixedSequence : processOrder * step + (isInsertion ? insertionOffset : 0);
+    const sameProcessSiblings = isInsertion ? [] : numberingSiblings.filter((part) => part.itemType !== "FG" && Number(part.processSequence) === expectedSequence);
+    const partType = purchase ? "STANDARD" : document.getElementById("quick-part-type").value; const sequenceSource = sequenceSourcePart(state.quickPartKind);
+    const uom = document.getElementById("quick-part-uom").value || rootUom.value || "";
+    const payload = { partName: document.getElementById("quick-part-name").value.trim(), partNumber: document.getElementById("quick-part-number").value.trim() || null, customerCode, noRevisi: document.getElementById("quick-part-revision").value.trim() || "00", itemType: fg ? "FG" : raw ? "RAW" : "WIP", rawType: material ? "MATERIAL" : purchase ? "PURCHASE_PART" : null, materialId: material ? document.getElementById("quick-material-id").value || null : null, partType, hasDrawing, componentLevel: purchase || fg ? 0 : processOrder, processOrder: purchase || fg ? undefined : processOrder, isInsertion: purchase || fg ? false : isInsertion, fixedProcessSequence: insertContext ? expectedSequence : undefined, sequenceSourcePartCode: sequenceSource.partCode || "", parentBranchCode: raw ? "" : parentPart.branchCode || "", siblingBranchCodes: raw ? [] : sameProcessSiblings.map((part) => part.branchCode || ""), siblingPartIds: raw ? [] : sameProcessSiblings.map((part) => part.id).filter(Boolean), reserveBranchAlpha: !fg && !raw, usedProcessSequences: numberingSiblings.map((part) => Number(part.processSequence)).filter((value) => value > 0), status: "Active", canPurchase: raw, canManufacture: fg || !raw, canSell: fg, canStore: true, canUseInBom: true, canSubcontract: false, canTrackLot: raw, canTrackSerial: false, baseUomCode: uom || null, stockUomCode: uom || null, productionUomCode: fg || !raw ? uom || null : null, purchaseUomCode: raw ? uom || null : null, salesUomCode: fg ? uom || null : null };
     if (!payload.partName) { errorBox.textContent = "Nama part wajib diisi."; errorBox.classList.remove("d-none"); return; }
     if (material && !payload.materialId) { errorBox.textContent = "Raw material wajib dihubungkan ke Master Material."; errorBox.classList.remove("d-none"); return; }
     if (!(purchase && !hasDrawing) && !customerCode) { errorBox.textContent = "Customer Code wajib untuk pola penomoran part ini."; errorBox.classList.remove("d-none"); return; }
     submit.disabled = true;
     try {
+      if (insertContext?.shiftExisting) previewSequenceShift(insertContext);
       state.pendingPartCounter += 1; const tempId = `temp_part_${createKey()}`;
-      const provisional = provisionalPartIdentity(payload, siblings, parentPart, expectedSequence);
-      const pending = { ...payload, ...provisional, material: state.materials.find((item) => item.id === payload.materialId) || null, id: tempId, bomLevel: selectedNode() ? computeLevel(selectedNode()) + 2 : 1, isPending: true, pendingPayload: payload };
+      const provisional = provisionalPartIdentity(payload, numberingSiblings, parentPart, expectedSequence);
+      const pending = { ...payload, ...provisional, material: state.materials.find((item) => item.id === payload.materialId) || null, id: tempId, bomLevel: parentNode ? computeLevel(parentNode) + 2 : 1, isPending: true, pendingPayload: payload };
       state.parts.push(pending); setOptions(rootPart, state.parts, "id", optionLabel, "Pilih produk utama"); setOptions(document.getElementById("node-part"), state.parts, "id", optionLabel, "Pilih part"); renderPalette();
-      const uom = document.getElementById("quick-part-uom").value || rootUom.value || ""; addNode(pending.id); const node = selectedNode(); if (node) node.uomCode = uom;
-      document.getElementById("bom-part-dialog").close(); event.target.reset(); document.getElementById("quick-part-revision").value = "00"; renderAll(); renderInspector();
-    } catch (error) { errorBox.textContent = error.message; errorBox.classList.remove("d-none"); } finally { submit.disabled = false; }
+      addNode(pending.id, parentKey); const node = selectedNode(); if (node) node.uomCode = uom;
+      if (insertTarget && node) insertTarget.parentDetailId = nodeKey(node);
+      state.quickInsertBefore = null;
+      document.getElementById("bom-part-dialog").close(); event.target.reset(); document.getElementById("quick-part-revision").value = "00"; autoLayout(); renderAll(); renderInspector();
+    } catch (error) { restoreSequenceShiftPreview(); errorBox.textContent = error.message; errorBox.classList.remove("d-none"); } finally { submit.disabled = false; }
   }
 
-  function sequenceSourceForNode(node, partType) {
-    if (partType === "COMP") return partById(rootPart.value);
+  function sequenceSourceForNode(node) {
     let parent = node ? state.nodes.find((item) => nodeKey(item) === node.parentDetailId) : null; const visited = new Set();
     while (parent && !visited.has(nodeKey(parent))) {
       visited.add(nodeKey(parent)); const part = partById(parent.partId);
-      if (part.itemType === "FG" && part.partType !== "COMP") return part;
+      if (part.itemType === "FG") return part;
       parent = state.nodes.find((item) => nodeKey(item) === parent.parentDetailId);
     }
     const root = partById(rootPart.value);
-    return root.itemType === "FG" && root.partType !== "COMP" ? root : {};
+    return root.itemType === "FG" ? root : {};
   }
 
   function processSequenceScopeKey(node) {
     let parent = node ? state.nodes.find((item) => nodeKey(item) === node.parentDetailId) : null; const visited = new Set();
     while (parent && !visited.has(nodeKey(parent))) {
       visited.add(nodeKey(parent)); const part = partById(parent.partId);
-      if (part.itemType === "FG" && part.partType !== "COMP") return `fg:${part.id}`;
+      if (part.itemType === "FG") return `fg:${part.id}`;
       parent = state.nodes.find((item) => nodeKey(item) === parent.parentDetailId);
     }
     const root = partById(rootPart.value);
-    return root.itemType === "FG" && root.partType !== "COMP" ? `fg:${root.id}` : `root:${root.id || rootPart.value || "unselected"}`;
+    return root.itemType === "FG" ? `fg:${root.id}` : `root:${root.id || rootPart.value || "unselected"}`;
   }
 
   function pendingMaterializationOrder() {
@@ -740,14 +865,16 @@
       const isChildNumbered = base.itemType === "WIP" || (base.itemType === "RAW" && base.rawType === "MATERIAL");
       const ruleKey = base.partType === "COMP" ? "PART_CHILD_COMPONENT" : "PART_CHILD_NON_COMPONENT"; const step = Math.max(1, Number(state.numberingRules.get(ruleKey)?.processStep || 10));
       const scopeKey = processSequenceScopeKey(entry.node); const usedSequences = usedSequencesByScope.get(scopeKey) || new Set(); let sequenceCursor = sequenceCursorByScope.get(scopeKey) || 0;
-      if (isChildNumbered && isNewBomMode()) sequenceCursor = Math.floor(sequenceCursor / step) * step + step;
-      if (isChildNumbered && !isNewBomMode()) {
+      const fixedSequence = Number(base.fixedProcessSequence || 0);
+      if (isChildNumbered && fixedSequence > 0) sequenceCursor = fixedSequence;
+      else if (isChildNumbered && isNewBomMode()) sequenceCursor = Math.floor(sequenceCursor / step) * step + step;
+      else if (isChildNumbered && !isNewBomMode()) {
         const baseOrder = Math.max(1, Number(base.processOrder || base.componentLevel || 1)); const insertionOffset = Math.max(1, Number(state.numberingRules.get(ruleKey)?.insertionStart || step + 1) - step);
         sequenceCursor = baseOrder * step + (base.isInsertion ? insertionOffset : 0); while (usedSequences.has(sequenceCursor)) sequenceCursor += 1;
       }
       if (isChildNumbered) { usedSequences.add(sequenceCursor); usedSequencesByScope.set(scopeKey, usedSequences); sequenceCursorByScope.set(scopeKey, sequenceCursor); }
-      const source = isChildNumbered ? sequenceSourceForNode(entry.node, base.partType) : {};
-      if (isChildNumbered && !source.partCode) throw new Error(base.partType === "COMP" ? "Produk Utama belum memiliki kode final sebagai sumber SEQ." : "FG non-component belum tersedia pada jalur parent sebagai sumber SEQ.");
+      const source = isChildNumbered ? sequenceSourceForNode(entry.node) : {};
+      if (isChildNumbered && !source.partCode) throw new Error("FG parent belum memiliki kode final sebagai sumber SEQ.");
       const sameLevelParts = entry.node && base.itemType === "WIP" ? state.nodes.filter((node) => !node.external && nodeKey(node) !== nodeKey(entry.node) && (node.parentDetailId || null) === (entry.node.parentDetailId || null) && computeLevel(node) + 1 === entry.level).map((node) => partById(node.partId)).filter((part) => part.id && !part.isPending && part.itemType === "WIP") : [];
       const payload = { ...base, bomLevel: entry.level, processSequence: isChildNumbered ? sequenceCursor : 0, processOrder: isChildNumbered ? Math.max(1, Math.floor(sequenceCursor / step)) : undefined, componentLevel: isChildNumbered ? Math.max(1, Math.floor(sequenceCursor / step)) : 0, isInsertion: false, sequenceSourcePartCode: source.partCode || "", parentBranchCode: base.itemType === "WIP" && parentPart.itemType === "WIP" ? parentPart.branchCode || "" : "", siblingBranchCodes: sameLevelParts.map((part) => part.branchCode || ""), siblingPartIds: sameLevelParts.map((part) => part.id), reserveBranchAlpha: base.itemType === "WIP", usedProcessSequences: [] };
       const response = await fetch("/master-data/api/parts", { method: "POST", headers: authHeaders(true), body: JSON.stringify(payload) }); const created = await response.json().catch(() => ({}));
@@ -772,8 +899,44 @@
     setOptions(rootPart, state.parts, "id", optionLabel, "Pilih produk utama"); rootPart.value = context.rootPartId; setOptions(document.getElementById("node-part"), state.parts, "id", optionLabel, "Pilih part"); renderPalette(); renderRoot(); renderAll();
   }
 
+  async function applyPendingSequenceShift(shift) {
+    if (!shift) return null;
+    const response = await fetch("/master-data/api/parts/shift-process-sequences", { method: "POST", headers: authHeaders(true), body: JSON.stringify({ mbomHeaderId: shift.mbomHeaderId, partIds: shift.partIds, fromSequence: shift.fromSequence, shiftBy: shift.shiftBy }) });
+    const payload = await response.json().catch(() => ({}));
+    if (response.status === 401) { location.replace(`/login?next=${encodeURIComponent(location.pathname)}`); throw new Error("Sesi berakhir."); }
+    if (!response.ok) throw new Error(payload.message || "Sequence part lama gagal digeser.");
+    (payload.items || []).forEach((item) => {
+      const part = partById(item.id);
+      if (part.id) Object.assign(part, { partCode: item.partCode, processSequence: item.processSequence, componentLevel: item.componentLevel });
+    });
+    shift.applied = true;
+    return shift;
+  }
+
+  async function rollbackPendingSequenceShift(shift) {
+    if (!shift) return;
+    let rollbackError = null;
+    if (shift.applied) {
+      try {
+        const response = await fetch("/master-data/api/parts/shift-process-sequences", { method: "POST", headers: authHeaders(true), body: JSON.stringify({ mbomHeaderId: shift.mbomHeaderId, partIds: shift.partIds, fromSequence: shift.fromSequence + shift.shiftBy, shiftBy: -shift.shiftBy }) });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) rollbackError = new Error(payload.message || "Rollback sequence part gagal.");
+      } catch (error) { rollbackError = error; }
+    }
+    restoreSequenceShiftPreview(shift);
+    if (!rollbackError) {
+      (shift.originals || []).forEach((original) => {
+        const part = partById(original.id); const processSequence = original.processSequence + shift.shiftBy;
+        if (part.id) Object.assign(part, { partCode: replacePartProcessSequence(original.partCode, processSequence), processSequence, componentLevel: Math.max(1, Math.floor(processSequence / shift.shiftBy)) });
+      });
+      shift.applied = false;
+      state.pendingSequenceShift = shift;
+    }
+    if (rollbackError) throw rollbackError;
+  }
+
   function serializeBomNode(node, parentDetailId = node.parentDetailId || null, levelComponent = computeLevel(node) + 1) {
-    materialConsumption(node); return { id: node.id, clientKey: node.clientKey, parentDetailId, levelComponent, partId: node.partId, qty: Number(node.qty), uomCode: node.uomCode || null, category: node.category, assemblyPolicyOverride: node.assemblyPolicyOverride, leadTime: Number(node.leadTime || 0), leadTimeUnit: node.leadTimeUnit || "HOUR", materialThickness: node.materialThickness ?? null, materialWidth: node.materialWidth ?? null, materialPitch: node.materialPitch ?? null, materialCavity: node.materialCavity ?? null, materialDensity: node.materialDensity ?? null, grossWeight: Number(node.grossWeight || 0), notes: node.notes || null, mbomProcesses: node.processes || [] };
+    materialConsumption(node); return { id: node.id, clientKey: node.clientKey, parentDetailId, levelComponent, partId: node.partId, qty: Number(node.qty), uomCode: node.uomCode || null, category: node.category, assemblyPolicyOverride: node.assemblyPolicyOverride, leadTime: Number(node.leadTime || 0), leadTimeUnit: node.leadTimeUnit || "HOUR", materialThickness: node.materialThickness ?? null, materialWidth: node.materialWidth ?? null, materialPitch: node.materialPitch ?? null, materialCavity: node.materialCavity ?? null, materialDensity: node.materialDensity ?? null, materialFormId: node.materialFormId || null, materialScheme: node.materialScheme || "DEFAULT", defaultGrossWeight: node.defaultGrossWeight ?? null, alternateMaterialFormId: node.alternateMaterialFormId || null, alternateMaterialPitch: node.alternateMaterialPitch ?? null, alternateMaterialCavity: node.alternateMaterialCavity ?? null, alternateGrossWeight: node.alternateGrossWeight ?? null, grossWeight: Number(node.grossWeight || 0), notes: node.notes || null, mbomProcesses: node.processes || [] };
   }
 
   function belongsToChildAssembly(node) {
@@ -835,6 +998,8 @@
   async function saveBom() {
     clearError(); const localNodes = state.nodes.filter((node) => !node.external); if (!rootPart.value) return showError("Produk utama wajib dipilih."); if (!localNodes.length) return showError("Tambahkan minimal satu komponen ke canvas BOM.");
     const invalid = localNodes.find((node) => !node.partId || !(Number(node.qty) > 0)); if (invalid) { state.selectedId = nodeKey(invalid); renderAll(); renderInspector(); return showError("Semua node wajib memiliki Part dan Qty lebih dari 0."); }
+    const invalidMaterial = localNodes.find((node) => { const part = partById(node.partId); if (part.itemType !== "RAW" || part.rawType !== "MATERIAL") return false; return !node.materialFormId || (node.alternateMaterialFormId && node.alternateMaterialFormId === node.materialFormId) || (node.materialScheme === "ALTERNATIVE" && (!node.alternateMaterialFormId || !(Number(node.alternateMaterialPitch) > 0))); });
+    if (invalidMaterial) { state.selectedId = nodeKey(invalidMaterial); renderAll(); renderInspector(); return showError("Raw material wajib memiliki Form default. Form alternatif harus berbeda dan dilengkapi pitch bila dipakai."); }
     const invalidProcessNode = localNodes.find((node) => { const sequences = (node.processes || []).map((item) => Number(item.sequence)); return (node.processes || []).some((item) => !item.processId || !(Number(item.sequence) > 0)) || new Set(sequences).size !== sequences.length; });
     if (invalidProcessNode) { state.selectedId = nodeKey(invalidProcessNode); renderAll(); renderInspector(); return showError("Setiap proses wajib dipilih, sequence harus lebih dari 0 dan tidak boleh duplikat dalam satu node."); }
     if (config.mode === "draft") {
@@ -843,8 +1008,9 @@
       state.approving = true; setDraftStatus("Memproses approval…", "saving");
     }
     const button = document.getElementById("bom-save"); button.disabled = true; button.querySelector("i").classList.remove("d-none");
-    let materialization = null; let createdMainBom = null; const createdChildBoms = [];
+    let materialization = null; let sequenceShift = state.pendingSequenceShift; let createdMainBom = null; const createdChildBoms = [];
     try {
+      await applyPendingSequenceShift(sequenceShift);
       materialization = await materializePendingParts();
       const header = { partId: rootPart.value, uomCode: rootUom.value || null, revision: Number(document.getElementById("bom-revision").value || 1), effectiveDate: document.getElementById("bom-effective").value || null, expiryDate: document.getElementById("bom-expiry").value || null, notes: document.getElementById("bom-notes").value || null };
       // Parent MBOM hanya menyimpan FG/sub-assembly sebagai referensi. Isi turunannya
@@ -861,7 +1027,9 @@
       if (createdMainBom?.noReg) await fetch(`/modules/api/manufacturing-bom/bill-of-materials/${encodeURIComponent(createdMainBom.noReg)}`, { method: "DELETE", headers: authHeaders() }).catch(() => {});
       await Promise.allSettled(createdChildBoms.map((bom) => fetch(`/modules/api/manufacturing-bom/bill-of-materials/${encodeURIComponent(bom.noReg)}`, { method: "DELETE", headers: authHeaders() })));
       await rollbackMaterializedParts(materialization || error.materializationContext);
-      state.approving = false; showError(error.message); button.disabled = false; button.querySelector("i").classList.add("d-none"); renderInspector(); scheduleDraftAutosave();
+      let rollbackMessage = "";
+      try { await rollbackPendingSequenceShift(sequenceShift); } catch (rollbackError) { rollbackMessage = ` Rollback sequence perlu diperiksa: ${rollbackError.message}`; }
+      state.approving = false; showError(`${error.message}${rollbackMessage}`); button.disabled = false; button.querySelector("i").classList.add("d-none"); renderInspector(); scheduleDraftAutosave();
     }
   }
 
@@ -890,10 +1058,13 @@
       else { renderAll(); renderInspector(); }
     }));
     document.getElementById("node-add-child").addEventListener("click", () => openQuickPartDialog("child"));
-    document.getElementById("node-delete").addEventListener("click", () => { const node = selectedNode(); if (!node || !confirm("Hapus node ini beserta seluruh child-nya?")) return; const remove = descendantsOf(nodeKey(node)); remove.add(nodeKey(node)); state.nodes = state.nodes.filter((item) => !remove.has(nodeKey(item))); state.selectedId = null; autoLayout(); });
+    document.getElementById("node-insert-before").addEventListener("click", openInsertBeforeDialog);
+    document.getElementById("node-delete").addEventListener("click", () => { const node = selectedNode(); if (!node) return; if (state.pendingSequenceShift) return showError("Selesaikan Simpan BOM terlebih dahulu sebelum menghapus node pada sisipan sequence."); if (!confirm("Hapus node ini beserta seluruh child-nya?")) return; const remove = descendantsOf(nodeKey(node)); remove.add(nodeKey(node)); state.nodes = state.nodes.filter((item) => !remove.has(nodeKey(item))); state.selectedId = null; autoLayout(); });
     [["node-material-pitch", "materialPitch"], ["node-material-cavity", "materialCavity"]].forEach(([id, field]) => document.getElementById(id).addEventListener("change", function () { const node = selectedNode(); if (!node || node.external) return; node[field] = this.value === "" ? null : Number(this.value); materialConsumption(node); renderAll(); renderInspector(); }));
-    document.getElementById("node-add-process").addEventListener("click", () => { const node = selectedNode(); if (!node) return; const part = partById(node.partId); const ruleKey = part.partType === "COMP" ? "PART_CHILD_COMPONENT" : "PART_CHILD_NON_COMPONENT"; const step = Math.max(1, Number(state.numberingRules.get(ruleKey)?.processStep || 10)); const nextSequence = Math.max(0, ...(node.processes || []).map((item) => Number(item.sequence || 0))) + step; node.processes.push({ processId: state.processMaster[0]?.id || "", machineId: null, sequence: nextSequence, cycleTime: 0, notes: null }); renderNodeProcesses(node); renderAll(); });
-    document.getElementById("node-process-list").addEventListener("change", (event) => { const row = event.target.closest("[data-process-index]"); const node = selectedNode(); if (!row || !node) return; const process = node.processes[Number(row.dataset.processIndex)]; const field = event.target.dataset.processField; if (!process || !field) return; process[field] = ["sequence", "cycleTime"].includes(field) ? Number(event.target.value || 0) : event.target.value || null; renderAll(); renderNodeProcesses(node); });
+    [["node-material-form", "materialFormId"], ["node-material-scheme", "materialScheme"], ["node-material-alt-form", "alternateMaterialFormId"]].forEach(([id, field]) => document.getElementById(id).addEventListener("change", function () { const node = selectedNode(); if (!node || node.external) return; node[field] = this.value || null; materialConsumption(node); renderAll(); renderInspector(); }));
+    [["node-material-alt-pitch", "alternateMaterialPitch"], ["node-material-alt-cavity", "alternateMaterialCavity"]].forEach(([id, field]) => document.getElementById(id).addEventListener("change", function () { const node = selectedNode(); if (!node || node.external) return; node[field] = this.value === "" ? null : Number(this.value); materialConsumption(node); renderAll(); renderInspector(); }));
+    document.getElementById("node-add-process").addEventListener("click", () => { const node = selectedNode(); if (!node) return; const part = partById(node.partId); const ruleKey = part.partType === "COMP" ? "PART_CHILD_COMPONENT" : "PART_CHILD_NON_COMPONENT"; const step = Math.max(1, Number(state.numberingRules.get(ruleKey)?.processStep || 10)); const nextSequence = Math.max(0, ...(node.processes || []).map((item) => Number(item.sequence || 0))) + step; node.processes.push({ processId: state.processMaster[0]?.id || "", machineId: null, machineSpecificationCode: "", alternativeMachineIds: [], sequence: nextSequence, cycleTime: 0, notes: null }); renderNodeProcesses(node); renderAll(); });
+    document.getElementById("node-process-list").addEventListener("change", (event) => { const row = event.target.closest("[data-process-index]"); const node = selectedNode(); if (!row || !node) return; const process = node.processes[Number(row.dataset.processIndex)]; const field = event.target.dataset.processField; if (!process || !field) return; process[field] = ["sequence", "cycleTime"].includes(field) ? Number(event.target.value || 0) : event.target.value || null; if (field === "machineSpecificationCode") { const representative = state.machines.find((machine) => machine.machineSpecificationCode === process.machineSpecificationCode && machine.status === "Active") || state.machines.find((machine) => machine.machineSpecificationCode === process.machineSpecificationCode); process.machineId = representative?.id || null; process.machine = representative || null; process.alternativeMachineIds = []; } renderAll(); renderNodeProcesses(node); });
     document.getElementById("node-process-list").addEventListener("click", (event) => { const button = event.target.closest("[data-remove-process]"); const row = event.target.closest("[data-process-index]"); const node = selectedNode(); if (!button || !row || !node) return; node.processes.splice(Number(row.dataset.processIndex), 1); renderNodeProcesses(node); renderAll(); });
     document.querySelectorAll("[data-create-part]").forEach((button) => button.addEventListener("click", () => openQuickPartDialog(button.dataset.createPart)));
     document.querySelectorAll("[data-inspector-add]").forEach((button) => button.addEventListener("click", () => openQuickPartDialog(button.dataset.inspectorAdd)));

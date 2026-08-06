@@ -1,0 +1,32 @@
+<%
+  const requestedActivePage = typeof activePage !== 'undefined'
+    ? activePage
+    : typeof activePpicTab !== 'undefined'
+      ? activePpicTab
+      : typeof page !== 'undefined' && page
+        ? page.slug
+        : '';
+  const modulePageAliases = {
+    mrp: 'material-requirements-planning',
+    mps: 'master-production-schedule',
+    'monthly-plan': 'monthly-production-plans'
+  };
+  const normalizedActivePage = modulePageAliases[requestedActivePage] || requestedActivePage;
+  const moduleNavigationItems = (module.pages || []).filter(item => !item.navHidden).map(item => ({
+    slug: item.slug,
+    label: item.label,
+    href: '/modules/' + module.slug + '/' + item.slug,
+    apiReady: item.apiReady !== false
+  }));
+%>
+<nav class="module-subnav module-subnav--<%= module.color %>" aria-label="Menu <%= module.label %>">
+  <div class="app-container module-subnav-inner">
+    <% moduleNavigationItems.forEach(item => { %>
+      <a
+        class="<%= normalizedActivePage === item.slug ? 'active' : '' %> <%= !item.apiReady ? 'disabled' : '' %>"
+        href="<%= item.apiReady ? item.href : '#' %>"
+        <%= !item.apiReady ? 'aria-disabled="true" title="Endpoint belum tersedia"' : '' %>
+      ><%= item.label %></a>
+    <% }) %>
+  </div>
+</nav>

@@ -1,19 +1,26 @@
 <header class="topbar master-topbar">
   <div class="container-fluid app-container topbar-row">
-    <a class="brand" href="/modules" title="Kembali ke pilihan modul"><span class="brand-mark"></span><span>NexGen</span></a>
+    <a class="brand customer-brand" href="/modules" title="Kembali ke pilihan modul">
+      <img class="customer-brand-logo customer-brand-logo--header" src="/img/mitsutoyo-indonesia-logo.png" alt="PT. Mitsutoyo Indonesia">
+    </a>
     <nav class="master-groups d-none d-md-flex" aria-label="Grup master data">
       <% (typeof groups === 'undefined' ? [] : groups).forEach((group) => { %>
         <a class="<%= group.items.some(item => item.label === activeSubnav) ? 'active' : '' %>" href="/master-data/<%= group.items[0].slug %>"><%= group.title.replace('Data ', '') %></a>
       <% }) %>
+      <a href="/logs">Logs</a>
+      <a href="/maintenance">Maintenance</a>
     </nav>
+    <%- include('context-navbar-actions') %>
     <div class="user-tools d-none d-lg-flex">
-      <button class="icon-button"><%- include('icon', { name: 'search' }) %></button><button class="icon-button"><%- include('icon', { name: 'bell' }) %></button>
       <span class="tool-divider"></span><div class="avatar" data-user-avatar>U</div><div><strong data-user-name>Pengguna</strong><small data-user-role>ERP User</small></div><button class="logout-button" type="button" data-logout>Keluar</button>
     </div>
   </div>
+  <% const visibleMasterSubnav = typeof subnavItems === 'undefined' ? [] : subnavItems; %>
+  <% if (visibleMasterSubnav.length) { %>
   <nav class="item-subnav" aria-label="Submenu master data">
-    <% (typeof subnavItems === 'undefined' ? [] : subnavItems).forEach(item => { %>
+    <% visibleMasterSubnav.forEach(item => { %>
       <a class="<%= activeSubnav === item.label ? 'active' : '' %>" href="/master-data/<%= item.slug %>"><%= item.label.replace('Data ', '') %></a>
     <% }) %>
   </nav>
+  <% } %>
 </header>

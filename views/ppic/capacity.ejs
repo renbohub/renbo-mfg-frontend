@@ -1,24 +1,47 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
-<nav class="ppic-subnav" aria-label="Navigasi PPIC"><div class="app-container ppic-subnav-inner">
-  <% const ppicTabs = [['mrp','MRP'],['mps','MPS'],['monthly-plan','Monthly Plan'],['consume-forecast','Consume Forecast'],['capacity-planning','Capacity Planning']]; %>
-  <% ppicTabs.forEach(([slug,label]) => { %><a class="<%= activePpicTab === slug ? 'active' : '' %>" href="/modules/planning-ppic/<%= slug %>"><%= label %></a><% }) %>
-</div></nav>
+<%- include('../partials/module-subnav', { activePage: activePpicTab }) %>
 <main class="ppic-page capacity-page">
   <section class="capacity-toolbar app-container">
-    <div><div class="ppic-breadcrumb"><span>PPIC</span><i>/</i><b>Capacity Planning</b></div><h1>Machine Capacity & Daily Schedule</h1><p>Finite capacity berdasarkan routing process, cycle time, machine, daily schedule, dan downtime.</p></div>
-    <div class="d-flex gap-2"><button id="capacity-refresh" class="btn btn-primary brand-button" type="button">Refresh Capacity</button><button id="capacity-override" class="btn btn-outline-warning d-none" type="button">Override Shortage</button></div>
+    <div><div class="ppic-breadcrumb"><span>PPIC</span><i>/</i><b>Capacity Planning</b></div><h1>Capacity Planning</h1></div>
+    <div class="d-flex align-items-center gap-2 flex-wrap"><button id="capacity-adopt-simulation" class="btn btn-success d-none" type="button">Tetapkan Preset sebagai Production</button><button id="capacity-sync-dpp" class="btn btn-outline-primary d-none" type="button">Generate / Revisi DPP</button><button id="capacity-recommend" class="btn btn-outline-primary d-none" type="button">Buat Rekomendasi</button><button id="capacity-refresh" class="btn btn-primary brand-button" type="button">Refresh</button><button id="capacity-override" class="btn btn-outline-warning d-none" type="button">Override Shortage</button></div>
   </section>
   <section class="app-container capacity-content">
     <div id="capacity-alert" class="alert d-none"></div>
-    <section class="capacity-filter-card">
+    <section class="capacity-filter-card capacity-commandbar">
+      <div class="capacity-mode-tabs" role="tablist" aria-label="Mode capacity planning"><button type="button" data-capacity-mode="PRODUCTION">Production Capacity</button><button type="button" data-capacity-mode="SIMULATION">Simulation</button></div>
       <label>Production Plan<select id="capacity-plan"><option value="">Semua production plan aktif</option></select></label>
       <label>Mulai<input id="capacity-start" type="date"></label>
       <label>Sampai<input id="capacity-end" type="date"></label>
-      <label>Shift / Hari<select id="capacity-shifts"><option value="1">1 shift</option><option value="2">2 shift</option><option value="3">3 shift</option></select></label>
-      <label>Jam / Shift<input id="capacity-hours" type="number" min="1" max="24" step="0.5" value="8"></label>
-      <label>Efficiency %<input id="capacity-efficiency" type="number" min="1" max="100" step="1" value="85"></label>
+      <label>Bulan cepat<input id="capacity-month" type="month" title="Ganti horizon bulan tanpa reload halaman"></label>
+      <label id="capacity-scenario-label">Capacity Setup<select id="capacity-scenario"><option value="normal">Normal</option><option value="max">Maximum</option><option value="custom">Custom Aktif</option></select></label>
+      <button id="capacity-open-scenario" class="btn btn-outline-secondary capacity-setting-button" type="button">Kelola Preset</button>
+      <div class="capacity-commandbar-spacer"></div>
+      <%- include('../partials/view-switcher', { viewModes: ['heatmap', 'gantt', 'calendar', 'table'], viewLabels: true, viewClass: 'capacity-view-switcher' }) %>
     </section>
+    <div id="capacity-production-guide" class="capacity-production-guide"><b>Menetapkan preset:</b><span id="capacity-production-guide-steps">Simulation → pilih MPP dan preset → Auto Allocation → Tetapkan Preset sebagai Production.</span><small id="capacity-production-guide-lock">Hari yang sudah lewat terkunci dan tidak akan diganti saat preset lain diterapkan.</small></div>
+    <div class="capacity-runtime-fields" aria-hidden="true"><select id="capacity-shifts"><option value="1">1 shift</option><option value="2">2 shift</option><option value="3">3 shift</option></select><input id="capacity-hours" type="number" value="8"><input id="capacity-efficiency" type="number" value="85"><input id="capacity-overtime" type="number" value="0"><select id="capacity-saturday"><option value="false">Libur</option><option value="true">Kerja</option></select><select id="capacity-sunday"><option value="false">Libur</option><option value="true">Kerja</option></select></div>
+    <dialog id="capacity-scenario-dialog" class="capacity-dialog capacity-scenario-dialog"><div class="capacity-dialog-shell"><header class="capacity-dialog-head"><div><small>MONTHLY SIMULATION PRESET</small><h2>Preset Capacity Bulanan</h2><p>Satu bulan dapat memiliki beberapa preset. Kalender dan allocation setiap preset tetap terisolasi sampai diterapkan ke Production.</p></div><button class="capacity-dialog-close" type="button" data-close-dialog="capacity-scenario-dialog" aria-label="Tutup">×</button></header><div class="capacity-dialog-body capacity-preset-layout">
+      <form id="capacity-preset-form" class="capacity-preset-form"><input id="capacity-preset-id" type="hidden">
+        <div class="capacity-preset-heading"><div><small>PRESET DEFINITION</small><h3 id="capacity-preset-form-title">Buat Preset Baru</h3></div><span id="capacity-preset-state" class="capacity-count">Belum disimpan</span></div>
+        <div class="capacity-preset-fields">
+          <label>Nama Preset<input id="capacity-preset-name" required maxlength="100" placeholder="Contoh: Agustus Delivery Ketat"></label>
+          <label>Bulan<input id="capacity-preset-month" type="month" required></label>
+          <label>Default Shift / Hari<select id="capacity-preset-shift-count"><option value="1">1 Shift</option><option value="2">2 Shift</option><option value="3">3 Shift</option></select></label>
+          <label>Efficiency %<input id="capacity-preset-efficiency" type="number" min="1" max="100" value="85" required></label>
+          <label>Sabtu<select id="capacity-preset-saturday"><option value="false">Libur</option><option value="true">Kerja</option></select></label>
+          <label>Minggu<select id="capacity-preset-sunday"><option value="false">Libur</option><option value="true">Kerja</option></select></label>
+        </div>
+        <fieldset class="capacity-shift-window-fieldset"><legend>Jam kerja default untuk semua hari</legend><div class="capacity-shift-window-grid">
+          <% for (let shift = 1; shift <= 3; shift += 1) { %><label data-preset-shift="<%= shift %>"><b>Shift <%= shift %></b><span><input id="capacity-preset-shift-<%= shift %>-start" type="time" value="<%= shift === 1 ? '08:00' : shift === 2 ? '16:00' : '00:00' %>"><i>–</i><input id="capacity-preset-shift-<%= shift %>-end" type="time" value="<%= shift === 1 ? '16:00' : shift === 2 ? '00:00' : '08:00' %>"></span></label><% } %>
+        </div></fieldset>
+        <div class="capacity-preset-fields"><label>Overtime Mulai<input id="capacity-preset-ot-start" type="time"></label><label>Overtime Selesai<input id="capacity-preset-ot-end" type="time"></label></div>
+        <fieldset class="capacity-algorithm-fieldset"><legend>Auto-allocation berbasis delivery schedule</legend><label><input id="capacity-preset-parallel" type="checkbox" checked> Izinkan parallel lane</label><label><input id="capacity-preset-extra-shift" type="checkbox" checked> Izinkan tambah shift saat due date berisiko</label><label><input id="capacity-preset-auto-ot" type="checkbox" checked> Izinkan overtime saat phase belum tercukupi</label></fieldset>
+        <p class="capacity-preset-note"><b id="capacity-preset-daily-count">0 daily override</b> · Klik tanggal pada heatmap/calendar untuk mengubah kapasitas hari tertentu di preset aktif.</p>
+        <footer><button id="capacity-preset-new" class="btn btn-outline-secondary" type="button">Form Baru</button><button id="capacity-preset-save-new" class="btn btn-outline-primary" type="submit">Simpan Preset Baru</button><button id="capacity-preset-update" class="btn btn-primary d-none" type="button">Update Preset Aktif</button></footer>
+      </form>
+      <aside class="capacity-preset-library"><header><div><small>PRESET LIBRARY</small><h3 id="capacity-preset-library-title">Preset Bulan Aktif</h3></div><span id="capacity-preset-count" class="capacity-count">0 preset</span></header><div id="capacity-preset-list" class="capacity-preset-list"></div></aside>
+    </div></div></dialog>
     <section class="capacity-stat-grid">
       <article><small>Mesin Aktif</small><strong id="capacity-stat-machines">-</strong><span id="capacity-stat-machines-note">Master machine</span></article>
       <article><small>Available Capacity</small><strong id="capacity-stat-available">-</strong><span>Jam pada horizon</span></article>
@@ -26,23 +49,76 @@
       <article><small>Overload / Unscheduled</small><strong id="capacity-stat-overload">-</strong><span id="capacity-stat-readiness">Master readiness</span></article>
     </section>
     <section class="capacity-card capacity-heatmap-card">
-      <div class="capacity-card-head"><div><h2>Daily Machine Capacity Heatmap</h2><p>Firm = Daily Production Schedule. Proposed = Production Plan sebelum menjadi MO.</p></div><div class="capacity-legend"><span class="available">Available</span><span class="loaded">1–84%</span><span class="high">85–100%</span><span class="overload">Overload</span><span class="unavailable">Unavailable</span></div></div>
+      <div class="capacity-card-head"><div><h2 id="capacity-main-view-title">Daily Machine Capacity</h2><p id="capacity-main-view-help">Klik mesin–tanggal, pilih MPP/proses, lalu alokasikan qty manual. Hari tanpa alokasi tetap kosong.</p></div><div class="capacity-legend"><span class="available">Available</span><span class="loaded">1–84%</span><span class="high">85–100%</span><span class="overload">Overload</span><span class="unavailable">Unavailable</span></div></div>
       <div id="capacity-loading" class="capacity-loading">Menghitung capacity berdasarkan master process dan machine...</div>
+      <div id="capacity-table-view" class="table-responsive d-none"><table class="table capacity-detail-table"><thead><tr><th>Machine</th><th>Line / Type</th><th>Available</th><th>Firm</th><th>Proposed</th><th>Total Load</th><th>Utilization</th><th>Status</th></tr></thead><tbody id="capacity-machine-summary-body"></tbody></table></div>
       <div id="capacity-heatmap-wrap" class="capacity-heatmap-wrap d-none"><table class="capacity-heatmap"><thead id="capacity-heatmap-head"></thead><tbody id="capacity-heatmap-body"></tbody></table></div>
+      <div id="capacity-gantt-view" class="capacity-gantt-view d-none"></div>
+      <div id="capacity-calendar-view" class="capacity-calendar-view d-none"></div>
+      <div id="capacity-gallery-view" class="list-gallery d-none"></div>
+      <div id="capacity-kanban-view" class="list-kanban d-none"></div>
     </section>
     <section class="capacity-lower-grid">
-      <article class="capacity-card">
+      <article id="capacity-allocation-panel" class="capacity-card">
         <div class="capacity-card-head"><div><h2 id="capacity-detail-title">Schedule Detail</h2><p id="capacity-detail-subtitle">Pilih cell pada heatmap untuk melihat beban.</p></div></div>
+        <form id="capacity-cell-form" class="row g-2 p-3 border-bottom d-none">
+          <input id="capacity-cell-machine" type="hidden"><input id="capacity-cell-date" type="hidden">
+          <div class="col-12 text-muted small" id="capacity-cell-scope-note">Pengaturan ini hanya berlaku untuk mesin dan tanggal yang sedang dipilih; tidak mengubah tanggal lain.</div>
+          <div class="col-md-2"><label class="form-label">Status Hari</label><select id="capacity-cell-status" class="form-select"><option>WORKING</option><option>HOLIDAY</option><option>OVERLOAD</option></select></div>
+          <div class="col-md-2"><label class="form-label">Jumlah Shift</label><select id="capacity-cell-shifts" class="form-select"><option value="1">1 Shift</option><option value="2">2 Shift</option><option value="3">3 Shift</option></select></div>
+          <div id="capacity-cell-shift-windows" class="col-12 d-none"><div class="capacity-daily-shift-grid"><% for (let shift = 1; shift <= 3; shift += 1) { %><label data-daily-shift-window="<%= shift %>">Shift <%= shift %><span><input id="capacity-cell-shift-<%= shift %>-start" class="form-control" type="time"><i>–</i><input id="capacity-cell-shift-<%= shift %>-end" class="form-control" type="time"></span></label><% } %></div></div>
+          <div class="col-md-2"><label class="form-label">Lembur Awal</label><input id="capacity-cell-ot-start" class="form-control" type="time"></div>
+          <div class="col-md-2"><label class="form-label">Lembur Akhir</label><input id="capacity-cell-ot-end" class="form-control" type="time"></div>
+          <div class="col-md-3"><label class="form-label">Alasan / Audit</label><input id="capacity-cell-reason" class="form-control" required minlength="5"></div>
+          <div class="col-md-1 d-flex align-items-end"><button class="btn btn-primary w-100" type="submit">Simpan</button></div>
+        </form>
+        <form id="capacity-manual-allocation-form" class="row g-2 p-3 border-bottom d-none">
+          <input id="capacity-manual-allocation-id" type="hidden">
+          <div class="col-12"><strong>Draft Allocation MPP</strong><small id="capacity-manual-help" class="d-block text-muted">Tidak perlu MO/WO. Pilih MPP dan qty untuk tanggal yang diklik; tanggal lain boleh kosong.</small></div>
+          <div class="col-md-2"><label class="form-label">MPP</label><select id="capacity-manual-plan" class="form-select" required></select></div>
+          <div class="col-md-2"><label class="form-label">Tanggal Alokasi</label><input id="capacity-manual-date" class="form-control" type="date" required></div>
+          <div class="col-md-2"><label class="form-label">Mesin</label><select id="capacity-manual-machine" class="form-select" required></select></div>
+          <div class="col-md-3"><label class="form-label">Part / Process</label><select id="capacity-manual-task" class="form-select" required></select></div>
+          <div class="col-md-2"><label class="form-label">Mode</label><select id="capacity-manual-mode" class="form-select"><option value="INHOUSE">In-house</option><option value="VENDOR">Vendor</option></select></div>
+          <div class="col-md-2"><label class="form-label">Shift</label><select id="capacity-manual-shift" class="form-select"><option value="1">Shift 1</option><option value="2">Shift 2</option><option value="3">Shift 3</option></select></div>
+          <div id="capacity-manual-vendor-wrap" class="col-md-2 d-none"><label class="form-label">Vendor</label><select id="capacity-manual-vendor" class="form-select"></select></div>
+          <div class="col-md-1"><label class="form-label">Qty</label><input id="capacity-manual-qty" class="form-control" type="number" min="0.001" step="0.001" required></div>
+          <div class="col-md-2 d-flex align-items-end gap-1"><button id="capacity-manual-submit" class="btn btn-primary flex-grow-1" type="submit">Alokasikan</button><button id="capacity-manual-cancel-edit" class="btn btn-outline-secondary d-none" type="button">Batal</button></div>
+          <div id="capacity-manual-vendor-schedule" class="col-12 d-none">
+            <div class="row g-2 rounded border p-2">
+              <div class="col-md-3"><label class="form-label">Tanggal Kirim Vendor</label><input id="capacity-manual-vendor-send" class="form-control" type="date"></div>
+              <div class="col-md-3"><label class="form-label">Tanggal Kembali</label><input id="capacity-manual-vendor-return" class="form-control" type="date"></div>
+              <div class="col-md-3"><label class="form-label">Ekspektasi Qty Kembali</label><input id="capacity-manual-vendor-return-qty" class="form-control" type="number" min="0.001" step="0.001"></div>
+              <div class="col-md-3"><label class="form-label">Referensi Lead Time</label><div id="capacity-manual-vendor-leadtime" class="form-control bg-light">Pilih vendor</div></div>
+              <div class="col-12 text-muted small">Cycle time BOM tidak dipakai untuk vendor. Jadwal vendor dihitung dari tanggal kirim–kembali dan lead time Vendor Master.</div>
+            </div>
+          </div>
+          <div class="col-12"><div id="capacity-manual-recommendation" class="alert alert-info mb-0 py-2">Pilih MPP dan process untuk melihat rekomendasi kapasitas harian.</div></div>
+          <div class="col-12"><label class="form-label">Catatan</label><input id="capacity-manual-notes" class="form-control" placeholder="Prioritas delivery, lot, atau alasan produksi selang-seling"></div>
+          <div class="col-12"><label class="form-label">Alasan Override Freeze Fence</label><input id="capacity-manual-freeze-reason" class="form-control" placeholder="Wajib minimal 10 karakter hanya jika tanggal berada dalam freeze fence"><small class="text-muted">Simulation tidak memerlukan override. Production Capacity dekat hari eksekusi dilindungi dari perubahan tanpa alasan.</small></div>
+        </form>
         <div class="table-responsive"><table class="table capacity-detail-table"><thead><tr><th>Sumber</th><th>Referensi</th><th>Part</th><th>Process</th><th>Shift</th><th>Qty</th><th>Load</th><th>Status</th></tr></thead><tbody id="capacity-detail-body"><tr><td colspan="8" class="capacity-empty">Belum ada cell dipilih.</td></tr></tbody></table></div>
       </article>
       <article class="capacity-card capacity-readiness-card">
-        <div class="capacity-card-head"><div><h2>Master Data Readiness</h2><p>Validasi process, routing, machine, dan cycle time.</p></div><span id="capacity-readiness-badge" class="capacity-readiness-badge">Checking</span></div>
+        <div class="capacity-card-head"><div><h2>Master Data Readiness</h2><p>Validasi process, routing, machine, dan cycle time.</p></div><div class="capacity-readiness-actions"><button id="capacity-use-preset" class="btn btn-sm btn-primary d-none" type="button">Pakai Preset</button><span id="capacity-readiness-badge" class="capacity-readiness-badge">Checking</span></div></div>
         <div id="capacity-readiness-list" class="capacity-readiness-list"></div>
       </article>
     </section>
     <section class="capacity-card">
+      <div class="capacity-card-head"><div><h2>Vendor Process Schedule</h2><p>Jadwal kirim dan kembali vendor per phase. Routing BOM hanya menjadi referensi proses.</p></div></div>
+      <div class="table-responsive"><table class="table capacity-detail-table"><thead><tr><th>Kirim</th><th>Kembali</th><th>MPP</th><th>Part / Process</th><th>Vendor</th><th>Qty Kirim</th><th>Ekspektasi Kembali</th><th>Lead Time</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="capacity-vendor-allocation-body"></tbody></table></div>
+    </section>
+    <section class="capacity-card">
+      <div class="capacity-card-head"><div><h2>Delivery Phase Coverage</h2><p>Blocker berdasarkan draft allocation proses terakhir yang selesai paling lambat pada due date setiap phase.</p></div><span id="capacity-delivery-coverage-badge" class="capacity-readiness-badge">Pilih MPP</span></div>
+      <div class="table-responsive"><table class="table capacity-detail-table"><thead><tr><th>Phase</th><th>MPP</th><th>Part</th><th>Tujuan</th><th>Due Date</th><th>Need Kumulatif</th><th>Allocation s/d Due</th><th>Shortage</th><th>Status</th></tr></thead><tbody id="capacity-delivery-coverage-body"><tr><td colspan="9" class="capacity-empty">Belum ada delivery phase pada MPS sumber.</td></tr></tbody></table></div>
+    </section>
+    <section class="capacity-card">
       <div class="capacity-card-head"><div><h2>Unscheduled Load</h2><p>Demand yang belum bisa ditempatkan karena routing, machine, cycle time, atau kapasitas belum tersedia.</p></div><span id="capacity-unscheduled-count" class="capacity-count">0 item</span></div>
       <div class="table-responsive"><table class="table capacity-detail-table"><thead><tr><th>Source</th><th>Reference</th><th>Part</th><th>Process</th><th>Machine</th><th>Qty</th><th>Minutes</th><th>Reason</th></tr></thead><tbody id="capacity-unscheduled-body"></tbody></table></div>
+    </section>
+    <section class="capacity-card">
+      <div class="capacity-card-head"><div><h2>Process Loading Summary</h2><p>Akumulasi firm dan proposed load per routing process pada skenario yang sedang dipilih.</p></div></div>
+      <div class="table-responsive"><table class="table capacity-detail-table"><thead><tr><th>Process</th><th>Machine</th><th>Firm</th><th>Proposed</th><th>Total Load</th><th>Qty</th></tr></thead><tbody id="capacity-process-load-body"></tbody></table></div>
     </section>
   </section>
 </main>
