@@ -1,0 +1,49 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/incoming-dashboard.css?v=20260807-1">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<main class="incoming-dashboard app-container">
+  <section class="incoming-hero">
+    <div><p class="ops-eyebrow">INCOMING CONTROL</p><h1>Planning Kedatangan & Actual Receipt</h1><p>Kontrol due date material, realisasi supplier, dan alokasi setiap lot GR ke kebutuhan part.</p></div>
+    <a class="btn btn-primary brand-button" href="/modules/incoming/goods-receipts/new">+ Buat Goods Receipt</a>
+  </section>
+
+  <section class="incoming-filterbar" aria-label="Filter dashboard incoming">
+    <label><span>Dari</span><input id="incoming-from" type="date" class="form-control form-control-sm"></label>
+    <label><span>Sampai</span><input id="incoming-to" type="date" class="form-control form-control-sm"></label>
+    <label><span>UOM</span><select id="incoming-uom" class="form-select form-select-sm"><option value="">Semua UOM</option></select></label>
+    <label class="incoming-search"><span>Cari</span><input id="incoming-search" type="search" class="form-control form-control-sm" placeholder="Material, PO, supplier, GR..."></label>
+    <button id="incoming-refresh" class="btn btn-outline-primary" type="button">Refresh</button>
+  </section>
+  <div id="incoming-alert" class="alert alert-danger d-none" role="alert"></div>
+
+  <section class="incoming-kpis" aria-label="Ringkasan incoming">
+    <article><small>PLAN DUE</small><strong id="incoming-kpi-plan">0</strong><span>baris material pada periode</span></article>
+    <article><small>ACTUAL ARRIVAL</small><strong id="incoming-kpi-actual">0</strong><span>baris GR sudah datang</span></article>
+    <article class="is-danger"><small>OVERDUE</small><strong id="incoming-kpi-overdue">0</strong><span>belum lengkap & lewat due date</span></article>
+    <article class="is-warning"><small>DUE ≤ 7 HARI</small><strong id="incoming-kpi-soon">0</strong><span>perlu follow-up supplier</span></article>
+    <article><small>NEED ALLOCATION</small><strong id="incoming-kpi-allocation">0</strong><span>material dengan pegging part</span></article>
+  </section>
+
+  <section class="incoming-overview-grid">
+    <article class="incoming-panel">
+      <header><div><small>ARRIVAL PERFORMANCE</small><h2>Plan vs Actual per Tanggal</h2></div><span id="incoming-chart-uom">Qty</span></header>
+      <div id="incoming-arrival-chart" class="incoming-arrival-chart"></div>
+    </article>
+    <article class="incoming-panel">
+      <header><div><small>PRIORITY QUEUE</small><h2>Harus Ditindaklanjuti</h2></div></header>
+      <div id="incoming-priority-list" class="incoming-priority-list"></div>
+    </article>
+  </section>
+
+  <section class="incoming-panel incoming-table-panel">
+    <header><div><small>MATERIAL DUE LIST</small><h2>Planning Kedatangan Material</h2><p>Urut berdasarkan due date. Klik PO untuk langsung membuat GR.</p></div></header>
+    <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Due Date</th><th>Material</th><th>PO / Supplier</th><th>Plan</th><th>Received</th><th>Outstanding</th><th>Kebutuhan Part (Explode)</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="incoming-plan-body"></tbody></table></div>
+  </section>
+
+  <section class="incoming-panel incoming-table-panel">
+    <header><div><small>ACTUAL RECEIPT</small><h2>Material yang Sudah Datang</h2><p>Alokasi menunjukkan lot GR ini dipakai untuk part mana dan berapa qty.</p></div></header>
+    <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Receipt Date</th><th>GR / PO</th><th>Material</th><th>Qty Datang</th><th>Lot</th><th>Alokasi Part</th><th>Delivery</th><th>Status GR</th></tr></thead><tbody id="incoming-actual-body"></tbody></table></div>
+  </section>
+</main>
+<%- include('../partials/footer') %>

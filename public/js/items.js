@@ -17,7 +17,8 @@
     searching: true,
     lengthChange: false,
     pageLength: 10,
-    ordering: false,
+    ordering: true,
+    columnDefs: [{ targets: [0, 8], orderable: false, searchable: false }],
     layout: { topStart: null, topEnd: null, bottomStart: "info", bottomEnd: "paging" },
     language: { processing: "Memuat data...", emptyTable: "Belum ada data", zeroRecords: "Data tidak ditemukan", info: "Menampilkan _START_-_END_ dari _TOTAL_ data", infoEmpty: "Menampilkan 0 data", paginate: { previous: "‹", next: "›" } },
     ajax: function (data, callback) {

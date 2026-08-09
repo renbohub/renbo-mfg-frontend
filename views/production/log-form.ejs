@@ -7,7 +7,7 @@
     <div>
       <p class="ops-eyebrow">Production Log</p>
       <h1><%= mode === 'edit' ? 'Edit Hasil Produksi' : 'Catat Hasil Produksi' %></h1>
-      <p>Pilih Daily Production Plan, lalu isi hasil aktual, NG, dan downtime. Referensi MO, WO, mesin, serta proses terisi otomatis.</p>
+      <p>Pilih mesin terlebih dahulu, lalu pilih Daily Production Schedule yang sudah siap diproduksi.</p>
     </div>
     <a class="btn btn-outline-secondary" href="/modules/production/production-logs">Kembali</a>
   </section>
@@ -17,27 +17,33 @@
     <section class="production-log-section">
       <header class="production-log-section-header module-form-section-title">
         <span class="production-log-step">1</span>
-        <div><h2>Pilih pekerjaan</h2><p>Hubungkan hasil produksi dengan Daily Production Plan yang sedang berjalan.</p></div>
+        <div><h2>Pilih pekerjaan</h2><p>Hanya Daily Production Schedule berstatus In Progress yang ditampilkan.</p></div>
         <span class="form-required-note">* Wajib diisi</span>
       </header>
       <div class="ops-detail-fields">
-        <label class="span-2">
-          <span>Daily Production Plan *</span>
-          <select id="scheduleNumber" required>
-            <option value="">Memuat Daily Production Plan...</option>
+        <label>
+          <span>Mesin *</span>
+          <select id="machineCode" required>
+            <option value="">Memuat mesin...</option>
           </select>
-          <small class="form-help">Hanya Daily Plan berstatus In Progress yang bisa dicatat. Jika masih Released, mulai jadwal terlebih dahulu.</small>
+          <small class="form-help">Pilih mesin untuk menampilkan schedule yang siap diproduksi.</small>
+        </label>
+        <label>
+          <span>Daily Production Schedule *</span>
+          <select id="scheduleNumber" required>
+            <option value="">Pilih mesin terlebih dahulu</option>
+          </select>
+          <small class="form-help">Draft, Released, Completed, dan Cancelled tidak ditampilkan.</small>
         </label>
       </div>
       <div id="production-log-plan-summary" class="production-log-plan-summary is-empty">
-        <span>Pilih Daily Production Plan untuk mengisi referensi produksi otomatis.</span>
+        <span>Pilih mesin, lalu pilih Daily Production Schedule yang siap diproduksi.</span>
       </div>
       <div class="ops-detail-fields production-reference-fields">
         <label><span>Tanggal *</span><input id="logDate" type="date" required></label>
         <label><span>Shift *</span><select id="shift" required><option value="1A">1A</option><option value="1B">1B</option><option value="2A">2A</option><option value="2B">2B</option><option value="3A">3A</option><option value="3C">3C</option></select></label>
         <label><span>MO Reference *</span><input id="moNumber" readonly required></label>
         <label><span>WO Reference</span><input id="woNumber" readonly></label>
-        <label><span>Mesin</span><input id="machineCode" readonly></label>
         <label><span>Proses</span><input id="processCode" readonly></label>
         <label><span>Operator *</span><input id="operatorName" autocomplete="name" required placeholder="Nama operator"></label>
         <label><span>Target pada log ini</span><input id="qtyPlanned" type="number" min="0" step="any" readonly></label>
@@ -52,16 +58,40 @@
       <div class="ops-detail-fields production-result-fields">
         <label><span>Mulai Proses *</span><input id="startTime" type="time" required></label>
         <label><span>Selesai Proses *</span><input id="endTime" type="time" required></label>
-        <label class="production-output-field"><span>Qty Produced *</span><input id="qtyProduced" type="number" min="0" step="any" required placeholder="0"></label>
-        <label class="production-reject-field"><span>Qty NG</span><input id="qtyReject" type="number" min="0" step="any" value="0"></label>
+        <label class="production-output-field"><span>Qty Produced <small>dari phase coil</small></span><input id="qtyProduced" type="number" min="0" step="any" required readonly value="0"></label>
+        <label class="production-reject-field"><span>Qty NG <small>dari phase coil</small></span><input id="qtyReject" type="number" min="0" step="any" readonly value="0"></label>
         <label class="production-good-field"><span>Qty Good <small>otomatis</small></span><input id="qtyGood" type="number" min="0" step="any" value="0" readonly></label>
         <label><span>NG Reason</span><input id="rejectReason" placeholder="Wajib jika Qty NG lebih dari 0"></label>
       </div>
     </section>
 
-    <section class="production-log-section production-downtime-section">
+    <section class="production-log-section production-coil-section">
       <header class="production-log-section-header production-log-section-head module-form-section-title">
         <span class="production-log-step">3</span>
+        <div><h2>Coil / material lot dan phase hasil</h2><p>Satu coil dapat memiliki beberapa phase. Lot produksi otomatis sama selama masih dalam log dan shift yang sama.</p></div>
+        <button id="add-coil-phase" class="btn btn-outline-primary btn-sm" type="button">+ Tambah Coil / Phase</button>
+      </header>
+      <div id="coil-phase-rows" class="production-coil-phase-list"></div>
+      <template id="coil-phase-template">
+        <article class="production-coil-phase-row">
+          <div class="production-downtime-row-head"><strong>Phase <span data-coil-phase-number></span></strong><span class="production-lot-hint">Output lot: otomatis per log/shift</span><button class="btn btn-sm btn-outline-danger" type="button" data-remove-coil-phase>Hapus</button></div>
+          <div class="production-coil-phase-grid">
+            <label><span>No. Coil</span><input data-coil-number placeholder="Contoh: COIL-01"></label>
+            <label><span>Lot Coil / Material *</span><input data-input-lot required placeholder="Lot internal dari Material Issue"></label>
+            <label><span>Qty Input</span><input data-coil-input type="number" min="0" step="any" placeholder="0"></label>
+            <label><span>Qty OK *</span><input data-coil-good type="number" min="0" step="any" value="0"></label>
+            <label><span>Qty Reject *</span><input data-coil-reject type="number" min="0" step="any" value="0"></label>
+            <label><span>Mulai Phase</span><input data-coil-start type="time"></label>
+            <label><span>Selesai Phase</span><input data-coil-end type="time"></label>
+            <label class="production-coil-notes"><span>Catatan</span><input data-coil-notes placeholder="Kondisi coil / reject phase"></label>
+          </div>
+        </article>
+      </template>
+    </section>
+
+    <section class="production-log-section production-downtime-section">
+      <header class="production-log-section-header production-log-section-head module-form-section-title">
+        <span class="production-log-step">4</span>
         <div><h2>Downtime</h2><p>Tambahkan hanya jika ada waktu berhenti selama proses produksi.</p></div>
         <div class="production-downtime-actions">
           <span>Total downtime <strong id="downtime-total">0</strong> menit</span>
@@ -86,7 +116,7 @@
 
     <section class="production-log-section">
       <header class="production-log-section-header module-form-section-title">
-        <span class="production-log-step">4</span>
+        <span class="production-log-step">5</span>
         <div><h2>Catatan dan bukti</h2><p>Tambahkan bukti atau informasi untuk supervisor dan shift berikutnya jika diperlukan.</p></div>
       </header>
       <div class="ops-detail-fields production-notes-fields">

@@ -4,15 +4,41 @@
       <img class="customer-brand-logo customer-brand-logo--module" src="/img/mitsutoyo-indonesia-logo.png" alt="PT. Mitsutoyo Indonesia">
     </a>
     <nav class="module-nav" aria-label="Navigasi modul">
-      <a class="<%= !activeModule ? 'active' : '' %>" href="/modules">Semua Modul</a>
-      <% modules.forEach(item => { %><a class="<%= activeModule === item.slug ? 'active' : '' %>" href="/modules/<%= item.slug %>"><%= item.shortLabel %></a><% }) %>
-      <a class="<%= activeModule === 'log-center' ? 'active' : '' %>" href="/logs">Logs</a>
-      <a class="<%= activeModule === 'maintenance' ? 'active' : '' %>" href="/maintenance">Maintenance</a>
+      <a class="module-nav-home <%= !activeModule ? 'active' : '' %>" href="/modules">Workspace</a>
+      <div class="dropdown module-switcher">
+        <button class="module-switcher-trigger dropdown-toggle <%= activeModule ? 'active' : '' %>" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <span class="module-switcher-label"><small>Modul aktif</small><strong><%= modules.find(item => item.slug === activeModule)?.shortLabel || 'Pilih Modul' %></strong></span>
+        </button>
+        <div class="dropdown-menu module-switcher-menu">
+          <div class="module-switcher-head">
+            <div><small>BUSINESS WORKSPACE</small><strong>Semua Modul ERP</strong></div>
+            <a href="/modules">Lihat workspace <span aria-hidden="true">&rarr;</span></a>
+          </div>
+          <div class="module-switcher-grid">
+            <% modules.forEach(item => { %>
+              <a class="module-switcher-item <%= activeModule === item.slug ? 'active' : '' %>" href="/modules/<%= item.slug %>">
+                <span class="module-switcher-icon"><%- include('icon', { name: item.icon }) %></span>
+                <span class="module-switcher-copy"><strong><%= item.shortLabel %></strong><small><%= item.description %></small></span>
+              </a>
+            <% }) %>
+          </div>
+          <div class="module-switcher-foot" aria-label="Akses administrasi">
+            <a href="/master-data">Master Data</a>
+            <a href="/logs">Audit Logs</a>
+            <a href="/maintenance">Maintenance</a>
+          </div>
+        </div>
+      </div>
+      <div class="module-quick-links" aria-label="Modul yang sering digunakan">
+        <% ['planning-ppic', 'production', 'purchasing', 'inventory'].forEach(slug => { const item = modules.find(moduleItem => moduleItem.slug === slug); if (item) { %>
+          <a class="<%= activeModule === item.slug ? 'active' : '' %>" href="/modules/<%= item.slug %>"><%= item.shortLabel %></a>
+        <% } }) %>
+      </div>
     </nav>
     <%- include('context-navbar-actions') %>
-    <div class="module-user">
+    <div class="module-user dropdown">
       <span class="module-user-avatar" data-user-avatar>U</span>
-      <span class="module-user-name" data-user-name>User</span>
+      <span class="module-user-copy"><span class="module-user-name" data-user-name>User</span><small data-user-role>ERP User</small></span>
       <button type="button" class="module-logout" data-logout>Keluar</button>
     </div>
   </div>

@@ -42,7 +42,7 @@ requireText("views/partials/view-switcher.ejs", [
 ]);
 
 requireText("public/js/gallery-view.js", [
-  { pattern: /allowedModes = new Set\(\["table", "gallery", "heatmap", "kanban"\]\)/, label: "empat mode shared belum dikunci" },
+  { pattern: /allowedModes = new Set\(\["table", "gallery", "heatmap", "kanban", "gantt"\]\)/, label: "lima mode shared termasuk Gantt belum dikunci" },
   { pattern: /renderGallery/, label: "renderer Gallery tidak tersedia" },
   { pattern: /renderHeatmap/, label: "renderer Heatmap tidak tersedia" },
   { pattern: /renderKanban/, label: "renderer Kanban tidak tersedia" },
@@ -137,6 +137,36 @@ requireText("views/master-data/index.ejs", [
 requireText("public/css/master-data.css", [
   { pattern: /\.master-hub-grid[\s\S]*repeat\(auto-fit/, label: "grid Master Data belum full-width responsif" },
   { pattern: /@media \(max-width: 640px\)[\s\S]*\.master-hub-grid/, label: "landing Master Data belum responsif di mobile" },
+]);
+
+requireText("public/js/shared-data-table.js", [
+  { pattern: /installManualSorting\(\)/, label: "sorting tabel non-DataTables belum tersedia" },
+  { pattern: /toggleManualSort\(index\)/, label: "toggle ascending\/descending manual belum tersedia" },
+  { pattern: /parentTable = node\.closest/, label: "tabel dinamis belum otomatis mendapat sorting" },
+]);
+
+["public/js/module-list.js", "public/js/operations-dashboard.js", "public/js/entity-list.js"].forEach((relativePath) => requireText(relativePath, [
+  { pattern: /name:\s*(column|col)\.data/, label: "nama field kolom belum dikirim untuk server-side sorting" },
+]));
+
+requireText("public/js/items.js", [
+  { pattern: /ordering:\s*true/, label: "sorting tabel item masih dimatikan" },
+]);
+
+requireText("src/routes/modules.js", [
+  { pattern: /sortBy/, label: "proxy modul belum meneruskan sortBy" },
+  { pattern: /sortOrder/, label: "proxy modul belum meneruskan arah sorting" },
+]);
+
+requireText("src/routes/masterData.js", [
+  { pattern: /columns\[\$\{orderColumn\}\]\[name\]/, label: "proxy master data belum membaca nama field kolom" },
+  { pattern: /sortRows\(items/, label: "fallback sorting master data belum tersedia" },
+]);
+
+requireText("public/js/ppic-dashboard.js", [
+  { pattern: /data-ppic-list-filter="period"/, label: "filter periode PPIC belum tersedia" },
+  { pattern: /data-ppic-list-filter="customer"/, label: "filter customer PPIC belum tersedia" },
+  { pattern: /data-ppic-list-filter="status"/, label: "filter status PPIC belum tersedia" },
 ]);
 
 if (failures.length) {

@@ -57,6 +57,7 @@
     const gallery = host(root, "list-gallery");
     const heatmap = host(root, "list-heatmap");
     const kanban = host(root, "list-kanban");
+    const gantt = host(root, "list-gantt");
     const toolbar = options.toolbar
       ? document.querySelector(options.toolbar)
       : root.closest("main")?.querySelector(".list-view-toolbar") || document.querySelector(".list-view-toolbar");
@@ -64,13 +65,15 @@
     if (!tableView || !buttons.length) return null;
 
     const storageKey = options.storageKey || `list-view:${location.pathname}`;
-    const allowedModes = new Set(["table", "gallery", "heatmap", "kanban"]);
+    const allowedModes = new Set(["table", "gallery", "heatmap", "kanban", "gantt"]);
     let mode = localStorage.getItem(storageKey) || "table";
     let rows = [];
+    let ganttRows = [];
 
     const titleOf = options.title || defaultTitle;
     const subtitleOf = options.subtitle || defaultSubtitle;
     const statusOf = options.status || defaultStatus;
+    const kanbanGroupOf = options.kanbanGroup || statusOf;
     const empty = options.empty || "Belum ada data";
 
     function emptyState(label = empty) {
@@ -95,14 +98,14 @@
 
     function renderKanban() {
       const groups = rows.reduce((result, row) => {
-        const status = statusOf(row) || "Tanpa Status";
+        const status = kanbanGroupOf(row) || "Tanpa Status";
         (result[status] ||= []).push(row);
         return result;
       }, {});
       kanban.innerHTML = Object.keys(groups).length
         ? Object.entries(groups).map(([status, items]) => `<section class="kanban-column">
             <header><strong>${escapeHtml(status)}</strong><span>${items.length}</span></header>
-            <div class="kanban-column-body">${items.map((row) => `<article class="kanban-card"><b>${escapeHtml(titleOf(row))}</b><small>${escapeHtml(subtitleOf(row))}</small></article>`).join("")}</div>
+            <div class="kanban-column-body">${items.map(options.kanbanCard || ((row) => `<article class="kanban-card"><b>${escapeHtml(titleOf(row))}</b><small>${escapeHtml(subtitleOf(row))}</small></article>`)).join("")}</div>
           </section>`).join("")
         : emptyState();
     }
@@ -124,12 +127,19 @@
         : emptyState();
     }
 
+    function renderGantt() {
+      gantt.innerHTML = options.gantt
+        ? options.gantt(ganttRows)
+        : emptyState("Tampilan Gantt belum dikonfigurasi.");
+    }
+
     function render() {
       if (!allowedModes.has(mode) || !buttons.some((button) => button.dataset.listView === mode)) mode = "table";
       tableView.classList.toggle("is-hidden", mode !== "table");
       gallery.classList.toggle("is-hidden", mode !== "gallery");
       heatmap.classList.toggle("is-hidden", mode !== "heatmap");
       kanban.classList.toggle("is-hidden", mode !== "kanban");
+      gantt.classList.toggle("is-hidden", mode !== "gantt");
       buttons.forEach((button) => {
         const active = button.dataset.listView === mode;
         button.classList.toggle("active", active);
@@ -138,6 +148,7 @@
       if (mode === "gallery") renderGallery();
       if (mode === "heatmap") renderHeatmap();
       if (mode === "kanban") renderKanban();
+      if (mode === "gantt") renderGantt();
       root.dataset.activeView = mode;
     }
 
@@ -153,12 +164,17 @@
         rows = Array.isArray(nextRows) ? nextRows : [];
         render();
       },
+      setGanttRows(nextRows) {
+        ganttRows = Array.isArray(nextRows) ? nextRows : [];
+        if (mode === "gantt") renderGantt();
+      },
       setMode(nextMode) {
         mode = allowedModes.has(nextMode) ? nextMode : "table";
         localStorage.setItem(storageKey, mode);
         render();
       },
       render,
+      getMode() { return mode; },
       escapeHtml,
     };
   }

@@ -1,0 +1,30 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<main class="ops-page app-container">
+  <nav class="module-breadcrumb"><a href="/modules/inventory">Inventory</a><span>/</span><a href="/modules/inventory/stock-opname">Stock Opname</a><span>/</span><a href="/modules/inventory/stock-opname/<%= encodeURIComponent(stoNo) %>"><%= stoNo %></a><span>/</span><b>Counting</b></nav>
+  <section class="ops-detail-titlebar"><div><p class="ops-eyebrow">BLIND COUNT</p><h1>Input Stock Opname</h1><p>Pilih identitas barang fisik dan masukkan qty hasil hitung. Saldo sistem dan variance tidak ditampilkan.</p></div><a class="btn btn-outline-secondary" href="/modules/inventory/stock-opname/<%= encodeURIComponent(stoNo) %>">Kembali ke Detail</a></section>
+  <div id="sto-count-alert" class="alert d-none" role="alert"></div>
+  <section id="sto-count-loading" class="ops-detail-loading">Memuat scope counting...</section>
+  <div id="sto-count-page" class="d-none">
+    <section class="ops-detail-card">
+      <div class="ops-collection-head"><div><h2 id="sto-count-number"><%= stoNo %></h2><p id="sto-count-scope">Memuat scope...</p></div><span id="sto-count-progress">0 / 0 dihitung</span></div>
+      <form id="sto-count-form" class="p-3">
+        <div class="ops-detail-fields">
+          <label><small>Jenis Stock *</small><select id="sto-stock-type" class="form-select" required><option value="">Pilih jenis stock</option></select></label>
+          <label data-material-field><small>Jenis Material *</small><select id="sto-material-type" class="form-select"><option value="">Pilih jenis material</option></select></label>
+          <label data-material-field><small>Material Name / Code *</small><select id="sto-material-identity" class="form-select"><option value="">Pilih material</option></select></label>
+          <label data-part-field class="d-none"><small>Part No / Part Code *</small><select id="sto-part-identity" class="form-select"><option value="">Pilih part</option></select></label>
+          <label data-part-field class="d-none"><small>Part Name *</small><select id="sto-part-name" class="form-select"><option value="">Pilih part name</option></select></label>
+          <label><small>Rack *</small><select id="sto-rack" class="form-select" required><option value="">Pilih rack</option></select></label>
+          <label><small>Lot No *</small><select id="sto-lot" class="form-select" required><option value="">Pilih lot</option></select></label>
+          <label><small>Qty Hasil Hitung *</small><input id="sto-actual-qty" class="form-control" type="number" min="0" step="any" required placeholder="0"></label>
+        </div>
+        <div class="module-form-actions mt-3"><button class="btn btn-primary" type="submit">Simpan Hasil Hitung</button></div>
+      </form>
+    </section>
+    <section class="ops-detail-card mt-3"><div class="ops-collection-head"><div><h2>Progress Member</h2><p>Hanya hasil input fisik yang ditampilkan.</p></div><button id="sto-finish-counting" class="btn btn-outline-primary" type="button">Selesai & Submit Counting</button></div><div class="table-responsive"><table class="table ops-collection-table"><thead><tr><th>Jenis</th><th>Material / Part</th><th>Part Name</th><th>Rack</th><th>Lot</th><th>Actual Qty</th><th>Counted By</th></tr></thead><tbody id="sto-counted-body"></tbody></table></div></section>
+  </div>
+</main>
+<script id="sto-count-config" type="application/json"><%- JSON.stringify({ stoNo }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

@@ -356,3 +356,38 @@
     text-align: left;
   }
 }
+
+/* Responsive MPS BOM hierarchy */
+.ppic-excel-sheet:has(.ppic-mps-excel-table){position:relative;max-width:100%;overscroll-behavior-inline:contain;scrollbar-color:#a5b4fc #eef2f7;scrollbar-width:thin}
+.ppic-mps-excel-table tbody tr.ppic-mps-process-row>td{height:48px;max-height:none;padding-block:6px;vertical-align:middle}
+.ppic-mps-excel-table th:nth-child(1),.ppic-mps-excel-table tbody tr.ppic-mps-process-row>td:nth-child(1){width:112px;min-width:112px;max-width:112px}
+.ppic-mps-excel-table th:nth-child(2),.ppic-mps-excel-table tbody tr.ppic-mps-process-row>td:nth-child(2){left:112px;width:270px;min-width:270px;max-width:270px}
+.ppic-mps-excel-table th:nth-child(3),.ppic-mps-excel-table tbody tr.ppic-mps-process-row>td:nth-child(3){left:382px;width:190px;min-width:190px;max-width:190px}
+.ppic-mps-excel-table .ppic-mps-tree-code{min-width:0;width:100%;gap:7px;padding-left:calc(var(--bom-level,0) * 16px);white-space:normal}
+.ppic-mps-excel-table .ppic-tree-connector{flex-basis:24px;color:#8b5cf6}
+.ppic-mps-excel-table .ppic-mps-tree-code>span:last-child{overflow:hidden}
+.ppic-mps-excel-table .ppic-mps-tree-code b,.ppic-mps-excel-table .ppic-tree-parent{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ppic-mps-excel-table .ppic-tree-parent{max-width:210px}
+.ppic-mps-excel-table .ppic-mps-process-row:has(.ppic-mps-tree-code[data-bom-level="0"])>td:nth-child(-n+3){background:#e8f1ff!important}
+.ppic-mps-excel-table .ppic-mps-process-row:has(.ppic-mps-tree-code:not([data-bom-level="0"]))>td:nth-child(2){border-left:3px solid #a78bfa}
+.ppic-mps-excel-table th:nth-child(4),.ppic-mps-excel-table td:nth-child(4){width:220px;min-width:220px;max-width:220px;white-space:normal}
+.ppic-mps-excel-table th:nth-child(18),.ppic-mps-excel-table td:nth-child(18){width:260px;min-width:260px;max-width:260px}
+
+@media(max-width:900px){
+  .ppic-detail-card:has(.ppic-mps-excel-table){padding-inline:12px}
+  .ppic-excel-sheet:has(.ppic-mps-excel-table){max-height:none;border-radius:10px;box-shadow:inset -18px 0 20px -22px rgba(15,23,42,.7);-webkit-overflow-scrolling:touch}
+  .ppic-mps-excel-table th:nth-child(1),.ppic-mps-excel-table tbody tr.ppic-mps-process-row>td:nth-child(1),.ppic-mps-excel-table th:nth-child(3),.ppic-mps-excel-table tbody tr.ppic-mps-process-row>td:nth-child(3){position:static!important}
+  .ppic-mps-excel-table th:nth-child(2),.ppic-mps-excel-table tbody tr.ppic-mps-process-row>td:nth-child(2){position:sticky!important;left:0!important;width:230px;min-width:230px;max-width:230px;z-index:5;box-shadow:6px 0 10px -9px rgba(15,23,42,.8)}
+  .ppic-mps-excel-table thead th:nth-child(2){z-index:9;background:#e5eaf1}
+  .ppic-mps-excel-table tbody tr.ppic-mps-process-row>td:nth-child(2){background:#fff}
+  .ppic-mps-excel-table tbody tr.ppic-mps-process-row:nth-child(even)>td:nth-child(2){background:#fafbfc}
+  .ppic-mps-excel-table .ppic-mps-tree-code{padding-left:calc(var(--bom-level,0) * 13px)}
+  .ppic-mps-excel-table .ppic-tree-parent{max-width:170px}
+}
+@media(max-width:560px){
+  .ppic-detail-card:has(.ppic-mps-excel-table){padding:12px 8px}
+  .ppic-mps-excel-table{font-size:10px}
+  .ppic-mps-excel-table th:nth-child(2),.ppic-mps-excel-table tbody tr.ppic-mps-process-row>td:nth-child(2){width:205px;min-width:205px;max-width:205px}
+  .ppic-mps-excel-table .ppic-mps-tree-code{padding-left:calc(var(--bom-level,0) * 11px)}
+  .ppic-mps-excel-table .ppic-tree-parent{max-width:145px;font-size:8px}
+}

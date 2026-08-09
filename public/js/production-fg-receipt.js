@@ -200,7 +200,7 @@
     qtyInput.max = row.qtyPending;
     qtyInput.step = isDiscreteUom(row.uomCode) ? "1" : "0.001";
     element("fg-qty-help").textContent = `Maksimal ${formatNumber(row.qtyPending, row.uomCode)} ${row.uomCode || ""}${isDiscreteUom(row.uomCode) ? "; tanpa desimal" : ""}.`;
-    element("fg-lot").value = row.sourceLocation?.lotNumber || "";
+    element("fg-lot").value = "Otomatis saat simpan";
     element("fg-notes").value = "";
     const preferredWarehouse = state.warehouses.some((warehouse) => warehouse.warehouseCode === row.sourceLocation?.warehouseCode)
       ? row.sourceLocation.warehouseCode
@@ -308,7 +308,6 @@
           qty,
           warehouseCode: warehouseSelect.value,
           rackCode: rackSelect.value || null,
-          lotNumber: element("fg-lot").value.trim() || null,
           notes: element("fg-notes").value.trim() || null,
         }),
       });

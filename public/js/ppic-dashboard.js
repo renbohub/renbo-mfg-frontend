@@ -5,14 +5,28 @@
   const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
   const esc = (value) => String(value ?? "-").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
   const date = (value) => value ? new Intl.DateTimeFormat("id-ID", { month: "short", year: "numeric" }).format(new Date(value)) : "-";
+  const day = (value) => value ? new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value)) : "-";
   const num = (value) => new Intl.NumberFormat("id-ID").format(Number(value || 0));
+  const capacityHours = (minutes) => `${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(Number(minutes || 0) / 60)} jam`;
+  const currentMonthKey = () => {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit" }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${values.year}-${values.month}`;
+  };
   let rows = [];
   let monthlyRows = [];
+  const listFilterKey = `ppic-list-filter:${tab}`;
+  let listFilters;
+  try {
+    const savedFilters = localStorage.getItem(listFilterKey);
+    listFilters = { period: "", customer: "", status: "", ...(savedFilters ? JSON.parse(savedFilters) : {}), ...(tab === "consume-forecast" ? { period: currentMonthKey() } : {}) };
+  }
+  catch (_error) { listFilters = { period: "", customer: "", status: "" }; }
   const config = {
     mrp: { title: "Material Requirements Planning", subtitle: "Perhitungan kebutuhan material dan planned order dari MPS yang sudah dikonfirmasi.", url: "/modules/api/planning-ppic/material-requirements-planning?start=0&length=100", primary: "Run MRP", head: ["No", "MRP ID", "MPS", "Periode", "Requirements", "Planned Order", "Status", "Aksi"] },
     mps: { title: "Master Production Schedule", subtitle: "Satu jadwal induk per bulan dari konsolidasi Forecast dan Sales Order.", url: "/modules/api/planning-ppic/master-production-schedule?start=0&length=100", primary: "Hitung Ulang Bulan Dipilih", head: ["No", "MPS ID", "Periode", "Demand Sources", "Produk / Part", "Qty Plan", "Status", "Aksi"] },
     "monthly-plan": { title: "Monthly Production Plans", subtitle: "Target produksi, kapasitas, dan realisasi per bulan.", url: "/modules/api/planning-ppic/monthly-plan?start=0&length=100", primary: "Create New Plan", head: ["No", "Plan ID", "Bulan", "Target Qty", "Actual Qty", "Progress", "Status", "Aksi"] },
-    "consume-forecast": { title: "Consume Forecast Bulanan", subtitle: "Konsolidasi Forecast dan Sales Order per bulan.", url: "/modules/api/planning-ppic/consume-forecast/monthly", primary: "Create Forecast", head: ["No", "Bulan", "Forecast", "SO Aktual", "Demand Efektif", "Part", "Target Terdekat", "MPS", "Aksi"] },
+    "consume-forecast": { title: "Consume Forecast Bulanan", subtitle: "Forecast, delivery customer, target produksi, dan pembelian material dikelompokkan berdasarkan bulan kebutuhannya.", url: "/modules/api/planning-ppic/consume-forecast/monthly", primary: "Buat Forecast", head: ["No", "Bulan Kebutuhan", "Forecast", "Delivery Customer / SO", "Consume Forecast", "Target Produksi", "Material Dibeli", "MPS / MRP", "Aksi"] },
   }[tab];
   const gallery = window.ListGallery?.init({
     root: "#ppic-list-root",
@@ -49,6 +63,57 @@
     select.innerHTML = `<option value="">${label}</option>${[...new Set(values)].sort().map((value) => `<option value="${esc(value)}">${esc(value)}</option>`).join("")}`;
     select.value = [...select.options].some((option) => option.value === selected) ? selected : "";
   }
+  function periodOf(row) {
+    const value = row.periodStart || row.runDate || row.planMonth || row.month || row.periodEnd;
+    return value ? String(value).slice(0, 7) : "";
+  }
+  function customerOf(row) { return String(row.customerCode || row.customerName || row.customer?.customerCode || row.customer?.customerName || ""); }
+  function ensureListFilterPanel() {
+    let panel = document.getElementById("ppic-list-filter-panel");
+    if (panel) return panel;
+    panel = document.createElement("section");
+    panel.id = "ppic-list-filter-panel";
+    panel.className = "ppic-list-filter-panel app-container";
+    panel.hidden = true;
+    panel.innerHTML = '<div><strong>Filter Data</strong><span>Filter berlaku pada tabel aktif</span></div><label><span>Periode</span><select data-ppic-list-filter="period"></select></label><label><span>Customer</span><select data-ppic-list-filter="customer"></select></label><label><span>Status</span><select data-ppic-list-filter="status"></select></label><button type="button" class="btn btn-sm btn-outline-secondary" data-ppic-list-reset>Reset</button>';
+    document.querySelector(".ppic-master-toolbar")?.insertAdjacentElement("afterend", panel);
+    panel.querySelectorAll("[data-ppic-list-filter]").forEach((control) => control.addEventListener("change", () => {
+      listFilters[control.dataset.ppicListFilter] = control.value;
+      localStorage.setItem(listFilterKey, JSON.stringify(listFilters));
+      render();
+      syncListFilterBadge();
+    }));
+    panel.querySelector("[data-ppic-list-reset]").addEventListener("click", () => {
+      listFilters = { period: "", customer: "", status: "" };
+      localStorage.removeItem(listFilterKey);
+      syncListFilterOptions();
+      render();
+      syncListFilterBadge();
+    });
+    return panel;
+  }
+  function syncListFilterOptions() {
+    const panel = ensureListFilterPanel();
+    const options = {
+      period: [...new Set([...rows.map(periodOf).filter(Boolean), ...(tab === "consume-forecast" ? [currentMonthKey()] : [])])].sort(),
+      customer: [...new Set(rows.map(customerOf).filter(Boolean))].sort(),
+      status: [...new Set(rows.map((row) => String(row.status || row.mpsStatus || "")).filter(Boolean))].sort(),
+    };
+    const labels = { period: "Semua periode", customer: "Semua customer", status: "Semua status" };
+    panel.querySelectorAll("[data-ppic-list-filter]").forEach((control) => {
+      const key = control.dataset.ppicListFilter;
+      control.innerHTML = `<option value="">${labels[key]}</option>${options[key].map((value) => `<option value="${esc(value)}">${esc(value)}</option>`).join("")}`;
+      control.value = options[key].includes(listFilters[key]) ? listFilters[key] : "";
+      listFilters[key] = control.value;
+      control.closest("label").classList.toggle("d-none", key === "customer" && options[key].length === 0);
+    });
+  }
+  function syncListFilterBadge() {
+    const button = $("ppic-filter");
+    const count = Object.values(listFilters).filter(Boolean).length;
+    button.classList.toggle("active", count > 0);
+    button.innerHTML = `Filter${count ? ` <span class="ppic-filter-count">${count}</span>` : ""}`;
+  }
   function renderMonthlySummary() {
     const section = $("mps-monthly-summary"); if (!section) return;
     if (tab !== "mps") { section.classList.add("d-none"); return; }
@@ -79,31 +144,85 @@
   function detailLink(key) { return `/modules/planning-ppic/${tab}/${encodeURIComponent(key)}`; }
   function action(row) {
     if (tab === "consume-forecast") {
-      return `<button class="ppic-link-btn" data-make-mps="MONTHLY" data-months="${esc(String(row.month).slice(0,7))}">${row.mpsNumber ? "Hitung ulang" : "Buat MPS"}</button>`;
+      const monthKey = String(row.month).slice(0, 7);
+      return `<a class="ppic-link-btn" href="/modules/planning-ppic/consume-forecast/${encodeURIComponent(monthKey)}">Detail</a> <button class="ppic-link-btn" data-make-mps="MONTHLY" data-months="${esc(monthKey)}">${row.mpsNumber ? "Hitung ulang" : "Buat MPS"}</button>`;
     }
     if (tab === "mps") return row.status === "Draft" ? `<button class="ppic-link-btn" data-confirm-mps="${esc(row.mpsNumber)}">Confirm</button>` : row.status === "Confirmed" ? `<button class="ppic-link-btn" data-run-mrp="${esc(row.mpsNumber)}">Run MRP</button> <button class="ppic-link-btn" data-make-plan="${esc(row.mpsNumber)}">Production Plan</button>` : "-";
     return "-";
   }
+  function capacityState(capacity = {}) {
+    return {
+      ENOUGH: { label: "Cukup", css: "enough" },
+      TIGHT: { label: "Cukup, kapasitas kritis", css: "tight" },
+      NOT_ENOUGH: { label: "Tidak cukup", css: "not-enough" },
+      NOT_PLANNED: { label: "Belum masuk Production Plan", css: "not-planned" },
+      UNAVAILABLE: { label: "Belum dapat dihitung", css: "unavailable" },
+    }[capacity.status] || { label: "Belum dapat dihitung", css: "unavailable" };
+  }
+  function renderCapacityHeatmap() {
+    const section = $("consume-capacity-section");
+    if (!section || tab !== "consume-forecast") return;
+    const capacityRows = rows.filter((row) => row.capacity);
+    const thisMonth = currentMonthKey();
+    const current = capacityRows.find((row) => String(row.month).slice(0, 7) === thisMonth);
+    $("consume-capacity-heatmap").innerHTML = capacityRows.map((row) => {
+      const capacity = row.capacity || {};
+      const state = capacityState(capacity);
+      const utilization = Number(capacity.utilizationPercent || 0);
+      const isCurrent = String(row.month).slice(0, 7) === thisMonth;
+      return `<article class="consume-capacity-cell ${state.css} ${isCurrent ? "is-current" : ""}">
+        <div><span>${isCurrent ? "BULAN INI" : "BULAN"}</span><b>${esc(date(row.month))}</b></div>
+        <strong>${capacity.status === "UNAVAILABLE" ? "-" : `${num(utilization)}%`}</strong>
+        <div class="consume-capacity-meter"><i style="width:${Math.min(Math.max(utilization, 0), 100)}%"></i></div>
+        <small>${esc(state.label)} · Peak ${num(capacity.peakLoadPercent)}%</small>
+        <footer><span>Total ${num(utilization)}%</span><span>${capacityHours(capacity.remainingMinutes)} sisa</span></footer>
+        ${capacity.planNumbers?.length ? `<em>${capacity.planNumbers.map(esc).join(", ")}</em>` : '<em>Forecast belum tercakup MPP</em>'}
+      </article>`;
+    }).join("") || '<div class="consume-capacity-empty">Belum ada bucket Forecast bulan berjalan atau bulan mendatang untuk dihitung.</div>';
+    const state = capacityState(current?.capacity || {});
+    $("consume-capacity-current-month").textContent = current ? date(current.month) : date(`${thisMonth}-01`);
+    $("consume-capacity-current-state").textContent = current ? state.label : "Tidak ada bucket Forecast bulan ini";
+    $("consume-capacity-current-percent").textContent = current?.capacity?.status === "UNAVAILABLE" || !current ? "-" : `${num(current.capacity.utilizationPercent)}%`;
+    $("consume-capacity-current-hours").textContent = current ? `${capacityHours(current.capacity.totalLoadMinutes)} dari ${capacityHours(current.capacity.totalAvailableMinutes)}` : "Belum ada data kapasitas";
+    $("consume-capacity-current-remaining").textContent = current ? capacityHours(current.capacity.remainingMinutes) : "-";
+    $("consume-capacity-current-machines").textContent = current ? `${num(current.capacity.activeMachineCount)} mesin aktif` : "-";
+    $("consume-capacity-current-conclusion").textContent = current ? state.label : "Belum ada demand";
+    $("consume-capacity-current-conclusion").className = state.css;
+    $("consume-capacity-current-blockers").textContent = current ? `Peak ${num(current.capacity.peakLoadPercent)}%${current.capacity.bottleneckMachineCode ? ` · ${current.capacity.bottleneckMachineCode}` : ""} · ${num(current.capacity.overloadedCells)} overload` : "-";
+  }
   function render() {
     const query = $("ppic-search").value.toLowerCase();
-    const visible = rows.filter((row) => JSON.stringify(row).toLowerCase().includes(query));
+    const visible = rows.filter((row) =>
+      JSON.stringify(row).toLowerCase().includes(query)
+      && (!listFilters.period || periodOf(row) === listFilters.period)
+      && (!listFilters.customer || customerOf(row) === listFilters.customer)
+      && (!listFilters.status || String(row.status || row.mpsStatus || "") === listFilters.status));
     gallery?.setRows(visible);
     $("ppic-head").innerHTML = `<tr>${config.head.map((head) => `<th>${head}</th>`).join("")}</tr>`;
     $("ppic-rows").innerHTML = visible.map((row, index) => {
       if (tab === "mrp") return `<tr><td>${index + 1}</td><td><a class="ppic-id" href="${detailLink(row.runNumber)}">${esc(row.planNumber || row.runNumber)}</a>${row.planRevision ? `<small class="d-block text-muted">Rev. ${num(row.planRevision)}</small>` : ""}</td><td>${esc(row.mpsNumber)}</td><td>${date(row.runDate)}</td><td class="ppic-number">${num(row.totalRequirements)}</td><td class="ppic-number">${num(row.totalPlannedOrders)}</td><td>${badge(row.status)}</td><td>${action(row)}</td></tr>`;
       if (tab === "mps") { const sources = [...(row.forecastNumbers || []), ...(row.soNumbers || [])].join(", ") || row.forecastNumber || "-"; return `<tr><td>${index + 1}</td><td><a class="ppic-id" href="${detailLink(row.mpsNumber)}">${esc(row.mpsNumber)}</a></td><td>${date(row.periodStart)} — ${date(row.periodEnd)}</td><td>${esc(sources)}</td><td>${num(row.partCount)} part</td><td class="ppic-number">${num(row.totalPlannedQty)}</td><td>${badge(row.status)}</td><td>${action(row)}</td></tr>`; }
       if (tab === "monthly-plan") { const target = Number(row.targetQty || 0); const actual = Number(row.actualQty || 0); const progress = target ? Math.round(actual / target * 100) : 0; return `<tr><td>${index + 1}</td><td><a class="ppic-id" href="${detailLink(row.planNumber)}">${esc(row.planNumber)}</a></td><td>${date(row.planMonth)}</td><td class="ppic-number">${num(target)}</td><td class="ppic-number">${num(actual)}</td><td class="ppic-number">${progress}%</td><td>${badge(row.status)}</td><td>-</td></tr>`; }
-      return `<tr><td>${index + 1}</td><td><b>${esc(String(row.month).slice(0,7))}</b></td><td class="ppic-number">${num(row.forecastQty)}<small class="d-block text-muted">${num(row.forecastCount)} forecast</small></td><td class="ppic-number">${num(row.actualSalesOrderQty)}</td><td class="ppic-number"><b>${num(row.effectiveDemandQty)}</b></td><td>${num(row.partCount)} part</td><td>${row.earliestDeliveryDate?date(row.earliestDeliveryDate):"-"}<small class="d-block text-muted">${num(row.deliveryPhaseCount)} phase</small></td><td>${row.mpsNumber?`<a class="ppic-id" href="/modules/planning-ppic/mps/${encodeURIComponent(row.mpsNumber)}">${esc(row.mpsNumber)}</a>${row.replanRequired?'<span class="ppic-badge cancelled d-block mt-1">Replan diperlukan</span>':''}`:badge(row.mpsStatus)}</td><td>${action(row)}</td></tr>`;
+      const deliveryRange = row.earliestDeliveryDate ? `${day(row.earliestDeliveryDate)}${row.latestDeliveryDate && day(row.latestDeliveryDate) !== day(row.earliestDeliveryDate) ? ` – ${day(row.latestDeliveryDate)}` : ""}` : "Belum ada target delivery";
+      const purchaseRange = row.earliestPurchaseDate ? `${day(row.earliestPurchaseDate)}${row.latestPurchaseDate && day(row.latestPurchaseDate) !== day(row.earliestPurchaseDate) ? ` – ${day(row.latestPurchaseDate)}` : ""}` : "Belum ada planned purchase";
+      const planningLinks = [
+        row.mpsNumber ? `<a class="ppic-id" href="/modules/planning-ppic/mps/${encodeURIComponent(row.mpsNumber)}">${esc(row.mpsNumber)}</a>` : badge(row.mpsStatus),
+        row.mrpRunNumber ? `<a class="ppic-id d-block mt-1" href="/modules/planning-ppic/mrp/${encodeURIComponent(row.mrpRunNumber)}">${esc(row.mrpRunNumber)}</a>` : '<small class="d-block text-muted mt-1">MRP belum dijalankan</small>',
+        row.replanRequired ? '<span class="ppic-badge cancelled d-block mt-1">Replan diperlukan</span>' : "",
+      ].join("");
+      const monthKey = String(row.month).slice(0, 7);
+      return `<tr><td>${index + 1}</td><td><a class="ppic-id" href="/modules/planning-ppic/consume-forecast/${encodeURIComponent(monthKey)}"><b>${esc(monthKey)}</b></a><small class="d-block text-muted">Produksi / delivery / purchase</small></td><td class="ppic-number">${num(row.forecastQty)}<small class="d-block text-muted">${num(row.forecastCount)} forecast · ${num(row.partCount)} FG</small></td><td class="ppic-number"><b>${num(row.actualSalesOrderQty)}</b><small class="d-block text-muted">Target ${num(row.customerDeliveryQty)} · ${esc(deliveryRange)}</small></td><td class="ppic-number"><b>${num(row.consumedForecastQty)}</b><small class="d-block text-muted">Sisa forecast ${num(row.remainingForecastQty)}</small></td><td class="ppic-number"><b>${num(row.productionTargetQty)}</b><small class="d-block text-muted">${num(row.productionPartCount)} FG · ${esc(row.mpsStatus)}</small></td><td class="ppic-number"><b>${num(row.materialPurchaseOrderCount)} order</b><small class="d-block text-muted">${num(row.materialPartCount)} material</small><small class="d-block text-muted">${esc(purchaseRange)}</small></td><td>${planningLinks}</td><td>${action(row)}</td></tr>`;
     }).join("") || `<tr><td colspan="${config.head.length}" class="ppic-empty">Belum ada data ${esc(config.title)}</td></tr>`;
     $("ppic-footer").innerHTML = `Menampilkan <b>${visible.length}</b> dari <b>${rows.length}</b> data`;
+    renderCapacityHeatmap();
   }
   async function load() {
-    try { rows = await api(config.url); $("ppic-title").textContent = config.title; $("ppic-subtitle").textContent = config.subtitle; $("ppic-primary").textContent = config.primary; render(); $("ppic-alert").classList.add("d-none"); }
+    try { rows = await api(config.url); $("ppic-title").textContent = config.title; $("ppic-subtitle").textContent = config.subtitle; $("ppic-primary").textContent = config.primary; syncListFilterOptions(); syncListFilterBadge(); render(); $("ppic-alert").classList.add("d-none"); }
     catch (error) { showAlert(error.message); }
   }
   $("ppic-search").addEventListener("input", render);
   ["mps-summary-group", "mps-summary-month", "mps-summary-forecast", "mps-summary-customer", "mps-summary-scope"].forEach((id) => $(id)?.addEventListener("change", renderMonthlySummary));
-  $("ppic-filter").addEventListener("click", () => showAlert("Filter lanjutan akan mengikuti periode, customer, dan status dokumen.", "info"));
+  $("ppic-filter").addEventListener("click", () => { const panel = ensureListFilterPanel(); panel.hidden = !panel.hidden; $("ppic-filter").setAttribute("aria-expanded", String(!panel.hidden)); });
   $("ppic-primary").addEventListener("click", async () => {
     if (tab === "consume-forecast") return void (location.href = "/modules/sales/forecasts/new");
     if (tab === "mps") {

@@ -53,6 +53,20 @@ function sendBackendError(res, response, payload) {
   });
 }
 
+function nestedValue(object, path) { return String(path || "").split(".").reduce((value, key) => value == null ? undefined : value[key], object); }
+function sortRows(rows, field, direction) {
+  if (!field) return rows;
+  const collator = new Intl.Collator("id", { numeric: true, sensitivity: "base" });
+  return [...rows].sort((left, right) => {
+    const a = nestedValue(left, field);
+    const b = nestedValue(right, field);
+    if (a == null && b != null) return 1;
+    if (b == null && a != null) return -1;
+    const result = typeof a === "number" && typeof b === "number" ? a - b : collator.compare(String(a ?? ""), String(b ?? ""));
+    return direction === "desc" ? -result : result;
+  });
+}
+
 router.get("/", (_req, res) => {
   res.render("master-data/index", { title: "Master Data", groups: getGroups(), ...pageData() });
 });
@@ -109,18 +123,25 @@ router.get("/api/:entity", async (req, res) => {
   const length = Math.min(Math.max(Number(req.query.length || 20), 1), 500);
   const page = Math.floor(start / length) + 1;
   const search = String(req.query["search[value]"] || req.query.q || "").trim();
+  const orderColumn = Number(req.query["order[0][column]"]);
+  const requestedName = Number.isInteger(orderColumn) ? String(req.query[`columns[${orderColumn}][name]`] || "").trim() : "";
+  const sortColumn = requestedName
+    ? config.columns.find((column) => column.data === requestedName)
+    : Number.isFinite(orderColumn) ? config.columns[orderColumn - 1] : null;
+  const sortDirection = req.query["order[0][dir]"] === "desc" ? "desc" : "asc";
+  const canSortLocally = Boolean(sortColumn && start + length <= 500);
 
   try {
     const url = new URL(`${backendUrl}${config.endpoint}`);
-    url.searchParams.set("page", String(page));
-    url.searchParams.set("limit", String(length));
+    const fetchLength = canSortLocally ? start + length : length;
+    url.searchParams.set("page", canSortLocally ? "1" : String(page));
+    url.searchParams.set("limit", String(fetchLength));
     if (search) url.searchParams.set("q", search);
 
-    const orderColumn = Number(req.query["order[0][column]"]);
-    const sortColumn = Number.isFinite(orderColumn) ? config.columns[orderColumn - 1] : null;
-    if (sortColumn?.data && !sortColumn.data.includes(".")) {
+    if (sortColumn?.data) {
       url.searchParams.set("sortBy", sortColumn.data);
-      url.searchParams.set("sortOrder", req.query["order[0][dir]"] === "desc" ? "desc" : "asc");
+      url.searchParams.set("sortOrder", sortDirection);
+      url.searchParams.set("sort", `${sortColumn.data}:${sortDirection}`);
     }
 
     const reserved = /^(draw|start|length|q|search\[|order\[|columns\[|_)|^entity$/;
@@ -133,7 +154,9 @@ router.get("/api/:entity", async (req, res) => {
     if (!response.ok) return sendBackendError(res, response, payload);
     const items = Array.isArray(payload) ? payload : (payload.items || payload.data || []);
     const total = Number(payload.total ?? payload.count ?? items.length);
-    res.json({ draw, recordsTotal: total, recordsFiltered: total, data: items });
+    const sorted = sortRows(items, sortColumn?.data, sortDirection);
+    const data = canSortLocally ? sorted.slice(start, start + length) : sorted;
+    res.json({ draw, recordsTotal: total, recordsFiltered: Number(payload.filteredTotal ?? payload.filtered ?? total), data });
   } catch (error) {
     res.status(503).json({ draw, recordsTotal: 0, recordsFiltered: 0, data: [], code: "BACKEND_UNAVAILABLE", message: backendOffline(error) ? `Backend belum aktif di ${backendUrl}.` : "Tidak dapat mengambil data dari backend." });
   }
@@ -206,19 +229,19 @@ router.delete("/api/:entity/:id", async (req, res) => {
 router.get("/:entity/new", (req, res) => {
   const config = getEntity(req.params.entity);
   if (!config) return res.status(404).render("errors/404", { title: "Modul tidak ditemukan" });
-  res.render("master-data/entity-form", { title: `Tambah ${config.singular}`, config, mode: "create", recordId: "", recordKey: "", pageScript: "/js/entity-form.js", ...pageData(config) });
+  res.render("master-data/entity-form", { title: `Tambah ${config.singular}`, config, mode: "create", recordId: "", recordKey: "", pageScript: "/js/entity-form.js?v=20260809-1", ...pageData(config) });
 });
 
 router.get("/:entity/:id/edit", (req, res) => {
   const config = getEntity(req.params.entity);
   if (!config) return res.status(404).render("errors/404", { title: "Modul tidak ditemukan" });
-  res.render("master-data/entity-form", { title: `Edit ${config.singular}`, config, mode: "edit", recordId: req.params.id, recordKey: String(req.query.key || req.params.id), pageScript: "/js/entity-form.js", ...pageData(config) });
+  res.render("master-data/entity-form", { title: `Edit ${config.singular}`, config, mode: "edit", recordId: req.params.id, recordKey: String(req.query.key || req.params.id), pageScript: "/js/entity-form.js?v=20260809-1", ...pageData(config) });
 });
 
 router.get("/:entity/:key", (req, res) => {
   const config = getEntity(req.params.entity);
   if (!config) return res.status(404).render("errors/404", { title: "Modul tidak ditemukan" });
-  res.render("master-data/entity-detail", { title: `Detail ${config.singular}`, config, recordKey: req.params.key, pageScript: "/js/entity-detail.js", ...pageData(config) });
+  res.render("master-data/entity-detail", { title: `Detail ${config.singular}`, config, recordKey: req.params.key, pageScript: "/js/entity-detail.js?v=20260809-1", ...pageData(config) });
 });
 
 router.get("/:entity", (req, res) => {

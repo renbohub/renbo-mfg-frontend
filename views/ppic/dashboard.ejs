@@ -5,7 +5,7 @@
   <section class="entity-toolbar ppic-toolbar ppic-master-toolbar app-container">
     <div class="entity-title"><span>Planning PPIC</span><b>/</b><strong id="ppic-breadcrumb"><%= title %></strong></div>
     <label class="toolbar-search ppic-search"><%- include('../partials/icon', { name: 'search' }) %><input id="ppic-search" type="search" placeholder="Cari data PPIC..."></label>
-    <button id="ppic-filter" class="btn btn-outline-secondary" type="button">Filter</button>
+    <button id="ppic-filter" class="btn btn-outline-secondary" type="button" aria-controls="ppic-list-filter-panel" aria-expanded="false">Filter</button>
     <div class="toolbar-spacer"></div>
     <%- include('../partials/view-switcher') %>
     <button id="ppic-export" class="btn btn-export" type="button">Export CSV</button>
@@ -14,6 +14,22 @@
   <section class="ppic-content dashboard-content">
     <div id="ppic-alert" class="alert d-none mx-4 mt-3"></div>
     <div class="visually-hidden"><h1 id="ppic-title"></h1><p id="ppic-subtitle"></p></div>
+    <% if (activePpicTab === 'consume-forecast') { %>
+      <section id="consume-capacity-section" class="consume-capacity-card" aria-labelledby="consume-capacity-title">
+        <header class="consume-capacity-head">
+          <div><p>MONTHLY CAPACITY RESUME</p><h2 id="consume-capacity-title">Kecukupan Produksi per Bulan</h2><span>Demand Forecast yang sudah masuk Production Plan dibandingkan kapasitas efektif Current Use.</span></div>
+          <div class="consume-capacity-legend"><span class="enough">Cukup</span><span class="tight">Kritis ≥85%</span><span class="not-enough">Tidak cukup</span><span class="not-planned">Belum diplan</span></div>
+        </header>
+        <div class="consume-capacity-current">
+          <article><small>Bulan Berjalan</small><strong id="consume-capacity-current-month">-</strong><span id="consume-capacity-current-state">Memuat kapasitas...</span></article>
+          <article><small>Utilisasi Total</small><strong id="consume-capacity-current-percent">-</strong><span id="consume-capacity-current-hours">-</span></article>
+          <article><small>Sisa Kapasitas</small><strong id="consume-capacity-current-remaining">-</strong><span id="consume-capacity-current-machines">-</span></article>
+          <article><small>Kesimpulan</small><strong id="consume-capacity-current-conclusion">-</strong><span id="consume-capacity-current-blockers">-</span></article>
+        </div>
+        <div id="consume-capacity-heatmap" class="consume-capacity-heatmap" aria-live="polite"></div>
+        <footer id="consume-capacity-note">Perhitungan mengikuti kalender, shift, efficiency, downtime, routing, dan allocation aktif di Capacity Planning.</footer>
+      </section>
+    <% } %>
     <section id="ppic-list-root" class="table-shell entity-table-shell ppic-table-card ppic-master-table">
       <div class="list-table-view">
         <table class="table ppic-table"><thead id="ppic-head"></thead><tbody id="ppic-rows"></tbody></table>

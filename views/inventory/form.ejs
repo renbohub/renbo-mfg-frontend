@@ -3,7 +3,7 @@
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <main class="ops-page app-container">
   <nav class="module-breadcrumb"><a href="/modules/inventory">Inventory</a><span>/</span><a href="/modules/inventory/<%= page.slug %>"><%= page.label %></a><span>/</span><b>Buat</b></nav>
-  <section class="ops-detail-titlebar"><div><p class="ops-eyebrow">Inventory</p><h1>Buat <%= page.label %></h1><p>Transaksi dicatat dengan audit trail dan validasi saldo/warehouse.</p></div><a class="btn btn-outline-secondary" href="/modules/inventory/<%= page.slug %>">Kembali</a></section>
+  <section class="ops-detail-titlebar"><div><p class="ops-eyebrow">Inventory</p><h1>Buat <%= page.label %></h1><p><%= page.slug === 'stock-opname' ? 'Tentukan scope opname. Setelah Mulai Counting, member mengisi rack, lot, part, dan qty melalui form blind count.' : 'Transaksi dicatat dengan audit trail dan validasi saldo/warehouse.' %></p></div><a class="btn btn-outline-secondary" href="/modules/inventory/<%= page.slug %>">Kembali</a></section>
   <div id="inventory-form-alert" class="alert d-none" role="alert"></div>
   <form id="inventory-form" class="ops-detail-card inventory-form-card">
     <div class="module-form-section-title">Informasi <%= page.label %><span class="form-required-note">* Field wajib</span></div>
@@ -36,7 +36,7 @@
         <label><span>Rack Scope</span><select id="rackCode"><option value="">Semua rack</option></select></label>
         <label><span>Stock Scope</span><select id="stockType"><option value="">Semua material scope</option><option value="Material">Material</option><option value="Purchase Part">Purchase Part</option></select></label>
         <label><span>Tanggal *</span><input id="stoDate" type="date" required></label>
-        <div class="span-2 alert alert-info mb-0"><strong>Snapshot & freeze:</strong> qty sistem diambil ulang saat <em>Mulai Counting</em>. Transaksi pada saldo dalam scope ini diblokir sampai opname selesai atau dibatalkan.</div>
+        <div class="span-2 alert alert-info mb-0"><strong>Blind count:</strong> qty sistem diambil ulang dan disembunyikan saat <em>Mulai Counting</em>. Member hanya mengisi rack, nomor lot, Part No/Part Code, dan qty fisik. Saldo sistem serta variance baru tampil setelah counting disubmit untuk review.</div>
         <label class="span-2"><span>Catatan</span><textarea id="notes" rows="3"></textarea></label>
       <% } %>
     </div>

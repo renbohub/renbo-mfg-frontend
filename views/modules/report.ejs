@@ -3,7 +3,7 @@
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <main class="entity-page report-page module-report-page">
   <section class="entity-toolbar report-master-toolbar app-container">
-    <div class="entity-title"><span><%= module.label %></span><b>/</b><strong><%= page.label %></strong></div>
+    <div class="enterprise-page-heading"><span><%= module.label %></span><h1><%= page.label %></h1><p><%= page.description %></p></div>
     <label class="toolbar-search report-master-search"><%- include('../partials/icon', { name: 'search' }) %><input id="report-search" type="search" placeholder="Cari nomor, part, customer, lot..."></label>
     <% if (page.reportMode === 'production-machine') { %>
       <label class="report-toolbar-field"><span>Bulan</span><input id="report-month" type="month" value="<%= new Date().toISOString().slice(0, 7) %>"></label>
@@ -11,8 +11,10 @@
     <% } %>
     <div class="toolbar-spacer"></div>
     <%- include('../partials/view-switcher') %>
-    <button id="report-refresh" class="btn btn-outline-secondary" type="button">Refresh</button>
-    <button id="report-export" class="btn btn-export" type="button">Export CSV</button>
+    <div class="dropdown enterprise-more-actions">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">More Actions</button>
+      <div class="dropdown-menu dropdown-menu-end"><button id="report-refresh" class="dropdown-item" type="button">Refresh</button><button id="report-export" class="dropdown-item" type="button">Export CSV</button></div>
+    </div>
     <button class="btn btn-primary brand-button" type="button" onclick="window.print()">Cetak</button>
   </section>
   <% if (!page.apiReady) { %><section class="api-notice mx-4 mt-3"><span>Belum tersedia</span><div><b>Endpoint laporan belum tersedia</b></div></section><% } %>
@@ -28,6 +30,14 @@
       <article class="report-insight-panel"><div><h2><%= page.reportMode === 'production-machine' ? 'Ringkasan Produksi' : 'Audit Coverage' %></h2><p><%= page.reportMode === 'production-machine' ? 'Gross time dikurangi seluruh downtime menjadi net process time.' : 'Readiness, missing cost, aging, atau gap data tanpa mengubah transaksi existing.' %></p></div><div id="report-insights" class="report-insights"><span>Memuat insight...</span></div></article>
     </section>
   </div>
+  <% if (page.reportMode === 'inventory-traceability') { %>
+  <section class="table-shell entity-table-shell report-detail-card inventory-trace-card">
+    <header class="ops-card-head app-container"><div><h2>Traceability Stock per FG COMP</h2><p>Ready FG ditampilkan terpisah dari child FG, WIP proses, material, dan purchase part sesuai MBOM bertingkat aktif.</p></div><div class="d-flex align-items-center gap-2"><span id="inventory-trace-count" class="ops-live-label"><i></i> Memuat</span><button id="inventory-trace-export" class="btn btn-outline-secondary btn-sm" type="button">Export Traceability</button></div></header>
+    <div class="list-table-view">
+      <table class="table align-middle w-100 report-detail-table inventory-trace-table"><thead><tr><th>FG COMP</th><th>MBOM</th><th>Ready FG</th><th>Child FG</th><th>WIP</th><th>Material / Part</th><th>Status</th><th>Trace</th></tr></thead><tbody id="inventory-trace-rows"><tr><td colspan="8" class="text-center p-4">Memuat traceability...</td></tr></tbody></table>
+    </div>
+  </section>
+  <% } %>
   <section id="report-list-root" class="table-shell entity-table-shell report-detail-card report-master-table">
     <header class="ops-card-head app-container"><div><h2>Detail <%= page.label %></h2><p>Data dapat dicari, dicetak, dan diekspor untuk rekonsiliasi.</p></div><span id="report-count" class="ops-live-label"><i></i> Memuat</span></header>
     <div class="list-table-view">

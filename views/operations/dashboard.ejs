@@ -2,7 +2,8 @@
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <% const isPurchaseRequisition = module.slug === 'purchasing' && page.slug === 'purchase-requisitions'; %>
-<main class="entity-page operations-master-list-page">
+<% const isDailyWorkQueue = module.slug === 'production' && page.slug === 'daily-production-schedules'; %>
+<main class="entity-page operations-master-list-page <%= isDailyWorkQueue ? 'daily-work-command-page' : '' %>">
   <section class="entity-toolbar operations-master-toolbar app-container">
     <div class="entity-title"><span><%= module.label %></span><b>/</b><strong><%= page.label %></strong></div>
     <label class="toolbar-search operations-master-search">
@@ -10,7 +11,7 @@
       <input id="ops-search" type="search" placeholder="Cari nomor, part, lokasi, atau status..." aria-label="Cari <%= page.label %>">
     </label>
     <div class="toolbar-spacer"></div>
-    <%- include('../partials/view-switcher') %>
+    <%- include('../partials/view-switcher', isDailyWorkQueue ? { viewModes: ['gallery', 'table', 'kanban', 'gantt'], viewLabels: { gallery: 'Work Cards', table: 'Table', kanban: 'Status Board', gantt: 'Weekly Gantt' } } : {}) %>
     <button id="ops-refresh" type="button" class="btn btn-outline-secondary">Refresh</button>
     <button id="ops-export" type="button" class="btn btn-export">Export CSV</button>
     <% if (isPurchaseRequisition) { %>
@@ -19,6 +20,30 @@
       <a href="<%= page.createRoute %>" class="btn btn-primary brand-button"><%- include('../partials/icon', { name: 'plus' }) %> Tambah Baru</a>
     <% } %>
   </section>
+  <% if (isDailyWorkQueue) { %>
+    <section class="daily-work-intro app-container">
+      <div><span>PRODUCTION CONTROL</span><h1>Daily Production Schedule</h1><p>Prioritaskan schedule berdasarkan tanggal, shift, mesin, dan status eksekusi.</p></div>
+      <div class="daily-work-clock"><small>TANGGAL KERJA</small><strong id="daily-work-date-label">-</strong><span id="daily-work-active-filter">Hari ini</span></div>
+    </section>
+    <section class="daily-work-filters app-container" aria-label="Filter Daily Production Schedule">
+      <div class="daily-work-quick" role="group" aria-label="Periode kerja">
+        <button type="button" data-work-scope="today" class="active">Hari Ini</button>
+        <button type="button" data-work-scope="tomorrow">Besok</button>
+        <button type="button" data-work-scope="overdue">Terlambat</button>
+        <button type="button" data-work-scope="all">Semua</button>
+      </div>
+      <label><span>Tanggal</span><input id="ops-filter-schedule-date" class="form-control form-control-sm" type="date"></label>
+      <label><span>Shift</span><select id="ops-filter-shift" class="form-select form-select-sm"><option value="">Semua Shift</option><option value="1">Shift 1</option><option value="1A">Shift 1A</option><option value="1B">Shift 1B</option><option value="2">Shift 2</option><option value="2A">Shift 2A</option><option value="2B">Shift 2B</option><option value="3">Shift 3</option><option value="3A">Shift 3A</option><option value="3B">Shift 3B</option><option value="3C">Shift 3C</option></select></label>
+      <label><span>Mesin</span><select id="ops-filter-machine" class="form-select form-select-sm"><option value="">Semua Mesin</option></select></label>
+      <label><span>Line</span><select id="ops-filter-line" class="form-select form-select-sm"><option value="">Semua Line</option></select></label>
+      <label><span>Status</span><select id="ops-filter-status" class="form-select form-select-sm"><option value="">Semua Status</option><option value="Draft">Belum Dipersiapkan</option><option value="Released">Siap Dikerjakan</option><option value="In Progress">Sedang Dikerjakan</option><option value="Completed">Selesai</option><option value="Cancelled">Dibatalkan</option></select></label>
+      <button id="ops-filter-reset" type="button" class="btn btn-sm btn-outline-secondary">Reset</button>
+    </section>
+    <section class="daily-work-summary app-container" aria-label="Ringkasan Daily Production Schedule">
+      <% ['WO', 'DR', 'RUN', '%'].forEach((icon, index) => { %><article><i><%= icon %></i><div><small id="ops-stat-label-<%= index %>">-</small><strong id="ops-stat-value-<%= index %>">0</strong><span id="ops-stat-note-<%= index %>">-</span></div></article><% }) %>
+    </section>
+    <section id="daily-machine-tables" class="daily-machine-tables app-container" aria-live="polite"><div class="daily-machine-empty">Memuat Daily Production Schedule per mesin...</div></section>
+  <% } %>
   <% if (module.slug === 'inventory') { %>
     <section class="app-container d-flex flex-wrap align-items-center gap-2 py-3 border-bottom bg-white" aria-label="Warehouse operational filters">
       <% if (page.slug !== 'warehouses') { %>

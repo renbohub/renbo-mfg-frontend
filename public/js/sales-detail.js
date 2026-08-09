@@ -53,8 +53,46 @@
     }
   }
   function renderWorkflow() { const maps = { quotation: ["Draft", "Submitted", "Approved", "Converted"], "sales-order": ["Draft", "Confirmed", "In Progress", "Completed"], forecast: ["Draft", "Submitted", "Confirmed", "Partial Product", "Consumed", "Closed", "Obsolete"] }; const steps = maps[type]; const current = steps.indexOf(doc.status); const converted = type === "quotation" && doc.convertedToSO; $id("workflow").innerHTML = steps.map((step, index) => `<div class="workflow-step ${(index <= current || converted && step === "Converted") ? "done" : ""}"><b>${step}</b><span>${index === 0 ? "Dokumen dibuat" : step === "Submitted" && type === "forecast" ? "Menunggu approval" : step === "Partial Product" ? "Sebagian demand sudah diproduksi; sisa bulan masih bisa dikonsumsi" : step === "Consumed" ? "Forecast sudah diturunkan ke planning" : "Tahap proses dokumen"}</span></div>`).join(""); }
-  function renderRelationships() { let html = ""; if (type === "quotation") html = doc.convertedToSO ? `<a href="/modules/sales/sales-orders/${encodeURIComponent(doc.convertedToSO)}">Sales Order: ${esc(doc.convertedToSO)} →</a>` : "<p>Belum dikonversi ke Sales Order.</p>"; else if (type === "sales-order") html = doc.quotationNumber ? `<a href="/modules/sales/quotations/${encodeURIComponent(doc.quotationNumber)}">Quotation: ${esc(doc.quotationNumber)} →</a>` : "<p>Sales Order dibuat tanpa quotation.</p>"; else html = "<p>Forecast menjadi demand bulanan untuk MPS, MRP, production plan, dan PR.</p>"; $id("relationships").innerHTML = html; }
-  function renderPlanning(snapshot) { const box = $id("forecast-planning-tool-status"); if (!box) return; const item = snapshot.items?.[0]; if (!item) { box.textContent = "Forecast tidak ditemukan."; return; } const count = (value) => Array.isArray(value) ? value.length : 0; const actions = (item.nextActions || []).map((action) => `<span class="sales-badge">${esc(action)}</span>`).join(" ") || '<span class="text-success">Rantai planning sudah tersambung.</span>'; box.innerHTML = `<div class="sales-info-grid">${info("MPS", count(item.mps))}${info("MRP Run", count(item.mrp))}${info("Production Plan", count(item.productionPlans))}${info("PR", count(item.purchaseRequests))}${info("MO", count(item.manufacturingOrders))}${info("Production Log", count(item.productionLogs))}</div><p class="mt-2 mb-0"><b>Next action:</b> ${actions}</p>`; }
+  function relatedTable(rows, emptyMessage) {
+    if (!rows.length) return `<p class="sales-related-empty">${esc(emptyMessage)}</p>`;
+    return `<div class="table-responsive"><table class="table sales-related-table"><thead><tr><th>Dokumen</th><th>Referensi</th><th>Konteks</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${esc(row.type)}</td><td><a class="erp-record-link" href="${row.href}">${esc(row.reference)}</a></td><td>${esc(row.context || "Related record")}</td></tr>`).join("")}</tbody></table></div>`;
+  }
+  function renderRelationships() {
+    let rows = [];
+    let empty = "Belum ada dokumen terkait.";
+    if (type === "quotation") {
+      if (doc.convertedToSO) rows = [{ type: "Sales Order", reference: doc.convertedToSO, href: `/modules/sales/sales-orders/${encodeURIComponent(doc.convertedToSO)}`, context: "Hasil konversi quotation" }];
+      else empty = "Belum dikonversi ke Sales Order.";
+    } else if (type === "sales-order") {
+      if (doc.quotationNumber) rows = [{ type: "Quotation", reference: doc.quotationNumber, href: `/modules/sales/quotations/${encodeURIComponent(doc.quotationNumber)}`, context: "Dokumen sumber" }];
+      else empty = "Sales Order dibuat tanpa quotation.";
+    } else empty = "Related MPS, MRP, production plan, dan PR akan tampil setelah planning disinkronkan.";
+    $id("relationships").innerHTML = relatedTable(rows, empty);
+  }
+  function referenceValues(value, keys) {
+    return (Array.isArray(value) ? value : []).map((entry) => {
+      if (typeof entry === "string" || typeof entry === "number") return String(entry);
+      return keys.map((key) => entry?.[key]).find(Boolean) || "";
+    }).filter(Boolean);
+  }
+  function renderPlanning(snapshot) {
+    const box = $id("forecast-planning-tool-status");
+    if (!box) return;
+    const item = snapshot.items?.[0];
+    if (!item) { box.textContent = "Forecast tidak ditemukan."; return; }
+    const specs = [
+      ["MPS", item.mps, ["mpsNumber", "number"], "/modules/planning-ppic/master-production-schedule/"],
+      ["MRP", item.mrp, ["runNumber", "mrpNumber", "number"], "/modules/planning-ppic/material-requirements-planning/"],
+      ["Production Plan", item.productionPlans, ["planNumber", "number"], "/modules/planning-ppic/monthly-production-plans/"],
+      ["Purchase Requisition", item.purchaseRequests, ["prNumber", "number"], "/modules/purchasing/purchase-requisitions/"],
+      ["Manufacturing Order", item.manufacturingOrders, ["moNumber", "number"], "/modules/production/manufacturing-orders/"],
+      ["Production Log", item.productionLogs, ["logNumber", "number"], "/modules/production/production-logs/"],
+    ];
+    const rows = specs.flatMap(([recordType, records, keys, base]) => referenceValues(records, keys).map((reference) => ({ type: recordType, reference, href: `${base}${encodeURIComponent(reference)}`, context: cfg.recordKey })));
+    const counts = specs.map(([recordType, records]) => `${recordType}: ${Array.isArray(records) ? records.length : 0}`).join(" · ");
+    const actions = (item.nextActions || []).map((action) => `<span class="sales-badge">${esc(action)}</span>`).join(" ") || '<span class="text-success">Rantai planning sudah tersambung.</span>';
+    box.innerHTML = `${relatedTable(rows, "Belum ada related record dari planning chain.")}<div class="sales-related-summary"><span>${esc(counts)}</span><div><b>Next action:</b> ${actions}</div></div>`;
+  }
   async function loadPlanning() { if (type !== "forecast") return; try { renderPlanning(await api(`/modules/api/sales/forecasts/${encodeURIComponent(cfg.recordKey)}/planning-tool`)); } catch (error) { const box = $id("forecast-planning-tool-status"); if (box) box.textContent = error.message; } }
   async function loadDemandSummary() {
     if (type !== "forecast") return;

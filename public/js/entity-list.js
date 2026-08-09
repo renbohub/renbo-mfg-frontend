@@ -55,7 +55,7 @@
 
   const columns = [
     { data: null, orderable: false, searchable: false, width: "42px", render: (_v, _t, row) => `<input class="form-check-input row-select" type="checkbox" value="${esc(row.id)}" ${selected.has(row.id) ? "checked" : ""}>` },
-    ...config.columns.map((col) => ({ data: null, render: (_v, _t, row) => renderColumn(get(row, col.data), col) })),
+    ...config.columns.map((col) => ({ data: null, name: col.data, render: (_v, renderType, row) => { const value = get(row, col.data); return renderType === "display" ? renderColumn(value, col) : value ?? ""; } })),
     { data: null, orderable: false, searchable: false, width: "142px", render: (_v, _t, row) => completeness(row) },
     { data: null, orderable: false, searchable: false, width: "118px", render: (_v, _t, row) => {
       const key = row[config.detailKey] || row.id;

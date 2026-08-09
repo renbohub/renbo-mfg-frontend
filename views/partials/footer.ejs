@@ -13,6 +13,7 @@
   <% if (typeof requiresAuth !== 'undefined' && requiresAuth) { %><script src="/js/page-context.js"></script><% } %>
   <script src="/js/shared-data-table.js"></script>
   <script src="/js/form-dialog.js"></script>
+  <script src="/js/shared-form-ux.js?v=20260809-1"></script>
   <script src="/js/gallery-view.js"></script>
   <link rel="stylesheet" href="/css/workflow-views.css">
   <script>window.REALTIME_CONFIG = <%- JSON.stringify({ socketUrl: typeof socketUrl === 'undefined' ? '' : socketUrl, mqttUrl: typeof mqttUrl === 'undefined' ? '' : mqttUrl }) %>;</script>

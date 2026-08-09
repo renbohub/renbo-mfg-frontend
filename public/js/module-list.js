@@ -17,7 +17,7 @@
     return escapeHtml(value);
   };
   const columns = [
-    ...config.columns.map((column) => ({ data: null, render: (_value, _type, row) => format(get(row, column.data), column.type) })),
+    ...config.columns.map((column) => ({ data: null, name: column.data, render: (_value, renderType, row) => { const value = get(row, column.data); return renderType === "display" ? format(value, column.type) : value ?? ""; } })),
     { data: null, orderable: false, searchable: false, render: (_value, _type, row) => config.apiReady ? `<button class="module-detail-button" data-key="${escapeHtml(row[config.detailKey] ?? row.id)}">Lihat</button>` : "—" }
   ];
   const table = new DataTable("#module-table", {

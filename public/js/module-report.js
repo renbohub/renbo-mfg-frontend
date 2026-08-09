@@ -52,6 +52,21 @@
     ).join("") || `<tr><td colspan="${Math.max(columns.length, 1)}" class="text-center p-4 text-muted">Belum ada data laporan.</td></tr>`;
     gallery?.setRows(state.rows);
   }
+  const stockBreakdown = (stock) => (stock?.byUom || []).map((row) => `${displayValue("qty", row.qtyAvailable)} ${row.uomCode || "unit"}`).join(" + ") || "0";
+  const traceCategory = (value) => ({ COMPONENT_FG: "Child FG", WIP: "WIP", MATERIAL: "Material", PURCHASE_PART: "Purchase Part", OTHER: "Other" }[value] || value || "Other");
+  function traceLineDetail(row) {
+    const lines = row.traceLines || [];
+    if (!lines.length) return '<span class="text-muted">Tidak ada detail MBOM</span>';
+    return `<details class="inventory-trace-detail"><summary>${new Intl.NumberFormat("id-ID").format(lines.length)} item terkait</summary><div>${lines.map((line) => `<article><span>${shared.escapeHtml(traceCategory(line.category))}</span><b>${shared.escapeHtml(line.materialCode || line.partCode || "-")}</b><small>${shared.escapeHtml(line.materialName || line.partName || "")}</small><em>Stock ${shared.escapeHtml(stockBreakdown(line.stock))} · Kebutuhan ${shared.escapeHtml(displayValue("qty", line.requiredPerFg))} ${shared.escapeHtml(line.requirementUomCode || "unit")}/FG · Coverage ${shared.escapeHtml(displayValue("qty", line.fgCoverageQty))} FG</em></article>`).join("")}</div></details>`;
+  }
+  function renderInventoryTraceability() {
+    const body = document.getElementById("inventory-trace-rows");
+    if (!body) return;
+    const traceability = state.report?.traceability || { items: [], total: 0 };
+    const rows = Array.isArray(traceability.items) ? traceability.items : [];
+    document.getElementById("inventory-trace-count").innerHTML = `<i></i> ${new Intl.NumberFormat("id-ID").format(traceability.total || rows.length)} FG COMP`;
+    body.innerHTML = rows.map((row) => `<tr><td><strong>${shared.escapeHtml(row.fgPartCode || "-")}</strong><small>${shared.escapeHtml([row.fgPartNumber, row.fgPartName].filter(Boolean).join(" · "))}</small></td><td>${shared.escapeHtml(row.mbomNoReg || "Belum ada MBOM")}</td><td><b>${shared.escapeHtml(stockBreakdown(row.fgStock))}</b><small>Available / ready</small></td><td>${shared.escapeHtml(stockBreakdown(row.componentFgStock))}</td><td>${shared.escapeHtml(stockBreakdown(row.wipStock))}</td><td>${shared.escapeHtml(stockBreakdown(row.materialStock))}</td><td><span class="inventory-trace-status inventory-trace-status--${shared.escapeHtml(String(row.traceStatus || "").toLowerCase().replace(/[^a-z]+/g, "-"))}">${shared.escapeHtml(row.traceStatus || "-")}</span></td><td>${traceLineDetail(row)}</td></tr>`).join("") || '<tr><td colspan="8" class="text-center p-4 text-muted">Belum ada FG COMP yang sesuai filter.</td></tr>';
+  }
   function renderFilterOptions() {
     const machine = document.getElementById("report-machine");
     if (!machine) return;
@@ -122,6 +137,7 @@
     renderFilterOptions();
     renderSummary();
     renderRows();
+    renderInventoryTraceability();
     renderChart();
   }
 
@@ -139,5 +155,13 @@
       state.rows.map((row) => columns.map((column) => shared.get(row, column.data) ?? "")),
     ),
   );
+  document.getElementById("inventory-trace-export")?.addEventListener("click", () => {
+    const rows = state.report?.traceability?.items || [];
+    shared.downloadCsv(
+      `inventory-fg-comp-traceability-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["FG COMP", "Part Number", "Part Name", "MBOM", "Ready FG", "Child FG", "WIP", "Material / Part", "Status"],
+      rows.map((row) => [row.fgPartCode, row.fgPartNumber, row.fgPartName, row.mbomNoReg, stockBreakdown(row.fgStock), stockBreakdown(row.componentFgStock), stockBreakdown(row.wipStock), stockBreakdown(row.materialStock), row.traceStatus]),
+    );
+  });
   load().catch((error) => setAlert(error.message));
 })();

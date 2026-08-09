@@ -2,13 +2,16 @@
 <%- include('../partials/header-master') %>
 <main class="entity-page">
   <section class="entity-toolbar app-container">
-    <div class="entity-title"><span>Master Data</span><b>/</b><strong><%= config.label %></strong></div>
+    <div class="enterprise-page-heading"><span>Master Data</span><h1><%= config.label %></h1><p>Kelola referensi data yang digunakan lintas proses ERP.</p></div>
     <div class="toolbar-search"><%- include('../partials/icon', { name: 'search' }) %><input id="entity-search" type="search" placeholder="Cari <%= config.singular.toLowerCase() %>..."></div>
     <select id="deleted-filter" class="form-select deleted-filter" aria-label="Status data"><option value="false">Data aktif</option><option value="true">Data terhapus</option></select>
     <div class="toolbar-spacer"></div>
     <%- include('../partials/view-switcher') %>
     <button id="bulk-delete" class="btn btn-outline-danger d-none">Hapus terpilih</button>
-    <button id="export-data" class="btn btn-export">Export CSV</button>
+    <div class="dropdown enterprise-more-actions">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">More Actions</button>
+      <div class="dropdown-menu dropdown-menu-end"><button id="export-data" class="dropdown-item">Export CSV</button></div>
+    </div>
     <a class="btn btn-primary brand-button" href="/master-data/<%= config.slug %>/new"><%- include('../partials/icon', { name: 'plus' }) %> Tambah Baru</a>
   </section>
   <div id="entity-alert" class="alert alert-warning mx-4 mt-3 d-none" role="alert"></div>

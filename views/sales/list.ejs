@@ -10,9 +10,7 @@
 %>
 <main class="entity-page sales-list-page">
   <section class="entity-toolbar sales-master-toolbar app-container">
-    <div class="entity-title">
-      <span>Sales</span><b>/</b><strong><%= page.label %></strong>
-    </div>
+    <div class="enterprise-page-heading"><span>Sales</span><h1><%= page.label %></h1><p><%= page.description %></p></div>
     <label class="toolbar-search sales-master-search">
       <%- include('../partials/icon', { name: 'search' }) %>
       <input id="sales-search" type="search" placeholder="Cari nomor atau customer..." aria-label="Cari <%= page.label %>">

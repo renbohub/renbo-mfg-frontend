@@ -3,14 +3,17 @@
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <main class="entity-page module-master-list-page">
   <section class="entity-toolbar module-master-toolbar app-container">
-    <div class="entity-title"><span><%= module.label %></span><b>/</b><strong><%= page.label %></strong></div>
+    <div class="enterprise-page-heading"><span><%= module.label %></span><h1><%= page.label %></h1><p><%= page.description %></p></div>
     <label class="toolbar-search module-master-search">
       <%- include('../partials/icon', { name: 'search' }) %>
       <input id="module-search" type="search" placeholder="Cari data..." aria-label="Cari <%= page.label %>">
     </label>
     <div class="toolbar-spacer"></div>
     <%- include('../partials/view-switcher') %>
-    <button id="module-export" class="btn btn-export" type="button">Export CSV</button>
+    <div class="dropdown enterprise-more-actions">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">More Actions</button>
+      <div class="dropdown-menu dropdown-menu-end"><button id="module-export" class="dropdown-item" type="button">Export CSV</button></div>
+    </div>
     <% if (page.createRoute) { %>
       <a class="btn btn-primary brand-button" href="<%= page.createRoute %>"><%- include('../partials/icon', { name: 'plus' }) %> Tambah Baru</a>
     <% } %>

@@ -7,7 +7,7 @@
     <button type="button" data-list-view="gallery" title="Gallery" aria-label="Tampilan gallery" aria-pressed="false"><%- include('./icon', { name: 'gallery' }) %></button>
     <button type="button" data-list-view="heatmap" title="Heatmap" aria-label="Tampilan heatmap" aria-pressed="false"><%- include('./icon', { name: 'heatmap' }) %></button>
     <button type="button" data-list-view="kanban" title="Kanban" aria-label="Tampilan kanban" aria-pressed="false"><%- include('./icon', { name: 'kanban' }) %></button>
-  <% } else { enabledViews.forEach((viewName, index) => { const definition = viewDefinitions[viewName] || { label: viewName, icon: 'grid' }; %>
-    <button type="button" data-list-view="<%= viewName %>" class="<%= index === 0 ? 'active' : '' %>" title="<%= definition.label %>" aria-label="Tampilan <%= definition.label %>" aria-pressed="<%= index === 0 ? 'true' : 'false' %>"><%- include('./icon', { name: definition.icon }) %><% if (typeof viewLabels !== 'undefined' && viewLabels) { %><span><%= definition.label %></span><% } %></button>
+  <% } else { enabledViews.forEach((viewName, index) => { const definition = viewDefinitions[viewName] || { label: viewName, icon: 'grid' }; const customLabel = typeof viewLabels !== 'undefined' && viewLabels && typeof viewLabels === 'object' ? viewLabels[viewName] : null; %>
+    <button type="button" data-list-view="<%= viewName %>" class="<%= index === 0 ? 'active' : '' %> <%= customLabel ? 'with-label' : '' %>" title="<%= customLabel || definition.label %>" aria-label="Tampilan <%= customLabel || definition.label %>" aria-pressed="<%= index === 0 ? 'true' : 'false' %>"><%- include('./icon', { name: definition.icon }) %><% if (customLabel) { %><span><%= customLabel %></span><% } %></button>
   <% }); } %>
 </div>

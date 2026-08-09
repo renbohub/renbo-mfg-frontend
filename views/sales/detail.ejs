@@ -9,12 +9,18 @@
       <strong id="document-breadcrumb"><%= recordKey %></strong>
     </div>
     <div class="detail-actions sales-actions">
-      <% if (page.salesType === 'forecast') { %><button id="submit-forecast" data-action="submit" class="btn btn-success d-none">Submit Forecast</button><button id="approve-forecast" data-action="approve" class="btn btn-success d-none">Approve Forecast</button><button id="revise-forecast" class="btn btn-warning d-none">Buat Revisi</button><button id="forecast-planning-tool" class="btn btn-primary">Tarik Planning</button><% } %>
+      <% if (page.salesType === 'forecast') { %><button id="submit-forecast" data-action="submit" class="btn btn-success d-none">Submit Forecast</button><button id="approve-forecast" data-action="approve" class="btn btn-success d-none">Approve Forecast</button><button id="forecast-planning-tool" class="btn btn-primary">Tarik Planning</button><% } %>
       <button id="make-to-so" class="btn btn-success d-none">Make to SO</button>
       <button id="confirm-sales-order" class="btn btn-success d-none">Confirm SO</button>
-      <% if (page.salesType === 'sales-order') { %><button id="revise-sales-order" class="btn btn-warning d-none">Buat Revisi</button><% } %>
-      <a id="edit-document" class="btn btn-outline-primary" href="/modules/sales/<%= page.slug %>/<%= encodeURIComponent(recordKey) %>/edit">Edit</a>
-      <button id="delete-document" class="btn btn-outline-danger">Hapus</button>
+      <div class="dropdown enterprise-more-actions sales-more-actions">
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">More Actions</button>
+        <div class="dropdown-menu dropdown-menu-end">
+          <% if (page.salesType === 'forecast') { %><button id="revise-forecast" class="dropdown-item d-none" type="button">Buat Revisi</button><% } %>
+          <% if (page.salesType === 'sales-order') { %><button id="revise-sales-order" class="dropdown-item d-none" type="button">Buat Revisi</button><% } %>
+          <a id="edit-document" class="dropdown-item" href="/modules/sales/<%= page.slug %>/<%= encodeURIComponent(recordKey) %>/edit">Edit Dokumen</a>
+          <button id="delete-document" class="dropdown-item dropdown-item-danger" type="button">Hapus Dokumen</button>
+        </div>
+      </div>
     </div>
   </div>
   <section class="sales-detail-identity">
