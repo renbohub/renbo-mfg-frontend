@@ -9,7 +9,7 @@
   const isDiscreteUom = (value) => ["PCS", "PC", "PIECE", "PIECES", "SHEET", "SHEETS", "COIL", "COILS"].includes(normalizedUom(value));
   const formatNumber = (value, uomCode = "") => new Intl.NumberFormat("id-ID", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: isDiscreteUom(uomCode) ? 0 : 3,
+    maximumFractionDigits: isDiscreteUom(uomCode) ? 0 : 2,
   }).format(number(value));
   const formatDate = (value, withTime = false) => {
     if (!value) return "-";

@@ -1,5 +1,35 @@
 (function () {
   const number = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
+  const discreteUoms = new Set(["PCS", "PC", "PIECE", "PIECES"]);
+  const isDiscreteUom = (value) => discreteUoms.has(String(value || "").trim().toUpperCase());
+  const quantityValue = (value, uomCode = "") => isDiscreteUom(uomCode) ? Math.round(number(value)) : number(value);
+  const formatQuantity = (value, uomCode = "", options = {}) => {
+    const discrete = isDiscreteUom(uomCode);
+    const digits = discrete ? 0 : Math.min(Math.max(Number(options.maximumFractionDigits ?? 2) || 0, 0), 6);
+    return new Intl.NumberFormat(options.locale || "id-ID", {
+      minimumFractionDigits: discrete ? 0 : Math.min(Number(options.minimumFractionDigits ?? 0) || 0, digits),
+      maximumFractionDigits: digits,
+    }).format(quantityValue(value, uomCode));
+  };
+  const pcsTextPattern = /(-?\d{1,3}(?:\.\d{3})*(?:,\d+)?|-?\d+(?:[.,]\d+)?)\s+(PCS)\b/gi;
+  function parseDisplayedNumber(value) {
+    const raw = String(value || "").trim();
+    if (raw.includes(",")) return number(raw.replace(/\./g, "").replace(",", "."));
+    if (/^-?\d{1,3}(?:\.\d{3})+$/.test(raw)) return number(raw.replace(/\./g, ""));
+    return number(raw);
+  }
+  function normalizePcsTextNode(node) {
+    if (!node?.nodeValue || node.parentElement?.closest("script,style,textarea,input,select,option,[contenteditable='true']")) return;
+    const normalized = node.nodeValue.replace(pcsTextPattern, (match, raw, uom) => `${formatQuantity(parseDisplayedNumber(raw), uom)} ${uom.toUpperCase()}`);
+    if (normalized !== node.nodeValue) node.nodeValue = normalized;
+  }
+  function normalizePcsDisplay(root = document.body) {
+    if (!root) return;
+    if (root.nodeType === Node.TEXT_NODE) return normalizePcsTextNode(root);
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) normalizePcsTextNode(node);
+  }
   const get = (object, path) =>
     String(path || "").split(".").reduce(
       (value, key) => (value == null ? undefined : value[key]),
@@ -28,7 +58,7 @@
         ? escapeHtml(value)
         : new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(parsed);
     }
-    if (type === "number") return `<span class="ops-number">${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 }).format(number(value))}</span>`;
+    if (type === "number") return `<span class="ops-number">${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(number(value))}</span>`;
     if (type === "currency") return `<span class="ops-number">${new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(number(value))}</span>`;
     if (type === "status") return badge(value);
     if (type === "active") return badge(value ? "Active" : "Inactive");
@@ -59,8 +89,66 @@
     URL.revokeObjectURL(url);
   };
 
+  const internalIdPattern = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi;
+  const exportExcludedLabel = /^(aksi|action|pilih|select|check|hapus|edit|kelengkapan|no\.?|#)$/i;
+  function exportText(cell) {
+    if (!cell) return "";
+    const explicit = cell.dataset.exportValue;
+    if (explicit != null) return String(explicit).trim();
+    const clone = cell.cloneNode(true);
+    clone.querySelectorAll("script,style,svg,input,button,.erp-column-resizer,.dropdown-menu,[aria-hidden='true']").forEach((node) => node.remove());
+    return String(clone.textContent || "").replace(internalIdPattern, "").replace(/\s+/g, " ").trim();
+  }
+  function exportTitle(table) {
+    return table.dataset.exportTitle
+      || table.closest("section,article,main")?.querySelector("h1,h2,h3")?.textContent?.trim()
+      || document.querySelector("main h1")?.textContent?.trim()
+      || document.title.split("·")[0].trim()
+      || "ERP Table Export";
+  }
+  function exportColumns(table) {
+    const headers = getHeaderCells(table);
+    return headers.map((header, index) => ({ index, label: cleanLabel(exportText(header), index) }))
+      .filter(({ index, label }) => label && !exportExcludedLabel.test(label) && !headers[index]?.querySelector("input[type='checkbox']"));
+  }
+  function collectTableExport(table) {
+    const columns = exportColumns(table);
+    const rows = [...(table.tBodies || [])].flatMap((body) => [...body.rows]).filter((row) => {
+      if (row.hidden || row.classList.contains("d-none")) return false;
+      if (row.cells.length === 1 && row.cells[0].colSpan > 1) return false;
+      return row.cells.length > 0;
+    }).map((row) => columns.map(({ index }) => exportText(row.cells[index])));
+    const title = exportTitle(table);
+    const context = [location.pathname, `Diekspor ${new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeStyle: "short" }).format(new Date())}`].join(" · ");
+    return { title, subtitle: context, fileName: `${slug(title)}-${new Date().toISOString().slice(0, 10)}`, headers: columns.map((column) => column.label), rows };
+  }
+  async function postDocument(action, payload, button) {
+    const original = button?.innerHTML;
+    if (button) { button.disabled = true; button.textContent = "Menyiapkan..."; }
+    try {
+      const token = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+      if (!token) throw new Error("Sesi login tidak ditemukan. Silakan login ulang.");
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = `/table-documents/${encodeURIComponent(action)}`;
+      form.style.display = "none";
+      const fields = { _token: token, payload: JSON.stringify(payload) };
+      Object.entries(fields).forEach(([name, value]) => {
+        const input = document.createElement("input"); input.type = "hidden"; input.name = name; input.value = value; form.appendChild(input);
+      });
+      document.body.appendChild(form);
+      form.submit();
+      form.remove();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    } catch (error) { window.alert(error.message || "Export gagal dibuat."); }
+    finally { if (button) { button.disabled = false; button.innerHTML = original; } }
+  }
+  const exportTable = (table, format, button) => postDocument(format, collectTableExport(table), button);
+  const exportTablePayload = (payload, format, button) => postDocument(format, payload, button);
+  const downloadDocument = (action, payload, button) => postDocument(action, payload, button);
+
   const managedTables = new WeakMap();
-  const excludedTables = ".erp-pinned-table, .ps-suggestion-table, .production-excel-table, .daily-machine-table table, .daily-gantt-grid table";
+  const excludedTables = ".erp-pinned-table";
 
   function safeStorageGet(key, fallback) {
     try {
@@ -122,7 +210,7 @@
   function isEligible(table) {
     if (!table || table.matches(excludedTables) || table.dataset.enterpriseTable === "off") return false;
     if (getHeaderCells(table).length < 2) return false;
-    return Boolean(table.closest(".table-shell, .entity-table-shell, .module-table-shell, .ops-table-card, .sales-card, .ppic-table-card, .report-detail-card, .bom-figma-table, [data-enterprise-table-shell]"));
+    return Boolean(table.closest("main, .modal, [role='dialog']"));
   }
 
   class EnterpriseTableController {
@@ -141,32 +229,39 @@
       this.onScroll = () => this.positionPinnedOverlay();
       this.onResize = () => this.scheduleApply();
       this.createTools();
-      this.bind();
+      this.bindTools();
+      this.bindLifecycle();
       this.apply();
     }
 
     createTools() {
       if (this.shell.querySelector(":scope > .erp-table-commandbar")) {
         this.commandbar = this.shell.querySelector(":scope > .erp-table-commandbar");
+        this.panel = this.commandbar.querySelector(".erp-table-settings-panel");
         return;
       }
       const commandbar = document.createElement("div");
       commandbar.className = "erp-table-commandbar";
       commandbar.innerHTML = `
-        <div class="erp-table-commandbar-copy"><strong>Data view</strong><span>Atur kolom sesuai pekerjaan Anda</span></div>
+        <div class="erp-table-commandbar-copy"><strong>Data view</strong><span>Tarik batas header untuk mengatur lebar kolom</span></div>
         <div class="erp-table-commandbar-actions">
-          <span class="erp-table-density-label">Compact</span>
+          <span class="erp-table-density-label" title="Kerapatan baris aktif">Compact</span>
+          ${this.table.dataset.enterpriseExport === "off" ? "" : `<div class="erp-table-export-actions" role="group" aria-label="Export tabel">
+            <button type="button" data-table-export="xlsx" title="Export tabel ke Excel">XLSX</button>
+            <button type="button" data-table-export="pdf" title="Export tabel ke PDF">PDF</button>
+          </div>`}
           <div class="erp-table-settings">
             <button class="erp-table-settings-toggle" type="button" aria-expanded="false" aria-haspopup="dialog">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6"></path></svg>
-              Columns <span class="erp-pin-count"></span>
+              Atur Kolom <span class="erp-pin-count"></span>
             </button>
             <div class="erp-table-settings-panel" role="dialog" aria-label="Table Settings" hidden>
-              <div class="erp-settings-head"><div><strong>Table Settings</strong><span>Show, hide, atau freeze kolom</span></div><button type="button" data-table-close aria-label="Tutup">×</button></div>
+              <div class="erp-settings-head"><div><strong>Pengaturan Tabel</strong><span>Tampil/sembunyikan · freeze kiri · kerapatan baris</span></div><button type="button" data-table-close aria-label="Tutup">×</button></div>
               <label class="erp-column-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><input type="search" placeholder="Cari kolom..."></label>
-              <div class="erp-density-picker" aria-label="Table density"><button type="button" data-density="compact">Compact</button><button type="button" data-density="comfortable">Comfortable</button></div>
+              <div class="erp-density-picker" aria-label="Kerapatan tabel"><button type="button" data-density="compact" aria-pressed="false"><b>Compact</b><small>Lebih banyak baris</small></button><button type="button" data-density="comfortable" aria-pressed="false"><b>Comfortable</b><small>Lebih lega</small></button></div>
+              <div class="erp-column-list-head"><span>Nama kolom</span><span>Visibilitas</span><span>Freeze kiri</span></div>
               <div class="erp-column-list"></div>
-              <div class="erp-settings-foot"><button type="button" data-table-reset>Reset default</button><span>Preferensi tersimpan otomatis</span></div>
+              <div class="erp-settings-foot"><button type="button" data-table-reset>Reset default</button><span class="erp-settings-state" aria-live="polite">Preferensi tersimpan otomatis</span></div>
             </div>
           </div>
         </div>`;
@@ -189,18 +284,23 @@
         if (needle && !label.toLocaleLowerCase("id").includes(needle)) return "";
         const hidden = this.state.hidden.includes(index);
         const frozen = this.state.frozen.includes(index);
-        return `<div class="erp-column-option" data-column-option="${index}">
-          <label><input type="checkbox" data-column-visible="${index}" ${hidden ? "" : "checked"}><span>${escapeHtml(label)}</span></label>
+        return `<div class="erp-column-option ${hidden ? "is-hidden-column" : ""} ${frozen ? "is-frozen-column" : ""}" data-column-option="${index}">
+          <span class="erp-column-name" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
+          <label class="erp-column-visibility" title="${hidden ? "Klik untuk menampilkan kolom" : "Klik untuk menyembunyikan kolom"}"><input type="checkbox" data-column-visible="${index}" ${hidden ? "" : "checked"}><span class="erp-column-visibility-switch" aria-hidden="true"></span><span data-column-visibility-state>${hidden ? "Tersembunyi" : "Tampil"}</span></label>
           <button class="erp-column-pin ${frozen ? "active" : ""}" type="button" data-column-pin="${index}" aria-pressed="${frozen}" ${hidden ? "disabled" : ""}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 4 6 6-3 1-4 4-1 5-3-3-3-3 5-1 4-4 1-3 2-2Z"></path></svg><span>${frozen ? "Frozen" : "Freeze"}</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 4 6 6-3 1-4 4-1 5-3-3-3-3 5-1 4-4 1-3 2-2Z"></path></svg><span>${frozen ? "Frozen" : "Tidak frozen"}</span>
           </button>
         </div>`;
       }).join("") || '<p class="erp-column-empty">Kolom tidak ditemukan.</p>';
-      this.commandbar.querySelectorAll("[data-density]").forEach((button) => button.classList.toggle("active", button.dataset.density === this.state.density));
+      this.commandbar.querySelectorAll("[data-density]").forEach((button) => {
+        const active = button.dataset.density === this.state.density;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
       this.updateCommandbarState();
     }
 
-    bind() {
+    bindTools() {
       const toggle = this.commandbar.querySelector(".erp-table-settings-toggle");
       const search = this.commandbar.querySelector(".erp-column-search input");
       toggle.addEventListener("click", (event) => {
@@ -210,7 +310,6 @@
         toggle.setAttribute("aria-expanded", String(open));
         if (open) requestAnimationFrame(() => search.focus());
       });
-      this.panel.addEventListener("click", (event) => event.stopPropagation());
       this.commandbar.querySelector("[data-table-close]").addEventListener("click", () => this.closePanel());
       search.addEventListener("input", () => this.renderSettingsRows(search.value));
       this.commandbar.addEventListener("change", (event) => {
@@ -221,15 +320,23 @@
         if (!input.checked) this.state.frozen = this.state.frozen.filter((item) => item !== index);
         this.persistAndApply();
         this.renderSettingsRows(search.value);
+        this.announce(`Kolom ${this.labels[index]} ${input.checked ? "ditampilkan" : "disembunyikan"}.`);
       });
       this.commandbar.addEventListener("click", (event) => {
+        const exportButton = event.target.closest("[data-table-export]");
         const density = event.target.closest("[data-density]");
         const pin = event.target.closest("[data-column-pin]");
         const reset = event.target.closest("[data-table-reset]");
+        if (exportButton) {
+          event.preventDefault();
+          exportTable(this.table, exportButton.dataset.tableExport, exportButton);
+          return;
+        }
         if (density) {
           this.state.density = density.dataset.density;
           this.persistAndApply();
           this.renderSettingsRows(search.value);
+          this.announce(`Mode ${this.state.density === "comfortable" ? "Comfortable" : "Compact"} aktif.`);
         }
         if (pin) {
           const index = Number(pin.dataset.columnPin);
@@ -238,15 +345,23 @@
             : [...new Set([...this.state.frozen, index])].sort((left, right) => left - right);
           this.persistAndApply();
           this.renderSettingsRows(search.value);
+          this.announce(`Kolom ${this.labels[index]} ${this.state.frozen.includes(index) ? "di-freeze di kiri" : "dilepas dari freeze"}.`);
         }
         if (reset) {
           this.state = { density: "compact", hidden: [], frozen: [], widths: {}, manualSort: null };
           search.value = "";
           this.persistAndApply();
           this.renderSettingsRows();
+          this.announce("Pengaturan tabel dikembalikan ke default.");
         }
       });
-      document.addEventListener("click", (event) => { if (!this.commandbar.contains(event.target)) this.closePanel(); });
+      document.addEventListener("click", (event) => {
+        const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+        if (!path.includes(this.commandbar) && !this.commandbar.contains(event.target)) this.closePanel();
+      });
+    }
+
+    bindLifecycle() {
       this.scrollHost.addEventListener("scroll", this.onScroll, { passive: true });
       window.addEventListener("resize", this.onResize, { passive: true });
       this.resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(this.onResize) : null;
@@ -256,10 +371,30 @@
       if (window.jQuery) window.jQuery(this.table).on("draw.dt column-visibility.dt", () => this.scheduleApply());
     }
 
+    restoreTools() {
+      if (this.commandbar?.isConnected) return;
+      const nextShell = this.table.closest(".table-shell, .entity-table-shell, .module-table-shell, .ops-table-card, .sales-card, .ppic-table-card, .report-detail-card, .bom-figma-table, [data-enterprise-table-shell]") || this.table.parentElement;
+      const nextScrollHost = getScrollHost(this.table);
+      if (nextScrollHost !== this.scrollHost) {
+        this.scrollHost?.removeEventListener("scroll", this.onScroll);
+        this.scrollHost = nextScrollHost;
+        this.scrollHost?.addEventListener("scroll", this.onScroll, { passive: true });
+      }
+      this.shell = nextShell;
+      this.createTools();
+      this.bindTools();
+      this.apply();
+    }
+
     closePanel() {
       if (!this.panel || this.panel.hidden) return;
       this.panel.hidden = true;
       this.commandbar.querySelector(".erp-table-settings-toggle").setAttribute("aria-expanded", "false");
+    }
+
+    announce(message) {
+      const status = this.commandbar.querySelector(".erp-settings-state");
+      if (status) status.textContent = message;
     }
 
     persistAndApply() {
@@ -402,6 +537,7 @@
         const width = Math.max(72, Math.min(480, Math.round(startWidth + moveEvent.clientX - startX)));
         this.state.widths[index] = width;
         this.applyColumnWidths();
+        this.applyPinnedColumnWidth(index, width);
       };
       const stop = () => {
         document.removeEventListener("pointermove", move);
@@ -450,6 +586,24 @@
       });
     }
 
+    applyPinnedColumnWidth(index, width) {
+      if (!this.overlay) return;
+      this.overlay.querySelectorAll(`[data-source-column="${index}"]`).forEach((cell) => {
+        cell.style.width = `${width}px`;
+        cell.style.minWidth = `${width}px`;
+        cell.style.maxWidth = `${width}px`;
+      });
+      const totalWidth = [...this.overlay.querySelectorAll("thead th[data-source-column]")]
+        .reduce((sum, header) => sum + Math.ceil(header.getBoundingClientRect().width || parseFloat(header.style.width) || 0), 0);
+      const pinnedTable = this.overlay.querySelector(".erp-pinned-table");
+      if (totalWidth > 0) {
+        pinnedTable?.style.setProperty("width", `${totalWidth}px`, "important");
+        pinnedTable?.style.setProperty("min-width", `${totalWidth}px`, "important");
+        pinnedTable?.style.setProperty("max-width", `${totalWidth}px`, "important");
+        this.overlay.style.width = `${totalWidth}px`;
+      }
+    }
+
     applyColumnVisibility() {
       [...this.table.rows].filter((row) => row.cells.length === this.headers.length).forEach((row) => [...row.cells].forEach((cell, index) => {
         const hidden = this.state.hidden.includes(index);
@@ -459,6 +613,7 @@
     }
 
     applyReferenceLinks() {
+      if (this.table.dataset.enterpriseLinks === "off") return;
       const rows = [...(this.table.tBodies[0]?.rows || [])].filter((row) => row.cells.length === this.headers.length);
       rows.forEach((row) => [...row.cells].forEach((cell, index) => {
         if (cell.querySelector("a, button, input, select, textarea, .ops-badge, .status-badge, .sales-badge")) return;
@@ -523,15 +678,18 @@
       pinnedTable.removeAttribute("id");
       const head = document.createElement("thead");
       const clonedHeaderRow = document.createElement("tr");
+      let pinnedWidth = 0;
       indexes.forEach((index) => {
         const source = headerRow.cells[index];
         if (!source) return;
         const cell = source.cloneNode(true);
-        const width = Math.max(76, Math.min(280, Math.ceil(source.getBoundingClientRect().width || source.offsetWidth || 120)));
+        const width = Math.max(72, Math.min(480, Math.ceil(source.getBoundingClientRect().width || source.offsetWidth || 120)));
         cell.style.width = `${width}px`;
         cell.style.minWidth = `${width}px`;
+        cell.style.maxWidth = `${width}px`;
         cell.dataset.sourceColumn = String(index);
         clonedHeaderRow.appendChild(cell);
+        pinnedWidth += width;
       });
       clonedHeaderRow.style.height = `${Math.ceil(headerRow.getBoundingClientRect().height)}px`;
       head.appendChild(clonedHeaderRow);
@@ -548,6 +706,7 @@
           const width = header?.style.width || `${Math.ceil(source.getBoundingClientRect().width)}px`;
           cell.style.width = width;
           cell.style.minWidth = width;
+          cell.style.maxWidth = width;
           cell.dataset.sourceColumn = String(index);
           clonedRow.appendChild(cell);
         });
@@ -555,11 +714,22 @@
         body.appendChild(clonedRow);
       });
       pinnedTable.appendChild(body);
+      if (pinnedWidth > 0) {
+        pinnedTable.style.setProperty("width", `${pinnedWidth}px`, "important");
+        pinnedTable.style.setProperty("min-width", `${pinnedWidth}px`, "important");
+        pinnedTable.style.setProperty("max-width", `${pinnedWidth}px`, "important");
+        overlay.style.width = `${pinnedWidth}px`;
+      }
       overlay.appendChild(pinnedTable);
       this.scrollHost.classList.add("erp-table-scroll-host");
       this.scrollHost.appendChild(overlay);
       this.overlay = overlay;
       this.shell.classList.add("has-frozen-columns");
+      overlay.addEventListener("pointerdown", (event) => {
+        const resizer = event.target.closest(".erp-column-resizer");
+        const header = resizer?.closest("th[data-source-column]");
+        if (header) this.startColumnResize(event, Number(header.dataset.sourceColumn));
+      });
       overlay.addEventListener("click", (event) => this.forwardPinnedInteraction(event));
       this.positionPinnedOverlay();
     }
@@ -570,6 +740,7 @@
     }
 
     forwardPinnedInteraction(event) {
+      if (event.target.closest(".erp-column-resizer")) return;
       const header = event.target.closest("th[data-source-column]");
       if (header) {
         event.preventDefault();
@@ -593,7 +764,12 @@
   }
 
   function enhance(table) {
-    if (!isEligible(table) || managedTables.has(table)) return managedTables.get(table);
+    if (!isEligible(table)) return undefined;
+    const existing = managedTables.get(table);
+    if (existing) {
+      existing.restoreTools();
+      return existing;
+    }
     const controller = new EnterpriseTableController(table);
     managedTables.set(table, controller);
     table.dataset.enterpriseTableReady = "true";
@@ -661,16 +837,21 @@
     compactSecondaryToolbarActions();
     compactAdvancedFilters();
     requestAnimationFrame(() => enhanceAll());
-    const observer = new MutationObserver((mutations) => mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
-      if (node.nodeType !== Node.ELEMENT_NODE) return;
-      enhanceAll(node);
-      const parentTable = node.closest?.("table");
-      if (parentTable) enhance(parentTable);
-    })));
+    requestAnimationFrame(() => normalizePcsDisplay());
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
+        normalizePcsDisplay(node);
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+        enhanceAll(node);
+        const parentTable = node.closest?.("table");
+        if (parentTable) enhance(parentTable);
+      }));
+      document.querySelectorAll("table[data-enterprise-table-ready='true']").forEach(enhance);
+    });
     observer.observe(document.body, { childList: true, subtree: true });
   }
 
-  window.SharedDataTable = { number, get, escapeHtml, badge, format, defaults, downloadCsv, referenceRoute, enhance, enhanceAll };
+  window.SharedDataTable = { number, isDiscreteUom, quantityValue, formatQuantity, normalizePcsDisplay, get, escapeHtml, badge, format, defaults, downloadCsv, collectTableExport, exportTable, exportTablePayload, downloadDocument, referenceRoute, enhance, enhanceAll };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
   else boot();
 })();

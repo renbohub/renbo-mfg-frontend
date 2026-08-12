@@ -6,7 +6,8 @@
   const get = (object, path) => String(path || "").split(".").reduce((value, key) => value == null ? undefined : value[key], object);
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
   const number = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
-  const num = (value, digits = 0) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: digits }).format(number(value));
+  const num = (value, digits = 2) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: Math.min(Math.max(Number(digits) || 0, 0), 2) }).format(number(value));
+  const qty = (value, uomCode = "") => shared.formatQuantity(value, uomCode, { maximumFractionDigits: 2 });
   const slug = (value) => String(value || "draft").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   const statusBadge = (value) => `<span class="ops-badge ${esc(slug(value))}">${esc(value || "-")}</span>`;
   const localDateKey = (value = new Date()) => {
@@ -33,7 +34,7 @@
       return href ? `<a class="ops-link" href="${href}">${esc(source)} ↗</a>` : esc(source);
     }
     if (type === "date") { const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? esc(value) : new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(parsed); }
-    if (type === "number") return `<span class="ops-number">${num(value, 3)}</span>`;
+    if (type === "number") return `<span class="ops-number">${num(value, 2)}</span>`;
     if (type === "currency") return `<span class="ops-number">${new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(number(value))}</span>`;
     if (type === "status") return statusBadge(value);
     if (type === "active") return statusBadge(value ? "Active" : "Inactive");
@@ -59,7 +60,7 @@
     });
     host.innerHTML = [...groups.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([machineCode, items]) => {
       const ordered = [...items].sort((left, right) => number(left.schedulePriority || 100) - number(right.schedulePriority || 100) || String(left.plannedStartTime || "99:99").localeCompare(String(right.plannedStartTime || "99:99")) || number(left.sequence) - number(right.sequence));
-      const body = ordered.map((row) => `<tr class="${number(row.schedulePriority || 100) <= 1 ? "is-carryover" : ""}"><td><b>${esc(row.plannedStartTime || "-")}–${esc(row.plannedEndTime || "-")}</b><small>Shift ${esc(row.shift || "-")}</small></td><td><b>${esc(row.scheduleNumber || "-")}</b><small>${number(row.schedulePriority || 100) <= 1 ? "PRIORITAS SHORTFALL · " : ""}${esc(row.moNumber || "-")} · ${esc(row.woNumber || "-")}</small></td><td><b>${esc(row.partCode || "-")}</b><small>${esc(row.processName || row.processCode || "-")} · Seq ${num(row.sequence)}</small></td><td>${num(row.plannedQty, 3)} ${esc(row.uomCode || "")}</td><td>${statusBadge(row.status)}</td><td><a class="btn btn-sm btn-outline-primary" href="/modules/production/daily-production-schedules/${encodeURIComponent(row.scheduleNumber)}">Buka</a></td></tr>`).join("");
+      const body = ordered.map((row) => `<tr class="${number(row.schedulePriority || 100) <= 1 ? "is-carryover" : ""}"><td><b>${esc(row.plannedStartTime || "-")}–${esc(row.plannedEndTime || "-")}</b><small>Shift ${esc(row.shift || "-")}</small></td><td><b>${esc(row.scheduleNumber || "-")}</b><small>${number(row.schedulePriority || 100) <= 1 ? "PRIORITAS SHORTFALL · " : ""}${esc(row.moNumber || "-")} · ${esc(row.woNumber || "-")}</small></td><td><b>${esc(row.partCode || "-")}</b><small>${esc(row.processName || row.processCode || "-")} · Seq ${num(row.sequence)}</small></td><td>${qty(row.plannedQty, row.uomCode)} ${esc(row.uomCode || "")}</td><td>${statusBadge(row.status)}</td><td><a class="btn btn-sm btn-outline-primary" href="/modules/production/daily-production-schedules/${encodeURIComponent(row.scheduleNumber)}">Buka</a></td></tr>`).join("");
       return `<article class="daily-machine-table"><header><div><span>MESIN</span><h2>${esc(machineCode)}</h2><small>${esc(items[0]?.machineName || "")} · ${num(items.length)} DPP</small></div><strong>${num(items.reduce((sum, row) => sum + number(row.plannedQty), 0), 3)}</strong></header><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Jam / Shift</th><th>DPS / Reference</th><th>Part / Proses</th><th>Plan Qty</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${body}</tbody></table></div></article>`;
     }).join("") || '<div class="daily-machine-empty">Tidak ada Daily Production Schedule untuk filter aktif.</div>';
   }
@@ -77,7 +78,7 @@
       <div class="daily-work-card-top"><span>${esc(urgency)} · Shift ${esc(row.shift || "-")}</span>${statusBadge(row.status)}</div>
       <div class="daily-work-machine"><small>MESIN / LINE</small><h3>${esc(row.machineCode || "Belum ada mesin")}</h3><p>${esc(row.machineName || row.machineLocation || "-")} ${row.lineCode ? `· ${esc(row.lineCode)}` : ""}</p></div>
       <div class="daily-work-part"><small>PART & PROSES</small><strong>${esc(row.partCode || "-")}</strong><span>${esc(row.processName || row.processCode || "Proses belum ditentukan")}</span></div>
-      <div class="daily-work-qty"><div><small>TARGET</small><b>${num(planned, 3)}</b></div><div><small>AKTUAL</small><b>${num(actual, 3)}</b></div><div><small>PROGRESS</small><b>${progress}%</b></div></div>
+      <div class="daily-work-qty"><div><small>TARGET</small><b>${qty(planned, row.uomCode)}</b></div><div><small>AKTUAL</small><b>${qty(actual, row.uomCode)}</b></div><div><small>PROGRESS</small><b>${progress}%</b></div></div>
       <div class="daily-work-progress"><i style="width:${progress}%"></i></div>
       <footer><small>${esc(row.scheduleNumber || "-")} · ${esc(row.moNumber || "-")}</small><a href="${href}">Buka Daily Production Schedule →</a></footer>
     </article>`;
@@ -106,7 +107,7 @@
         const tasks = group.items.filter((row) => localDateKey(row.scheduleDate) === dayKey);
         return `<div class="daily-gantt-cell ${dayKey === localDateKey() ? "is-today" : ""}">${tasks.map((row) => {
           const href = `/modules/production/daily-production-schedules/${encodeURIComponent(row.scheduleNumber)}`;
-          return `<a class="daily-gantt-task status-${esc(slug(row.status))}" href="${href}" title="${esc(`${row.scheduleNumber} · ${row.partCode || "-"} · ${row.processName || "-"}`)}"><span>Shift ${esc(row.shift || "-")} · ${esc(row.status || "-")}</span><b>${esc(row.partCode || "-")}</b><small>${esc(row.processName || row.processCode || "-")}</small><em>${num(row.plannedQty, 3)} ${esc(row.uomCode || "")}</em></a>`;
+          return `<a class="daily-gantt-task status-${esc(slug(row.status))}" href="${href}" title="${esc(`${row.scheduleNumber} · ${row.partCode || "-"} · ${row.processName || "-"}`)}"><span>Shift ${esc(row.shift || "-")} · ${esc(row.status || "-")}</span><b>${esc(row.partCode || "-")}</b><small>${esc(row.processName || row.processCode || "-")}</small><em>${qty(row.plannedQty, row.uomCode)} ${esc(row.uomCode || "")}</em></a>`;
         }).join("") || '<i class="daily-gantt-empty">-</i>'}</div>`;
       }).join("");
       return `<div class="daily-gantt-machine"><strong>${esc(group.machineCode)}</strong><span>${esc(group.machineName)}</span><small>Line ${esc(group.lineCode)}</small></div>${cells}`;
@@ -242,16 +243,18 @@
     const statuses = rows.map((row) => String(row.status || "").toLowerCase());
     const waiting = statuses.filter((value) => /submitted|pending|checking|waiting/.test(value)).length;
     const approved = statuses.filter((value) => /approved|partially ordered/.test(value)).length;
+    const vendorProcess = rows.filter((row) => String(row.procurementCategory || row.procurementGroup || "").toUpperCase() === "VENDOR_PROCESS").length;
     const amount = rows.reduce((sum, row) => sum + number(row.totalAmount), 0);
     const categoryLabels = {
       material: "Total Material",
       "purchase-part": "Total Purchase Part",
       "universal-purchase-part": "Total Universal Part",
+      "vendor-process": "Total Vendor Process",
       "non-production": "Total Non Produksi",
     };
-    setStat(0, categoryLabels[config.purchaseCategory] || "Total Purchase Requisition", num(total), "PR pada kelompok aktif");
-    setStat(1, "Menunggu Approval", num(waiting), "Submitted ke Approval Master");
-    setStat(2, "Siap ke PO", num(approved), "Approved atau partially ordered");
+    setStat(0, categoryLabels[config.purchaseCategory] || "Total Purchase Requisition", num(total), `${num(vendorProcess)} PR Vendor Process pada halaman ini`);
+    setStat(1, "Menunggu Approval", num(waiting), "PR yang memerlukan keputusan approver");
+    setStat(2, "Siap Dibuat PO", num(approved), "Approved atau partially ordered");
     setStat(3, "Estimasi Nilai", new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount), "Akumulasi halaman saat ini");
   }
   function updateStats(rows, total) {

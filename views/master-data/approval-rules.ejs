@@ -48,10 +48,10 @@
         </div>
       </section>
       <section class="system-card">
-        <div class="system-card-head"><div><h2>Approval Steps</h2><p>Urutan, role approver, quorum, SLA, dan status dokumen dapat diubah.</p></div><button id="add-step" class="btn btn-outline-primary btn-sm" type="button">+ Tambah Step</button></div>
+        <div class="system-card-head"><div><h2>Approval Steps</h2><p>Status mengikuti lifecycle aktual dokumen. Untuk PR: menunggu = Submitted, selesai = Approved, ditolak = Rejected.</p></div><button id="add-step" class="btn btn-outline-primary btn-sm" type="button">+ Tambah Step</button></div>
         <div class="approval-step-wrap">
           <table class="approval-step-table">
-            <thead><tr><th>#</th><th>Nama Step</th><th>Role Approver</th><th>Jumlah</th><th>Pending Status</th><th>Approved Status</th><th>Rejected Status</th><th>SLA Jam</th><th></th></tr></thead>
+            <thead><tr><th>#</th><th>Nama Step</th><th>Role Approver</th><th>Jumlah</th><th>Status Saat Menunggu</th><th>Status Setelah Disetujui</th><th>Status Jika Ditolak</th><th>SLA Jam</th><th></th></tr></thead>
             <tbody id="approval-steps"></tbody>
           </table>
         </div>

@@ -41,7 +41,7 @@
         : escapeHtml(new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(parsed));
     }
     if (type === "number") {
-      return `<span class="sales-number">${escapeHtml(new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 }).format(Number(value) || 0))}</span>`;
+      return `<span class="sales-number">${escapeHtml(new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(value) || 0))}</span>`;
     }
     if (type === "currency") {
       return `<span class="sales-number">${escapeHtml(new Intl.NumberFormat("id-ID", {

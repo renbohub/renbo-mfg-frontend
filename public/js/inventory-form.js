@@ -3,7 +3,7 @@
   const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
   const form = document.getElementById("inventory-form");
   const alertBox = document.getElementById("inventory-form-alert");
-  const state = { warehouses: [], racks: [], lots: [], parts: [], materials: [], uoms: [], materialPieceSources: [] };
+  const state = { warehouses: [], racks: [], lots: [], parts: [], materials: [], uoms: [], materialPieceSources: [], movementLines: [], editingLineId: null };
   const value = (id) => document.getElementById(id)?.value?.trim() || "";
   const esc = (input) => String(input ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
   const show = (message, type = "danger") => { alertBox.textContent = message; alertBox.className = `alert alert-${type}`; };
@@ -131,7 +131,7 @@
       "materialPieceSource",
       state.materialPieceSources,
       (row) => row.mbomDetailId,
-      (row) => `${row.sourcePartCode} - ${row.sourcePartNumber || "-"} - ${row.materialCode} - GW ${Number(row.grossWeightKgPerPcs || 0).toFixed(6)} kg/pcs - ${row.mbomNoReg}`,
+      (row) => `${row.sourcePartCode} - ${row.sourcePartNumber || "-"} - ${row.materialCode} - GW ${Number(row.grossWeightKgPerPcs || 0).toFixed(2)} kg/pcs - ${row.mbomNoReg}`,
       "Pilih part raw material dan referensi BOM",
     );
   }
@@ -206,6 +206,7 @@
       fillItems();
     }
     if (conversionMode) document.getElementById("inventory-item-label").textContent = "Material Tujuan";
+    syncInputModeRequirements();
   }
 
   function syncItem() {
@@ -249,6 +250,130 @@
     const adjustmentType = document.getElementById("adjustmentType");
     if (destinationWarehouse) destinationWarehouse.required = movementType === "TRANSFER";
     if (adjustmentType) adjustmentType.required = movementType === "ADJUSTMENT";
+  }
+
+  function movementLinePayload() {
+    const source = selectedMaterialPieceSource();
+    return {
+      movementType: value("movementType"),
+      inputMode: value("inputMode") || "DIRECT",
+      warehouseCode: value("warehouseCode"),
+      rackCode: value("rackCode") || null,
+      destinationWarehouseCode: value("destinationWarehouseCode") || null,
+      destinationRackCode: value("destinationRackCode") || null,
+      partCode: value("partCode"),
+      partNumber: value("partNumber") || null,
+      partName: value("partName") || null,
+      materialId: value("materialId") || null,
+      materialCode: value("materialCode") || null,
+      materialName: value("materialName") || null,
+      materialType: value("materialType") || null,
+      stockType: value("stockType"),
+      lotNumber: value("lotNumber") || null,
+      uomCode: value("uomCode"),
+      qty: Number(value("qty")),
+      sourceMbomDetailId: value("materialPieceSource") || null,
+      sourcePartCode: source?.sourcePartCode || null,
+      sourceQtyPcs: usesMaterialPieceConversion() ? Number(value("sourceQtyPcs")) : null,
+      adjustmentType: value("adjustmentType") || null,
+      referenceNumber: value("referenceNumber") || null,
+      notes: value("notes") || null,
+    };
+  }
+
+  function validateMovementEditor() {
+    syncMovementFields();
+    syncInputModeRequirements();
+    if (!form.reportValidity()) return false;
+    const payload = movementLinePayload();
+    if (!payload.stockType || (!payload.partCode && !payload.materialCode)) { show("Pilih Stock Type dan item untuk baris ini."); return false; }
+    if (!(Number(payload.qty) > 0)) { show("Qty harus lebih besar dari 0."); return false; }
+    return true;
+  }
+
+  function syncInputModeRequirements() {
+    if (config.page !== "stock-movements") return;
+    const conversionMode = usesMaterialPieceConversion();
+    const itemCode = document.getElementById("itemCode");
+    const stockType = document.getElementById("stockType");
+    const uomCode = document.getElementById("uomCode");
+    if (itemCode) itemCode.required = !conversionMode;
+    if (stockType) stockType.required = !conversionMode;
+    if (uomCode) uomCode.required = !conversionMode;
+  }
+
+  function resetMovementEditor() {
+    state.editingLineId = null;
+    clearItemIdentity();
+    ["itemCode", "lotNumber", "qty", "materialPieceSource", "sourceQtyPcs", "referenceNumber", "notes"].forEach((id) => setValue(id, ""));
+    setValue("itemReference", ""); setValue("itemName", "");
+    fillItems(); fillLots();
+    const add = document.getElementById("inventory-add-line");
+    if (add) add.textContent = "＋ Tambahkan ke Daftar";
+    const preview = document.getElementById("material-piece-preview");
+    if (preview && usesMaterialPieceConversion()) preview.innerHTML = "Pilih part sumber untuk menghitung <b>PCS x gross weight BOM</b> menjadi stok material KG.";
+  }
+
+  function renderMovementLines() {
+    if (config.page !== "stock-movements") return;
+    const body = document.getElementById("inventory-batch-body");
+    const count = document.getElementById("inventory-batch-count");
+    const clear = document.getElementById("inventory-clear-lines");
+    if (count) count.textContent = `${state.movementLines.length} item siap disimpan`;
+    if (clear) clear.disabled = !state.movementLines.length;
+    const submit = document.getElementById("inventory-submit");
+    if (submit) submit.textContent = state.movementLines.length ? `Simpan ${state.movementLines.length} Movement` : "Simpan Semua Movement";
+    if (!body) return;
+    if (!state.movementLines.length) {
+      body.innerHTML = '<tr data-empty><td colspan="9"><div class="inventory-batch-empty">Belum ada item. Isi form lalu klik <b>Tambahkan ke Daftar</b>.</div></td></tr>';
+      return;
+    }
+    body.innerHTML = state.movementLines.map((line, index) => {
+      const payload = line.payload; const itemCode = payload.materialCode || payload.partCode || "-";
+      const itemRef = payload.materialType || payload.partNumber || "-"; const itemName = payload.materialName || payload.partName || "-";
+      const location = `${payload.warehouseCode}${payload.rackCode ? ` / ${payload.rackCode}` : ""}`;
+      const destination = payload.movementType === "TRANSFER" ? ` → ${payload.destinationWarehouseCode}${payload.destinationRackCode ? ` / ${payload.destinationRackCode}` : ""}` : "";
+      const shownQty = payload.inputMode === "MATERIAL_FROM_PART_PCS" ? `${qtyText(payload.sourceQtyPcs, "PCS")} PCS → ${qtyText(payload.qty, payload.uomCode)} ${esc(payload.uomCode || "")}` : `${qtyText(payload.qty, payload.uomCode)} ${esc(payload.uomCode || "")}`;
+      return `<tr><td>${index + 1}</td><td><span class="inventory-batch-type">${esc(payload.movementType)}</span>${payload.adjustmentType ? `<small class="d-block mt-1">${esc(payload.adjustmentType)}</small>` : ""}</td><td>${esc(location)}${esc(destination)}</td><td>${esc(payload.stockType)}</td><td class="inventory-batch-item"><b>${esc(itemCode)}</b><span>${esc(itemRef)}</span><small>${esc(itemName)}</small></td><td>${esc(payload.lotNumber || "Tanpa lot")}</td><td class="inventory-batch-qty">${shownQty}</td><td>${esc(payload.referenceNumber || "-")}</td><td><div class="d-flex gap-1"><button class="btn btn-sm btn-outline-primary" type="button" data-edit-movement-line="${esc(line.id)}">Edit</button><button class="inventory-batch-remove" type="button" data-remove-movement-line="${esc(line.id)}" title="Hapus">×</button></div></td></tr>`;
+    }).join("");
+  }
+
+  function qtyText(nextValue, uomCode) {
+    return window.SharedDataTable?.formatQuantity ? window.SharedDataTable.formatQuantity(nextValue, uomCode, { maximumFractionDigits: 2 }) : Number(nextValue || 0).toLocaleString("id-ID", { maximumFractionDigits: 2 });
+  }
+
+  function addOrUpdateMovementLine() {
+    if (!state.editingLineId && state.movementLines.length >= 100) {
+      show("Maksimal 100 baris dalam satu transaksi. Simpan daftar ini sebelum membuat batch berikutnya.", "warning");
+      return;
+    }
+    if (!validateMovementEditor()) return;
+    const payload = movementLinePayload();
+    if (state.editingLineId) {
+      const target = state.movementLines.find((line) => line.id === state.editingLineId);
+      if (target) target.payload = payload;
+      show("Baris berhasil diperbarui. Perubahan belum memengaruhi stok sampai disimpan.", "success");
+    } else {
+      state.movementLines.push({ id: window.crypto?.randomUUID?.() || `line-${Date.now()}-${Math.random()}`, payload });
+      show("Item ditambahkan ke daftar. Tambahkan item berikutnya atau simpan seluruh movement.", "success");
+    }
+    resetMovementEditor(); renderMovementLines();
+  }
+
+  function editMovementLine(id) {
+    const line = state.movementLines.find((item) => item.id === id); if (!line) return;
+    const payload = line.payload; state.editingLineId = id;
+    setValue("movementType", payload.movementType); syncMovementFields();
+    setValue("inputMode", payload.inputMode); syncInputMode();
+    setValue("warehouseCode", payload.warehouseCode); fillRacks("rackCode", payload.warehouseCode); setValue("rackCode", payload.rackCode);
+    setValue("destinationWarehouseCode", payload.destinationWarehouseCode); fillRacks("destinationRackCode", payload.destinationWarehouseCode); setValue("destinationRackCode", payload.destinationRackCode);
+    setValue("stockType", payload.stockType); fillItems();
+    if (payload.inputMode === "MATERIAL_FROM_PART_PCS") {
+      setValue("materialPieceSource", payload.sourceMbomDetailId); setValue("sourceQtyPcs", payload.sourceQtyPcs); syncMaterialPieceSource();
+    } else { setValue("itemCode", payload.materialCode || payload.partCode); syncItem(); setValue("qty", payload.qty); }
+    fillLots(); setValue("lotNumber", payload.lotNumber); setValue("uomCode", payload.uomCode); setValue("adjustmentType", payload.adjustmentType); setValue("referenceNumber", payload.referenceNumber); setValue("notes", payload.notes);
+    const add = document.getElementById("inventory-add-line"); if (add) add.textContent = "Simpan Perubahan Baris";
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function loadLookups() {
@@ -297,54 +422,59 @@
   document.getElementById("sourceQtyPcs")?.addEventListener("input", renderMaterialPiecePreview);
   document.getElementById("warehouseCode")?.addEventListener("change", () => fillRacks("rackCode", value("warehouseCode")));
   document.getElementById("destinationWarehouseCode")?.addEventListener("change", () => fillRacks("destinationRackCode", value("destinationWarehouseCode")));
+  document.getElementById("inventory-add-line")?.addEventListener("click", addOrUpdateMovementLine);
+  document.getElementById("inventory-clear-lines")?.addEventListener("click", () => {
+    if (!state.movementLines.length || !window.confirm("Kosongkan seluruh daftar Stock Movement yang belum disimpan?")) return;
+    state.movementLines = []; resetMovementEditor(); renderMovementLines(); show("Daftar dikosongkan.", "warning");
+  });
+  document.getElementById("inventory-batch-body")?.addEventListener("click", (event) => {
+    const edit = event.target.closest("[data-edit-movement-line]");
+    const remove = event.target.closest("[data-remove-movement-line]");
+    if (edit) return editMovementLine(edit.dataset.editMovementLine);
+    if (!remove) return;
+    state.movementLines = state.movementLines.filter((line) => line.id !== remove.dataset.removeMovementLine);
+    if (state.editingLineId === remove.dataset.removeMovementLine) resetMovementEditor();
+    renderMovementLines();
+  });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     syncMovementFields();
-    if (!form.reportValidity()) return;
-    const body = config.page === "stock-movements"
-      ? {
-          movementType: value("movementType"),
-          inputMode: value("inputMode") || "DIRECT",
-          warehouseCode: value("warehouseCode"),
-          rackCode: value("rackCode") || null,
-          destinationWarehouseCode: value("destinationWarehouseCode") || null,
-          destinationRackCode: value("destinationRackCode") || null,
-          partCode: value("partCode"),
-          partNumber: value("partNumber") || null,
-          partName: value("partName") || null,
-          materialId: value("materialId") || null,
-          materialCode: value("materialCode") || null,
-          materialName: value("materialName") || null,
-          materialType: value("materialType") || null,
-          stockType: value("stockType"),
-          lotNumber: value("lotNumber") || null,
-          uomCode: value("uomCode"),
-          qty: Number(value("qty")),
-          sourceMbomDetailId: value("materialPieceSource") || null,
-          sourcePartCode: selectedMaterialPieceSource()?.sourcePartCode || null,
-          sourceQtyPcs: usesMaterialPieceConversion() ? Number(value("sourceQtyPcs")) : null,
-          adjustmentType: value("adjustmentType") || null,
-          referenceNumber: value("referenceNumber") || null,
-          notes: value("notes") || null,
-        }
-      : { stoType: value("stoType"), stockType: value("stockType"), warehouseCode: value("warehouseCode"), rackCode: value("rackCode") || null, stoDate: value("stoDate"), notes: value("notes") || null };
+    let body;
+    if (config.page === "stock-movements") {
+      if (state.editingLineId) { show("Selesaikan perubahan baris dengan klik Simpan Perubahan Baris."); return; }
+      if (!state.movementLines.length) {
+        if (!validateMovementEditor()) { show("Tambahkan minimal satu item ke daftar sebelum menyimpan."); return; }
+        state.movementLines.push({ id: window.crypto?.randomUUID?.() || `line-${Date.now()}`, payload: movementLinePayload() });
+        renderMovementLines();
+      }
+      body = { items: state.movementLines.map((line) => line.payload) };
+    } else {
+      if (!form.reportValidity()) return;
+      body = { stoType: value("stoType"), stockType: value("stockType"), warehouseCode: value("warehouseCode"), rackCode: value("rackCode") || null, stoDate: value("stoDate"), notes: value("notes") || null };
+    }
     const endpoint = config.page === "stock-movements" ? "/modules/api/inventory/stock-movements" : "/modules/api/inventory/stock-opname";
+    const submitButton = document.getElementById("inventory-submit");
     try {
+      if (submitButton) submitButton.disabled = true;
       const response = await fetch(endpoint, { method: "POST", headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || "Transaksi gagal disimpan.");
       const key = config.page === "stock-movements" ? payload.items?.[0]?.movementNumber : payload.stoNo;
       const conversion = payload.conversion;
-      show(conversion
+      const batch = payload.batch;
+      show(batch ? `${batch.processedLines} item berhasil diproses menjadi ${batch.movementCount} Stock Movement.` : conversion
         ? `Transaksi berhasil: ${conversion.sourceQtyPcs} PCS ${conversion.sourcePartCode} dikonversi menjadi ${conversion.convertedQtyKg} KG ${conversion.materialCode}.`
         : "Transaksi berhasil dibuat.", "success");
-      setTimeout(() => location.assign(`/modules/inventory/${config.page}/${encodeURIComponent(key || "")}`), 500);
+      setTimeout(() => location.assign(batch ? `/modules/inventory/${config.page}` : `/modules/inventory/${config.page}/${encodeURIComponent(key || "")}`), 700);
     } catch (error) {
       show(error.message);
+    } finally {
+      if (submitButton) submitButton.disabled = false;
     }
   });
 
   syncMovementFields();
+  renderMovementLines();
   loadLookups();
 })();

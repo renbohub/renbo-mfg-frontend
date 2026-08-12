@@ -9,7 +9,7 @@
   const format = (value, type) => {
     if (value == null || value === "") return "-";
     if (type === "date") { const date = new Date(value); return Number.isNaN(date.getTime()) ? escapeHtml(value) : new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(date); }
-    if (type === "number") return new Intl.NumberFormat("id-ID").format(Number(value));
+    if (type === "number") return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(value));
     if (type === "currency") return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value));
     if (type === "active") return `<span class="status-badge ${value ? "active" : "inactive"}">${value ? "Aktif" : "Nonaktif"}</span>`;
     if (type === "status") { const good = /active|approved|completed|done|passed|closed|released/i.test(String(value)); return `<span class="status-badge ${good ? "active" : "inactive"}">${escapeHtml(value)}</span>`; }

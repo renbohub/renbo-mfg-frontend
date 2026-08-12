@@ -24,7 +24,8 @@
   const escapeHtml = (raw) => String(raw ?? "").replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[character]));
-  const formatNumber = (raw) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 }).format(Number(raw || 0));
+  const formatNumber = (raw) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(raw || 0));
+  const formatQuantity = (raw, uomCode = "") => window.SharedDataTable.formatQuantity(raw, uomCode, { maximumFractionDigits: 2 });
   const formatDate = (raw) => raw
     ? new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(raw))
     : "-";
@@ -187,8 +188,8 @@
       <div><small>Monthly Production Plan</small><strong>${escapeHtml(schedule.monthlyProductionPlanNumber || "-")} · Line ${escapeHtml(schedule.monthlyProductionPlanLineNumber || "-")}</strong></div>
       <div><small>Part</small><strong>${escapeHtml(schedule.partCode || "-")}</strong></div>
       <div><small>Mesin / Proses</small><strong>${escapeHtml(schedule.machineCode || "-")} · ${escapeHtml(schedule.processCode || "-")}</strong></div>
-      <div><small>Plan / Actual</small><strong>${formatNumber(schedule.plannedQty)} / ${formatNumber(schedule.actualQty)}</strong></div>
-      <div><small>Sisa Target</small><strong>${formatNumber(remaining)} ${escapeHtml(schedule.uomCode || "")}</strong></div>
+      <div><small>Plan / Actual</small><strong>${formatQuantity(schedule.plannedQty,schedule.uomCode)} / ${formatQuantity(schedule.actualQty,schedule.uomCode)}</strong></div>
+      <div><small>Sisa Target</small><strong>${formatQuantity(remaining,schedule.uomCode)} ${escapeHtml(schedule.uomCode || "")}</strong></div>
       <div><small>Status</small><strong>${escapeHtml(schedule.status || "-")}</strong></div>`;
   }
 

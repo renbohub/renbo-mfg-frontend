@@ -23,6 +23,7 @@
     "non-production": "NON_PRODUCTION",
   };
   const initialCategory = categoryFromQuery[config.purchaseCategory] || "PURCHASE_PART";
+  document.querySelector(".pr-form-page")?.classList.add("pr-friendly-editor");
   state.currentCategory = initialCategory;
   const categoryMeta = {
     MATERIAL: {
@@ -180,7 +181,7 @@
     const status = Math.abs(variance) <= 0.000001 ? "EXACT" : variance < 0 ? "UNDER" : "OVER";
     const badge = tr.querySelector(".supplier-allocation-status");
     if (badge) {
-      badge.textContent = `${status} - ${allocated.toLocaleString("id-ID", { maximumFractionDigits: 6 })} / ${required.toLocaleString("id-ID", { maximumFractionDigits: 6 })}`;
+      badge.textContent = `${status} - ${allocated.toLocaleString("id-ID", { maximumFractionDigits: 2 })} / ${required.toLocaleString("id-ID", { maximumFractionDigits: 2 })}`;
       badge.dataset.status = status;
     }
   }
@@ -244,6 +245,8 @@
       <td><input class="form-control line-price" type="number" min="0" step="0.01" value="${number(row.estimatedPrice)}"></td>
       <td><strong class="line-total">${currency(number(row.qty) * number(row.estimatedPrice))}</strong></td>
       <td><button class="pr-remove-line" type="button" aria-label="Hapus baris">×</button></td>`;
+    const editorLabels = ["Jenis kebutuhan", "Material / item dan alokasi supplier", "Part code internal", "Part number / drawing", "Material type", "Qty kebutuhan", "UOM", "Draft bentuk pembelian", "Supplier utama", "Harga estimasi", "Total", "Aksi"];
+    [...tr.children].forEach((cell, index) => { cell.dataset.label = editorLabels[index] || "Field"; });
     $("pr-lines").appendChild(tr);
     tr._sourceRecord = row;
     tr._supplierAllocations = initialSupplierAllocations(row);
@@ -294,7 +297,7 @@
         const result = packageQty * factor;
         const conversionUom = tr.querySelector(".line-conversion-uom")?.value || "KG";
         conversionLabel.textContent = result > 0
-          ? `Hasil konversi: ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 6 }).format(result)} ${conversionUom}`
+          ? `Hasil konversi: ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(result)} ${conversionUom}`
           : "Hasil konversi: -";
       }
     });

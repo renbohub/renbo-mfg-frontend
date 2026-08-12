@@ -3,12 +3,13 @@
   const selected = new Set();
   const alertBox = document.getElementById("entity-alert");
   const bulkButton = document.getElementById("bulk-delete");
+  const importableFields = (config.fields || []).filter((field) => !["file", "json"].includes(field.type) && !field.readOnly && !field.generated);
   const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
   const can = (action) => window.ERP_PERMISSIONS?.has?.("master-data", config.slug, action, config.permission || config.slug) !== false;
   const get = (object, path) => path.split(".").reduce((value, key) => value == null ? undefined : value[key], object);
   const esc = (value) => $("<div>").text(value ?? "").html();
   const formatDate = (value) => value ? new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(new Date(value)) : "-";
-  const formatNumber = (value) => value == null ? "-" : new Intl.NumberFormat("id-ID").format(Number(value));
+  const formatNumber = (value) => value == null ? "-" : new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(value));
   const formatCurrency = (value) => value == null ? "-" : new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value));
   function isMissing(value) { return value == null || (typeof value === "string" && !value.trim()) || (Array.isArray(value) && value.length === 0); }
   function missingRequired(row) { return (config.fields || []).filter((field) => (field.required || field.requiredOnCreate) && isMissing(get(row, field.name))); }
@@ -81,7 +82,10 @@
 
   function applyActionPermissions() {
     document.querySelector(`a[href="/master-data/${config.slug}/new"]`)?.classList.toggle("d-none", !can("create"));
-    document.getElementById("export-data")?.classList.toggle("d-none", !can("export"));
+    document.getElementById("export-data-xlsx")?.classList.toggle("d-none", !can("export"));
+    document.getElementById("export-data-pdf")?.classList.toggle("d-none", !can("export"));
+    document.getElementById("download-import-template")?.classList.toggle("d-none", !can("create") || !importableFields.length);
+    document.getElementById("open-import-master")?.classList.toggle("d-none", !can("create") || !importableFields.length);
     document.getElementById("select-all")?.classList.toggle("d-none", !can("delete"));
     if (!can("delete")) bulkButton.classList.add("d-none");
     table.rows().invalidate().draw(false);
@@ -107,14 +111,124 @@
     ids.forEach((id) => selected.delete(id)); syncSelection(); table.ajax.reload(null, false);
   }
 
-  document.getElementById("export-data").addEventListener("click", async () => {
+  async function fetchExportRows() {
     const query = new URLSearchParams({ start: "0", length: "500", q: document.getElementById("entity-search").value, isDeleted: document.getElementById("deleted-filter").value });
     const response = await fetch(`/master-data/api/${config.slug}?${query}`, { headers: { Authorization: `Bearer ${token()}` } });
-    const payload = await response.json(); if (!response.ok) return window.alert(payload.message || "Export gagal.");
-    const header = config.columns.map((col) => col.label);
-    const lines = [header, ...payload.data.map((row) => config.columns.map((col) => { const value = get(row, col.data); return typeof value === "object" ? JSON.stringify(value) : value ?? ""; }))];
-    const csv = lines.map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\r\n");
-    const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" })); link.download = `${config.slug}-${new Date().toISOString().slice(0, 10)}.csv`; link.click(); URL.revokeObjectURL(link.href);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.message || "Data export gagal dimuat.");
+    return payload.data || [];
+  }
+  async function exportMaster(format, button) {
+    try {
+      const rows = await fetchExportRows();
+      const payload = {
+        title: config.label,
+        subtitle: `Master Data · ${rows.length} baris · ${new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date())}`,
+        fileName: `${config.slug}-${new Date().toISOString().slice(0, 10)}`,
+        headers: config.columns.map((column) => column.label),
+        rows: rows.map((row) => config.columns.map((column) => { const value = get(row, column.data); return value && typeof value === "object" ? "" : value ?? ""; })),
+      };
+      await window.SharedDataTable.exportTablePayload?.(payload, format, button);
+    } catch (error) { window.alert(error.message || "Export gagal."); }
+  }
+  document.getElementById("export-data-xlsx")?.addEventListener("click", (event) => exportMaster("xlsx", event.currentTarget));
+  document.getElementById("export-data-pdf")?.addEventListener("click", (event) => exportMaster("pdf", event.currentTarget));
+
+  function templateField(field) {
+    const options = Array.isArray(field.options) ? field.options.map((option) => option.label || option.value).join(" | ") : "";
+    const lookupLabel = field.lookup ? `${field.label}: gunakan code/name/number dari Master ${field.lookup.entity}` : "";
+    const example = field.defaultValue === "today" ? new Date().toISOString().slice(0, 10)
+      : field.type === "checkbox" ? "Ya"
+      : field.type === "date" ? "2026-08-12"
+      : field.type === "number" ? "0"
+      : field.options?.[0]?.value ?? "";
+    return { name: field.name, label: field.label, type: field.type || "text", required: Boolean(field.required || field.requiredOnCreate), help: field.help || "", options, lookupLabel, example };
+  }
+  document.getElementById("download-import-template")?.addEventListener("click", async (event) => {
+    await window.SharedDataTable.downloadDocument?.("template", { title: `Template Import ${config.label}`, fileName: `template-import-${config.slug}`, fields: importableFields.map(templateField) }, event.currentTarget);
+  });
+
+  const importModalNode = document.getElementById("master-import-modal");
+  const importModal = importModalNode ? bootstrap.Modal.getOrCreateInstance(importModalNode) : null;
+  let preparedRows = [];
+  document.getElementById("open-import-master")?.addEventListener("click", () => importModal?.show());
+
+  const normalized = (value) => String(value ?? "").trim().toLocaleLowerCase("id").replace(/\s+/g, " ");
+  async function lookupResolver(field) {
+    if (!field.lookup) return null;
+    const response = await fetch(`/master-data/api/${field.lookup.entity}?start=0&length=500`, { headers: { Authorization: `Bearer ${token()}` } });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(`Lookup ${field.label} gagal dimuat.`);
+    const candidates = payload.data || [];
+    const keys = [...new Set([field.lookup.valueKey, field.lookup.labelKey, ...(field.labelKeys || [])].filter(Boolean))];
+    const map = new Map();
+    candidates.forEach((row) => [...new Set([...keys, ...Object.keys(row).filter((key) => /(Code|Name|Number|No)$/i.test(key))])].forEach((key) => {
+      const value = get(row, key);
+      if (value != null && String(value).trim()) map.set(normalized(value), row[field.lookup.valueKey] ?? get(row, field.lookup.valueKey));
+    }));
+    return map;
+  }
+  function typedImportValue(value, field) {
+    const text = String(value ?? "").trim();
+    if (!text) return field.type === "checkbox" ? false : undefined;
+    if (field.type === "number") { const result = Number(text.replace(/\./g, "").replace(",", ".")); return Number.isFinite(result) ? result : NaN; }
+    if (field.type === "checkbox") return /^(1|true|ya|yes|aktif|active)$/i.test(text);
+    if (field.type === "date") { const parsed = new Date(text); return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10); }
+    return text;
+  }
+  document.getElementById("master-import-preview")?.addEventListener("click", async (event) => {
+    const file = document.getElementById("master-import-file")?.files?.[0];
+    if (!file) return window.alert("Pilih file Excel terlebih dahulu.");
+    const button = event.currentTarget; button.disabled = true; button.textContent = "Membaca...";
+    try {
+      const form = new FormData(); form.append("file", file);
+      const response = await fetch("/table-documents/import-preview", { method: "POST", headers: { Authorization: `Bearer ${token()}` }, body: form });
+      const preview = await response.json(); if (!response.ok) throw new Error(preview.message || "Preview gagal.");
+      const headerMap = new Map(preview.headers.map((header, index) => [normalized(header), index]));
+      const fieldColumns = importableFields.map((field) => ({ field, index: headerMap.has(normalized(field.label)) ? headerMap.get(normalized(field.label)) : headerMap.get(normalized(field.name)) }));
+      const missingColumns = fieldColumns.filter(({ field, index }) => (field.required || field.requiredOnCreate) && index == null).map(({ field }) => field.label);
+      if (missingColumns.length) throw new Error(`Kolom wajib tidak ditemukan: ${missingColumns.join(", ")}`);
+      const lookupMaps = new Map();
+      for (const { field } of fieldColumns.filter(({ field, index }) => field.lookup && index != null)) lookupMaps.set(field.name, await lookupResolver(field));
+      preparedRows = preview.rows.map((source) => {
+        const data = {}; const errors = [];
+        fieldColumns.forEach(({ field, index }) => {
+          if (index == null) return;
+          const raw = source.values[index];
+          let value = typedImportValue(raw, field);
+          if (field.lookup && String(raw ?? "").trim()) {
+            value = lookupMaps.get(field.name)?.get(normalized(raw));
+            if (value == null) errors.push(`${field.label}: '${raw}' tidak ditemukan`);
+          }
+          if (field.type === "number" && Number.isNaN(value)) errors.push(`${field.label}: bukan angka`);
+          if (field.type === "date" && raw && !value) errors.push(`${field.label}: tanggal tidak valid`);
+          if ((field.required || field.requiredOnCreate) && (value == null || value === "")) errors.push(`${field.label}: wajib diisi`);
+          if (value !== undefined && !Number.isNaN(value)) data[field.name] = value;
+        });
+        return { rowNumber: source.rowNumber, data, errors };
+      });
+      const valid = preparedRows.filter((row) => !row.errors.length).length;
+      document.getElementById("master-import-summary").innerHTML = `<div class="alert ${valid === preparedRows.length ? "alert-success" : "alert-warning"}"><strong>${valid} valid</strong> dari ${preparedRows.length} baris · ${preparedRows.length - valid} perlu diperbaiki.</div>`;
+      document.getElementById("master-import-head").innerHTML = `<tr><th>Baris</th><th>Status</th><th>Identitas</th><th>Catatan Validasi</th></tr>`;
+      document.getElementById("master-import-body").innerHTML = preparedRows.slice(0, 200).map((row) => `<tr><td>${row.rowNumber}</td><td><span class="status-badge ${row.errors.length ? "inactive" : "active"}">${row.errors.length ? "Error" : "Valid"}</span></td><td>${esc(Object.values(row.data).filter((value) => value != null).slice(0, 3).join(" · "))}</td><td>${esc(row.errors.join("; ") || "Siap diimpor")}</td></tr>`).join("");
+      document.getElementById("master-import-submit").disabled = valid === 0;
+    } catch (error) { window.alert(error.message || "Preview gagal."); }
+    finally { button.disabled = false; button.textContent = "Preview & Validasi"; }
+  });
+  document.getElementById("master-import-submit")?.addEventListener("click", async (event) => {
+    const validRows = preparedRows.filter((row) => !row.errors.length);
+    if (!validRows.length || !confirm(`Import ${validRows.length} baris valid ke ${config.label}?`)) return;
+    const button = event.currentTarget; button.disabled = true;
+    let success = 0; const failures = [];
+    for (const [index, row] of validRows.entries()) {
+      button.textContent = `Import ${index + 1}/${validRows.length}`;
+      const response = await fetch(`/master-data/api/${config.slug}`, { method: "POST", headers: { Authorization: `Bearer ${token()}`, "content-type": "application/json" }, body: JSON.stringify(row.data) });
+      if (response.ok) success += 1;
+      else { const payload = await response.json().catch(() => ({})); failures.push(`Baris ${row.rowNumber}: ${payload.message || "gagal"}`); }
+    }
+    button.textContent = "Import Baris Valid"; button.disabled = false;
+    window.alert(`${success} baris berhasil.${failures.length ? `\n${failures.length} gagal:\n${failures.slice(0, 10).join("\n")}` : ""}`);
+    if (success) { importModal?.hide(); table.ajax.reload(); }
   });
 
   window.addEventListener("master-data:changed", () => table.ajax.reload(null, false));

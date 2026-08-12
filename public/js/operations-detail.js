@@ -12,7 +12,7 @@
     const parsed = Number(normalized);
     return Number.isFinite(parsed) ? parsed : 0;
   };
-  const num = (value, digits = 3) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: digits }).format(number(value));
+  const num = (value, digits = 2) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: Math.min(Math.max(Number(digits) || 0, 0), 2) }).format(number(value));
   const roundedPurchaseQty = (qty, moq, orderMultiple) => {
     const requested = Math.max(number(qty), 0);
     if (requested <= 0) return 0;
@@ -22,6 +22,7 @@
   };
   const discreteUoms = new Set(["PCS", "PC", "PIECE", "PIECES", "SHEET", "SHEETS", "COIL", "COILS"]);
   const isDiscreteUom = (value) => discreteUoms.has(String(value || "").trim().toUpperCase());
+  const qty = (value, uomCode = "") => window.SharedDataTable.formatQuantity(value, uomCode, { maximumFractionDigits: 2 });
   const label = (key) => String(key || "").replace(/Id$/, " ID").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").replace(/^./, (character) => character.toUpperCase());
   const slug = (value) => String(value || "draft").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   const isDateKey = (key) => /(date|at|month|start|end|expiry)$/i.test(key);
@@ -155,6 +156,7 @@
     $("ops-detail-fields").innerHTML = `${fields(primary) || '<div><small>Informasi</small><strong>Tidak ada field ringkas.</strong></div>'}${secondary.length ? `<details class="ops-more-fields"><summary>Informasi tambahan <span>${num(secondary.length, 0)} field</span></summary><div>${fields(secondary)}</div></details>` : ""}`;
   }
   const isPurchaseOrderPage = () => config.module === "purchasing" && config.page.slug === "purchase-order";
+  const isPurchaseRequisitionPage = () => config.module === "purchasing" && config.page.slug === "purchase-requisitions";
   function purchaseOrderMoney(value, record) {
     const code = String(record.currencyCode || "IDR").toUpperCase();
     try { return new Intl.NumberFormat("id-ID", { style: "currency", currency: code, maximumFractionDigits: 2 }).format(number(value)); }
@@ -201,10 +203,117 @@
     const specs = [row.materialType, row.spec, row.thickness ? `T ${num(row.thickness)} mm` : null, row.width ? `W ${num(row.width)} mm` : null, row.materialLength ? `L ${num(row.materialLength)} mm` : null, row.CSP].filter(Boolean).join(" · ");
     return { code, name, specs };
   }
+  function purchaseOrderAllocation(row = {}) {
+    const sources = Array.isArray(row.prDetail?.sources) ? row.prDetail.sources : [];
+    const demandQty = sources.reduce((sum, source) => {
+      const metadata = source?.metadata && typeof source.metadata === "object" ? source.metadata : {};
+      const reserve = Math.max(number(metadata.reservedAllocationQty), 0);
+      return sum + Math.max(number(metadata.demandCoveredQty ?? (number(source?.qty) - reserve)), 0);
+    }, 0);
+    const reserveQty = sources.reduce((sum, source) => {
+      const metadata = source?.metadata && typeof source.metadata === "object" ? source.metadata : {};
+      return sum + Math.max(number(metadata.reservedAllocationQty), 0);
+    }, 0);
+    return { demandQty, reserveQty, moqBufferQty: Math.max(number(row.qty) - demandQty - reserveQty, 0) };
+  }
+  function purchaseRequisitionMoney(value, record) {
+    const code = String(record.currencyCode || "IDR").toUpperCase();
+    try { return new Intl.NumberFormat("id-ID", { style: "currency", currency: code, maximumFractionDigits: 2 }).format(number(value)); }
+    catch (_error) { return `${esc(code)} ${num(value, 2)}`; }
+  }
+  function purchaseRequisitionCategory(value) {
+    return ({
+      MATERIAL: "PR-Raw Material",
+      PURCHASE_PART: "PR-Purchase Part",
+      UNIVERSAL_PURCHASE_PART: "PR-Universal Part",
+      VENDOR_PROCESS: "PR-Vendor Process",
+      ASSET: "PR-Asset",
+      CONSUMABLE: "PR-Consumable",
+      MAINTENANCE: "PR-Maintenance",
+      SERVICE: "PR-Services",
+      SERVICES: "PR-Services",
+      NON_PRODUCTION: "PR-Other",
+    })[String(value || "").trim().toUpperCase()] || value || "PR-Other";
+  }
+  function purchaseRequisitionPartner(record) {
+    const details = Array.isArray(record.details) ? record.details : [];
+    const vendorCodes = [...new Set(details.flatMap((row) => [row.preferredVendor, row.sourcingVendors, ...(row.sourcingAllocations || []).map((allocation) => allocation.vendorCode)]).filter(Boolean).flatMap(splitReferenceValues))];
+    const supplierCodes = [...new Set(details.flatMap((row) => [row.confirmedSupplierCode, row.proposedSupplierCode, row.preferredSupplier, row.sourcingSuppliers, ...(row.sourcingAllocations || []).map((allocation) => allocation.supplierCode)]).filter(Boolean).flatMap(splitReferenceValues))];
+    const codes = vendorCodes.length ? vendorCodes : supplierCodes;
+    return { type: vendorCodes.length ? "Vendor" : "Supplier", codes, label: record.partnerLabel || codes.join(", ") || "Belum dipilih" };
+  }
+  function renderPurchaseRequisitionFields(record) {
+    document.querySelector(".ops-page")?.classList.add("purchase-requisition-detail-page");
+    const details = Array.isArray(record.details) ? record.details : [];
+    const requested = details.reduce((sum, row) => sum + number(row.qty), 0);
+    const ordered = details.reduce((sum, row) => sum + number(row.orderedQty), 0);
+    const outstanding = Math.max(requested - ordered, 0);
+    const progress = requested > 0 ? Math.min(ordered / requested * 100, 100) : 0;
+    const uoms = [...new Set(details.map((row) => row.uomCode).filter(Boolean))];
+    const uom = uoms.length === 1 ? uoms[0] : uoms.length ? "mixed UOM" : "unit";
+    const partner = purchaseRequisitionPartner(record);
+    const category = purchaseRequisitionCategory(record.procurementCategory || record.procurementGroup);
+    const isVendorProcess = String(record.procurementCategory || record.procurementGroup || "").toUpperCase() === "VENDOR_PROCESS";
+    const card = $("ops-detail-fields").closest(".ops-detail-card");
+    const heading = card?.querySelector("header h2");
+    if (heading) heading.textContent = "Ringkasan Purchase Requisition";
+    $("ops-detail-subtitle").textContent = `${category} · ${partner.label}`;
+    $("ops-detail-fields").className = "pr-overview";
+    $("ops-detail-fields").innerHTML = `<div class="pr-overview-kpis">
+      <article class="type"><span>JENIS PERMINTAAN</span><strong>${esc(category)}</strong><small>${esc(record.sourceType || "MANUAL")} · ${num(details.length, 0)} item</small></article>
+      <article class="partner"><span>${esc(partner.type.toUpperCase())}</span><strong>${esc(partner.label)}</strong><small>${partner.codes.length ? `${num(partner.codes.length, 0)} partner aktif` : "Lengkapi sebelum PO"}</small></article>
+      <article class="due"><span>DIBUTUHKAN</span><strong>${esc(format(record.requiredDate, "date"))}</strong><small>${esc(record.priority || "Normal")} priority</small></article>
+      <article class="amount"><span>ESTIMASI NILAI</span><strong>${esc(purchaseRequisitionMoney(record.totalAmount, record))}</strong><small>${isVendorProcess ? "Lookup Vendor Price List" : "Sebelum negosiasi final"}</small></article>
+    </div>
+    <div class="pr-progress-panel"><div><span>Progress ke Purchase Order</span><b>${num(progress)}%</b></div><i><em style="width:${progress}%"></em></i><div class="pr-progress-qty"><span>Requested <b>${qty(requested,uom)} ${esc(uom)}</b></span><span>Ordered <b>${qty(ordered,uom)} ${esc(uom)}</b></span><span>Outstanding <b>${qty(outstanding,uom)} ${esc(uom)}</b></span></div></div>
+    <div class="pr-document-context">
+      <div><span>Requester</span><b>${esc(record.requestedBy || "Belum ditentukan")}</b><small>${esc(record.department?.departmentName || "Tanpa departemen")}</small></div>
+      <div><span>Tanggal PR</span><b>${esc(format(record.prDate, "date"))}</b><small>${esc(record.poType || "Other")}</small></div>
+      <div><span>Status Dokumen</span><b>${badge(record.status || "Draft")}</b><small>${record.convertedToPO ? `PO ${esc(record.convertedToPO)}` : "Belum menjadi PO"}</small></div>
+      <div><span>Aturan Berikutnya</span><b>${/draft|revising|rejected/i.test(record.status || "") ? "Lengkapi lalu submit" : /approved|partially/i.test(record.status || "") ? "Buat Purchase Order" : "Ikuti approval"}</b><small>${isVendorProcess ? "Vendor & jadwal berasal dari Capacity Planning" : "Supplier & bentuk beli dikunci di PR"}</small></div>
+    </div>${record.notes ? `<details class="pr-system-note"><summary>Catatan & audit sistem</summary><p>${esc(record.notes)}</p></details>` : ""}`;
+  }
+  function purchaseRequisitionTrace(row) {
+    const references = [
+      ...splitReferenceValues(row.sourceMrpNumbers).map((value) => ({ type: "MRP", label: value, href: `/modules/planning-ppic/mrp/${encodeURIComponent(value)}` })),
+      ...splitReferenceValues(row.sourceMpsNumbers).map((value) => ({ type: "MPS", label: value, href: `/modules/planning-ppic/mps/${encodeURIComponent(value)}` })),
+      ...splitReferenceValues(row.sourcePlanNumbers).map((value) => ({ type: "MPP", label: value, href: `/modules/planning-ppic/monthly-production-plans/${encodeURIComponent(value)}` })),
+      ...splitReferenceValues(row.sourceSONumbers).map((value) => ({ type: "SO", label: value, href: `/modules/sales/sales-orders/${encodeURIComponent(value)}` })),
+      ...splitReferenceValues(row.sourceForecastNumbers).map((value) => ({ type: "Forecast", label: value, href: `/modules/sales/forecasts/${encodeURIComponent(value)}` })),
+    ];
+    return referenceLinks(references.filter((reference, index, rows) => rows.findIndex((candidate) => candidate.type === reference.type && candidate.label === reference.label) === index), "Manual / tanpa trace Planning");
+  }
+  function renderPurchaseRequisitionDetails(rows, record) {
+    const isVendorProcess = String(record.procurementCategory || record.procurementGroup || "").toUpperCase() === "VENDOR_PROCESS";
+    const body = rows.map((row) => {
+      const outstanding = Math.max(number(row.qty) - number(row.orderedQty), 0);
+      const progress = number(row.qty) > 0 ? Math.min(number(row.orderedQty) / number(row.qty) * 100, 100) : 0;
+      const proposed = isVendorProcess ? (row.preferredVendor || row.sourcingVendors || "") : (row.confirmedSupplierCode || row.proposedSupplierCode || row.preferredSupplier || "");
+      const identity = row.materialCode || row.partCode || row.partNumber || `Line ${row.lineNumber}`;
+      const name = row.materialName || row.partName || row.description || "Item PR";
+      const process = [row.vendorProcessCode, row.vendorProcessName].filter(Boolean).join(" · ");
+      const dateRows = isVendorProcess
+        ? `<div class="pr-vendor-dates"><span><small>Kirim ke vendor</small><b>${esc(format(row.vendorSendDates, "date"))}</b></span><i>→</i><span><small>Target kembali</small><b>${esc(format(row.vendorReturnDates || row.sourcingDeliveryDates, "date"))}</b></span></div>`
+        : `<span class="pr-line-due">Due ${esc(format(row.sourcingDeliveryDates || record.requiredDate, "date"))}</span>`;
+      return `<tr class="${isVendorProcess ? "is-vendor-process" : ""}">
+        <td class="pr-select-cell"><input type="checkbox" class="form-check-input pr-po-line" data-pr-detail-id="${esc(row.id || "")}" data-line-number="${esc(row.lineNumber || "")}" data-supplier-code="${esc(proposed)}" data-partner-type="${isVendorProcess ? "vendor" : "supplier"}" data-outstanding="${esc(outstanding)}" data-required-date="${esc(String(record.requiredDate || "").slice(0, 10))}" data-request-uom="${esc(String(row.uomCode || "PCS").toUpperCase())}" data-raw-material="${row.materialCode ? "true" : "false"}" data-package-uom="${esc(row.purchasePackageUomCode || "")}" ${outstanding > 0 ? "checked" : "disabled"}></td>
+        <td class="pr-line-item"><span class="pr-line-no">${num(row.lineNumber, 0)}</span><div><b>${esc(identity)}</b><strong>${esc(name)}</strong><small>${esc([row.partNumber && `Part No. ${row.partNumber}`, row.materialType, process].filter(Boolean).join(" · ") || "Tanpa spesifikasi tambahan")}</small></div></td>
+        <td><span class="pr-category-pill ${isVendorProcess ? "vendor" : ""}">${esc(purchaseRequisitionCategory(row.procurementCategory))}</span><small class="pr-partner-line">${esc(isVendorProcess ? `Vendor ${proposed || "belum dipilih"}` : `Supplier ${proposed || "belum dipilih"}`)}</small></td>
+        <td class="pr-line-quantity"><b>${qty(row.qty,row.uomCode)} ${esc(row.uomCode || "")}</b><small>Ordered ${qty(row.orderedQty,row.uomCode)} · Sisa ${qty(outstanding,row.uomCode)}</small><i><em style="width:${progress}%"></em></i></td>
+        <td>${dateRows}</td>
+        <td class="pr-line-money"><b>${esc(purchaseRequisitionMoney(row.estimatedPrice, record))}</b><small>Total ${esc(purchaseRequisitionMoney(row.totalAmount, record))}${row.vendorPriceSource === "PRICE_NOT_FOUND" ? " · harga belum ada" : ""}</small></td>
+        <td class="pr-line-trace">${purchaseRequisitionTrace(row)}${row.sourceCapacityAllocationIds ? `<small>Allocation ${esc(row.sourceCapacityAllocationIds)}</small>` : ""}</td>
+      </tr>`;
+    }).join("");
+    return `<section class="ops-detail-card pr-lines-workspace"><div class="ops-collection-head"><div><h2>Item yang Diminta</h2><p>${isVendorProcess ? "Qty, vendor, dan tanggal berasal dari Production Capacity. Harga membaca Vendor Price List." : "Pilih item yang akan diputuskan suppliernya atau dibuat ke PO."}</p></div><span>${num(rows.length, 0)} item</span></div>
+      <div class="pr-lines-help"><b>Urutan kerja:</b><span>1. Periksa qty & due date</span><i>→</i><span>2. Konfirmasi ${isVendorProcess ? "vendor" : "supplier"}</span><i>→</i><span>3. Submit approval</span><i>→</i><span>4. Move to PO</span></div>
+      <div class="table-responsive"><table class="table ops-collection-table pr-friendly-table"><thead><tr><th><span class="visually-hidden">Pilih</span></th><th>Item / Proses</th><th>Jenis / Partner</th><th>Quantity</th><th>${isVendorProcess ? "Jadwal Vendor" : "Required Date"}</th><th>Estimasi</th><th>Planning Trace</th></tr></thead><tbody>${body || '<tr><td colspan="7" class="text-center py-4">Belum ada item Purchase Requisition.</td></tr>'}</tbody></table></div></section>`;
+  }
   function purchaseOrderLinesCard(record) {
     const rows = Array.isArray(record.details) ? record.details : [];
     const body = rows.map((row) => {
       const item = purchaseOrderItem(row);
+      const allocation = purchaseOrderAllocation(row);
       const ordered = number(row.qty);
       const received = number(row.qtyReceived);
       const outstanding = Math.max(ordered - received, 0);
@@ -215,7 +324,7 @@
         <td class="po-line-number">${num(row.lineNumber, 0)}</td>
         <td class="po-line-item"><b>${esc(item.code)}</b><span>${esc(item.name)}</span><small>${esc(item.specs || row.description || "Tanpa spesifikasi tambahan")}</small></td>
         <td><b>${esc(row.category || row.prDetail?.procurementCategory || "-")}</b><small class="d-block">${esc(packageInfo || row.uomCode || "-")}</small></td>
-        <td class="po-line-qty"><b>${num(ordered)} ${esc(row.uomCode || "")}</b><small>Diterima ${num(received)} · Sisa ${num(outstanding)}</small></td>
+        <td class="po-line-qty"><b>${qty(ordered,row.uomCode)} ${esc(row.uomCode || "")}</b><small>Diterima ${qty(received,row.uomCode)} · Sisa ${qty(outstanding,row.uomCode)}</small>${row.prDetail?.sources?.length ? `<small class="po-line-allocation">Demand ${qty(allocation.demandQty,row.uomCode)} + reserve ${qty(allocation.reserveQty,row.uomCode)} + buffer MOQ ${qty(allocation.moqBufferQty,row.uomCode)}</small>` : ""}</td>
         <td class="po-line-money"><b>${esc(purchaseOrderMoney(row.unitPrice, record))}</b><small>Disc ${num(row.discount, 2)} · Tax ${num(row.tax, 2)}</small></td>
         <td class="po-line-money"><b>${esc(purchaseOrderMoney(row.totalAmount, record))}</b><small>${esc(format(row.deliveryDate || record.deliveryDate, "date"))}</small></td>
         <td><span class="po-line-state ${state}">${stateLabel}</span></td>
@@ -299,7 +408,7 @@
         <div class="iqc-line-number">${num(row.lineNumber, 0)}</div>
         <div class="iqc-item"><b>${esc(code)}</b><span>${esc(name)}</span><small>${esc(specs || "Tanpa spesifikasi tambahan")}</small></div>
         <div class="iqc-trace"><small>Internal / Supplier Lot</small><b>${esc(receipt.lotNumber || "-")}</b><span>${esc(receipt.supplierLotNumber || "-")} · ${esc(receipt.rackCode || "Tanpa rack")}</span></div>
-        <div class="iqc-result-numbers"><span><small>Diterima</small><b>${num(received)} ${esc(uom)}</b></span><span class="is-good"><small>Accepted</small><b>${num(accepted)} ${esc(uom)}</b></span><span class="${rejected > 0 ? "is-reject" : ""}"><small>Rejected</small><b>${num(rejected)} ${esc(uom)}</b></span></div>
+        <div class="iqc-result-numbers"><span><small>Diterima</small><b>${qty(received,uom)} ${esc(uom)}</b></span><span class="is-good"><small>Accepted</small><b>${qty(accepted,uom)} ${esc(uom)}</b></span><span class="${rejected > 0 ? "is-reject" : ""}"><small>Rejected</small><b>${qty(rejected,uom)} ${esc(uom)}</b></span></div>
         ${finalDisposition}
       </article>`;
       }
@@ -307,10 +416,10 @@
         <div class="iqc-line-number">${num(row.lineNumber, 0)}</div>
         <div class="iqc-item"><b>${esc(code)}</b><span>${esc(name)}</span><small>${esc(specs || "Tanpa spesifikasi tambahan")}</small></div>
         <div class="iqc-trace"><small>Internal Lot</small><b>${esc(receipt.lotNumber || "-")}</b><span>Supplier: ${esc(receipt.supplierLotNumber || "-")} · ${esc(receipt.rackCode || "Tanpa rack")}</span></div>
-        <div class="iqc-received"><small>Qty Datang</small><b>${num(received)} ${esc(uom)}</b></div>
+        <div class="iqc-received"><small>Qty Datang</small><b>${qty(received,uom)} ${esc(uom)}</b></div>
         <div class="iqc-entry">
           <div class="iqc-qty-fields"><label><span>Qty Diterima Baik</span><input class="form-control" data-iqc-accepted type="number" value="${esc(accepted)}" readonly></label><label><span>Qty Reject</span><input class="form-control" data-iqc-rejected type="number" min="0" max="${esc(received)}" step="${step}" value="${esc(rejected)}"></label></div>
-          <div class="iqc-row-tools"><button class="btn btn-sm btn-outline-success" type="button" data-iqc-accept-row>✓ Terima Semua</button><span class="iqc-row-state ${rejected > 0 ? "has-reject" : "is-accepted"}" data-iqc-row-state>${rejected > 0 ? `${num(rejected)} ${esc(uom)} reject` : "Semua diterima"}</span></div>
+          <div class="iqc-row-tools"><button class="btn btn-sm btn-outline-success" type="button" data-iqc-accept-row>✓ Terima Semua</button><span class="iqc-row-state ${rejected > 0 ? "has-reject" : "is-accepted"}" data-iqc-row-state>${rejected > 0 ? `${qty(rejected,uom)} ${esc(uom)} reject` : "Semua diterima"}</span></div>
           <div class="iqc-reject-panel ${rejected > 0 ? "" : "d-none"}" data-iqc-reject-panel data-iqc-disposition-detail="${esc(row.id || "")}">
             <label><span>Tindakan untuk Reject *</span><select class="form-select" data-iqc-disposition><option value="HOLD" ${disposition === "HOLD" ? "selected" : ""}>Tahan untuk keputusan</option><option value="RETURN_TO_SUPPLIER" ${disposition === "RETURN_TO_SUPPLIER" ? "selected" : ""}>Kembalikan ke supplier</option><option value="SCRAP" ${disposition === "SCRAP" ? "selected" : ""}>Scrap</option></select></label>
             <label><span>Referensi / Alasan</span><input class="form-control" data-iqc-disposition-reference value="${esc(row.dispositionReference || "")}" placeholder="Wajib untuk retur supplier"></label>
@@ -426,51 +535,261 @@
     return linkedValue(value, key, row);
   }
   const suggestionStatuses = ["Not Confirmed", "Waiting Supplier Confirmation", "Available", "Partially Available", "Not Available", "Alternative Quantity Offered", "Alternative Delivery Date", "Confirmed"];
+  function suggestionStatusHint(status) {
+    const hints = {
+      "Not Confirmed": "Belum ada jawaban supplier. Simpan sebagai draft bila proses follow-up baru dimulai.",
+      "Waiting Supplier Confirmation": "Supplier sudah dihubungi, tetapi qty atau tanggal delivery belum disepakati.",
+      Available: "Barang tersedia. Pastikan qty dan tanggal delivery sudah sesuai kebutuhan produksi.",
+      "Partially Available": "Supplier hanya memenuhi sebagian. Isi qty aktual dan gunakan split bila perlu.",
+      "Not Available": "Barang tidak tersedia. Tambahkan remark agar risiko dan tindak lanjut dapat dilacak.",
+      "Alternative Quantity Offered": "Supplier menawarkan qty berbeda. Periksa MOQ, excess, dan alokasi demand berikutnya.",
+      "Alternative Delivery Date": "Supplier menawarkan tanggal lain. Pastikan tanggal baru tidak melewati kebutuhan material.",
+      Confirmed: "Komitmen supplier lengkap dan item dapat disiapkan untuk Draft PR.",
+    };
+    return hints[status] || "Lengkapi hasil komunikasi dengan supplier.";
+  }
   const dateInputValue = (value) => value ? String(value).slice(0, 10) : "";
+  const optionalInputNumber = (input) => {
+    const value = String(input?.value ?? "").trim();
+    return value === "" ? null : number(value);
+  };
+  const supplierMasterSourceLabel = (source) => ({
+    MATERIAL_PRICE_LIST: "Material Price List",
+    PART_PRICE_LIST: "Part Price List",
+    SUPPLIER_ITEM: "Supplier Item",
+    SUPPLIER_MASTER: "Supplier Master",
+    MBOM_DEFAULT: "default BOM",
+    MBOM_ALTERNATIVE: "alternative BOM",
+    MATERIAL_MASTER: "Material Master",
+    PRICE_NOT_FOUND: "harga master belum tersedia",
+    NOT_FOUND: "master belum tersedia",
+  })[source] || source || "master belum tersedia";
+  function setSupplierMasterCaption(container, selector, prefix, source, valueAvailable = true) {
+    const caption = container.querySelector(selector);
+    if (!caption) return;
+    caption.textContent = valueAvailable
+      ? `${prefix}: ${supplierMasterSourceLabel(source)}`
+      : `${prefix}: belum ditemukan untuk supplier ini`;
+    caption.classList.toggle("text-danger", !valueAvailable);
+  }
+  function applySupplierMasterValues(container, master, options = {}) {
+    const split = container.matches("[data-supplier-split]");
+    const prefix = split ? "split" : "confirm";
+    const force = options.force !== false;
+    const setValue = (selector, value, allowZero = true) => {
+      const input = container.querySelector(selector);
+      const available = value !== null && value !== undefined && (allowZero || number(value) > 0);
+      if (input && available && (force || String(input.value || "").trim() === "" || Number(input.value) === 0)) input.value = value;
+      if (input && !available && force && options.clearMissing) input.value = "";
+      return available;
+    };
+    const moqAvailable = setValue(`[data-${prefix}-moq]`, master.moq);
+    setValue(`[data-${prefix}-multiple]`, master.orderMultiple);
+    const leadAvailable = setValue(`[data-${prefix}-lead]`, master.leadTimeDays);
+    const priceAvailable = setValue(`[data-${prefix}-price]`, master.unitPrice);
+    const currencyAvailable = setValue(`[data-${prefix}-currency]`, master.currencyCode);
+    const formAvailable = setValue(`[data-${prefix}-form]`, master.purchasePackageUomCode);
+    setValue(`[data-${prefix}-width]`, master.materialWidth);
+    if (!split && master.orderMultiple != null) container.dataset.orderMultiple = master.orderMultiple;
+    const formSelect = container.querySelector(`[data-${prefix}-form]`);
+    if (formSelect) {
+      const sheet = formSelect.value === "SHEET";
+      const field = container.querySelector("[data-sheet-length-field]");
+      field?.classList.toggle("d-none", !sheet);
+      const lengthInput = field?.querySelector(`[data-${prefix}-length]`);
+      if (lengthInput) lengthInput.required = sheet;
+    }
+    setSupplierMasterCaption(container, `[data-${prefix}-moq-source]`, "MOQ master", master.sources?.moq, moqAvailable);
+    setSupplierMasterCaption(container, `[data-${prefix}-price-source]`, "Harga aktif", master.sources?.price, priceAvailable);
+    setSupplierMasterCaption(container, `[data-${prefix}-lead-source]`, "Lead time", master.sources?.leadTime, leadAvailable);
+    setSupplierMasterCaption(container, `[data-${prefix}-form-source]`, "Bentuk", master.sources?.form, formAvailable);
+    const state = container.querySelector(`[data-${prefix}-master-state]`);
+    if (state) {
+      const lookupDate = master.lookupDate ? format(master.lookupDate, "date") : "hari ini";
+      state.textContent = `Master ${master.supplierCode} diterapkan (${lookupDate}). Field tetap dapat diedit sesuai konfirmasi aktual.`;
+      state.classList.remove("text-danger");
+    }
+    refreshMoqAllocationPlanner(container);
+  }
+  async function lookupSuggestionSupplierMaster(container, options = {}) {
+    if (!container) return;
+    const split = container.matches("[data-supplier-split]");
+    const editor = container.closest("[data-suggestion-confirmation]") || container;
+    const supplier = container.querySelector(split ? "[data-split-supplier]" : "[data-confirm-supplier]");
+    const supplierCode = supplier?.value?.trim();
+    if (!supplierCode || !editor.dataset.itemId) return;
+    const prefix = split ? "split" : "confirm";
+    const requestToken = `${supplierCode}:${Date.now()}:${Math.random()}`;
+    container.dataset.supplierMasterRequest = requestToken;
+    const state = container.querySelector(split ? "[data-split-master-state]" : "[data-confirm-master-state]");
+    if (state) { state.textContent = `Mengambil MOQ, harga, dan lead time ${supplierCode}...`; state.classList.remove("text-danger"); }
+    if (options.clearMissing !== false) {
+      ["moq", "multiple", "lead", "price", "currency"].forEach((field) => {
+        const input = container.querySelector(`[data-${prefix}-${field}]`);
+        if (input) input.value = "";
+      });
+      setSupplierMasterCaption(container, `[data-${prefix}-price-source]`, "Harga aktif", null, false);
+      setSupplierMasterCaption(container, `[data-${prefix}-moq-source]`, "MOQ master", null, false);
+    }
+    try {
+      const query = new URLSearchParams({ supplierCode, asOf: new Date().toISOString() });
+      const master = await api(`/modules/api/purchasing-suggestions/${encodeURIComponent(config.recordKey)}/items/${encodeURIComponent(editor.dataset.itemId)}/supplier-master?${query}`);
+      if (container.dataset.supplierMasterRequest !== requestToken || supplier?.value?.trim() !== supplierCode) return;
+      applySupplierMasterValues(container, master, { force: options.force, clearMissing: options.clearMissing !== false });
+    } catch (error) {
+      if (container.dataset.supplierMasterRequest !== requestToken) return;
+      if (state) { state.textContent = `Lookup master gagal: ${error.message}`; state.classList.add("text-danger"); }
+      else showAlert(`Lookup master supplier gagal: ${error.message}`, "warning");
+    }
+  }
   function suggestionSplitRow(row, allocation = {}) {
-    const form = allocation.purchasePackageUomCode || row.purchasePackageUomCode || row.masterMaterialForm || "";
+    const form = allocation.purchasePackageUomCode || row.purchasePackageUomCode || row.bomDefaultPurchaseForm || row.masterMaterialForm || "";
     return `<div class="ps-split-row" data-supplier-split>
       <div class="ps-split-head"><b>Supplier / Delivery Split</b><button class="btn btn-sm btn-outline-danger" type="button" data-remove-supplier-split>Hapus</button></div>
       <div class="ps-form-grid">
-        <label>Supplier${supplierLookupSelect("data-split-supplier", allocation.supplierCode || "", "form-select form-select-sm")}</label>
+        <label>Supplier${supplierLookupSelect("data-split-supplier", allocation.supplierCode || "", "form-select form-select-sm")}<small data-split-master-state>Pilih supplier untuk lookup master.</small></label>
         <label>Status<select class="form-select form-select-sm" data-split-status>${suggestionStatuses.map((value) => `<option ${value === allocation.confirmationStatus ? "selected" : ""}>${esc(value)}</option>`).join("")}</select></label>
         <label>Confirmed Qty<input class="form-control form-control-sm" data-split-qty type="number" min="0" step="0.001" value="${esc(allocation.confirmedQty ?? 0)}"></label>
         <label>Delivery Date<input class="form-control form-control-sm" data-split-date type="date" value="${esc(dateInputValue(allocation.deliveryDate))}"></label>
-        <label>MOQ<input class="form-control form-control-sm" data-split-moq type="number" min="0" step="0.001" value="${esc(allocation.moq ?? "")}"></label>
+        <label>MOQ<input class="form-control form-control-sm" data-split-moq type="number" min="0" step="0.001" value="${esc(allocation.moq ?? "")}"><small data-split-moq-source>Otomatis dari master supplier.</small></label>
         <label>Order Multiple<input class="form-control form-control-sm" data-split-multiple type="number" min="0" step="0.001" value="${esc(allocation.orderMultiple ?? "")}"></label>
-        <label>Lead Time (hari)<input class="form-control form-control-sm" data-split-lead type="number" min="0" value="${esc(allocation.leadTimeDays ?? "")}"></label>
-        <label>Harga<input class="form-control form-control-sm" data-split-price type="number" min="0" step="0.0001" value="${esc(allocation.unitPrice ?? "")}"></label>
+        <label>Lead Time (hari)<input class="form-control form-control-sm" data-split-lead type="number" min="0" value="${esc(allocation.leadTimeDays ?? "")}"><small data-split-lead-source>Otomatis dari master supplier.</small></label>
+        <label>Harga<input class="form-control form-control-sm" data-split-price type="number" min="0" step="0.0001" value="${esc(allocation.unitPrice ?? "")}"><small data-split-price-source>Harga aktif pada tanggal konfirmasi.</small></label>
         <label>Currency<input class="form-control form-control-sm" data-split-currency value="${esc(allocation.currencyCode || row.currencyCode || "")}" placeholder="IDR"></label>
-        ${row.materialCode ? `<label>Bentuk Tersedia<select class="form-select form-select-sm" data-split-form><option value="">Pilih</option><option value="SHEET" ${form === "SHEET" ? "selected" : ""}>SHEET</option><option value="COIL" ${form === "COIL" ? "selected" : ""}>COIL</option><option value="PCS" ${form === "PCS" ? "selected" : ""}>PCS</option></select></label>
-        <label>Lebar Tersedia (mm)<input class="form-control form-control-sm" data-split-width type="number" min="0.001" step="0.001" value="${esc(allocation.materialWidth ?? row.confirmedMaterialWidth ?? row.masterMaterialWidth ?? "")}"></label>
+        ${row.materialCode ? `<label>Bentuk Tersedia<select class="form-select form-select-sm" data-split-form><option value="">Pilih</option><option value="SHEET" ${form === "SHEET" ? "selected" : ""}>SHEET</option><option value="COIL" ${form === "COIL" ? "selected" : ""}>COIL</option><option value="PCS" ${form === "PCS" ? "selected" : ""}>PCS</option></select><small data-split-form-source>Default dari BOM.</small></label>
+        <label>Lebar Tersedia (mm)<input class="form-control form-control-sm" data-split-width type="number" min="0.001" step="0.001" value="${esc(allocation.materialWidth ?? row.confirmedMaterialWidth ?? row.bomDefaultMaterialWidth ?? row.masterMaterialWidth ?? "")}"></label>
         <label data-sheet-length-field class="${form === "SHEET" ? "" : "d-none"}">Panjang Sheet (mm)<input class="form-control form-control-sm" data-split-length type="number" min="0.001" step="0.001" value="${esc(allocation.materialLength ?? row.confirmedMaterialLength ?? "")}" ${form === "SHEET" ? "required" : ""}><small>Diisi manual sesuai ukuran sheet supplier.</small></label>` : ""}
         <label>Alternative Material<input class="form-control form-control-sm" data-split-material value="${esc(allocation.alternativeMaterialCode || "")}" placeholder="Jika diizinkan"></label>
         <label class="ps-span-2">Supplier Remark<input class="form-control form-control-sm" data-split-remark value="${esc(allocation.supplierRemark || "")}"></label>
       </div>
     </div>`;
   }
+  function suggestionMoqAllocationPlanner(row) {
+    const candidates = Array.isArray(row.moqAllocationCandidates) ? row.moqAllocationCandidates : [];
+    const search = row.moqAllocationSearch || {};
+    const existingCoveredDemandQty = candidates.filter((candidate) => candidate.isExistingAllocation && !candidate.isCurrentDemand).reduce((sum, candidate) => sum + number(candidate.coveredDemandQty ?? Math.min(number(candidate.allocatedQty), number(candidate.availableQty))), 0);
+    const directDemandQty = Math.max(number(row.netRequirement) - existingCoveredDemandQty, 0);
+    let renderedCurrentDemandGroup = false;
+    let renderedFutureDemandGroup = false;
+    const candidateRows = candidates.length ? candidates.map((candidate) => {
+      const isCurrentDemand = Boolean(candidate.isCurrentDemand);
+      const isAllocated = isCurrentDemand || number(candidate.allocatedQty) > 0;
+      const initialCoverageQty = isCurrentDemand
+        ? number(candidate.currentDemandQty ?? candidate.availableQty)
+        : isAllocated
+        ? number(candidate.coveredDemandQty ?? Math.min(number(candidate.allocatedQty), number(candidate.availableQty)))
+        : number(candidate.availableQty);
+      const initialReserveQty = isCurrentDemand
+        ? number(candidate.reservedAllocationQty)
+        : isAllocated
+        ? number(candidate.reservedAllocationQty ?? Math.max(number(candidate.allocatedQty) - initialCoverageQty, 0))
+        : 0;
+      let groupHeading = "";
+      if (isCurrentDemand && !renderedCurrentDemandGroup) {
+        renderedCurrentDemandGroup = true;
+        groupHeading = `<div class="ps-moq-group-heading"><b>Kebutuhan pengiriman ini</b><span>Coverage sudah termasuk demand item ini; Custom Reserve dapat ditambah per part.</span></div>`;
+      } else if (!isCurrentDemand && !renderedFutureDemandGroup) {
+        renderedFutureDemandGroup = true;
+        groupHeading = `<div class="ps-moq-group-heading is-future"><b>Kebutuhan pengiriman berikutnya</b><span>Tarik demand selanjutnya secara FIFO atau edit manual.</span></div>`;
+      }
+      return `${groupHeading}<div class="ps-moq-candidate ${isCurrentDemand ? "is-current-demand" : ""}" data-moq-candidate data-current-demand="${isCurrentDemand ? "true" : "false"}">
+      <input class="form-check-input" type="checkbox" data-moq-candidate-check ${isAllocated ? "checked" : ""} ${isCurrentDemand ? "disabled" : ""}>
+      <span><b>${esc(candidate.partCode || candidate.sourceNumber || "Kebutuhan berikutnya")} <i>${candidate.partNumber ? `Part No. ${esc(candidate.partNumber)}` : "Part No. belum tersedia"}</i></b><small>Delivery Request ${esc(candidate.deliveryTargetId || candidate.sourceNumber || "-")} · ${esc(candidate.customerCode || "Tanpa customer")} · ${esc(candidate.sourceType || "Demand")} ${esc(candidate.sourceNumber || "")}${candidate.sourceKind === "MRP_REQUIREMENT" ? " · lintas MRP aktif" : ""}</small><small>Target delivery ${esc(format(candidate.targetDeliveryDate, "date"))} · material diperlukan ${esc(format(candidate.materialRequiredDate || candidate.requiredDate, "date"))}</small></span>
+      <div class="ps-moq-inputs">
+        <label>Coverage Demand<input class="form-control form-control-sm" type="number" min="0" max="${esc(candidate.availableQty)}" step="0.001" value="${esc(initialCoverageQty)}" data-moq-coverage-qty data-demand-qty="${esc(candidate.availableQty)}" data-source-item-id="${esc(candidate.sourceItemId)}" data-source-requirement-id="${esc(candidate.sourceRequirementId)}" ${isCurrentDemand ? "readonly" : isAllocated ? "" : "disabled"}></label>
+        <label>Custom Reserve<input class="form-control form-control-sm" type="number" min="0" step="0.001" value="${esc(initialReserveQty)}" data-moq-reserve-qty ${isAllocated ? "" : "disabled"}></label>
+      </div>
+      <em>Total ke part <b data-moq-row-total>${num(initialCoverageQty + initialReserveQty)} ${esc(candidate.uomCode || row.uomCode || "")}</b><small>${isCurrentDemand ? "Coverage terkunci" : `Demand maksimal ${num(candidate.availableQty)}`}</small></em>
+    </div>`;
+    }).join("") : `<div class="ps-moq-empty"><b>${search.reason === "NO_LATER_DELIVERY_REQUEST" ? "Item ini sudah berada pada Delivery Request terakhir." : "Belum ada kebutuhan berikutnya untuk material yang sama."}</b><span>Pencarian dimulai setelah ${esc(format(search.searchedAfterDate || row.customerDeliveryDate, "date"))}. Horizon Demand Planning terakhir ${esc(format(search.planningHorizonDate || row.customerDeliveryDate, "date"))}.</span><span>Confirmed Qty dan Confirmed MOQ tetap dapat diedit di atas. Opsi alokasi muncul setelah Delivery Request berikutnya direview dan masuk MPS/MRP.</span><a class="btn btn-sm btn-outline-primary" href="/modules/planning-ppic/demand-planning">Buka Demand Planning</a></div>`;
+    return `<section class="ps-moq-planner ps-span-all" data-moq-allocation-planner data-base-demand="${esc(directDemandQty)}">
+      <header><div><span>ALOKASI KELEBIHAN MOQ</span><b>Tarik kebutuhan periode berikutnya</b><small>Kelebihan qty dapat dialokasikan ke demand terdekat sebelum sisanya menjadi buffer stock.</small></div><button class="btn btn-sm btn-outline-primary" type="button" data-moq-auto-allocation ${candidates.length ? "" : "disabled"}>Pilih otomatis FIFO</button></header>
+      <div class="ps-moq-summary"><div><small>Qty beli setelah MOQ</small><b data-moq-purchase-qty>0</b></div><div><small>Demand item ini</small><b>${num(directDemandQty)} ${esc(row.uomCode || "")}</b></div><div><small>Total alokasi tambahan</small><b data-moq-selected-qty>0</b></div><div><small>Coverage demand berikutnya</small><b data-moq-covered-qty>0</b></div><div><small>Custom reserve per part</small><b data-moq-reserve-qty>0</b></div><div><small>Buffer bebas</small><b data-moq-buffer-qty>0</b></div></div>
+      <div class="ps-moq-candidates">${candidateRows}</div>
+      <p data-moq-allocation-state>Masukkan Confirmed Qty / MOQ untuk melihat kapasitas alokasi.</p>
+    </section>`;
+  }
+  function refreshMoqAllocationPlanner(container) {
+    const editor = container?.matches?.("[data-suggestion-confirmation]") ? container : container?.closest?.("[data-suggestion-confirmation]");
+    const planner = editor?.querySelector("[data-moq-allocation-planner]");
+    if (!editor || !planner) return;
+    const confirmedQty = roundedPurchaseQty(editor.querySelector("[data-confirm-qty]")?.value, editor.querySelector("[data-confirm-moq]")?.value, editor.dataset.orderMultiple);
+    const baseDemand = number(planner.dataset.baseDemand);
+    const allocationCapacity = Math.max(confirmedQty - baseDemand, 0);
+    let selectedQty = 0;
+    let coveredDemandQty = 0;
+    let reservedAllocationQty = 0;
+    let invalidCoverageQty = 0;
+    planner.querySelectorAll("[data-moq-candidate]").forEach((candidate) => {
+      const checkbox = candidate.querySelector("[data-moq-candidate-check]");
+      const coverageInput = candidate.querySelector("[data-moq-coverage-qty]");
+      const reserveInput = candidate.querySelector("[data-moq-reserve-qty]");
+      const isCurrentDemand = candidate.dataset.currentDemand === "true";
+      coverageInput.disabled = isCurrentDemand || !checkbox.checked;
+      reserveInput.disabled = !checkbox.checked;
+      candidate.classList.toggle("is-selected", checkbox.checked);
+      candidate.querySelector("[data-moq-row-total]").textContent = `${num(checkbox.checked ? number(coverageInput.value) + number(reserveInput.value) : 0)} ${editor.dataset.uom || ""}`;
+      if (checkbox.checked) {
+        const coverageQty = Math.max(number(coverageInput.value), 0);
+        const reserveQty = Math.max(number(reserveInput.value), 0);
+        const demandQty = number(coverageInput.dataset.demandQty);
+        selectedQty += isCurrentDemand ? reserveQty : coverageQty + reserveQty;
+        coveredDemandQty += isCurrentDemand ? 0 : Math.min(coverageQty, demandQty);
+        reservedAllocationQty += reserveQty;
+        invalidCoverageQty += isCurrentDemand ? 0 : Math.max(coverageQty - demandQty, 0);
+      }
+    });
+    const bufferQty = Math.max(allocationCapacity - selectedQty, 0);
+    planner.querySelector("[data-moq-purchase-qty]").textContent = `${num(confirmedQty)} ${editor.dataset.uom || ""}`;
+    planner.querySelector("[data-moq-selected-qty]").textContent = `${num(selectedQty)} ${editor.dataset.uom || ""}`;
+    planner.querySelector("[data-moq-covered-qty]").textContent = `${num(coveredDemandQty)} ${editor.dataset.uom || ""}`;
+    planner.querySelector("[data-moq-reserve-qty]").textContent = `${num(reservedAllocationQty)} ${editor.dataset.uom || ""}`;
+    planner.querySelector("[data-moq-buffer-qty]").textContent = `${num(bufferQty)} ${editor.dataset.uom || ""}`;
+    const state = planner.querySelector("[data-moq-allocation-state]");
+    const over = selectedQty > allocationCapacity + 0.000001;
+    state.classList.toggle("is-error", over || invalidCoverageQty > 0.000001);
+    state.textContent = invalidCoverageQty > 0.000001
+      ? `Coverage Demand melebihi kebutuhan asli sebesar ${num(invalidCoverageQty)} ${editor.dataset.uom || ""}. Tambahan qty harus dimasukkan ke Custom Reserve.`
+      : over
+      ? `Alokasi melebihi kelebihan MOQ sebesar ${num(selectedQty - allocationCapacity)} ${editor.dataset.uom || ""}.`
+      : allocationCapacity > 0
+        ? `${num(allocationCapacity)} ${editor.dataset.uom || ""} tersedia; coverage demand ${num(coveredDemandQty)}, custom reserve ${num(reservedAllocationQty)}, buffer bebas ${num(bufferQty)}.`
+        : "Tidak ada kelebihan qty untuk dialokasikan setelah demand item ini.";
+  }
   function suggestionEditor(row) {
-    const form = row.purchasePackageUomCode || row.masterMaterialForm || "";
+    const form = row.purchasePackageUomCode || row.bomDefaultPurchaseForm || row.masterMaterialForm || "";
     const recommendedForms = (row.recommendedPurchaseForms || []).map((entry) => entry.formCode || entry.symbol).filter(Boolean).join(" / ");
+    const confirmationComplete = ["Available", "Partially Available", "Alternative Quantity Offered", "Alternative Delivery Date", "Confirmed"].includes(row.confirmationStatus);
     return `<div class="ps-confirmation-panel" data-suggestion-editor>
-      <div class="ps-panel-head"><div><b>Detail Hasil Konfirmasi</b><small>Catat ketersediaan, kuantitas, harga, dan komitmen delivery supplier.</small></div><span class="ps-live-indicator"><i></i> Data aktual</span></div>
+      <div class="ps-panel-head"><div><b>Detail Hasil Konfirmasi</b><small>Ikuti urutan di bawah agar item siap dipilih saat membuat Draft PR.</small></div><span class="ps-live-indicator" data-confirm-live-state><i></i> Data aktual</span></div>
+      <div class="ps-confirmation-progress" aria-label="Alur konfirmasi supplier">
+        <div class="is-current"><i>1</i><span><b>Komitmen supplier</b><small>Status, supplier, dan delivery</small></span></div>
+        <div class="${confirmationComplete ? "is-complete" : ""}"><i>2</i><span><b>Qty & spesifikasi</b><small>MOQ, bentuk, ukuran, harga</small></span></div>
+        <div><i>3</i><span><b>Alokasi kelebihan</b><small>Demand berikutnya atau buffer</small></span></div>
+        <div><i>4</i><span><b>Simpan & pilih PR</b><small>Tabel diperbarui otomatis</small></span></div>
+      </div>
+      <div class="ps-inline-save-state d-none" data-confirm-save-state role="status"><b>Konfirmasi tersimpan.</b><span>Data tabel dan kesiapan PR sudah diperbarui tanpa memuat ulang halaman.</span></div>
       <div class="ps-form-grid" data-suggestion-confirmation data-item-id="${esc(row.id || "")}" data-order-multiple="${esc(row.orderMultiple || 0)}" data-uom="${esc(row.uomCode || "")}">
-        <label>Status Konfirmasi<select class="form-select" data-confirm-status>${suggestionStatuses.map((value) => `<option ${value === row.confirmationStatus ? "selected" : ""}>${esc(value)}</option>`).join("")}</select></label>
-        <label>Supplier${supplierLookupSelect("data-confirm-supplier", row.alternativeSupplierCode || row.suggestedSupplierCode || "")}</label>
+        <div class="ps-form-step ps-span-all"><i>1</i><div><b>Komitmen supplier</b><small>Isi status, supplier, qty, dan delivery aktual.</small></div></div>
+        <label>Status Konfirmasi<select class="form-select" data-confirm-status>${suggestionStatuses.map((value) => `<option ${value === row.confirmationStatus ? "selected" : ""}>${esc(value)}</option>`).join("")}</select><small data-confirm-status-hint>${esc(suggestionStatusHint(row.confirmationStatus))}</small></label>
+        <label>Supplier${supplierLookupSelect("data-confirm-supplier", row.alternativeSupplierCode || row.suggestedSupplierCode || "")}<small data-confirm-master-state>MOQ dan harga akan dilookup dari master supplier.</small></label>
         <label>Confirmed Qty<input class="form-control" data-confirm-qty type="number" min="0" step="0.001" value="${esc(row.confirmedQty ?? row.recommendedPurchaseQty ?? 0)}"></label>
-        ${row.materialCode ? `<label>Bentuk Material<select class="form-select" data-confirm-form><option value="">Pilih bentuk</option><option value="SHEET" ${form === "SHEET" ? "selected" : ""}>SHEET</option><option value="COIL" ${form === "COIL" ? "selected" : ""}>COIL</option><option value="PCS" ${form === "PCS" ? "selected" : ""}>PCS</option></select><small>Rekomendasi BOM: ${esc(recommendedForms || "-")}</small></label>
-        <label>Lebar Tersedia (mm)<input class="form-control" data-confirm-width type="number" min="0.001" step="0.001" value="${esc(row.confirmedMaterialWidth ?? row.masterMaterialWidth ?? "")}"><small>Lebar master: ${esc(row.masterMaterialWidth ?? "-")} mm; lebar berbeda diperbolehkan.</small></label>
+        ${row.materialCode ? `<label>Bentuk Material<select class="form-select" data-confirm-form><option value="">Pilih bentuk</option><option value="SHEET" ${form === "SHEET" ? "selected" : ""}>SHEET</option><option value="COIL" ${form === "COIL" ? "selected" : ""}>COIL</option><option value="PCS" ${form === "PCS" ? "selected" : ""}>PCS</option></select><small data-confirm-form-source>Default BOM: ${esc(row.bomDefaultPurchaseForm || recommendedForms || "-")}${row.bomMaterialScheme ? ` (${esc(row.bomMaterialScheme)})` : ""}</small></label>
+        <label>Lebar Tersedia (mm)<input class="form-control" data-confirm-width type="number" min="0.001" step="0.001" value="${esc(row.confirmedMaterialWidth ?? row.bomDefaultMaterialWidth ?? row.masterMaterialWidth ?? "")}"><small>Lebar BOM/master: ${esc(row.bomDefaultMaterialWidth ?? row.masterMaterialWidth ?? "-")} mm; lebar berbeda diperbolehkan.</small></label>
         <label data-sheet-length-field class="${form === "SHEET" ? "" : "d-none"}">Panjang Sheet (mm)<input class="form-control" data-confirm-length type="number" min="0.001" step="0.001" value="${esc(row.confirmedMaterialLength ?? "")}" ${form === "SHEET" ? "required" : ""}><small>Wajib untuk SHEET; contoh ukuran PO: T × W × panjang.</small></label>` : ""}
         <label>Confirmed Delivery<input class="form-control" data-confirm-date type="date" value="${esc(dateInputValue(row.confirmedDeliveryDate || row.materialRequiredDate))}"></label>
-        <label>Confirmed MOQ<input class="form-control" data-confirm-moq type="number" min="0" step="0.001" value="${esc(row.confirmedMoq ?? row.moq ?? 0)}"></label>
-        <label>Lead Time Aktual<input class="form-control" data-confirm-lead type="number" min="0" value="${esc(row.confirmedLeadTimeDays ?? row.purchasingLeadTimeDays ?? 0)}"></label>
-        <label>Harga<input class="form-control" data-confirm-price type="number" min="0" step="0.0001" value="${esc(row.estimatedUnitPrice ?? "")}"></label>
+        <label>Confirmed MOQ<input class="form-control" data-confirm-moq type="number" min="0" step="0.001" value="${esc(row.confirmedMoq ?? row.moq ?? 0)}"><small data-confirm-moq-source>Otomatis dari Material Price List / Supplier Item.</small></label>
+        <div class="ps-form-step ps-span-all"><i>2</i><div><b>Alokasi kelebihan MOQ</b><small>Coverage demand berikutnya hanya diperlukan bila confirmed qty melebihi kebutuhan item ini.</small></div></div>
+        ${suggestionMoqAllocationPlanner(row)}
+        <div class="ps-form-step ps-span-all"><i>3</i><div><b>Komersial & catatan audit</b><small>Lengkapi harga, lead time aktual, serta alasan bila hasil berbeda dari rekomendasi.</small></div></div>
+        <label>Lead Time Aktual<input class="form-control" data-confirm-lead type="number" min="0" value="${esc(row.confirmedLeadTimeDays ?? row.purchasingLeadTimeDays ?? 0)}"><small data-confirm-lead-source>Otomatis dari Supplier Item / Supplier Master.</small></label>
+        <label>Harga<input class="form-control" data-confirm-price type="number" min="0" step="0.0001" value="${esc(row.estimatedUnitPrice ?? "")}"><small data-confirm-price-source>Harga aktif pada tanggal konfirmasi.</small></label>
         <label>Currency<input class="form-control" data-confirm-currency value="${esc(row.currencyCode || "")}" placeholder="IDR"></label>
         <label>Alternative Material<input class="form-control" data-confirm-material value="${esc(row.alternativeMaterialCode || "")}" placeholder="Opsional, jika diizinkan"></label>
         <label class="ps-span-2">Supplier Remark<input class="form-control" data-confirm-remark value="${esc(row.supplierRemark || "")}" placeholder="Catatan ketersediaan, harga, atau jadwal"></label>
         <label class="ps-span-2">Alasan Tanpa Konfirmasi<input class="form-control" data-confirm-bypass value="${esc(row.bypassConfirmationReason || "")}" placeholder="Wajib jika PR tetap dibuat tanpa konfirmasi supplier"></label>
         <div class="ps-span-2 ps-splits" data-supplier-splits>${(row.supplierAllocations || []).map((allocation) => suggestionSplitRow(row, allocation)).join("")}</div>
-        <div class="ps-span-2 ps-panel-actions"><button class="btn btn-outline-primary" type="button" data-add-supplier-split>+ Split Supplier / Delivery</button><button class="btn btn-primary" type="button" data-save-suggestion-confirmation>Simpan Konfirmasi</button></div>
+        <div class="ps-span-2 ps-panel-actions"><div class="ps-action-help"><b>Simpan tanpa menutup dialog</b><small>Status baris dan kesiapan PR akan diperbarui langsung.</small></div><button class="btn btn-outline-primary" type="button" data-add-supplier-split>+ Split Supplier / Delivery</button><button class="btn btn-light" type="button" data-close-suggestion-editor>Selesai</button><button class="btn btn-primary" type="button" data-save-suggestion-confirmation>Simpan Konfirmasi</button></div>
       </div>
     </div>`;
   }
@@ -492,6 +811,8 @@
       <div class="ps-modal-context">
         <div><small>Customer</small><b>${esc(customerCodes)}</b></div>
         <div><small>Customer Delivery</small><b>${esc(format(row.customerDeliveryDate, "date"))}</b></div>
+        <div><small>Material Required</small><b>${esc(format(row.materialRequiredDate, "date"))}</b></div>
+        <div><small>Order Paling Lambat</small><b>${esc(format(row.calculatedPurchaseDueDate || row.recommendedOrderDate, "date"))}</b></div>
         <div><small>Net Requirement</small><b>${num(row.netRequirement)} ${esc(row.uomCode || "")}</b></div>
         <div><small>Recommended Purchase</small><b>${num(row.recommendedPurchaseQty)} ${esc(row.uomCode || "")}</b></div>
       </div>
@@ -499,6 +820,8 @@
     </section>`;
     document.body.appendChild(overlay);
     document.body.classList.add("modal-open");
+    const editor = overlay.querySelector("[data-suggestion-confirmation]");
+    refreshMoqAllocationPlanner(editor);
     const close = () => {
       overlay.remove();
       if (!document.querySelector(".ops-modal-backdrop")) document.body.classList.remove("modal-open");
@@ -506,6 +829,11 @@
     overlay.addEventListener("click", (event) => { if (event.target === overlay) close(); });
     overlay.addEventListener("keydown", (event) => { if (event.key === "Escape") close(); });
     overlay.querySelector("select, input, button")?.focus();
+    const draftConfirmation = ["Not Confirmed", "Waiting Supplier Confirmation"].includes(row.confirmationStatus);
+    await lookupSuggestionSupplierMaster(editor, { force: draftConfirmation, clearMissing: draftConfirmation });
+    await Promise.all([...editor.querySelectorAll("[data-supplier-split]")]
+      .filter((split) => split.querySelector("[data-split-supplier]")?.value)
+      .map((split) => lookupSuggestionSupplierMaster(split, { force: false, clearMissing: false })));
   }
 
   function openDueCalculationModal(row) {
@@ -517,8 +845,11 @@
       forecasts.length ? `Forecast ${forecasts.join(", ")}` : null,
     ].filter(Boolean);
     const productionHours = number(row.productionLeadTimeHours);
-    const leadDays = number(row.confirmedLeadTimeDays ?? row.purchasingLeadTimeDays);
     const breakdown = row.productionLeadTimeBreakdown || {};
+    const leadDays = number(breakdown.effectivePurchasingLeadTimeDays ?? row.confirmedLeadTimeDays ?? row.purchasingLeadTimeDays);
+    const masterLeadDays = number(breakdown.masterPurchasingLeadTimeDays ?? row.confirmedLeadTimeDays ?? row.purchasingLeadTimeDays);
+    const procurement = breakdown.procurementSchedule || {};
+    const policy = procurement.leadTimeBreakdown || breakdown.procurementPolicy || {};
     const effectiveProductionHours = breakdown.totalProductionLeadTimeHours != null
       ? number(breakdown.totalProductionLeadTimeHours)
       : productionHours;
@@ -532,7 +863,15 @@
     const scheduledProductionDays = number(breakdown.scheduledProductionLeadTimeDays) || Math.ceil(effectiveProductionDays);
     const productionDueDate = row.calculatedProductionDueDate || row.materialRequiredDate;
     const purchaseDueDate = row.calculatedPurchaseDueDate || row.recommendedOrderDate;
+    const supplierArrivalDate = row.supplierRequiredArrivalDate || procurement.supplierRequiredArrivalDate || productionDueDate;
+    const latestPrDate = row.calculatedLatestPrDate || procurement.latestPrDate || row.latestPrDate;
     const processPath = Array.isArray(breakdown.processPath) ? breakdown.processPath : [];
+    const vendorPlanningRows = Array.isArray(breakdown.planningEvidence?.vendorProcesses)
+      ? breakdown.planningEvidence.vendorProcesses.filter((process) => process.adjustmentApplied)
+      : [];
+    const vendorPlanningHtml = vendorPlanningRows.length
+      ? `<div class="ps-lead-breakdown"><div><span>Vendor process confirmed</span><b>${vendorPlanningRows.map((process) => `${esc(process.processCode || process.processName || "Vendor")} ${num(number(process.adjustedDurationHours) / 8)} hari`).join(" · ")}</b></div><small>${vendorPlanningRows.map((process) => `${esc(process.vendorCode || process.vendorName || "Vendor")} master ${num(number(process.masterDurationHours) / 8)} hari → planning ${num(number(process.adjustedDurationHours) / 8)} hari${process.reason ? ` (${esc(process.reason)})` : ""}`).join("; ")}. Konfirmasi ini berasal dari Demand Planning/SO dan dipakai oleh Purchase Suggestion serta Auto Allocation.</small></div>`
+      : "";
     const processPathHtml = processPath.length ? `<div class="ps-process-path"><header><div><span>Critical Path MBOM</span><b>${esc(breakdown.mbomNumber || "-")}</b></div><small>Setiap proses dibulatkan ke atas. Proses berikutnya menunggu proses sebelumnya selesai; cabang paralel menunggu jalur terlama.</small></header><ol>${processPath.map((step, index) => `<li class="${step.mode === "VENDOR" ? "is-vendor" : ""}"><span>${index + 1}</span><div><small>Level ${num(step.level, 0)} · Seq ${num(step.sequence, 0)} · ${esc(step.mode)}</small><b>${esc(step.detailCode || "-")} · ${esc(step.processName || step.processCode || "Process")}</b><em>${step.mode === "VENDOR" ? `Vendor ${esc(step.vendorCode || step.vendorName || "-")} · ${num(step.rawElapsedDays ?? step.vendorLeadTimeDays)} hari` : `${num(step.cycleTimeSeconds)} detik × ${num(step.qty)} qty ÷ 3.600 = ${num(step.cycleLoadHours)} jam ÷ ${num(workingHoursPerDay, 0)} = ${num(step.rawElapsedDays ?? number(step.elapsedHours) / workingHoursPerDay)} hari`} → dibulatkan ${num(step.elapsedDays ?? Math.ceil(number(step.elapsedHours) / workingHoursPerDay), 0)} hari</em></div></li>`).join("")}</ol></div>` : "";
     const leadTimeFormula = breakdown.legacyDetected
       ? `<div class="ps-lead-breakdown is-warning"><div><span>Kenapa tersimpan ${num(breakdown.storedProductionLeadTimeHours)} jam?</span><b>${num(breakdown.summedComponentLeadHours)} jam lead komponen + ${num(breakdown.legacyCycleLoadHours)} jam cycle + ${num(breakdown.setupHours)} jam setup/run + ${num(breakdown.queueBufferHours)} jam queue = ${num(breakdown.legacyTotalHours)} jam</b></div><small>Cycle lama: ${num(breakdown.cycleTimeSeconds)} detik × ${num(breakdown.legacyAccumulatedQty)} qty ÷ 3.600. Qty ${num(breakdown.legacyAccumulatedQty)} berasal dari qty MPS ${num(breakdown.scheduleQty)} yang terakumulasi pada ${num(breakdown.legacyRequirementCount, 0)} requirement. Ini terdeteksi sebagai hitung ganda pada dokumen lama.</small><em>Metode baru: hitungan mentah critical path <b>${num(exactProductionDays)} hari</b>. Karena setiap proses dibulatkan ke atas, in-house menjadi ${num(breakdown.inhouseScheduledDays, 0)} hari + vendor ${num(breakdown.vendorScheduledDays ?? breakdown.vendorLeadTimeDays, 0)} hari = <b>${num(scheduledProductionDays, 0)} hari aman</b>.</em></div>`
@@ -546,19 +885,22 @@
       <div class="ops-modal-body">
         <div class="ps-due-source"><span>Sumber demand</span><b>${esc(sourceLabels.join(" + ") || "MRP / Planned Order")}</b><small>${sourceLabels.length > 1 ? "Jika ada beberapa jadwal, sistem memakai delivery customer yang paling awal agar semua demand aman." : "Tanggal delivery customer diambil dari jadwal demand yang terhubung ke MPS/MRP."}</small></div>
         ${leadTimeFormula}
+        ${vendorPlanningHtml}
         ${processPathHtml}
         <div class="ps-due-flow">
           <div><span>1</span><small>Due Date Delivery</small><b>${esc(format(row.customerDeliveryDate, "date"))}</b><em>Jadwal SO/Forecast paling awal</em></div>
           <i>−</i>
           <div><span>2</span><small>Lead Time Proses BOM</small><b>${num(scheduledProductionDays, 0)} hari</b><em>Mentah ${num(exactProductionDays)} hari · setiap proses dibulatkan ke atas</em></div>
           <i>=</i>
-          <div><span>3</span><small>Due Date Produksi</small><b>${esc(format(productionDueDate, "date"))}</b><em>Material harus tersedia sebelum produksi dimulai</em></div>
+          <div><span>3</span><small>Material Ready / Mulai Produksi</small><b>${esc(format(productionDueDate, "date"))}</b><em>Tanggal paling lambat produksi boleh dimulai</em></div>
           <i>−</i>
-          <div><span>4</span><small>Lead Time Supplier</small><b>${num(leadDays, 0)} hari</b><em>${row.confirmedLeadTimeDays != null ? "Lead time aktual supplier" : "Lead time master supplier / planned order"}</em></div>
+          <div><span>4</span><small>Supplier Harus Tiba</small><b>${esc(format(supplierArrivalDate, "date"))}</b><em>QC ${num(policy.receivingQcDays)} hari · safety ${num(policy.safetyLeadTimeDays)} hari${number(policy.receivingQcDays) === 0 && number(policy.safetyLeadTimeDays) === 0 ? " (di-waive PPIC)" : ""}</em></div>
           <i>=</i>
-          <div class="is-result"><span>5</span><small>Due Date Pembelian</small><b>${esc(format(purchaseDueDate, "date"))}</b><em>PO sebaiknya sudah dilepas paling lambat tanggal ini</em></div>
+          <div><span>5</span><small>Latest PO Release</small><b>${esc(format(purchaseDueDate, "date"))}</b><em>Supplier ${num(leadDays)} hari${leadDays !== masterLeadDays ? ` · master ${num(masterLeadDays)} hari` : ""}</em></div>
+          <i>−</i>
+          <div class="is-result"><span>6</span><small>Latest PR Approval</small><b>${esc(format(latestPrDate, "date"))}</b><em>PR ${num(policy.prApprovalDays)} hari · proses PO ${num(policy.poProcessingDays)} hari</em></div>
         </div>
-        <div class="alert ${breakdown.legacyDetected ? "alert-warning" : "alert-info"} mb-0"><b>${breakdown.legacyDetected ? "Dokumen lama:" : "Logika:"}</b> ${breakdown.legacyDetected ? "Jalankan ulang MRP dan buat Purchase Suggestion terbaru agar tanggal memakai qty MPS unik dan critical path BOM yang sudah diperbaiki." : "delivery customer dikurangi total waktu proses BOM/routing, lalu dikurangi lead time purchasing. Untuk split supplier, sistem memakai lead time terpanjang sebagai batas aman."}</div>
+        <div class="alert ${breakdown.legacyDetected ? "alert-warning" : "alert-info"} mb-0"><b>${breakdown.legacyDetected ? "Dokumen lama:" : "Logika:"}</b> ${breakdown.legacyDetected ? "Jalankan ulang MRP dan buat Purchase Suggestion terbaru agar tanggal memakai qty MPS unik dan critical path BOM yang sudah diperbaiki." : "Delivery customer dikurangi critical path proses dalam hari kerja. Dari material-ready, sistem memisahkan supplier arrival, latest PO, dan latest PR—tidak lagi menyebut tanggal PR sebagai tanggal PO."}</div>
       </div>
       <footer><button class="btn btn-primary" type="button" data-due-close>Mengerti</button></footer>
     </section>`;
@@ -589,6 +931,20 @@
     return references;
   }
 
+  function purchaseSuggestionAllocationBreakdown(row) {
+    const sources = Array.isArray(row.sourceRequirements) ? row.sourceRequirements : [];
+    const allocation = row.productionLeadTimeBreakdown?.moqAllocation || {};
+    const pulledQty = sources.filter((source) => source.allocationType === "MOQ_PULL_FORWARD").reduce((sum, source) => sum + number(source.qty), 0);
+    const sourceRows = sources.length ? sources.map((source) => {
+      const pulled = source.allocationType === "MOQ_PULL_FORWARD";
+      const coveredQty = pulled ? number(source.demandCoveredQty ?? Math.min(number(source.qty), number(source.originalDemandQty || source.qty))) : number(source.qty);
+      const reserveQty = pulled ? number(source.reservedAllocationQty ?? Math.max(number(source.qty) - coveredQty, 0)) : 0;
+      return `<div class="ps-allocation-line ${pulled ? "is-pulled" : ""}"><span>${pulled ? "MOQ → kebutuhan berikutnya" : "Kebutuhan bucket ini"}</span><div><b>${esc(source.partCode || source.sourceNumber || "Demand")}</b><small>${esc(format(source.requiredDate, "date"))}${source.customerCode ? ` · ${esc(source.customerCode)}` : ""}${pulled ? ` · demand ${num(coveredQty)}${reserveQty > 0 ? ` + custom reserve ${num(reserveQty)}` : ""}` : ""}</small></div><strong>${num(source.qty)} ${esc(row.uomCode || "")}</strong></div>`;
+    }).join("") : '<div class="ps-reference-empty">Allocation source belum tersedia.</div>';
+    const residualBuffer = number(allocation.residualBufferQty ?? row.excessQty);
+    return `<section class="ps-allocation-breakdown"><header><div><small>MOQ ALLOCATION</small><b>Pembagian rekomendasi ${num(row.recommendedPurchaseQty)} ${esc(row.uomCode || "")}</b></div><span>${pulledQty > 0 ? `${num(pulledQty)} ditarik dari kebutuhan berikutnya` : "Tanpa pull-forward"}</span></header><div>${sourceRows}${residualBuffer > 0 ? `<div class="ps-allocation-line is-buffer"><span>BUFFER MOQ</span><div><b>Sisa belum dialokasikan</b><small>Dapat menjadi stock coverage setelah receipt</small></div><strong>${num(residualBuffer)} ${esc(row.uomCode || "")}</strong></div>` : ""}</div></section>`;
+  }
+
   function openReferenceModal(row, record = {}) {
     const identity = row.materialCode || row.partCode || "Material / Part";
     const references = purchaseSuggestionReferences(row, record);
@@ -599,7 +955,7 @@
     overlay.className = "ops-modal-backdrop";
     overlay.innerHTML = `<section class="ops-modal ps-reference-modal" role="dialog" aria-modal="true" aria-labelledby="ps-reference-title">
       <header><div><p class="ops-eyebrow">Linked Documents</p><h2 id="ps-reference-title">Full Reference</h2><p>${esc(identity)} · ${num(references.length, 0)} dokumen terhubung</p></div><button type="button" class="btn-close" data-reference-close aria-label="Tutup"></button></header>
-      <div class="ops-modal-body"><div class="ps-reference-modal-list">${referenceLinks}</div></div>
+      <div class="ops-modal-body">${purchaseSuggestionAllocationBreakdown(row)}<div class="ps-reference-modal-list">${referenceLinks}</div></div>
       <footer><button class="btn btn-primary" type="button" data-reference-close>Selesai</button></footer>
     </section>`;
     document.body.appendChild(overlay);
@@ -635,6 +991,9 @@
   function renderPurchaseSuggestionItems(rows, record = {}) {
     const totals = rows.reduce((result, row) => ({ net: result.net + number(row.netRequirement), recommended: result.recommended + number(row.recommendedPurchaseQty), excess: result.excess + number(row.excessQty), ready: result.ready + (/ready|converted/i.test(row.status || "") ? 1 : 0) }), { net: 0, recommended: 0, excess: 0, ready: 0 });
     const statusOptions = [...new Set(rows.map((row) => row.status).filter(Boolean))];
+    const confirmationOptions = [...new Set(rows.map((row) => row.confirmationStatus).filter(Boolean))];
+    const pendingConfirmationCount = rows.filter((row) => !/ready|converted/i.test(row.status || "")).length;
+    const convertedCount = rows.filter((row) => /converted/i.test(row.status || "")).length;
     const categories = [...new Set(rows.map((row) => row.materialCode ? "Material" : "Purchase Part"))];
     const dueParts = (value) => {
       const parsed = new Date(value);
@@ -651,12 +1010,14 @@
       const identity = row.materialCode || row.partCode || "Tanpa kode";
       const description = row.materialDescription || row.partName || "Material / part pembelian";
       const category = row.materialCode ? "Material" : "Purchase Part";
+      const prCategory = row.materialCode ? "PR-Raw_Material" : "PR-Purchase-Part";
       const sources = [...new Set([...(row.salesOrderNumbers || []), ...(row.forecastNumbers || []), ...(row.productionOrderNumbers || []), row.plannedOrderNumber].filter(Boolean))];
       const search = [identity, description, row.partNumber, row.suggestedSupplierCode, row.suggestedSupplierName, row.status, ...sources].filter(Boolean).join(" ").toLowerCase();
       const productionDueDate = row.calculatedProductionDueDate || row.materialRequiredDate;
       const purchaseDueDate = row.calculatedPurchaseDueDate || row.recommendedOrderDate;
       const due = dueParts(purchaseDueDate);
       const confirmedAllocations = (row.supplierAllocations || []).filter((allocation) => allocation.status === "Confirmed");
+      const prSupplierCodes = [...new Set(confirmedAllocations.map((allocation) => allocation.supplierCode).filter(Boolean))];
       const confirmedMoq = number(row.confirmedMoq ?? row.moq);
       const orderMultiple = number(row.orderMultiple);
       const supplierAvailability = confirmedAllocations.length
@@ -666,28 +1027,32 @@
       const eligible = /ready/i.test(row.status || "") && !/converted/i.test(row.status || "");
       const materialHref = row.materialCode ? `/master-data/materials/${encodeURIComponent(row.materialCode)}` : `/master-data/parts/${encodeURIComponent(row.partCode || identity)}`;
       const supplierCode = row.alternativeSupplierCode || row.suggestedSupplierCode;
+      if (!prSupplierCodes.length && supplierCode) prSupplierCodes.push(supplierCode);
       const supplierHref = supplierCode ? `/master-data/suppliers/${encodeURIComponent(supplierCode)}` : "";
       const step = orderMultiple > 0 ? String(orderMultiple) : (isDiscreteUom(row.uomCode) ? "1" : "0.001");
       const minimumQty = Math.max(confirmedMoq, number(step));
-      return `<tr class="ps-data-row" data-ps-row data-item-id="${esc(row.id || "")}" data-ps-status="${esc(row.status || "Draft")}" data-ps-category="${esc(category)}" data-ps-search="${esc(search)}" data-due-day="${esc(due.day)}" data-due-week="${esc(due.week)}" data-due-month="${esc(due.month)}">
+      const pulledFutureQty = (row.sourceRequirements || []).filter((source) => source.allocationType === "MOQ_PULL_FORWARD").reduce((sum, source) => sum + number(source.qty), 0);
+      const confirmationAction = /converted/i.test(row.status || "") ? "Lihat Detail" : /ready/i.test(row.status || "") ? "Lihat / Ubah" : "Lengkapi Konfirmasi";
+      const readinessHint = /converted/i.test(row.status || "") ? "Sudah dibuat menjadi PR" : /ready/i.test(row.status || "") ? "Siap dipilih untuk PR" : "Supplier, qty, dan delivery belum lengkap";
+      return `<tr class="ps-data-row" data-ps-row data-item-id="${esc(row.id || "")}" data-ps-status="${esc(row.status || "Draft")}" data-ps-confirmation="${esc(row.confirmationStatus || "Not Confirmed")}" data-ps-category="${esc(category)}" data-pr-category="${esc(prCategory)}" data-pr-suppliers="${esc(prSupplierCodes.join("|"))}" data-ps-search="${esc(search)}" data-due-day="${esc(due.day)}" data-due-week="${esc(due.week)}" data-due-month="${esc(due.month)}">
         <td class="ps-freeze-select"><input class="form-check-input" type="checkbox" data-ps-select ${eligible ? "" : "disabled"} aria-label="Pilih ${esc(identity)} untuk PR" title="${eligible ? "Pilih untuk satu Draft PR" : "Konfirmasi supplier lebih dahulu"}"></td>
         <td class="ps-freeze-item"><a class="ps-item-link" href="${esc(materialHref)}"><b>${esc(identity)}</b><span>${esc(description)}</span><small>${row.partNumber ? `PN ${esc(row.partNumber)} · ` : ""}${esc(row.uomCode || "-")}</small></a></td>
-        <td><span class="ps-category ${slug(category)}">${esc(category)}</span></td>
+        <td><span class="ps-category ${slug(category)}">${esc(prCategory)}</span></td>
         <td class="ps-date-cell"><b>${esc(format(row.customerDeliveryDate, "date"))}</b><small>SO / Forecast</small></td>
         <td class="ps-date-cell"><div class="ps-due-primary"><b>${esc(format(purchaseDueDate, "date"))}</b><button class="ps-due-help" type="button" data-due-calculation aria-label="Lihat perhitungan due date ${esc(identity)}" title="Lihat perhitungan maksimal due date">?</button></div><span>Produksi ${esc(format(productionDueDate, "date"))}</span><small>${esc(row.procurementWindow || "UNCLASSIFIED")} · ${esc(row.scheduleSource === "FINITE_CAPACITY" ? "Finite capacity" : "Backward schedule")}</small><small>Supplier LT ${num(row.confirmedLeadTimeDays ?? row.purchasingLeadTimeDays, 0)} hari${number(row.atRiskSupplyQty) > 0 ? ` · At risk ${num(row.atRiskSupplyQty)}` : ""}</small></td>
         <td class="ps-reference-cell"><button class="ps-reference-trigger" type="button" data-reference-popup aria-label="Lihat full reference ${esc(identity)}" title="Lihat semua dokumen terhubung"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg><span>${num(purchaseSuggestionReferences(row, record).length, 0)}</span></button></td>
-        <td class="ps-qty-cell" title="Net / Gross / Rekomendasi"><b>${num(row.netRequirement)} ${esc(row.uomCode || "")}</b><span>G ${num(row.grossRequirement)}</span><small>R ${num(row.recommendedPurchaseQty)}</small></td>
+        <td class="ps-qty-cell" title="Net / Gross / Rekomendasi"><b>${num(row.netRequirement)} ${esc(row.uomCode || "")}</b><span>G ${num(row.grossRequirement)}</span><small>R ${num(row.recommendedPurchaseQty)}</small>${pulledFutureQty > 0 ? `<small class="ps-moq-pull">MOQ allocation ${num(pulledFutureQty)} ke kebutuhan berikutnya</small>` : ""}</td>
         <td class="ps-qty-cell" title="Total supply / Available / Open PO"><b>${num(number(row.availableStock) + number(row.openPoQty))}</b><span>A ${num(row.availableStock)}</span><small>PO ${num(row.openPoQty)}</small></td>
         <td class="ps-supplier-cell">${supplierHref ? `<a href="${esc(supplierHref)}"><b>${esc(supplierCode)}</b><span>${esc(row.suggestedSupplierName || "Supplier")}</span></a>` : '<b class="text-danger">Belum ditentukan</b>'}<small>Tersedia ${num(supplierAvailability)} · LT ${num(row.confirmedLeadTimeDays ?? row.purchasingLeadTimeDays, 0)} hari</small></td>
         <td class="ps-custom-qty"><input class="form-control form-control-sm" data-ps-custom-qty type="number" min="${esc(minimumQty)}" max="${esc(supplierAvailability)}" step="${esc(step)}" value="${esc(selectedQty)}" disabled><small>Maks. supplier: ${num(supplierAvailability)} ${esc(row.uomCode || "")}</small></td>
-        <td class="ps-status-cell">${badge(row.status)}<span>${badge(row.confirmationStatus)}</span><button class="btn btn-sm btn-outline-primary" type="button" data-open-suggestion-editor>Detail / Konfirmasi</button></td>
+        <td class="ps-status-cell">${badge(row.status)}<span>${badge(row.confirmationStatus)}</span><small class="ps-readiness-hint">${esc(readinessHint)}</small><button class="btn btn-sm btn-outline-primary" type="button" data-open-suggestion-editor>${esc(confirmationAction)}</button></td>
       </tr>`;
     }).join("");
     const replanBanner = record.status === "Replan Required" ? `<div class="alert alert-warning mb-0"><b>Demand berubah.</b> Purchase Suggestion ini tidak dapat dibuat menjadi PR. Hitung ulang MPS lalu jalankan MRP kembali untuk memperoleh rekomendasi terbaru.</div>` : "";
-    return `<section class="ps-workspace">${replanBanner}<div class="ps-summary-grid"><div><small>Total Item</small><b>${num(rows.length, 0)}</b></div><div><small>Net Requirement</small><b>${num(totals.net)}</b></div><div><small>Recommended Qty</small><b>${num(totals.recommended)}</b></div><div><small>Excess Qty</small><b>${num(totals.excess)}</b></div><div><small>Siap PR</small><b>${num(totals.ready, 0)} / ${num(rows.length, 0)}</b></div></div>
-      <div class="ps-toolbar"><label class="ps-search-field"><span>Cari</span><input class="form-control" data-ps-search-input placeholder="Material, supplier, SO, forecast..."></label><label><span>Category</span><select class="form-select" data-ps-category-filter><option value="">Semua category</option>${categories.map((category) => `<option>${esc(category)}</option>`).join("")}</select></label><label><span>Status</span><select class="form-select" data-ps-status-filter><option value="">Semua status</option>${statusOptions.map((status) => `<option>${esc(status)}</option>`).join("")}</select></label><label><span>Group by due date</span><select class="form-select" data-ps-due-group><option value="day">Per tanggal</option><option value="week">Per minggu</option><option value="month">Per bulan</option><option value="">Tanpa grouping</option></select></label><b data-ps-result>${num(rows.length, 0)} item</b></div>
-      <div class="ps-table-shell"><table class="table ps-suggestion-table"><thead><tr><th class="ps-freeze-select"><input class="form-check-input" type="checkbox" data-ps-select-all aria-label="Pilih semua item yang siap"></th><th class="ps-freeze-item">Material / Part</th><th>Category</th><th>Due Date Delivery</th><th>Due Date Pembelian <span class="ps-head-help" title="Klik ikon ? pada setiap baris untuk melihat perhitungannya">?</span></th><th>Full Reference</th><th>Demand</th><th>Stock Supply</th><th>Supplier & Availability</th><th>Qty untuk PR</th><th>Status / Action</th></tr></thead><tbody>${tableRows || '<tr><td colspan="11" class="text-center text-muted p-4">Tidak ada item suggestion.</td></tr>'}</tbody></table></div>
-      <div class="ps-selection-bar"><div><b data-ps-selected-count>0 item dipilih</b><span data-ps-selected-qty>Total qty 0</span></div><small>Qty dapat disesuaikan sampai batas supplier. Material dan Purchase Part otomatis dibuatkan PR terpisah.</small><button class="btn btn-primary" type="button" data-workflow-action="convert-suggestion-to-pr" disabled data-ps-create-pr>Buat Draft PR</button></div></section>`;
+    return `<section class="ps-workspace">${replanBanner}<div class="ps-review-flow"><header><div><span>ALUR KERJA PURCHASING</span><b>Dari suggestion sampai Draft PR</b></div><small>Mulai dari item yang perlu konfirmasi. Item baru dapat dipilih setelah komitmen supplier lengkap.</small></header><ol><li class="is-current"><i>1</i><div><b>Review kebutuhan</b><small>${num(pendingConfirmationCount, 0)} item perlu tindakan</small></div></li><li><i>2</i><div><b>Konfirmasi supplier</b><small>Qty, delivery, MOQ, harga</small></div></li><li class="${totals.ready ? "is-ready" : ""}"><i>3</i><div><b>Pilih item siap</b><small>${num(totals.ready, 0)} item siap PR</small></div></li><li class="${convertedCount ? "is-ready" : ""}"><i>4</i><div><b>Buat Draft PR</b><small>${num(convertedCount, 0)} item sudah diproses</small></div></li></ol></div><div class="ps-summary-grid"><div><small>Total Item</small><b>${num(rows.length, 0)}</b></div><div><small>Net Requirement</small><b>${num(totals.net)}</b></div><div><small>Recommended Qty</small><b>${num(totals.recommended)}</b></div><div><small>Excess Qty</small><b>${num(totals.excess)}</b></div><div><small>Siap PR</small><b>${num(totals.ready, 0)} / ${num(rows.length, 0)}</b></div></div>
+      <div class="ps-toolbar"><label class="ps-search-field"><span>Cari item</span><input class="form-control" data-ps-search-input placeholder="Material, part, supplier, SO, forecast..."></label><label><span>Jenis item</span><select class="form-select" data-ps-category-filter><option value="">Semua jenis</option>${categories.map((category) => `<option>${esc(category)}</option>`).join("")}</select></label><label><span>Kesiapan PR</span><select class="form-select" data-ps-status-filter><option value="">Semua kesiapan</option>${statusOptions.map((status) => `<option>${esc(status)}</option>`).join("")}</select></label><label><span>Konfirmasi supplier</span><select class="form-select" data-ps-confirmation-filter><option value="">Semua konfirmasi</option>${confirmationOptions.map((status) => `<option>${esc(status)}</option>`).join("")}</select></label><label><span>Kelompok due date</span><select class="form-select" data-ps-due-group><option value="day">Per tanggal</option><option value="week">Per minggu</option><option value="month">Per bulan</option><option value="">Tanpa grouping</option></select></label><b data-ps-result>${num(rows.length, 0)} item</b></div>
+      <div class="ps-table-shell"><table class="table ps-suggestion-table"><thead><tr><th class="ps-freeze-select"><label title="Pilih semua item siap PR yang terlihat"><input class="form-check-input" type="checkbox" data-ps-select-all aria-label="Pilih semua item yang siap"><span>Select All</span></label></th><th class="ps-freeze-item">Material / Part</th><th>PR Category</th><th>Due Date Delivery</th><th>Due Date Pembelian <span class="ps-head-help" title="Klik ikon ? pada setiap baris untuk melihat perhitungannya">?</span></th><th>Full Reference</th><th>Demand</th><th>Stock Supply</th><th>Supplier & Availability</th><th>Qty untuk PR</th><th>Status / Action</th></tr></thead><tbody>${tableRows || '<tr><td colspan="11" class="text-center text-muted p-4">Tidak ada item suggestion.</td></tr>'}</tbody></table></div>
+      <div class="ps-selection-bar"><div><b data-ps-selected-count>0 item dipilih</b><span data-ps-selected-qty>Total qty 0</span></div><small>Draft PR otomatis dipisah berdasarkan <b>PR Category × Supplier</b>. Qty tetap dapat disesuaikan sampai batas supplier.</small><button class="btn btn-primary" type="button" data-workflow-action="convert-suggestion-to-pr" disabled data-ps-create-pr>Buat Draft PR</button></div></section>`;
   }
 
   function renderArray(key, rows, record = {}) {
@@ -700,6 +1065,7 @@
     const canCountSto = isStoDetails && String(record.status || "").toUpperCase() === "COUNTING";
     const canCompleteIqc = isIqcDetails && String(record.status || "").toUpperCase() === "OPEN";
     if (isPurchaseSuggestionItems) return renderPurchaseSuggestionItems(rows, record);
+    if (isPrDetails) return renderPurchaseRequisitionDetails(rows, record);
     const preferredKeys = ["lineNumber", "procurementCategory", "materialCode", "materialType", "materialName", "partCode", "partNumber", "partName", "description", "qty", "orderedQty", "uomCode", "sourceCount", "sourceMrpNumbers", "sourceMpsNumbers", "sourceForecastNumbers", "sourceSONumbers", "sourceDemandMonths", "sourcingAllocationCount", "sourcingSuppliers", "sourcingForms", "sourcingWidths", "sourcingLengths", "allocatedDemandQty", "supplierAllocationVariance", "supplierAllocationStatus", "orderVariance", "orderControlStatus", "sourcingDeliveryDates", "proposedSupplierCode", "confirmedSupplierCode", "notes"];
     const discoveredKeys = [...new Set(rows.slice(0, 8).flatMap((row) => row && typeof row === "object" ? Object.keys(row).filter((name) => {
       const value = row[name]; return !isInternalKey(name) && (value == null || ["string", "number", "boolean"].includes(typeof value) || (typeof value === "object" && !Array.isArray(value)) || (isPurchaseSuggestionItems && Array.isArray(value)));
@@ -1297,10 +1663,16 @@
     return `<button type="button" class="btn btn-${style}" data-workflow-action="${esc(action)}">${esc(text)}</button>${note ? `<small>${esc(note)}</small>` : ""}`;
   }
   async function collectPurchaseOrderLines(selected) {
-    const supplierRows = await api("/master-data/api/suppliers?start=0&length=500&isDeleted=false");
+    const vendorProcessPr = String(currentRecord?.procurementCategory || currentRecord?.procurementGroup || "").toUpperCase() === "VENDOR_PROCESS";
+    const [supplierRows, vendorRows] = await Promise.all([
+      vendorProcessPr ? Promise.resolve([]) : api("/master-data/api/suppliers?start=0&length=500&isDeleted=false"),
+      vendorProcessPr ? api("/master-data/api/vendors?start=0&length=500&isDeleted=false") : Promise.resolve([]),
+    ]);
     const suppliers = Array.isArray(supplierRows) ? supplierRows : [];
+    const vendors = Array.isArray(vendorRows) ? vendorRows : [];
     const supplierOptions = (selectedCode = "") => [
-      '<option value="">Pilih supplier</option>',
+      `<option value="">Pilih ${vendorProcessPr ? "vendor" : "supplier"}</option>`,
+      ...vendors.map((vendor) => `<option value="${esc(vendor.vendorCode)}" ${vendor.vendorCode === selectedCode ? "selected" : ""}>${esc(vendor.vendorCode)} — ${esc(vendor.vendorName || "")}</option>`),
       ...suppliers.map((supplier) => `<option value="${esc(supplier.supplierCode)}" ${supplier.supplierCode === selectedCode ? "selected" : ""}>${esc(supplier.supplierCode)} — ${esc(supplier.supplierName || "")}</option>`),
     ].join("");
     const modalLines = selected.flatMap((checkbox) => {
@@ -1313,31 +1685,34 @@
     overlay.className = "ops-modal-backdrop";
     overlay.innerHTML = `
       <form class="ops-modal ops-purchase-conversion-form">
-        <header><div><p class="ops-eyebrow">Edit Keputusan PR</p><h2>Supplier & Bentuk Material</h2><p>Ubah keputusan final sebelum PO dibuat. Perubahan tetap mempertahankan trace MPS/MRP asal.</p></div><button type="button" class="btn-close" data-modal-cancel aria-label="Tutup"></button></header>
+        <header><div><p class="ops-eyebrow">Edit Keputusan PR</p><h2>${vendorProcessPr ? "Vendor & Jadwal Proses" : "Supplier & Bentuk Material"}</h2><p>${vendorProcessPr ? "Vendor, qty kirim, dan target kembali berasal dari Capacity Planning serta tetap dapat direview sebelum PO." : "Ubah keputusan final sebelum PO dibuat. Perubahan tetap mempertahankan trace MPS/MRP asal."}</p></div><button type="button" class="btn-close" data-modal-cancel aria-label="Tutup"></button></header>
         <div class="ops-modal-body">
-          <div class="alert alert-info">Satu kebutuhan boleh dipecah ke beberapa supplier, bentuk material, lebar tersedia, dan delivery phase. Simpan di PR; saat Move to PO data ini langsung dipakai tanpa konfirmasi ulang.</div>
-          <div class="table-responsive"><table class="table ops-collection-table"><thead><tr><th>Baris</th><th>Outstanding</th><th>Order Qty</th><th>Supplier</th><th>Bentuk</th><th>Lebar</th><th>Panjang Sheet</th><th>Delivery</th><th>Harga / KG</th></tr></thead><tbody>
+          <div class="alert alert-info">${vendorProcessPr ? "Jangan mengubah qty tanpa menyesuaikan Production Capacity. Delivery di PR Vendor Process adalah tanggal barang ditargetkan kembali dari vendor." : "Satu kebutuhan boleh dipecah ke beberapa supplier, bentuk material, lebar tersedia, dan delivery phase. Simpan di PR; saat Move to PO data ini langsung dipakai tanpa konfirmasi ulang."}</div>
+          <div class="table-responsive"><table class="table ops-collection-table"><thead><tr><th>Baris</th><th>Outstanding</th><th>${vendorProcessPr ? "Qty Kirim" : "Order Qty"}</th><th>${vendorProcessPr ? "Vendor" : "Supplier"}</th>${vendorProcessPr ? "" : "<th>Bentuk</th><th>Lebar</th><th>Panjang Sheet</th>"}<th>${vendorProcessPr ? "Target Kembali" : "Delivery"}</th><th>Harga / ${vendorProcessPr ? "Unit" : "KG"}</th></tr></thead><tbody>
             ${modalLines.map(({ checkbox, allocation }) => {
               const rawMaterial = checkbox.dataset.rawMaterial === "true";
               const outstanding = number(checkbox.dataset.outstanding);
-              const sourceQty = allocation ? number(allocation.demandCoveredQty) : outstanding;
+              const sourceQty = allocation
+                ? number(allocation.commercialQty ?? (saved.length === 1 ? outstanding : allocation.demandCoveredQty))
+                : outstanding;
+              const demandCoveredQty = allocation ? number(allocation.demandCoveredQty) : Math.min(sourceQty, outstanding);
               const requestUom = checkbox.dataset.requestUom || "KG";
               const initialForm = allocation?.purchasePackageUomCode || checkbox.dataset.packageUom;
-              return `<tr data-po-modal-line data-pr-detail-id="${esc(checkbox.dataset.prDetailId)}" data-sourcing-allocation-id="${esc(allocation?.id || "")}" data-outstanding="${esc(outstanding)}" data-request-uom="${esc(requestUom)}" data-raw-material="${rawMaterial ? "true" : "false"}">
+              return `<tr data-po-modal-line data-pr-detail-id="${esc(checkbox.dataset.prDetailId)}" data-sourcing-allocation-id="${esc(allocation?.id || "")}" data-outstanding="${esc(outstanding)}" data-demand-covered-qty="${esc(demandCoveredQty)}" data-request-uom="${esc(requestUom)}" data-raw-material="${rawMaterial ? "true" : "false"}">
                 <td><b>${esc(checkbox.dataset.lineNumber)}</b><div class="d-flex gap-1 mt-1"><button class="btn btn-sm btn-outline-primary" type="button" data-po-add-allocation>+ Phase</button><button class="btn btn-sm btn-outline-danger invisible" type="button" data-po-remove-allocation>x</button></div></td>
                 <td>${esc(num(sourceQty))} ${rawMaterial ? esc(requestUom) : ""}</td>
                 <td><input class="form-control form-control-sm" data-po-source-qty type="number" min="0.000001" step="any" value="${esc(sourceQty)}" required></td>
-                <td><select class="form-select form-select-sm" data-po-supplier required>${supplierOptions(allocation?.supplierCode || checkbox.dataset.supplierCode || "")}</select></td>
-                <td>${rawMaterial ? `<select class="form-select form-select-sm" data-po-form><option value="SHEET" ${initialForm === "SHEET" ? "selected" : ""}>SHEET</option><option value="COIL" ${initialForm === "COIL" ? "selected" : ""}>COIL</option><option value="PCS" ${initialForm === "PCS" ? "selected" : ""}>PCS</option></select>` : '<span class="ops-muted">Sesuai PR</span>'}</td>
+                <td><select class="form-select form-select-sm" data-po-partner required>${supplierOptions(vendorProcessPr ? (allocation?.vendorCode || checkbox.dataset.supplierCode || "") : (allocation?.supplierCode || checkbox.dataset.supplierCode || ""))}</select></td>
+                ${vendorProcessPr ? "" : `<td>${rawMaterial ? `<select class="form-select form-select-sm" data-po-form><option value="SHEET" ${initialForm === "SHEET" ? "selected" : ""}>SHEET</option><option value="COIL" ${initialForm === "COIL" ? "selected" : ""}>COIL</option><option value="PCS" ${initialForm === "PCS" ? "selected" : ""}>PCS</option></select>` : '<span class="ops-muted">Sesuai PR</span>'}</td>
                 <td>${rawMaterial ? `<input class="form-control form-control-sm" data-po-width type="number" min="0.001" step="0.001" value="${esc(allocation?.materialWidth ?? detail?.width ?? "")}" required>` : "-"}</td>
-                <td>${rawMaterial ? `<div data-sheet-length-field class="${initialForm === "SHEET" ? "" : "d-none"}"><input class="form-control form-control-sm" data-po-length type="number" min="0.001" step="0.001" value="${esc(allocation?.materialLength ?? detail?.materialLength ?? "")}" placeholder="mm" ${initialForm === "SHEET" ? "required" : ""}></div>` : "-"}</td>
+                <td>${rawMaterial ? `<div data-sheet-length-field class="${initialForm === "SHEET" ? "" : "d-none"}"><input class="form-control form-control-sm" data-po-length type="number" min="0.001" step="0.001" value="${esc(allocation?.materialLength ?? detail?.materialLength ?? "")}" placeholder="mm" ${initialForm === "SHEET" ? "required" : ""}></div>` : "-"}</td>`}
                 <td><input class="form-control form-control-sm" data-po-delivery-date type="date" value="${esc(String(allocation?.deliveryDate || checkbox.dataset.requiredDate || new Date().toISOString().slice(0, 10)).slice(0, 10))}" required></td>
                 <td><input class="form-control form-control-sm" data-po-unit-price type="number" min="0" step="any" value="${allocation?.unitPrice ?? ""}" placeholder="Opsional"></td>
               </tr>`;
             }).join("")}
           </tbody></table></div>
           <div class="alert alert-secondary" data-po-allocation-summary></div>
-          <div class="ops-modal-grid"><label><span>Draft PO tujuan</span><input class="form-control" data-po-target placeholder="Opsional, mis. P-PO/S001/07/2026/01"><small>Kosongkan untuk membuat Draft PO baru per supplier/currency/delivery.</small></label></div>
+          <div class="ops-modal-grid"><label><span>Draft PO tujuan</span><input class="form-control" data-po-target placeholder="Opsional, mis. P-PO/S001/07/2026/01"><small>Kosongkan untuk membuat Draft PO baru per ${vendorProcessPr ? "vendor" : "supplier"}/currency/delivery.</small></label></div>
           <div class="alert alert-danger d-none" data-modal-alert></div>
         </div>
         <footer><button type="button" class="btn btn-outline-secondary" data-modal-cancel>Batal</button><button type="submit" class="btn btn-primary">Simpan Keputusan PR</button></footer>
@@ -1376,6 +1751,7 @@
         const sourceRow = addButton.closest("[data-po-modal-line]");
         const clone = sourceRow.cloneNode(true);
         clone.dataset.sourcingAllocationId = "";
+        clone.dataset.demandCoveredQty = "";
         clone.querySelector("[data-po-source-qty]").value = "";
         clone.querySelector("[data-po-unit-price]").value = "";
         clone.querySelector("[data-po-remove-allocation]").classList.remove("invisible");
@@ -1404,17 +1780,19 @@
             alertBox.classList.remove("d-none");
             return;
           }
-          const supplierCode = row.querySelector("[data-po-supplier]").value;
-          if (!supplierCode) {
-            alertBox.textContent = `Supplier baris ${row.dataset.prDetailId} wajib dipilih.`;
+          const partnerCode = row.querySelector("[data-po-partner]").value;
+          if (!partnerCode) {
+            alertBox.textContent = `${vendorProcessPr ? "Vendor" : "Supplier"} baris ${row.dataset.prDetailId} wajib dipilih.`;
             alertBox.classList.remove("d-none");
             return;
           }
           const line = {
             prDetailId: row.dataset.prDetailId,
             sourcingAllocationId: row.dataset.sourcingAllocationId || null,
-            supplierCode,
+            ...(vendorProcessPr ? { vendorCode: partnerCode } : { supplierCode: partnerCode }),
             sourceQty,
+            commercialQty: sourceQty,
+            demandCoveredQty: row.dataset.demandCoveredQty === "" ? sourceQty : Math.min(number(row.dataset.demandCoveredQty), sourceQty),
             deliveryDate: row.querySelector("[data-po-delivery-date]").value,
             unitPrice: row.querySelector("[data-po-unit-price]").value === ""
               ? null
@@ -1441,7 +1819,9 @@
         .filter((allocation) => !allocation.isDeleted && allocation.status === "Confirmed")
         .map((allocation) => ({ prDetailId: detail.id, sourcingAllocationId: allocation.id }));
     });
-    if (!lines.length) throw new Error("Keputusan supplier dan bentuk material belum final. Gunakan Edit Supplier & Material Form terlebih dahulu.");
+    if (!lines.length) throw new Error(String(currentRecord?.procurementCategory || currentRecord?.procurementGroup || "").toUpperCase() === "VENDOR_PROCESS"
+      ? "Keputusan vendor dan target kembali belum final. Gunakan Review Vendor & Jadwal terlebih dahulu."
+      : "Keputusan supplier dan bentuk material belum final. Gunakan Edit Supplier & Material Form terlebih dahulu.");
     return { lines };
   }
   async function collectManualCompleteLocation() {
@@ -1540,10 +1920,11 @@
       // PR lifecycle is intentionally explicit: only approved requisitions may be
       // converted to a PO. The backend remains the source of truth for permission,
       // central approval rules, and duplicate conversion protection.
-      if (/draft|revising|rejected|approved|partially-ordered/.test(status)) html += actionButton("edit-sourcing", "Edit Supplier & Material Form", "outline-secondary", "Keputusan ini disimpan di PR dan dipakai langsung saat membuat PO.");
+      const vendorProcessPr = String(record.procurementCategory || record.procurementGroup || "").toUpperCase() === "VENDOR_PROCESS";
+      if (/draft|revising|rejected|approved|partially-ordered/.test(status)) html += actionButton("edit-sourcing", vendorProcessPr ? "Review Vendor & Jadwal" : "Edit Supplier & Material Form", "outline-secondary", vendorProcessPr ? "Vendor dan qty berasal dari Capacity Planning; target kembali dapat direview sebelum PO." : "Keputusan ini disimpan di PR dan dipakai langsung saat membuat PO.");
       if (/draft|revising|rejected/.test(status)) html += actionButton("submit", "Submit PR", "primary", "Kirim PR ke alur approval.");
       if (/submitted|pending|checking|waiting/.test(status)) html += actionButton("approve", "Approve PR", "primary", "Approval mengikuti Approval Master.");
-      if (/approved|partially-ordered/.test(slug(status))) html += actionButton("make-po", "Move to PO Supplier", "outline-primary", "Buat PO baru atau gabungkan ke Draft PO supplier yang sudah ada.");
+      if (/approved|partially-ordered/.test(slug(status))) html += actionButton("make-po", vendorProcessPr ? "Buat PO Vendor Process" : "Move to PO Supplier", "outline-primary", vendorProcessPr ? "Buat PO Out Process untuk vendor yang sudah dikonfirmasi." : "Buat PO baru atau gabungkan ke Draft PO supplier yang sudah ada.");
       if (/submitted|pending|checking/.test(status)) html += actionButton("reject", "Reject PR", "outline-danger", "Tolak PR dengan alasan.");
       if (record.convertedToPO) {
         html += `<a class="btn btn-outline-primary" href="/modules/purchasing/purchase-order/${encodeURIComponent(record.convertedToPO)}">Lihat PO ${esc(record.convertedToPO)}</a><small>PO sudah dibuat dari PR ini.</small>`;
@@ -1656,7 +2037,10 @@
     const prEditLink = $("pr-edit-link");
     if (prEditLink) {
       const editableStatus = ["draft", "revision-required", "rejected"].includes(slug(record.status));
-      prEditLink.classList.toggle("d-none", !editableStatus);
+      const vendorProcessPr = String(record.procurementCategory || record.procurementGroup || "").toUpperCase() === "VENDOR_PROCESS";
+      prEditLink.classList.toggle("d-none", !editableStatus || vendorProcessPr);
+      const categorySlug = ({ MATERIAL: "material", PURCHASE_PART: "purchase-part", UNIVERSAL_PURCHASE_PART: "universal-purchase-part", NON_PRODUCTION: "non-production" })[String(record.procurementCategory || record.procurementGroup || "").toUpperCase()];
+      if (categorySlug) prEditLink.href = `/modules/purchasing/purchase-requisitions/${encodeURIComponent(record.prNumber || config.recordKey)}/edit?category=${encodeURIComponent(categorySlug)}`;
     }
     const productionLogEditLink = $("production-log-edit-link");
     if (productionLogEditLink) {
@@ -1679,6 +2063,9 @@
     } else if (isPurchaseOrderPage()) {
       renderPurchaseOrderFields(record);
       renderPurchaseOrderCollections(record);
+    } else if (isPurchaseRequisitionPage()) {
+      renderPurchaseRequisitionFields(record);
+      renderCollections(record);
     } else if (isPlannedOrderPage()) {
       document.querySelector(".ops-page")?.classList.add("planned-order-detail-page");
       renderPlannedOrderSheet(record);
@@ -1702,6 +2089,23 @@
       render(record);
     } catch (error) { $("ops-detail-loading").classList.add("d-none"); showAlert(error.message); }
   }
+  async function refreshPurchaseSuggestionAfterConfirmation() {
+    const tableShell = document.querySelector(".ps-table-shell");
+    const scrollState = { top: tableShell?.scrollTop || 0, left: tableShell?.scrollLeft || 0 };
+    const record = await api(`/modules/api/${config.module}/${config.page.slug}/${encodeURIComponent(config.recordKey)}`);
+    currentRecord = record;
+    renderCollections(record);
+    $("ops-detail-status").innerHTML = badge(record.status || "Draft");
+    renderMeta(record);
+    $("ops-workflow-actions").innerHTML = workflowActions(record);
+    filterPurchaseSuggestionCards();
+    const refreshedShell = document.querySelector(".ps-table-shell");
+    if (refreshedShell) {
+      refreshedShell.scrollTop = scrollState.top;
+      refreshedShell.scrollLeft = scrollState.left;
+    }
+    return record;
+  }
   function updatePurchaseSuggestionSelection() {
     const selected = [...document.querySelectorAll("[data-ps-row] [data-ps-select]:checked")];
     selected.forEach((checkbox) => {
@@ -1720,24 +2124,29 @@
     const countLabel = document.querySelector("[data-ps-selected-count]");
     const qtyLabel = document.querySelector("[data-ps-selected-qty]");
     const createButton = document.querySelector("[data-ps-create-pr]");
-    const categories = new Set(selected.map((checkbox) => checkbox.closest("[data-ps-row]")?.dataset.psCategory).filter(Boolean));
+    const prGroups = new Set(selected.flatMap((checkbox) => {
+      const row = checkbox.closest("[data-ps-row]");
+      const category = row?.dataset.prCategory;
+      return String(row?.dataset.prSuppliers || "UNCONFIRMED").split("|").filter(Boolean).map((supplier) => `${category}|${supplier}`);
+    }));
     if (countLabel) countLabel.textContent = `${selected.length} item dipilih`;
     if (qtyLabel) qtyLabel.textContent = `Total qty ${num(totalQty)}`;
     if (createButton) {
       createButton.disabled = !selected.length;
-      createButton.textContent = categories.size > 1 ? `Buat ${categories.size} Draft PR Terpisah` : "Buat 1 Draft PR";
+      createButton.textContent = prGroups.size > 1 ? `Buat ${prGroups.size} Draft PR Terpisah` : "Buat 1 Draft PR";
     }
   }
   function filterPurchaseSuggestionCards() {
     const search = String(document.querySelector("[data-ps-search-input]")?.value || "").trim().toLowerCase();
     const status = String(document.querySelector("[data-ps-status-filter]")?.value || "");
+    const confirmation = String(document.querySelector("[data-ps-confirmation-filter]")?.value || "");
     const category = String(document.querySelector("[data-ps-category-filter]")?.value || "");
     const grouping = String(document.querySelector("[data-ps-due-group]")?.value || "");
     document.querySelectorAll("[data-ps-group-row]").forEach((row) => row.remove());
     let visible = 0;
     let lastGroup = null;
     document.querySelectorAll("[data-ps-row]").forEach((row) => {
-      const show = (!search || row.dataset.psSearch.includes(search)) && (!status || row.dataset.psStatus === status) && (!category || row.dataset.psCategory === category);
+      const show = (!search || row.dataset.psSearch.includes(search)) && (!status || row.dataset.psStatus === status) && (!confirmation || row.dataset.psConfirmation === confirmation) && (!category || row.dataset.psCategory === category);
       row.classList.toggle("d-none", !show);
       const editorRow = row.nextElementSibling?.matches("[data-ps-editor-row]") ? row.nextElementSibling : null;
       if (!show) editorRow?.classList.add("d-none");
@@ -1747,7 +2156,7 @@
           const groupRow = document.createElement("tr");
           groupRow.dataset.psGroupRow = "";
           groupRow.className = "ps-group-row";
-          groupRow.innerHTML = `<td colspan="10"><b>Due ${esc(groupKey)}</b></td>`;
+          groupRow.innerHTML = `<td colspan="11"><b>Due ${esc(groupKey)}</b></td>`;
           row.parentNode.insertBefore(groupRow, row);
           lastGroup = groupKey;
         }
@@ -1768,8 +2177,13 @@
     if (event.target.matches("[data-iqc-rejected]")) updateIncomingInspectionSummary();
     if (event.target.matches("[data-ps-search-input]")) filterPurchaseSuggestionCards();
     if (event.target.matches("[data-ps-custom-qty]")) updatePurchaseSuggestionSelection();
+    if (event.target.matches("[data-confirm-qty], [data-confirm-moq], [data-moq-coverage-qty], [data-moq-reserve-qty]")) refreshMoqAllocationPlanner(event.target);
   });
   document.addEventListener("change", (event) => {
+    if (event.target.matches("[data-confirm-supplier], [data-split-supplier]")) {
+      const container = event.target.closest("[data-supplier-split], [data-suggestion-confirmation]");
+      lookupSuggestionSupplierMaster(container, { force: true, clearMissing: true });
+    }
     if (event.target.matches("[data-confirm-form], [data-split-form]")) {
       const container = event.target.closest("[data-supplier-split], [data-suggestion-confirmation]");
       const sheet = event.target.value === "SHEET";
@@ -1781,7 +2195,11 @@
         if (!sheet) lengthInput.value = "";
       }
     }
-    if (event.target.matches("[data-ps-status-filter], [data-ps-category-filter], [data-ps-due-group]")) filterPurchaseSuggestionCards();
+    if (event.target.matches("[data-ps-status-filter], [data-ps-confirmation-filter], [data-ps-category-filter], [data-ps-due-group]")) filterPurchaseSuggestionCards();
+    if (event.target.matches("[data-confirm-status]")) {
+      const hint = event.target.closest("[data-suggestion-confirmation]")?.querySelector("[data-confirm-status-hint]");
+      if (hint) hint.textContent = suggestionStatusHint(event.target.value);
+    }
     if (event.target.matches("[data-ps-select]")) {
       filterPurchaseSuggestionCards();
     }
@@ -1789,8 +2207,32 @@
       document.querySelectorAll("[data-ps-row]:not(.d-none) [data-ps-select]:not(:disabled)").forEach((checkbox) => { checkbox.checked = event.target.checked; });
       filterPurchaseSuggestionCards();
     }
+    if (event.target.matches("[data-moq-candidate-check]")) refreshMoqAllocationPlanner(event.target);
   });
   document.addEventListener("click", async (event) => {
+    const autoMoqAllocationButton = event.target.closest("[data-moq-auto-allocation]");
+    if (autoMoqAllocationButton) {
+      const editor = autoMoqAllocationButton.closest("[data-suggestion-confirmation]");
+      const planner = editor?.querySelector("[data-moq-allocation-planner]");
+      const purchaseQty = roundedPurchaseQty(editor?.querySelector("[data-confirm-qty]")?.value, editor?.querySelector("[data-confirm-moq]")?.value, editor?.dataset.orderMultiple);
+      let remaining = Math.max(purchaseQty - number(planner?.dataset.baseDemand), 0);
+      planner?.querySelectorAll("[data-moq-candidate]").forEach((candidate) => {
+        const checkbox = candidate.querySelector("[data-moq-candidate-check]");
+        const coverageInput = candidate.querySelector("[data-moq-coverage-qty]");
+        const reserveInput = candidate.querySelector("[data-moq-reserve-qty]");
+        if (candidate.dataset.currentDemand === "true") {
+          remaining = Math.max(remaining - number(reserveInput.value), 0);
+          return;
+        }
+        const takeQty = Math.min(number(coverageInput.dataset.demandQty), remaining);
+        checkbox.checked = takeQty > 0;
+        coverageInput.value = takeQty > 0 ? takeQty : number(coverageInput.dataset.demandQty);
+        reserveInput.value = 0;
+        remaining = Math.max(remaining - takeQty, 0);
+      });
+      refreshMoqAllocationPlanner(editor);
+      return;
+    }
     const materialIssueCalculationButton = event.target.closest("[data-mi-calculation]");
     if (materialIssueCalculationButton) {
       const detailId = materialIssueCalculationButton.closest("tr")?.dataset.detailId;
@@ -1899,7 +2341,7 @@
     if (saveSuggestionButton) {
       const editor = saveSuggestionButton.closest("[data-suggestion-confirmation]");
       const confirmationStatus = editor.querySelector("[data-confirm-status]").value;
-      const confirmedMoq = number(editor.querySelector("[data-confirm-moq]").value);
+      const confirmedMoq = optionalInputNumber(editor.querySelector("[data-confirm-moq]"));
       const confirmedQtyInput = editor.querySelector("[data-confirm-qty]");
       const confirmedQty = roundedPurchaseQty(confirmedQtyInput.value, confirmedMoq, editor.dataset.orderMultiple);
       confirmedQtyInput.value = confirmedQty || "";
@@ -1911,26 +2353,48 @@
         confirmationStatus: split.querySelector("[data-split-status]").value,
         confirmedQty: roundedPurchaseQty(split.querySelector("[data-split-qty]").value, split.querySelector("[data-split-moq]").value, split.querySelector("[data-split-multiple]").value),
         deliveryDate: split.querySelector("[data-split-date]").value || null,
-        moq: number(split.querySelector("[data-split-moq]").value),
-        orderMultiple: number(split.querySelector("[data-split-multiple]").value),
-        leadTimeDays: number(split.querySelector("[data-split-lead]").value),
-        unitPrice: number(split.querySelector("[data-split-price]").value),
+        moq: optionalInputNumber(split.querySelector("[data-split-moq]")),
+        orderMultiple: optionalInputNumber(split.querySelector("[data-split-multiple]")),
+        leadTimeDays: optionalInputNumber(split.querySelector("[data-split-lead]")),
+        unitPrice: optionalInputNumber(split.querySelector("[data-split-price]")),
         currencyCode: split.querySelector("[data-split-currency]").value.trim() || null,
-        materialWidth: number(split.querySelector("[data-split-width]")?.value),
+        materialWidth: optionalInputNumber(split.querySelector("[data-split-width]")),
         materialLength: split.querySelector("[data-split-form]")?.value === "SHEET" ? number(split.querySelector("[data-split-length]")?.value) : null,
         purchasePackageUomCode: split.querySelector("[data-split-form]")?.value || null,
         alternativeMaterialCode: split.querySelector("[data-split-material]").value.trim() || null,
         supplierRemark: split.querySelector("[data-split-remark]").value.trim() || null,
       })).filter((allocation) => allocation.supplierCode || allocation.confirmedQty > 0);
+      const moqDemandAllocations = [...editor.querySelectorAll("[data-moq-candidate]")].filter((candidate) => candidate.querySelector("[data-moq-candidate-check]")?.checked).map((candidate) => {
+        const coverageInput = candidate.querySelector("[data-moq-coverage-qty]");
+        const reserveInput = candidate.querySelector("[data-moq-reserve-qty]");
+        const isCurrentDemand = candidate.dataset.currentDemand === "true";
+        const demandCoveredQty = isCurrentDemand ? 0 : Math.max(number(coverageInput.value), 0);
+        const reservedAllocationQty = Math.max(number(reserveInput.value), 0);
+        return {
+          sourceItemId: coverageInput.dataset.sourceItemId,
+          sourceRequirementId: coverageInput.dataset.sourceRequirementId,
+          demandCoveredQty,
+          reservedAllocationQty,
+          qty: demandCoveredQty + reservedAllocationQty,
+          demandQty: number(coverageInput.dataset.demandQty),
+        };
+      }).filter((allocation) => allocation.qty > 0);
+      const allocationCapacity = Math.max(confirmedQty - number(editor.querySelector("[data-moq-allocation-planner]")?.dataset.baseDemand), 0);
+      const allocatedFutureQty = moqDemandAllocations.reduce((sum, allocation) => sum + allocation.qty, 0);
       if (!["Not Confirmed", "Waiting Supplier Confirmation", "Not Available"].includes(confirmationStatus) && confirmedQty <= 0) { showAlert("Confirmed quantity harus lebih dari 0."); return; }
+      const excessiveCoverage = moqDemandAllocations.find((allocation) => allocation.demandCoveredQty > allocation.demandQty + 0.000001);
+      if (excessiveCoverage) { showAlert("Coverage Demand tidak boleh melebihi demand asli. Masukkan kelebihan qty ke Custom Reserve."); return; }
+      if (allocatedFutureQty > allocationCapacity + 0.000001) { showAlert(`Total alokasi tambahan melebihi kelebihan MOQ sebesar ${num(allocatedFutureQty - allocationCapacity)} ${editor.dataset.uom || ""}.`); return; }
       saveSuggestionButton.disabled = true;
+      const originalSaveLabel = saveSuggestionButton.textContent;
+      saveSuggestionButton.textContent = "Menyimpan...";
       try {
-        await api(`/modules/api/purchasing-suggestions/${encodeURIComponent(config.recordKey)}/items/${encodeURIComponent(editor.dataset.itemId)}`, { method: "PATCH", body: JSON.stringify({
+        const updatedItem = await api(`/modules/api/purchasing-suggestions/${encodeURIComponent(config.recordKey)}/items/${encodeURIComponent(editor.dataset.itemId)}`, { method: "PATCH", body: JSON.stringify({
           confirmationStatus, confirmedQty, confirmedDeliveryDate,
           confirmedMoq,
-          confirmedLeadTimeDays: number(editor.querySelector("[data-confirm-lead]").value),
-          confirmedUnitPrice: number(editor.querySelector("[data-confirm-price]").value),
-          confirmedMaterialWidth: number(editor.querySelector("[data-confirm-width]")?.value),
+          confirmedLeadTimeDays: optionalInputNumber(editor.querySelector("[data-confirm-lead]")),
+          confirmedUnitPrice: optionalInputNumber(editor.querySelector("[data-confirm-price]")),
+          confirmedMaterialWidth: optionalInputNumber(editor.querySelector("[data-confirm-width]")),
           confirmedMaterialLength: editor.querySelector("[data-confirm-form]")?.value === "SHEET" ? number(editor.querySelector("[data-confirm-length]")?.value) : null,
           purchasePackageUomCode: editor.querySelector("[data-confirm-form]")?.value || null,
           currencyCode: editor.querySelector("[data-confirm-currency]").value.trim() || null,
@@ -1939,13 +2403,25 @@
           alternativeMaterialCode: editor.querySelector("[data-confirm-material]").value.trim() || null,
           bypassConfirmationReason,
           supplierAllocations,
+          moqDemandAllocations,
+          moqAllocationEdited: Boolean(editor.querySelector("[data-moq-allocation-planner]")),
         }) });
-        showAlert("Konfirmasi supplier tersimpan.", "success");
-        saveSuggestionButton.closest(".ps-confirmation-backdrop")?.remove();
-        document.body.classList.remove("modal-open");
-        await load();
+        await refreshPurchaseSuggestionAfterConfirmation();
+        const panel = editor.closest("[data-suggestion-editor]");
+        const saveState = panel?.querySelector("[data-confirm-save-state]");
+        const liveState = panel?.querySelector("[data-confirm-live-state]");
+        if (saveState) {
+          saveState.classList.remove("d-none");
+          saveState.querySelector("b").textContent = `${updatedItem.materialCode || updatedItem.partCode || "Item"} tersimpan.`;
+        }
+        if (liveState) liveState.innerHTML = `<i></i> Tersimpan ${new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit" }).format(new Date())}`;
+        saveSuggestionButton.textContent = "Tersimpan";
+        showAlert("Konfirmasi supplier tersimpan. Dialog tetap terbuka dan tabel sudah diperbarui.", "success");
       } catch (error) { showAlert(error.message); }
-      finally { saveSuggestionButton.disabled = false; }
+      finally {
+        saveSuggestionButton.disabled = false;
+        if (saveSuggestionButton.textContent === "Menyimpan...") saveSuggestionButton.textContent = originalSaveLabel;
+      }
       return;
     }
     const pdfButton = event.target.closest("[data-po-pdf]");
@@ -2073,7 +2549,10 @@
       if (!shift) return;
       requestBody = { date, shift, workOrderNumbers: [config.recordKey] };
     } else if (action === "release-monthly-plan") {
-      requestBody = { shiftHours: 8, shiftsPerDay: 1, efficiencyPercent: 85 };
+      // Release must validate the exact same Current Use/default capacity
+      // configuration shown on the MPP detail and Capacity Planning pages.
+      // Never override it with a legacy one-shift assumption from the UI.
+      requestBody = {};
     } else if (action === "create-mo-references") {
       const details = (currentRecord?.details || []).filter((row) =>
         row.lineType === "FG Receipt"
@@ -2196,7 +2675,8 @@
         showAlert(`PR berhasil dikonsolidasikan menjadi ${count} PO. Membuka ${poNumber}.`, "success");
         setTimeout(() => location.assign(`/modules/purchasing/purchase-order/${encodeURIComponent(poNumber)}`), 450);
       } else if (action === "edit-sourcing") {
-        showAlert("Keputusan supplier dan bentuk material pada PR berhasil diperbarui.", "success");
+        const vendorProcessPr = String(currentRecord?.procurementCategory || currentRecord?.procurementGroup || "").toUpperCase() === "VENDOR_PROCESS";
+        showAlert(vendorProcessPr ? "Keputusan vendor dan jadwal kembali berhasil diperbarui." : "Keputusan supplier dan bentuk material pada PR berhasil diperbarui.", "success");
         await load();
       } else if (action === "convert-suggestion-to-pr") {
         const documents = Array.isArray(result.purchaseRequisitions) ? result.purchaseRequisitions : (result.prNumbers || []).map((prNumber) => ({ prNumber }));
@@ -2204,7 +2684,7 @@
           await load();
           const box = $("ops-detail-alert");
           box.className = "alert alert-success";
-          box.innerHTML = `<b>${esc(result.message || `${documents.length} Draft PR berhasil dibuat.`)}</b><div class="ps-created-pr-links">${documents.map((document) => `<a href="/modules/purchasing/purchase-requisitions/${encodeURIComponent(document.prNumber)}"><span>${esc(document.procurementCategory === "PURCHASE_PART" ? "Purchase Part" : document.procurementCategory === "MATERIAL" ? "Material" : "PR")}</span><b>${esc(document.prNumber)}</b><small>${esc(document.itemCount || 0)} item · ${esc(document.poType || "-")}</small></a>`).join("")}</div>`;
+          box.innerHTML = `<b>${esc(result.message || `${documents.length} Draft PR berhasil dibuat.`)}</b><div class="ps-created-pr-links">${documents.map((document) => `<a href="/modules/purchasing/purchase-requisitions/${encodeURIComponent(document.prNumber)}"><span>${esc(document.prCategoryLabel || (document.procurementCategory === "PURCHASE_PART" ? "PR-Purchase-Part" : document.procurementCategory === "MATERIAL" ? "PR-Raw_Material" : "PR-Other"))}</span><b>${esc(document.prNumber)}</b><small>${esc(document.itemCount || 0)} item · Supplier ${esc(document.supplierCode || "-")}</small></a>`).join("")}</div>`;
         } else {
           showAlert(result.message || "Draft PR berhasil dibuat dari Purchase Suggestion.", "success");
           const document = documents[0];

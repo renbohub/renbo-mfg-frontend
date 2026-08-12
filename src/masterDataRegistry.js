@@ -118,6 +118,11 @@ const registry = {
     fields: [field("termCode", "Kode Termin", "text", { required: true }), field("description", "Deskripsi", "textarea"), field("days", "Jumlah Hari", "number", { required: true, min: 0 })]
   }),
   "price-list": priceListEntity("price-list", "Price List Umum", "/api/master-data/price-list", "file"),
+  "customer-part-prices": entity({
+    slug: "customer-part-prices", label: "Master Harga Customer", singular: "Harga Customer", group: "Data Keuangan", icon: "currency", endpoint: "/api/master-data/customer-part-prices",
+    columns: [column("customer.customerCode", "Customer"), column("customer.customerName", "Nama Customer"), column("part.partCode", "Part"), column("currencyCode", "Currency"), column("unitPrice", "Unit Price", { type: "number" }), column("effectiveFrom", "Berlaku Mulai", { type: "date" }), column("effectiveUntil", "Berlaku Sampai", { type: "date" }), column("isActive", "Status", { type: "active" })],
+    fields: [lookup("customerCode", "Customer", "customers", "customerCode", "customerName", { required: true, showValue: true }), lookup("partId", "Finished Good", "parts", "id", "partCode", { required: true, lookupQuery: { itemType: "FG" }, labelKeys: ["partCode","partName"], labelSeparator: " — " }), lookup("currencyCode", "Currency", "currencies", "currencyCode", "currencyName", { required: true }), field("unitPrice", "Unit Price", "number", { required: true, min: 0, step: "0.01" }), field("effectiveFrom", "Berlaku Mulai", "date", { required: true }), field("effectiveUntil", "Berlaku Sampai", "date"), field("isActive", "Aktif", "checkbox", { defaultChecked: true }), field("notes", "Catatan", "textarea")]
+  }),
   "vendor-price-lists": entity({
     slug: "vendor-price-lists", label: "Price List Vendor", singular: "Price List Vendor", group: "Data Keuangan", icon: "file", endpoint: "/api/master-data/vendor-price-lists", multipart: true,
     columns: [column("vendor.vendorName", "Vendor"), column("part.partCode", "Part"), column("category", "Kategori"), column("currencyCode", "Mata Uang"), column("pricingYear", "Tahun")],
@@ -193,7 +198,7 @@ const registry = {
   }),
   "approval-rules": entity({
     slug: "approval-rules", label: "Approval Rules", singular: "Approval Rule", group: "Data Sistem", icon: "file",
-    endpoint: "/api/system/approval-rules", customView: "master-data/approval-rules", pageScript: "/js/approval-rules.js",
+    endpoint: "/api/system/approval-rules", customView: "master-data/approval-rules", pageScript: "/js/approval-rules.js?v=20260812-lifecycle",
     columns: [], fields: []
   }),
   formulas: entity({
@@ -207,6 +212,69 @@ const registry = {
     columns: [], fields: []
   })
 };
+
+// Effective-dated price masters. The old monthly columns stay in the API as a
+// compatibility adapter, but new maintenance is always one price per period.
+registry["machine-cost-rates"] = entity({
+  slug: "machine-cost-rates", permission: "machines", label: "Riwayat Rate Proses", singular: "Rate Proses",
+  group: "Data Keuangan", icon: "currency", endpoint: "/api/master-data/machine-cost-rates",
+  columns: [column("machine.machineCode", "Mesin"), column("machine.machineName", "Nama Mesin"), column("unitPrice", "Rate", { type: "currency" }), column("costingRateType", "Dasar Rate"), column("currencyCode", "Mata Uang"), column("effectiveFrom", "Berlaku Mulai", { type: "date" }), column("effectiveUntil", "Berlaku Sampai", { type: "date" }), column("isActive", "Status", { type: "active" })],
+  fields: [lookup("machineId", "Mesin / Proses In-house", "machines", "id", "machineCode", { required: true, labelKeys: ["machineCode", "machineName"] }), field("costingRateType", "UOM Rate", "select", { required: true, options: option("PER_SECOND", "PER_MINUTE", "PER_HOUR", "PER_CYCLE") }), field("unitPrice", "Rate Proses", "number", { required: true, min: 0, step: "0.01" }), lookup("currencyCode", "Mata Uang", "currencies", "currencyCode", "currencyName", { required: true }), field("effectiveFrom", "Berlaku Mulai", "date", { required: true, defaultValue: "today", help: "Rate lama ditutup otomatis saat Rate Baru dibuat." }), field("effectiveUntil", "Berlaku Sampai", "date", { help: "Boleh kosong; sistem mengisi saat periode berikutnya dimulai." }), field("isActive", "Aktif", "checkbox", { defaultChecked: true }), field("notes", "Catatan", "textarea")]
+});
+
+registry["part-price-lists"].label = "Riwayat Harga Purchase Part";
+registry["part-price-lists"].singular = "Harga Purchase Part";
+registry["material-price-lists"].label = "Riwayat Harga Material";
+registry["material-price-lists"].singular = "Harga Material";
+registry["product-price-lists"].label = "Riwayat Harga Barang";
+registry["product-price-lists"].singular = "Harga Barang";
+
+const materialPriceFields = registry["material-price-lists"].fields;
+materialPriceFields.filter((item) => ["materialGradeId", "materialSubstanceId"].includes(item.name)).forEach((item) => {
+  item.required = false;
+  item.help = "Diisi otomatis bila Material SKU dipilih; wajib hanya untuk harga generik tanpa Material SKU.";
+});
+const materialSkuPriceField = materialPriceFields.find((item) => item.name === "materialId");
+if (materialSkuPriceField) {
+  materialSkuPriceField.label = "Material SKU";
+  materialSkuPriceField.help = "Pilih material spesifik, atau kosongkan bila harga berlaku generik per substance/grade/thickness.";
+}
+const materialPriceInsertAt = materialPriceFields.findIndex((item) => item.name === "uomCode");
+materialPriceFields.splice(materialPriceInsertAt, 0,
+  field("purchasePackageUomCode", "Bentuk Pembelian Default", "select", {
+    options: option("COIL", "SHEET", "PLATE", "BAR", "ROD", "TUBE", "WIRE", "PCS", "KG"),
+    help: "Contoh COIL. Menjadi default pada Purchase Suggestion."
+  }),
+  field("moq", "MOQ Default", "number", { min: 0, step: "0.01", help: "Fallback bila Supplier Item belum memiliki MOQ." }),
+  field("orderMultiple", "Kelipatan Order", "number", { min: 0, step: "0.01" })
+);
+
+// Product previously supplied its own UOM field; keep only the effective-price UOM.
+registry["product-price-lists"].fields = registry["product-price-lists"].fields.filter((item, index, all) =>
+  item.name !== "uomCode" || index === all.map((candidate) => candidate.name).lastIndexOf("uomCode"));
+
+registry["customer-part-prices"].fields.find((item) => item.name === "effectiveFrom").defaultValue = "today";
+registry["customer-part-prices"].fields.find((item) => item.name === "effectiveFrom").help = "Harga sebelumnya ditutup otomatis saat Harga Baru disimpan.";
+registry["customer-part-prices"].fields.find((item) => item.name === "effectiveUntil").help = "Boleh kosong; sistem mengisi saat harga berikutnya berlaku.";
+
+registry["vendor-price-lists"].columns = [
+  column("vendor.vendorName", "Vendor"), column("part.partCode", "Part"), column("category", "Kategori"),
+  column("currencyCode", "Mata Uang"), column("effectiveFrom", "Berlaku Mulai", { type: "date" }),
+  column("effectiveUntil", "Berlaku Sampai", { type: "date" }), column("isActive", "Status", { type: "active" })
+];
+registry["vendor-price-lists"].fields = [
+  lookup("vendorId", "Vendor", "vendors", "id", "vendorName", { required: true }),
+  lookup("partId", "Part", "parts", "id", "partCode", { required: true }),
+  lookup("customerId", "Customer", "customers", "id", "customerName"),
+  field("category", "Kategori", "text", { required: true }),
+  lookup("currencyCode", "Mata Uang", "currencies", "currencyCode", "currencyName", { required: true }),
+  field("effectiveFrom", "Berlaku Mulai", "date", { required: true, defaultValue: "today", help: "Harga vendor sebelumnya ditutup otomatis." }),
+  field("effectiveUntil", "Berlaku Sampai", "date", { help: "Boleh kosong; diisi otomatis saat periode berikutnya dibuat." }),
+  field("isActive", "Aktif", "checkbox", { defaultChecked: true }),
+  field("quotationFiles", "File Quotation", "file", { multiple: true }),
+  field("details", "Detail Proses dan Harga", "json", { help: "Array contoh: [{\"vendorProcessId\":\"...\",\"unitPrice\":1500,\"uomCode\":\"PCS\"}]." }),
+  field("notes", "Catatan", "textarea")
+];
 
 function partyFields(codeName, nameName, noun) {
   return [field(codeName, `Kode ${noun}`, "text", { required: true, generated: true }), field(nameName, `Nama ${noun}`, "text", { required: true }), field("contact", "Contact Person"), field("phone", "Telepon", "tel"), field("email", "Email", "email"), field("billingAddress", "Alamat Penagihan", "textarea"), field("shippingAddress", "Alamat Pengiriman", "textarea"), field("leadTimeDays", "Lead Time (hari)", "number"), field("taxId", "NPWP/Tax ID"), lookup("mainBusiness", "Bidang Usaha", "main-businesses", "id", "mainBusinessName", { multiple: true, sourceValueKey: "id" }), field("users", "Pengguna/Kategori", "select", { options: option("operational", "engineer", "other"), multiple: true }), field("status", "Status", "select", { options: option("Active", "Inactive") }), field("notes", "Catatan", "textarea")];
@@ -222,8 +290,8 @@ function priceListEntity(slug, label, endpoint, icon) {
 function monthlyPriceEntity(slug, label, endpoint, ownerField, extraFields = []) {
   const supplierField = extraFields.find((item) => item.name === "supplierId");
   return entity({ slug, label, singular: label, group: "Data Keuangan", icon: "file", endpoint,
-    columns: [column(ownerField.name.replace("Id", "." + (ownerField.lookup?.labelKey || "name")), ownerField.label), ...(supplierField ? [column("supplier.supplierName", "Supplier")] : []), column("currencyCode", "Mata Uang"), column("pricingYear", "Tahun"), column("january", "Januari", { type: "currency" }), column("december", "Desember", { type: "currency" })],
-    fields: [{ ...ownerField, required: true }, ...extraFields, lookup("currencyCode", "Mata Uang", "currencies", "currencyCode", "currencyName", { required: true }), field("pricingYear", "Tahun Harga", "number", { required: true }), ...monthlyFields, ...(slug === "material-price-lists" ? [] : [field("statusService", "Status Service", "select", { options: option("Service", "Non-Service") })]), field("notes", "Catatan", "textarea")]
+    columns: [column(ownerField.name.replace("Id", "." + (ownerField.lookup?.labelKey || "name")), ownerField.label), ...(supplierField ? [column("supplier.supplierName", "Supplier")] : []), column("uomCode", "UOM Harga"), column("unitPrice", "Harga", { type: "currency" }), column("currencyCode", "Mata Uang"), column("effectiveFrom", "Berlaku Mulai", { type: "date" }), column("effectiveUntil", "Berlaku Sampai", { type: "date" }), column("isActive", "Status", { type: "active" })],
+    fields: [{ ...ownerField, required: true }, ...extraFields, lookup("uomCode", "UOM Harga", "uom", "uomCode", "uomName", { required: true, help: "Satuan dasar harga, misalnya KG atau PCS." }), field("unitPrice", "Harga Satuan", "number", { required: true, min: 0, step: "0.01" }), lookup("currencyCode", "Mata Uang", "currencies", "currencyCode", "currencyName", { required: true }), field("effectiveFrom", "Berlaku Mulai", "date", { required: true, defaultValue: "today", help: "Simpan Harga Baru; harga sebelumnya ditutup otomatis dan histori tidak dihapus." }), field("effectiveUntil", "Berlaku Sampai", "date", { help: "Boleh kosong; sistem mengisi ketika harga berikutnya berlaku." }), field("isActive", "Aktif", "checkbox", { defaultChecked: true }), ...(slug === "part-price-lists" ? [field("statusService", "Status Service", "select", { options: option("Service", "Non-Service") })] : []), field("notes", "Catatan / sumber quotation", "textarea")]
   });
 }
 

@@ -28,7 +28,7 @@
       }
     }
     if (type === "checkbox") return value ? "Ya" : "Tidak";
-    if (type === "number" && Number.isFinite(Number(value))) return new Intl.NumberFormat("id-ID").format(value);
+    if (type === "number" && Number.isFinite(Number(value))) return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(value);
     if (typeof value === "object") {
       return `<details class="master-json-disclosure"><summary>Lihat data terstruktur</summary><pre>${esc(JSON.stringify(value, null, 2))}</pre></details>`;
     }

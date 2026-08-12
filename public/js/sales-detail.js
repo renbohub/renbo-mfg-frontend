@@ -7,6 +7,8 @@
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
   const date = (value) => value ? new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date(value)) : "-";
   const money = (value) => new Intl.NumberFormat("id-ID", { style: "currency", currency: doc?.currencyCode || "IDR", maximumFractionDigits: 0 }).format(Number(value || 0));
+  const num = (value) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(value || 0));
+  const qty = (value, uomCode = "") => window.SharedDataTable.formatQuantity(value, uomCode, { maximumFractionDigits: 2 });
 
   async function api(url, options = {}) {
     const response = await fetch(url, { ...options, headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" } });
@@ -44,11 +46,12 @@
     if (type === "forecast") {
       $id("detail-head").innerHTML = "<tr><th>Part</th><th>UOM</th><th>Bulan Forecast</th><th>Qty Forecast</th></tr>";
       let total = 0;
-      $id("detail-body").innerHTML = (doc.details || []).map((row) => { const qty = Number(row.forecastQty ?? row.M1Qty ?? 0); total += qty; return `<tr><td><b>${esc(row.partCode)}</b><br><small>${esc(row.part?.partName || "")}</small></td><td>${esc(row.uomCode)}</td><td>${date(row.forecastMonth || row.M1Forecast)}</td><td><b>${esc(qty)}</b></td></tr>`; }).join("");
-      $id("detail-summary").innerHTML = `<span>Total forecast</span><strong>${new Intl.NumberFormat("id-ID").format(total)}</strong>`;
+      $id("detail-body").innerHTML = (doc.details || []).map((row) => { const quantity = Number(row.forecastQty ?? row.M1Qty ?? 0); total += quantity; return `<tr><td><b>${esc(row.partCode)}</b><br><small>${esc(row.part?.partName || "")}</small></td><td>${esc(row.uomCode)}</td><td>${date(row.forecastMonth || row.M1Forecast)}</td><td><b>${qty(quantity, row.uomCode)}</b></td></tr>`; }).join("");
+      $id("detail-summary").innerHTML = `<span>Total forecast</span><strong>${qty(total, doc.details?.[0]?.uomCode)}</strong>`;
     } else {
-      $id("detail-head").innerHTML = "<tr><th>Part</th><th>UOM</th><th>Qty</th><th>Harga</th><th>Diskon</th><th>Pajak</th><th>Total</th></tr>";
-      $id("detail-body").innerHTML = (doc.details || []).map((row) => `<tr><td><b>${esc(row.partCode || row.partNumber)}</b><br><small>${esc(row.partName || row.part?.partName || "")}</small></td><td>${esc(row.uomCode)}</td><td>${esc(row.qty)}</td><td>${money(row.unitPrice)}</td><td>${esc(row.discount || 0)}%</td><td>${esc(row.tax || 0)}%</td><td><b>${money(row.totalAmount)}</b></td></tr>`).join("");
+      const salesOrder = type === "sales-order";
+      $id("detail-head").innerHTML = salesOrder ? "<tr><th>Part</th><th>UOM</th><th>Qty</th><th>Delivery Phase / Feasibility</th><th>Harga / Source</th><th>Est. BOM / Unit</th><th>Gross Contribution</th><th>Margin</th><th>Diskon</th><th>Pajak</th><th>Total</th></tr>" : "<tr><th>Part</th><th>UOM</th><th>Qty</th><th>Harga</th><th>Diskon</th><th>Pajak</th><th>Total</th></tr>";
+      $id("detail-body").innerHTML = (doc.details || []).map((row) => salesOrder ? `<tr><td><b>${esc(row.partCode || row.partNumber)}</b><br><small>${esc(row.partName || row.part?.partName || "")}</small></td><td>${esc(row.uomCode)}</td><td>${qty(row.qty,row.uomCode)}</td><td><div class="sales-phase-statuses">${(row.deliveryTargets||[]).map((target)=>{const decision=target.planningDecision||{};const targetUom=target.uomCode||row.uomCode||"";return `<span><b>Phase ${esc(target.phaseNumber)} · ${date(target.targetDate)}</b><small>${qty(target.qty,targetUom)} ${esc(targetUom)} · ${esc(decision.feasibilityStatus||"NOT_SIMULATED")}${decision.criticalConstraint?` · ${esc(decision.criticalConstraint)}`:""}</small></span>`}).join("")||"-"}</div></td><td>${money(row.unitPrice)}<small class="d-block">${esc(row.priceSource || "PRICE_NOT_FOUND")}${row.priceOverrideReason?` · ${esc(row.priceOverrideReason)}`:""}</small></td><td>${money(row.estimatedBomCostPerUnit)}<small class="d-block">${esc(row.costingStatus || "NOT COSTED")}</small></td><td class="${Number(row.estimatedGrossContribution)<0?"text-danger":"text-success"}">${money(row.estimatedGrossContribution)}</td><td><b>${num(row.estimatedMarginPercent)}%</b></td><td>${num(row.discount)}%</td><td>${num(row.tax)}%</td><td><b>${money(row.totalAmount)}</b></td></tr>` : `<tr><td><b>${esc(row.partCode || row.partNumber)}</b><br><small>${esc(row.partName || row.part?.partName || "")}</small></td><td>${esc(row.uomCode)}</td><td>${qty(row.qty,row.uomCode)}</td><td>${money(row.unitPrice)}</td><td>${num(row.discount)}%</td><td>${num(row.tax)}%</td><td><b>${money(row.totalAmount)}</b></td></tr>`).join("");
       $id("detail-summary").innerHTML = `<span>Total dokumen</span><strong>${money(doc.totalAmount)}</strong>`;
     }
   }

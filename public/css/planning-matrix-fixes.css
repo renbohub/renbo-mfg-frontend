@@ -1,0 +1,8 @@
+.bucket-detail-line > header > div b,
+.bucket-detail-line > header > div span {
+  display: block;
+}
+
+.bucket-detail-line > header > div span {
+  margin-top: 2px;
+}

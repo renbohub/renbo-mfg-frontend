@@ -2,6 +2,7 @@
   const config = JSON.parse(document.getElementById("supply-form-config").textContent); const $ = (id) => document.getElementById(id); const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
   const num = (value) => Number.isFinite(Number(value)) ? Number(value) : 0; const value = (id) => $(id)?.value?.trim() || "";
+  const qty = (amount, uomCode = "") => window.SharedDataTable.formatQuantity(amount, uomCode, { maximumFractionDigits: 2 });
   const show = (message, type = "danger") => { const box = $("supply-form-alert"); box.textContent = message; box.className = `alert alert-${type}`; };
   const isIncoming = config.module === "incoming";
   let incomingRacks = [];
@@ -22,9 +23,9 @@
   };
   const incomingLotRow = (row, primary = false) => `<tr data-source-detail="${esc(row.id)}" data-outstanding="${esc(row.outstanding)}" data-conversion-factor="${esc(row.conversionFactor || 1)}" data-allocation-uom="${esc(row.allocationUom || row.uom)}" data-lot-primary="${primary ? "true" : "false"}">
     <td class="gr-item-cell"><b>${esc(row.code)}</b><small>${esc(row.name)}</small><em>${esc(row.uom)}</em>${primary ? `<button type="button" class="btn btn-sm btn-outline-primary mt-2" data-add-lot="${esc(row.id)}">+ Tambah Lot</button>` : `<button type="button" class="btn btn-sm btn-outline-danger mt-2" data-remove-lot>Hapus Lot</button>`}</td>
-    <td class="ops-number"><b>${primary ? esc(row.ordered) : ""}</b><small>${primary ? esc(row.uom) : "Lot tambahan"}</small></td>
-    <td class="ops-number"><b>${primary ? esc(row.used) : ""}</b><small>${primary ? esc(row.uom) : ""}</small></td>
-    <td class="ops-number"><b>${primary ? esc(row.outstanding) : ""}</b><small>${primary ? esc(row.uom) : ""}</small></td>
+    <td class="ops-number"><b>${primary ? qty(row.ordered,row.uom) : ""}</b><small>${primary ? esc(row.uom) : "Lot tambahan"}</small></td>
+    <td class="ops-number"><b>${primary ? qty(row.used,row.uom) : ""}</b><small>${primary ? esc(row.uom) : ""}</small></td>
+    <td class="ops-number"><b>${primary ? qty(row.outstanding,row.uom) : ""}</b><small>${primary ? esc(row.uom) : ""}</small></td>
     <td class="gr-arrival-cell"><input data-qty class="form-control form-control-sm" type="number" min="0" step="any" value="${primary ? esc(row.outstanding) : "0"}"><small>${primary ? "Boleh kurang / lebih; dapat dipecah per lot" : "Qty lot ini"}</small></td>
     <td data-variance class="gr-variance"></td>
     <td><div class="gr-lot-rack"><div class="gr-auto-lot"><small>Internal Lot</small><b>Otomatis per lot</b></div><label><span>Supplier Lot *</span><input data-supplier-lot class="form-control form-control-sm" required placeholder="Input lot / batch supplier"></label><label><span>Rack Warehouse</span><select data-rack class="form-select form-select-sm">${rackOptions(value("warehouseCode"))}</select></label></div>${allocationEditor(row)}</td>

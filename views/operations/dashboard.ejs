@@ -14,8 +14,10 @@
     <%- include('../partials/view-switcher', isDailyWorkQueue ? { viewModes: ['gallery', 'table', 'kanban', 'gantt'], viewLabels: { gallery: 'Work Cards', table: 'Table', kanban: 'Status Board', gantt: 'Weekly Gantt' } } : {}) %>
     <button id="ops-refresh" type="button" class="btn btn-outline-secondary">Refresh</button>
     <button id="ops-export" type="button" class="btn btn-export">Export CSV</button>
-    <% if (isPurchaseRequisition) { %>
+    <% if (isPurchaseRequisition && purchaseCategory !== 'vendor-process') { %>
       <a href="/modules/purchasing/purchase-requisitions/new<%= purchaseCategory ? '?category=' + purchaseCategory : '' %>" class="btn btn-primary brand-button"><%- include('../partials/icon', { name: 'plus' }) %> Tambah Baru</a>
+    <% } else if (isPurchaseRequisition) { %>
+      <a href="/modules/planning-ppic/capacity-planning" class="btn btn-primary brand-button">Buka Capacity Planning →</a>
     <% } else if (page.createRoute) { %>
       <a href="<%= page.createRoute %>" class="btn btn-primary brand-button"><%- include('../partials/icon', { name: 'plus' }) %> Tambah Baru</a>
     <% } %>
@@ -77,6 +79,9 @@
       </a>
       <a class="<%= purchaseCategory === 'universal-purchase-part' ? 'active' : '' %>" href="/modules/purchasing/purchase-requisitions?category=universal-purchase-part">
         <span>Universal Purchase Part</span><small>Purchased part tanpa drawing / item universal</small>
+      </a>
+      <a class="<%= purchaseCategory === 'vendor-process' ? 'active' : '' %>" href="/modules/purchasing/purchase-requisitions?category=vendor-process">
+        <span>Vendor Process</span><small>Otomatis dari allocation vendor di Capacity Planning</small>
       </a>
       <a class="<%= purchaseCategory === 'non-production' ? 'active' : '' %>" href="/modules/purchasing/purchase-requisitions?category=non-production">
         <span>Non Produksi</span><small>Consumable, service, asset, maintenance, dan umum</small>

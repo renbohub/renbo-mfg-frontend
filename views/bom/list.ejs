@@ -8,7 +8,7 @@
     <button class="bom-toolbar-button" type="button">☷ <span>Filter</span></button>
     <div class="bom-toolbar-spacer"></div>
     <%- include('../partials/view-switcher') %>
-    <button class="bom-toolbar-button" type="button">⇩ <span>Export</span></button>
+    <button id="bom-open-report" class="bom-toolbar-button" type="button">⇩ <span>BOM Report</span></button>
     <a class="btn bom-create-button" href="/modules/manufacturing-bom/bill-of-materials/new">＋ Tambah Baru</a>
   </section>
   <div id="bom-list-alert" class="alert alert-warning d-none mx-4 mt-3"></div>
@@ -19,4 +19,16 @@
     <div id="bom-heatmap-view" class="bom-alt-view d-none"></div>
   </section>
 </main>
+<div class="modal fade" id="bom-report-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content bom-report-dialog">
+    <div class="modal-header"><div><small class="text-uppercase text-primary fw-bold">Management Report</small><h2 class="modal-title fs-5">Export Bill of Materials</h2><p class="mb-0 text-muted small">Struktur, part number, price list, cost, routing, dan cycle time.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button></div>
+    <div class="modal-body">
+      <div class="row g-3 align-items-end"><div class="col-md-7"><label class="form-label">Pilih BOM</label><select id="bom-report-select" class="form-select"><option value="">Pilih BOM...</option></select></div><div class="col-md-3"><label class="form-label">Tanggal Costing</label><input id="bom-report-date" class="form-control" type="date"></div><div class="col-md-2"><button id="bom-report-preview" class="btn btn-outline-primary w-100" type="button">Preview</button></div></div>
+      <div id="bom-report-empty" class="bom-report-empty"><strong>Pilih BOM untuk melihat isi report.</strong><span>Report memakai revision dan price list efektif pada tanggal costing.</span></div>
+      <div id="bom-report-content" class="d-none"><div id="bom-report-summary" class="bom-report-summary"></div><div class="table-responsive mt-3"><table id="bom-report-preview-table" class="table align-middle" data-enterprise-table="off"><thead><tr><th>Level</th><th>Part Code / Part Number</th><th>Nama / Material</th><th>Qty</th><th>Price Source</th><th>Unit Price</th><th>Process / Cycle</th><th>Est. Cost</th></tr></thead><tbody id="bom-report-preview-body"></tbody></table></div></div>
+    </div>
+    <div class="modal-footer justify-content-between"><small class="text-muted">BOM turunan ikut diexplode; UUID/internal ID tidak masuk ke hasil export.</small><div class="d-flex gap-2"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Tutup</button><button id="bom-report-xlsx" class="btn btn-outline-success" type="button" disabled>Excel Lengkap</button><button id="bom-report-pdf" class="btn btn-outline-danger" type="button" disabled>PDF Management</button><button id="bom-report-diagram-pdf" class="btn btn-outline-primary" type="button" disabled>PDF Bagan BOM</button><button id="bom-report-canvas" class="btn btn-primary" type="button" disabled>PNG Bagan BOM</button></div></div>
+  </div></div>
+</div>
+<script defer src="/js/bom-report.js?v=20260812-2"></script>
 <%- include('../partials/footer') %>

@@ -14,6 +14,69 @@
   <section class="ppic-content dashboard-content">
     <div id="ppic-alert" class="alert d-none mx-4 mt-3"></div>
     <div class="visually-hidden"><h1 id="ppic-title"></h1><p id="ppic-subtitle"></p></div>
+    <% if (['demand-planning', 'mps', 'mrp'].includes(activePpicTab)) { %>
+      <nav id="planning-flowbar" class="planning-flowbar" aria-label="Alur demand sampai purchasing">
+        <a href="/modules/planning-ppic/demand-planning" data-flow-step="demand"><span>1</span><b>Demand Planning</b><small>Review kebutuhan</small></a>
+        <a href="/modules/planning-ppic/mps" data-flow-step="mps"><span>2</span><b>MPS Demand Matrix</b><small>Demand per delivery</small></a>
+        <a href="/modules/planning-ppic/mps" data-flow-step="lock"><span>3</span><b>Review &amp; Lock</b><small>Kunci demand PPIC</small></a>
+        <a href="/modules/planning-ppic/mps" data-flow-step="run-mrp"><span>4</span><b>Run MRP</b><small>Time-phased netting</small></a>
+        <a href="/modules/planning-ppic/mrp" data-flow-step="mrp"><span>5</span><b>MRP Planner Grid</b><small>Buy &amp; projected stock</small></a>
+        <a href="/modules/purchasing/purchase-suggestions" data-flow-step="suggestion"><span>6</span><b>Purchase Suggestion</b><small>Review rekomendasi</small></a>
+        <a href="/modules/purchasing/purchase-requisitions" data-flow-step="purchasing"><span>7</span><b>Release Purchasing</b><small>PR &amp; PO execution</small></a>
+      </nav>
+    <% } %>
+    <% if (activePpicTab === 'demand-planning') { %>
+      <section class="demand-planning-summary" aria-label="Demand Planning summary">
+        <article><span>Target Run MPS</span><strong id="demand-anchor">Pilih saat run</strong><small>Maksimal 3 bulan, dapat uncheck per phase</small></article>
+        <article><span>Outstanding Demand</span><strong id="demand-outstanding">-</strong><small id="demand-line-count">0 delivery phases</small></article>
+        <article><span>Critical / At Risk</span><strong id="demand-risk">-</strong><small>Perlu review PPIC</small></article>
+        <article><span>Belum Direview</span><strong id="demand-unreviewed">-</strong><small>Decision overlay belum lengkap</small></article>
+      </section>
+      <section class="demand-capacity-section" aria-labelledby="demand-capacity-title">
+        <header>
+          <div><small>ROLLING CAPACITY VISIBILITY</small><h2 id="demand-capacity-title">Capacity sesuai Forecast Delivery Horizon</h2><p>Satu bulan sebelum Forecast pertama sampai bulan Forecast terakhir. Menggunakan kalender dan allocation Production aktif.</p></div>
+          <div class="demand-capacity-legend"><span class="enough">Cukup</span><span class="tight">Kritis ≥85%</span><span class="not-enough">Tidak cukup</span><span class="no-demand">Bulan pembanding</span></div>
+        </header>
+        <div id="demand-capacity-months" class="demand-capacity-months"><div class="demand-capacity-loading">Memuat kapasitas bulanan…</div></div>
+      </section>
+      <section id="demand-filter-panel" class="demand-filter-panel is-hidden">
+        <label>Priority<select id="demand-priority"><option value="">Semua</option><option>P0</option><option>P1</option><option>P2</option><option>P3</option></select></label>
+        <label>Feasibility<select id="demand-feasibility"><option value="">Semua</option><option>FEASIBLE</option><option>AT_RISK</option><option>NOT_FEASIBLE</option><option>MASTER_DATA_INCOMPLETE</option><option>NOT_SIMULATED</option></select></label>
+        <label>Window Start<input id="demand-anchor-input" type="month"></label>
+        <button id="demand-apply-filter" class="btn btn-outline-primary" type="button">Terapkan</button>
+      </section>
+      <aside id="mps-run-selector" class="mps-run-selector" aria-hidden="true">
+        <div class="mps-run-selector-backdrop" data-close-mps-selector></div>
+        <section class="mps-run-selector-panel" role="dialog" aria-modal="true" aria-labelledby="mps-run-selector-title">
+          <header class="mps-run-selector-header">
+            <div><small>CREATE MPS</small><h2 id="mps-run-selector-title">Pilih Target Delivery</h2><p>Pilih demand yang akan masuk MPS. Maksimal tiga bulan dalam satu kali review.</p></div>
+            <button type="button" data-close-mps-selector aria-label="Tutup">×</button>
+          </header>
+          <div class="mps-run-selector-tools">
+            <label class="mps-run-selector-search"><span>Cari demand</span><input id="mps-run-search" type="search" placeholder="Forecast, SO, customer, part number…"></label>
+            <div class="mps-run-selector-stats">
+              <span><b id="mps-run-month-count">0</b> / 3 bulan</span>
+              <span><b id="mps-run-line-count">0</b> delivery target</span>
+              <span><b id="mps-run-qty">0,00</b> effective qty</span>
+            </div>
+          </div>
+          <div id="mps-run-selector-message" class="mps-run-selector-message" aria-live="polite"></div>
+          <div id="mps-run-selector-groups" class="mps-run-selector-groups"></div>
+          <footer class="mps-run-selector-footer">
+            <div><b id="mps-run-review-summary">Belum ada target dipilih</b><span>Bulan dan baris yang tidak dipilih tidak akan masuk MPS.</span></div>
+            <button class="btn btn-outline-secondary" type="button" data-close-mps-selector>Batal</button>
+            <button id="mps-run-submit" class="btn btn-primary" type="button" disabled>Review &amp; Buat MPS</button>
+          </footer>
+        </section>
+      </aside>
+      <aside id="demand-drawer" class="demand-drawer" aria-hidden="true">
+        <div class="demand-drawer-backdrop" data-close-drawer></div>
+        <section class="demand-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="demand-drawer-title">
+          <header><div><small>DEMAND PLANNING REVIEW</small><h2 id="demand-drawer-title">Review demand</h2><p id="demand-drawer-meta"></p></div><button type="button" data-close-drawer aria-label="Tutup">×</button></header>
+          <div id="demand-drawer-body"></div>
+        </section>
+      </aside>
+    <% } %>
     <% if (activePpicTab === 'consume-forecast') { %>
       <section id="consume-capacity-section" class="consume-capacity-card" aria-labelledby="consume-capacity-title">
         <header class="consume-capacity-head">
@@ -30,9 +93,28 @@
         <footer id="consume-capacity-note">Perhitungan mengikuti kalender, shift, efficiency, downtime, routing, dan allocation aktif di Capacity Planning.</footer>
       </section>
     <% } %>
-    <section id="ppic-list-root" class="table-shell entity-table-shell ppic-table-card ppic-master-table">
+    <% if (activePpicTab === 'mps') { %>
+      <section id="mps-monthly-summary" class="mps-demand-matrix-card" aria-labelledby="mps-demand-matrix-title">
+        <header class="mps-demand-matrix-head">
+          <div><small>PLANNER VIEW</small><h2 id="mps-demand-matrix-title">MPS Demand Matrix</h2><p>Forecast, Actual SO, buffer, dan target MPS dibaca per bulan Target Delivery customer. Detail proses tetap tersedia pada masing-masing MPS.</p></div>
+          <div class="mps-demand-matrix-filters">
+            <select id="mps-summary-forecast" aria-label="Filter forecast"><option value="">Semua forecast</option></select>
+            <select id="mps-summary-customer" aria-label="Filter customer"><option value="">Semua customer</option></select>
+            <select id="mps-summary-scope" aria-label="Filter scope"><option value="FG RECEIPT">FG Receipt</option></select>
+            <input id="mps-summary-month" type="hidden" value="">
+            <input id="mps-summary-group" type="hidden" value="matrix">
+          </div>
+        </header>
+        <div class="mps-demand-matrix-legend"><span class="forecast">Forecast</span><span class="so">Actual SO</span><span class="buffer">Buffer</span><span class="target">Target MPS</span><em>Klik cell untuk membuka MPS bulan tersebut</em></div>
+        <div class="mps-demand-matrix-scroll">
+          <table class="mps-demand-matrix-table"><thead id="mps-summary-head"></thead><tbody id="mps-summary-rows"></tbody></table>
+        </div>
+        <footer id="mps-summary-footer"></footer>
+      </section>
+    <% } %>
+    <section id="ppic-list-root" class="table-shell entity-table-shell ppic-table-card ppic-master-table <%= activePpicTab === 'demand-planning' ? 'demand-table-shell' : activePpicTab === 'mps' ? 'mps-table-shell' : '' %>">
       <div class="list-table-view">
-        <table class="table ppic-table"><thead id="ppic-head"></thead><tbody id="ppic-rows"></tbody></table>
+        <table class="table ppic-table" <%= activePpicTab === 'demand-planning' ? 'data-enterprise-links="off"' : '' %>><thead id="ppic-head"></thead><tbody id="ppic-rows"></tbody></table>
         <div id="ppic-footer" class="ppic-footer"></div>
       </div>
       <div class="list-gallery is-hidden" aria-live="polite"></div>

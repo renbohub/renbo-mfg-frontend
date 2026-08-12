@@ -3,9 +3,8 @@
   const $ = (id) => document.getElementById(id);
   const esc = (value) => String(value ?? "-").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
   const number = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
-  const num = (value, digits = 0) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: digits }).format(number(value));
-  const discreteUoms = new Set(["PCS", "PC", "PIECE", "PIECES", "SHEET", "SHEETS", "COIL", "COILS"]);
-  const qty = (value, uomCode) => num(value, discreteUoms.has(String(uomCode || "").trim().toUpperCase()) ? 0 : 3);
+  const num = (value, digits = 2) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: Math.min(Math.max(Number(digits) || 0, 0), 2) }).format(number(value));
+  const qty = (value, uomCode) => window.SharedDataTable.formatQuantity(value, uomCode, { maximumFractionDigits: 2 });
   const hours = (minutes) => `${num(number(minutes) / 60, 1)} jam`;
   const monthLabel = (value) => new Intl.DateTimeFormat("id-ID", { month: "short", day: "numeric" }).format(new Date(`${value}T00:00:00`));
   const weekday = (value) => new Intl.DateTimeFormat("id-ID", { weekday: "short" }).format(new Date(`${value}T00:00:00`));
@@ -365,7 +364,34 @@
     $("capacity-override").classList.toggle("d-none", !selectedPlan || !snapshot.readiness.overridableCount || selectedPlan.capacityOverrideApproved === true);
     $("capacity-stat-readiness").textContent = `${num(snapshot.readiness.blockingCount)} blocker · ${num(snapshot.readiness.warningCount)} warning`;
   }
+  function renderMaterialGate() {
+    const container = $("capacity-material-gate");
+    if (!container) return;
+    const gate = snapshot?.materialGate;
+    if (!gate || !gate.readyDate) {
+      container.classList.add("d-none");
+      container.innerHTML = "";
+      return;
+    }
+    const readyDate = String(gate.readyDate).slice(0, 10);
+    const confirmed = gate.confirmed === true;
+    const status = confirmed ? "Supplier confirmed" : "System fallback";
+    const explanation = confirmed
+      ? "Proses produksi pertama menunggu tanggal delivery supplier yang sudah dikonfirmasi."
+      : "Supplier belum mengonfirmasi seluruh kebutuhan; proses pertama memakai due date material hasil Purchase Suggestion.";
+    const critical = (gate.criticalItems || []).map((item) => item.materialCode || item.partCode).filter(Boolean).slice(0, 4);
+    container.classList.remove("d-none");
+    container.classList.toggle("confirmed", confirmed);
+    container.innerHTML = `<div><small>MATERIAL START GATE</small><strong>${esc(monthLabel(readyDate))}</strong><span class="${confirmed ? "confirmed" : "fallback"}">${esc(status)}</span></div><p>${esc(explanation)}${critical.length ? `<small>Critical: ${esc(critical.join(", "))}</small>` : ""}</p>${gate.suggestionNumber ? `<a href="/modules/purchasing/purchase-suggestions/${encodeURIComponent(gate.suggestionNumber)}">Buka ${esc(gate.suggestionNumber)} →</a>` : ""}`;
+  }
   function renderHeatmap() {
+    const columnMarkup = `<col class="capacity-resource-col">${snapshot.dates.map(() => '<col class="capacity-day-col">').join("")}`;
+    const heatmapWidth = 248 + snapshot.dates.length * 108;
+    ["capacity-heatmap-cols", "capacity-vendor-heatmap-cols"].forEach((id) => { const node = $(id); if (node) node.innerHTML = columnMarkup; });
+    ["capacity-machine-heatmap", "capacity-vendor-heatmap"].forEach((id) => {
+      const table = $(id);
+      if (table) table.style.width = `${heatmapWidth}px`;
+    });
     $("capacity-heatmap-head").innerHTML = `<tr><th>Machine / Line</th>${snapshot.dates.map((date) => `<th>${esc(weekday(date))}<br><b>${esc(monthLabel(date))}</b></th>`).join("")}</tr>`;
     $("capacity-heatmap-body").innerHTML = snapshot.machines.map((machine) => `<tr><td><div class="capacity-machine"><b>${esc(machine.machineCode)} · ${esc(machine.machineName || "-")}</b><span>${esc(machine.machineSpecificationCode || "SPEC BELUM DIISI")}</span><small>${esc(machine.machineSpecificationName || machine.machineFamily || machine.lineCode || machine.machineType || "-")} · ${esc(machine.status)} · ${num(machine.defaultAvailableMinutes)} menit/hari</small></div></td>${snapshot.dates.map((date) => { const cell = machine.cells[date]; return `<td><button class="capacity-cell ${esc(cell.status)}" type="button" data-machine="${esc(machine.id)}" data-date="${esc(date)}"><b>${num(cell.loadPercent, 1)}%</b><span>${num(cell.loadMinutes)} / ${num(cell.availableMinutes)} min</span><small>F ${num(cell.firmMinutes)} · P ${num(cell.proposedMinutes)}</small></button></td>`; }).join("")}</tr>`).join("") || '<tr><td class="capacity-empty">Master machine belum tersedia.</td></tr>';
     snapshot.machines.forEach((machine) => snapshot.dates.forEach((date) => {
@@ -387,13 +413,13 @@
     const assignments = snapshot?.vendorAssignments || [];
     const vendorCatalog = new Map((snapshot?.catalogs?.vendors || []).map((vendor) => [vendor.id, vendor]));
     const vendorIds = [...new Set(assignments.map((item) => item.vendorId || "UNASSIGNED"))];
-    $("capacity-vendor-heatmap-head").innerHTML = `<tr><th>Vendor</th>${snapshot.dates.map((date) => `<th>${esc(weekday(date))}<br><b>${esc(monthLabel(date))}</b></th>`).join("")}</tr>`;
+    $("capacity-vendor-heatmap-head").innerHTML = `<tr><th>Vendor / Lead Time</th>${snapshot.dates.map((date) => `<th>${esc(weekday(date))}<br><b>${esc(monthLabel(date))}</b></th>`).join("")}</tr>`;
     $("capacity-vendor-heatmap-body").innerHTML = vendorIds.map((vendorId) => {
       const vendor = vendorCatalog.get(vendorId) || {};
       const vendorAssignments = assignments.filter((item) => (item.vendorId || "UNASSIGNED") === vendorId);
       const cells = snapshot.dates.map((date) => {
         const items = vendorAssignments.filter((item) => date >= (item.sendDate || item.scheduleDate) && date <= (item.returnDate || item.sendDate || item.scheduleDate));
-        if (!items.length) return '<td><div class="capacity-vendor-cell empty">-</div></td>';
+        if (!items.length) return '<td><div class="capacity-cell capacity-vendor-cell empty" aria-label="Tidak ada proses vendor"><b>—</b><small>Tidak ada proses</small></div></td>';
         const sends = items.filter((item) => date === (item.sendDate || item.scheduleDate));
         const returns = items.filter((item) => date === (item.returnDate || item.sendDate || item.scheduleDate));
         const atRisk = items.some((item) => item.status === "AT_RISK" || (item.riskReasons || []).length);
@@ -406,9 +432,17 @@
           ? `K ${num(sendQty, 3)} · M ${num(returnQty, 3)}`
           : `${num(state === "send" ? sendQty : state === "return" ? returnQty : activeQty, 3)} ${esc(items[0].uomCode || "")}`;
         const references = [...new Set(items.map((item) => `${item.partCode || "Part"} · ${item.processCode || item.processName || "Process"}`))];
-        return `<td><button type="button" class="capacity-vendor-cell ${state} ${atRisk ? "risk" : ""}" data-vendor-heatmap-allocation="${esc(items.find((item) => ["MANUAL", "RECOMMENDED"].includes(item.source))?.allocationId || "")}" title="${esc(references.join(" | "))}"><b>${label}</b><span>${qtyLabel}</span><small>${items.length} allocation${atRisk ? " · AT RISK" : ""}</small></button></td>`;
+        const sendDates = [...new Set(items.map((item) => item.sendDate || item.scheduleDate).filter(Boolean))];
+        const returnDates = [...new Set(items.map((item) => item.returnDate || item.sendDate || item.scheduleDate).filter(Boolean))];
+        return `<td><button type="button" class="capacity-cell capacity-vendor-cell ${state} ${atRisk ? "risk" : ""}" data-vendor-heatmap-allocation="${esc(items.find((item) => ["MANUAL", "RECOMMENDED"].includes(item.source))?.allocationId || "")}" title="${esc(references.join(" | "))}"><b>${label}</b><span>${qtyLabel}</span><small>S ${esc(sendDates[0]?.slice(5) || "-")} · R ${esc(returnDates.at(-1)?.slice(5) || "-")}${atRisk ? " · RISK" : ""}</small></button></td>`;
       }).join("");
-      return `<tr><td><div class="capacity-machine"><b>${esc(vendor.vendorCode || "Belum dipilih")}</b><span>${esc(vendor.vendorName || "Vendor belum ditentukan")}</span><small>${num(vendor.leadTimeDays)} hari lead time · ${vendorAssignments.length} allocation</small></div></td>${cells}</tr>`;
+      const confirmedPlanningDays = [...new Set(vendorAssignments.filter((item) => item.leadTimeSource === "DEMAND_PLANNING_CONFIRMED").map((item) => number(item.planningLeadTimeDays)).filter((value) => value > 0))];
+      const masterDays = number(vendorAssignments.find((item) => number(item.masterLeadTimeDays) > 0)?.masterLeadTimeDays ?? vendor.leadTimeDays);
+      const confirmedPlanning = vendorAssignments.some((item) => item.leadTimeSource === "DEMAND_PLANNING_CONFIRMED");
+      const leadLabel = confirmedPlanning && confirmedPlanningDays.length
+        ? `Customer ${num(confirmedPlanningDays[0])} hari · Master / buffer ${num(masterDays)} hari`
+        : `Master ${num(masterDays)} hari`;
+      return `<tr><td><div class="capacity-machine capacity-vendor-identity"><b>${esc(vendor.vendorCode || "Belum dipilih")}</b><span>${esc(vendor.vendorName || "Vendor belum ditentukan")}</span><small>${leadLabel} · ${vendorAssignments.length} allocation</small>${confirmedPlanning ? '<em>Confirmed Demand Planning / SO</em>' : ""}</div></td>${cells}</tr>`;
     }).join("") || `<tr><td colspan="${snapshot.dates.length + 1}" class="capacity-empty">Belum ada allocation vendor pada horizon ini.</td></tr>`;
   }
   function ganttRows() {
@@ -584,6 +618,8 @@
     $("capacity-manual-plan").disabled = true;
     $("capacity-manual-task").disabled = true;
     $("capacity-manual-allocation-form").classList.remove("d-none");
+    $("capacity-manual-allocation-form").classList.remove("capacity-dialog-section-collapsed");
+    document.querySelector('[data-capacity-dialog-section="capacity-manual-allocation-form"]')?.classList.add("active");
     toggleManualAllocationMode();
     renderManualRecommendation(false);
     const allocationDialog = $("capacity-allocation-dialog");
@@ -712,7 +748,9 @@
       const risk = Array.isArray(item.riskReasons) && item.riskReasons.length
         ? `<small class="d-block text-danger">${esc(item.riskReasons.join(", "))}</small>`
         : "";
-      return `<tr><td>${esc(item.sendDate || item.scheduleDate)}</td><td>${esc(item.returnDate || "-")}<small class="d-block">Need ${esc(item.requiredDate || "-")}</small></td><td><b>${esc(item.planNumber)}</b><small class="d-block">Line ${num(item.lineNumber)}</small></td><td><b>${esc(item.partCode)}</b><small class="d-block">${esc(item.processCode || item.processName)}</small></td><td>${esc(vendor?.vendorCode || item.vendorId)}<small class="d-block">${esc(vendor?.vendorName || "")}</small></td><td>${num(item.qty, 3)} ${esc(item.uomCode || "")}</td><td>${num(item.expectedReturnQty ?? item.qty, 3)} ${esc(item.uomCode || "")}</td><td>${num(item.plannedLeadTimeDays)} hari<small class="d-block">Master ${num(item.masterLeadTimeDays)} hari</small></td><td><span class="capacity-source ${esc(String(item.status || "").toLowerCase())}">${esc(item.status || item.source)}</span>${risk}</td><td>${action}</td></tr>`;
+      const allocationRow = `<tr><td>${esc(item.sendDate || item.scheduleDate)}</td><td>${esc(item.returnDate || "-")}<small class="d-block">Need ${esc(item.requiredDate || "-")}</small></td><td><b>${esc(item.planNumber)}</b><small class="d-block">Line ${num(item.lineNumber)}</small></td><td><b>${esc(item.partCode)}</b><small class="d-block">${esc(item.processCode || item.processName)}</small></td><td>${esc(vendor?.vendorCode || item.vendorId)}<small class="d-block">${esc(vendor?.vendorName || "")}</small></td><td>${num(item.qty, 3)} ${esc(item.uomCode || "")}</td><td>${num(item.expectedReturnQty ?? item.qty, 3)} ${esc(item.uomCode || "")}</td><td>${num(item.plannedLeadTimeDays)} hari<small class="d-block">Master ${num(item.masterLeadTimeDays)} hari</small></td><td><span class="capacity-source ${esc(String(item.status || "").toLowerCase())}">${esc(item.status || item.source)}</span>${risk}</td><td>${action}</td></tr>`;
+      const auditRow = item.source === "RECOMMENDED" ? `<tr class="capacity-allocation-audit-row"><td colspan="10">${allocationScoreDetail(item)}</td></tr>` : "";
+      return `${allocationRow}${auditRow}`;
     }).join("") || '<tr><td colspan="10" class="capacity-empty">Belum ada proses yang dialokasikan ke vendor.</td></tr>';
   }
   function renderCell(machineId, date, openDialog = false) {
@@ -745,6 +783,16 @@
     toggleDailyFields();
     const manualTasks = manualTasksForMachine(machineId);
     $("capacity-manual-allocation-form").classList.toggle("d-none", historical || manualTasks.length === 0);
+    const dailyToggle = document.querySelector('[data-capacity-dialog-section="capacity-cell-form"]');
+    const manualToggle = document.querySelector('[data-capacity-dialog-section="capacity-manual-allocation-form"]');
+    dailyToggle?.classList.toggle("d-none", historical);
+    manualToggle?.classList.toggle("d-none", historical || manualTasks.length === 0);
+    if (openDialog) {
+      $("capacity-cell-form").classList.add("capacity-dialog-section-collapsed");
+      $("capacity-manual-allocation-form").classList.add("capacity-dialog-section-collapsed");
+      dailyToggle?.classList.remove("active");
+      manualToggle?.classList.remove("active");
+    }
     populateManualMachines(machineId);
     $("capacity-manual-date").value = date;
     const manualPlanNumbers = [...new Set(manualTasks.map((task) => task.planNumber))];
@@ -757,7 +805,7 @@
         const schedule = item.plannedStartTime && item.plannedEndTime
           ? `<small class="d-block">${esc(item.plannedStartTime)}–${esc(item.plannedEndTime)} · ${esc(item.capacityMode || "NORMAL")}${item.diesId ? ` · Dies ${esc((snapshot?.catalogs?.dies || []).find((row) => row.id === item.diesId)?.diesCode || item.diesId)}` : ""}${item.deliveryPhaseNumber ? ` · Delivery Phase ${num(item.deliveryPhaseNumber)}` : ""}${item.transferBatchNumber ? ` · Transfer Batch ${num(item.transferBatchNumber)}` : ""}</small>`
           : "";
-        return `<div class="d-flex flex-column gap-1" draggable="true" data-drag-allocation="${esc(item.allocationId)}" title="Geser allocation ke cell mesin/tanggal lain"><small class="text-primary fw-semibold">${item.source === "RECOMMENDED" ? "Rekomendasi sistem" : "Draft allocation MPP"}</small>${schedule}${item.source === "RECOMMENDED" ? allocationScoreDetail(item) : ""}<div class="d-flex gap-1"><button class="btn btn-sm btn-outline-primary" type="button" data-edit-manual-allocation="${esc(item.allocationId)}">Edit</button><button class="btn btn-sm btn-outline-danger" type="button" data-remove-manual-allocation="${esc(item.allocationId)}" data-plan="${esc(item.planNumber || item.reference)}">Hapus</button></div></div>`;
+        return `<div class="capacity-allocation-actions" draggable="true" data-drag-allocation="${esc(item.allocationId)}" title="Geser allocation ke cell mesin/tanggal lain"><small class="text-primary fw-semibold">${item.source === "RECOMMENDED" ? "Rekomendasi sistem" : "Draft allocation MPP"}</small>${schedule}<div class="d-flex gap-1"><button class="btn btn-sm btn-outline-primary" type="button" data-edit-manual-allocation="${esc(item.allocationId)}">Edit</button><button class="btn btn-sm btn-outline-danger" type="button" data-remove-manual-allocation="${esc(item.allocationId)}" data-plan="${esc(item.planNumber || item.reference)}">Hapus</button></div></div>`;
       }
       if (capacityPlanningMode === "SIMULATION") return "<small>Gunakan form alokasi simulasi. Routing production tidak diubah.</small>";
       if (item.source !== "PROPOSED" || !item.mbomProcessId) return esc(item.status);
@@ -785,7 +833,11 @@
       return `<small>Gunakan form Alokasi MPP di atas.</small>`;
     };
     const assignment = (item) => item.source === "PROPOSED" && item.mbomProcessId ? `<div class="d-flex flex-column gap-1" data-routing-assignment data-plan="${esc(item.reference)}" data-line="${esc(item.lineNumber)}" data-route="${esc(item.mbomProcessId)}"><select class="form-select form-select-sm" data-routing-mode><option value="INHOUSE">In-house</option><option value="VENDOR">Move to Vendor</option></select><select class="form-select form-select-sm" data-routing-machine>${machine.id ? `<option value="${esc(machine.id)}">${esc(machine.machineCode)}</option>` : ""}${snapshot.machines.filter((row) => (item.allowedMachineIds || []).includes(row.id) && row.id !== machine.id).map((row) => `<option value="${esc(row.id)}">${esc(row.machineCode)}</option>`).join("")}</select><select class="form-select form-select-sm" data-routing-dies><option value="">Tanpa QD/Dies</option>${(snapshot.catalogs?.dies || []).map((row) => `<option value="${esc(row.id)}" ${row.id === item.diesId ? "selected" : ""}>${esc(row.diesCode)} · ${esc(row.diesType || row.diesName || "")}</option>`).join("")}</select><select class="form-select form-select-sm d-none" data-routing-vendor><option value="">Pilih Vendor</option>${(snapshot.catalogs?.vendors || []).map((row) => `<option value="${esc(row.id)}">${esc(row.vendorCode)} · ${esc(row.vendorName || "")}</option>`).join("")}</select><input class="form-control form-control-sm" data-routing-reason placeholder="Alasan perubahan"><button class="btn btn-sm btn-outline-primary" type="button" data-save-routing>Simpan Assignment</button></div>` : esc(item.status);
-    $("capacity-detail-body").innerHTML = cell.items.map((item) => `<tr><td><span class="capacity-source ${esc(String(item.source || "").toLowerCase())}">${esc(item.source)}</span></td><td><b>${esc(item.reference)}</b>${item.moNumber ? `<small class="d-block">${esc(item.moNumber)} / ${esc(item.woNumber)}</small>` : ""}</td><td>${esc(item.partCode)}</td><td>${esc(item.processCode || item.label)}</td><td>${esc(item.shift)}</td><td>${qty(item.qty, item.uomCode)} ${esc(item.uomCode || "")}</td><td>${num(item.minutes, 1)} min</td><td>${manualAssignment(item)}</td></tr>`).join("") || '<tr><td colspan="8" class="capacity-empty">Belum ada load pada machine dan tanggal ini.</td></tr>';
+    $("capacity-detail-body").innerHTML = cell.items.map((item) => {
+      const allocationRow = `<tr class="capacity-allocation-data-row"><td><span class="capacity-source ${esc(String(item.source || "").toLowerCase())}">${esc(item.source)}</span>${item.capacityLate?'<small class="d-block text-danger">CAPACITY_LATE</small>':''}</td><td><b>${esc(item.reference)}</b>${item.moNumber ? `<small class="d-block">${esc(item.moNumber)} / ${esc(item.woNumber)}</small>` : ""}${item.demandSourceNumber?`<small class="d-block">${esc(item.demandSourceType||'DEMAND')} · ${esc(item.demandSourceNumber)}</small>`:''}</td><td>${esc(item.partCode)}${item.customerCode?`<small class="d-block">${esc(item.customerCode)}</small>`:''}</td><td>${esc(item.processCode || item.label)}${item.fgRequiredDate?`<small class="d-block">FG ready ${esc(String(item.fgRequiredDate).slice(0,10))}</small>`:''}</td><td>${esc(item.shift)}${item.priorityClass?`<small class="d-block">${esc(item.priorityClass)} · ${num(item.priorityScore,1)}</small>`:''}</td><td>${qty(item.qty, item.uomCode)} ${esc(item.uomCode || "")}</td><td>${num(item.minutes, 1)} min${item.customerTargetDate?`<small class="d-block">Delivery ${esc(String(item.customerTargetDate).slice(0,10))}</small>`:''}</td><td>${manualAssignment(item)}</td></tr>`;
+      const auditRow = item.source === "RECOMMENDED" ? `<tr class="capacity-allocation-audit-row"><td colspan="8">${allocationScoreDetail(item)}</td></tr>` : "";
+      return `${allocationRow}${auditRow}`;
+    }).join("") || '<tr><td colspan="8" class="capacity-empty">Belum ada load pada machine dan tanggal ini.</td></tr>';
     if (openDialog) $("capacity-allocation-dialog")?.showModal();
   }
   function issueActions(issue) {
@@ -807,19 +859,91 @@
   function allocationScoreDetail(item) {
     const scoring = item.recommendationScoreBreakdown || {};
     const breakdown = scoring.breakdown || {};
+    const context = scoring.context || {};
+    const audit = scoring.audit || {};
+    const demandTrace = audit.demandTrace || {};
+    const material = audit.materialReadiness || {};
+    const quantityAudit = audit.quantityCalculation || {};
+    const scheduleAudit = audit.scheduleDecision || {};
+    const lineage = audit.lineage || {};
     const labels = { dueProtection: "Proteksi due date", machineEfficiency: "Efisiensi mesin", loadBalance: "Load balance", queueWait: "Waktu antre", dependencySync: "Sinkronisasi proses", setupContinuity: "Minim setup", regularShift: "Shift reguler", laneFragmentation: "Konsistensi lane", sequenceContinuity: "Kontinuitas sequence" };
+    const explanations = {
+      dueProtection: `Sisa waktu ke target FG ${num(context.slackMinutes / 60, 2)} jam.`,
+      machineEfficiency: "Membandingkan cycle mesin terpilih dengan mesin kompatibel tercepat.",
+      loadBalance: `Load resource setelah allocation ${num(context.limitingResourceLoadPercent, 2)}%.`,
+      queueWait: `Menunggu slot ${num(context.waitMinutes / 60, 2)} jam dari waktu paling awal yang diizinkan.`,
+      dependencySync: `Jarak dari material/predecessor siap ${num(context.dependencyLagMinutes / 60, 2)} jam.`,
+      setupContinuity: `Urutan setup: ${context.setupContinuity || "belum tersedia"}.`,
+      regularShift: scheduleAudit.capacityMode === "OVERTIME" ? "Slot memakai overtime." : "Slot berada pada shift reguler.",
+      laneFragmentation: context.introducesAdditionalLane ? "Membuka lane mesin tambahan." : "Menjaga route pada lane yang sama.",
+      sequenceContinuity: "Menjaga urutan proses dan transfer batch.",
+    };
     const maximum = { dueProtection: 23, machineEfficiency: 15, loadBalance: 13, queueWait: 11, dependencySync: 12, setupContinuity: 10, regularShift: 7, laneFragmentation: 9, sequenceContinuity: 15 };
     const hasScore = item.recommendationScore !== null && item.recommendationScore !== undefined && item.recommendationScore !== "" && Number.isFinite(Number(item.recommendationScore));
-    if (!hasScore) return item.recommendationReason ? `<small class="capacity-score-reason">${esc(item.recommendationReason)}</small>` : "";
     const knownKeys = Object.keys(labels).filter((key) => Object.prototype.hasOwnProperty.call(breakdown, key));
     const unknownKeys = Object.keys(breakdown).filter((key) => !Object.prototype.hasOwnProperty.call(labels, key));
     const scoreRows = [...knownKeys, ...unknownKeys].map((key) => {
       const value = number(breakdown[key]);
       const max = number(maximum[key] ?? scoring.weights?.[key]) || Math.max(value, 1);
       const label = labels[key] || key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (character) => character.toUpperCase());
-      return `<span><i style="--score:${Math.max(0, Math.min(value / max * 100, 100))}%"></i><small>${esc(label)}</small><b>${num(value, 2)}/${num(max, 2)}</b></span>`;
+      return `<span title="${esc(explanations[key] || "Kontribusi factor terhadap score akhir.")}"><i style="--score:${Math.max(0, Math.min(value / max * 100, 100))}%"></i><small>${esc(label)}</small><b>${num(value, 2)}/${num(max, 2)}</b><em>${esc(explanations[key] || "Kontribusi weighted scoring.")}</em></span>`;
     }).join("");
-    return `<details class="capacity-score"><summary>Score ${num(item.recommendationScore, 2)}/100</summary><div class="capacity-score-grid">${scoreRows || '<small>Breakdown scoring belum tersedia.</small>'}</div><p>${esc(item.recommendationReason || "Dipilih oleh weighted capacity scoring.")}</p></details>`;
+    const dateLabel = (value) => {
+      const key = String(value || "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return "-";
+      return new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${key}T00:00:00`));
+    };
+    const sourceType = demandTrace.sourceType || item.demandSourceType || "DEMAND";
+    const sourceNumber = demandTrace.sourceNumber || item.demandSourceNumber || item.reference || "-";
+    const deliveryDate = demandTrace.customerTargetDate || item.customerTargetDate;
+    const fgDate = demandTrace.fgRequiredDate || item.fgRequiredDate;
+    const materialReadyDate = material.readyDate || item.materialReadyDate;
+    const predecessorKeys = lineage.predecessorKeys || item.predecessorAllocationIds || [];
+    const machine = (snapshot?.machines || []).find((row) => row.id === item.machineId);
+    const transferBatchQty = quantityAudit.transferBatchReceiptQty;
+    const formulaBasis = quantityAudit.priorityCappedRouteNetting
+      ? `min(batch ${qty(transferBatchQty, quantityAudit.fgReceiptUomCode)}, sisa kebutuhan proses ${qty(quantityAudit.routeQtyRemainingBeforeBatch, quantityAudit.uomCode)})`
+      : quantityAudit.discreteRoundingApplied
+        ? `[round((${qty(quantityAudit.receiptQtyBeforeBatch, quantityAudit.fgReceiptUomCode)} + ${qty(transferBatchQty, quantityAudit.fgReceiptUomCode)}) × BOM ${num(quantityAudit.routeFactor, 2)}) − round(${qty(quantityAudit.receiptQtyBeforeBatch, quantityAudit.fgReceiptUomCode)} × BOM ${num(quantityAudit.routeFactor, 2)})]`
+        : `${qty(transferBatchQty, quantityAudit.fgReceiptUomCode)} × BOM ${num(quantityAudit.routeFactor, 2)}`;
+    const manualDeduction = number(quantityAudit.manualAllocationConsumedQty) > 0
+      ? ` − ${qty(quantityAudit.manualAllocationConsumedQty, quantityAudit.uomCode)} manual allocation`
+      : "";
+    const formula = quantityAudit.calculatedAllocationQty != null
+      ? `${formulaBasis}${manualDeduction} = ${qty(quantityAudit.calculatedAllocationQty, quantityAudit.uomCode)} ${esc(quantityAudit.uomCode || item.uomCode || "")}`
+      : `${qty(item.qty, item.uomCode)} ${esc(item.uomCode || "")} dialokasikan ke Transfer Batch ${num(item.transferBatchNumber || 1)}. Formula rinci akan direkam saat Auto Allocation dijalankan ulang.`;
+    const candidateText = audit.candidatesEvaluated
+      ? `Peringkat ${num(audit.selectedRank || 1)} dari ${num(audit.candidatesEvaluated)} kandidat pada ${num(audit.resourceWindowsEvaluated)} resource window.`
+      : "Slot dipilih dari kalender, mesin, dies, shift, dan constraint yang tersedia saat rekomendasi dibuat.";
+    const alternatives = (audit.alternatives || []).slice(0, 3).map((alternative) => `${alternative.machineCode || "-"} / S${alternative.shift || "-"} (${num(alternative.score, 2)})`).join("; ");
+    const stockHistory = quantityAudit.fgStockCoverageHistory || [];
+    const stockHistoryHtml = stockHistory.length || number(quantityAudit.fgStockCoverageHistoryUntracedQty) > 0
+      ? `<details class="capacity-stock-history"><summary>Riwayat stock yang dipakai · ${qty(quantityAudit.fgStockCoverageQty, quantityAudit.fgReceiptUomCode)} ${esc(quantityAudit.fgReceiptUomCode || item.uomCode || "")}</summary>${stockHistory.map((line) => `<div><b>${esc(line.warehouseCode || "-")} / ${esc(line.rackCode || "Tanpa rack")} / Lot ${esc(line.lotNumber || "Tanpa lot")}</b><span>${line.coverageSource === "RESERVED_TO_DEMAND" ? `Reserved ${esc(line.reservationReferenceNumber || "SO")} dipakai ${qty(line.usedQty, line.uomCode)}` : `Available dipakai ${qty(line.usedQty, line.uomCode)}`} ${esc(line.uomCode || "")}</span><small>On hand ${qty(line.qtyOnHand, line.uomCode)} · Available ${qty(line.qtyAvailable, line.uomCode)} · Reserved ${qty(line.qtyReserved, line.uomCode)} · QC ${qty(line.qtyQC, line.uomCode)} · Movement ${esc(String(line.lastMovement || "-").slice(0, 10))}${line.reservationNumber ? ` · ${esc(line.reservationNumber)}` : ""}</small></div>`).join("")}${number(quantityAudit.fgStockCoverageHistoryUntracedQty) > 0 ? `<p>⚠ ${qty(quantityAudit.fgStockCoverageHistoryUntracedQty, quantityAudit.fgReceiptUomCode)} ${esc(quantityAudit.fgReceiptUomCode || "")} berasal dari baseline netting MRP, tetapi tidak lagi tersedia pada snapshot stock saat recommendation dibuat.</p>` : ""}</details>`
+      : "";
+    const campaignSegments = demandTrace.campaignSegments || [];
+    const customerCampaign = campaignSegments.find((segment) => !segment.isBufferStock);
+    const bufferCampaign = campaignSegments.find((segment) => segment.isBufferStock);
+    const demandQuantityText = campaignSegments.length
+      ? `Satu campaign produksi ${qty(quantityAudit.phaseDemandQty, quantityAudit.fgReceiptUomCode)} = customer ${qty(customerCampaign?.productionQty, quantityAudit.fgReceiptUomCode)} + buffer ${qty(bufferCampaign?.productionQty, quantityAudit.fgReceiptUomCode)} ${esc(quantityAudit.fgReceiptUomCode || "")}. Pegging tetap terpisah; mesin tidak perlu berhenti atau pindah shift.`
+      : quantityAudit.isBufferStock
+      ? `Buffer ${qty(quantityAudit.requestedBufferQty, quantityAudit.fgReceiptUomCode)} → produksi buffer ${qty(quantityAudit.phaseDemandQty, quantityAudit.fgReceiptUomCode)} ${esc(quantityAudit.fgReceiptUomCode || "")}. Dikerjakan setelah demand customer berprioritas.`
+      : quantityAudit.grossDemandQty != null
+        ? `Gross ${qty(quantityAudit.grossDemandQty, quantityAudit.fgReceiptUomCode)} − stock FG ${qty(quantityAudit.fgStockCoverageQty, quantityAudit.fgReceiptUomCode)} = produksi priority ${qty(quantityAudit.phaseDemandQty, quantityAudit.fgReceiptUomCode)} ${esc(quantityAudit.fgReceiptUomCode || "")}.`
+        : `${esc(sourceType)} ${esc(sourceNumber)} melayani ${qty(item.qty, item.uomCode)} ${esc(item.uomCode || "")}.`;
+    const fullLotPreserved = scheduleAudit.fullLotPreserved === true;
+    const batchingLabel = scheduleAudit.batchingPolicy
+      ? (fullLotPreserved ? "Batch utuh karena masih muat" : "Split karena kapasitas slot")
+      : "Aturan batch";
+    const batchingReason = scheduleAudit.batchingReason
+      || "Sistem mencoba batch utuh lebih dulu; split hanya menjadi fallback ketika qty tidak muat dalam slot sebelum due date.";
+    const steps = [
+      `<li><i>1</i><div><b>Demand priority ${esc(demandTrace.prioritySequence || quantityAudit.prioritySequence || "-")}</b><p>${esc(sourceType)} <strong>${esc(sourceNumber)}</strong>${(demandTrace.customerCode || item.customerCode) ? ` · Customer ${esc(demandTrace.customerCode || item.customerCode)}` : ""}. Delivery ${esc(dateLabel(deliveryDate))}; FG wajib siap ${esc(dateLabel(fgDate))}.${(demandTrace.priorityClass || item.priorityClass) ? ` Priority ${esc(demandTrace.priorityClass || item.priorityClass)} (${num(demandTrace.priorityScore ?? item.priorityScore, 2)}).` : ""}</p><p class="capacity-trace-equation">${demandQuantityText}</p>${stockHistoryHtml}</div></li>`,
+      `<li><i>2</i><div><b>Material boleh mulai</b><p>${materialReadyDate ? `Mulai paling awal ${esc(dateLabel(materialReadyDate))}` : "Tidak ada purchase requirement yang menahan start"} · ${esc(material.source || item.materialReadySource || "NO_PURCHASE_REQUIREMENT")}${material.supplierScheduleConfirmed ? " · supplier confirmed" : " · fallback due date sistem"}${material.suggestionNumber ? ` · ${esc(material.suggestionNumber)}` : ""}.</p></div></li>`,
+      `<li><i>3</i><div><b>Urutan predecessor</b><p>${predecessorKeys.length ? `${num(predecessorKeys.length)} allocation predecessor wajib selesai lebih dulu.` : "Proses pertama / tidak mempunyai predecessor allocation."} Dependency wait ${num(context.dependencyLagMinutes / 60, 2)} jam.</p></div></li>`,
+      `<li><i>4</i><div><b>${esc(batchingLabel)}</b><p>${esc(batchingReason)}</p><p class="capacity-trace-formula">${formula}</p>${quantityAudit.phaseDemandQty != null ? `<small>Produksi demand/buffer ${qty(quantityAudit.phaseDemandQty, quantityAudit.fgReceiptUomCode)} · batch shift ${qty(quantityAudit.transferBatchReceiptQty, quantityAudit.fgReceiptUomCode)} · kebutuhan proses tersisa ${qty(quantityAudit.routeQtyRemainingBeforeBatch, quantityAudit.uomCode)}. Buffer baru mengisi slot setelah sisa priority sebelumnya.</small>` : ""}</div></li>`,
+      `<li><i>5</i><div><b>Pemilihan slot</b><p>${esc(scheduleAudit.machineCode || machine?.machineCode || item.machineId || "Vendor")} · ${esc(dateLabel(scheduleAudit.scheduleDate || item.scheduleDate))} · ${esc(scheduleAudit.plannedStartTime || item.plannedStartTime || "-")}–${esc(scheduleAudit.plannedEndTime || item.plannedEndTime || "-")} · Shift ${esc(scheduleAudit.shift || item.shift || "-")} · ${esc(scheduleAudit.capacityMode || item.capacityMode || "NORMAL")}.</p><small>${esc(candidateText)}${alternatives ? ` Alternatif terdekat: ${esc(alternatives)}.` : ""}</small></div></li>`,
+    ].join("");
+    return `<details class="capacity-allocation-trace"><summary><span><b>Mengapa qty ${qty(item.qty, item.uomCode)} ${esc(item.uomCode || "")} dialokasikan di sini?</b><small>Demand → material → dependency → batch → slot → score</small></span>${hasScore ? `<strong>${num(item.recommendationScore, 2)}/100</strong>` : '<strong class="rule-based">Rule</strong>'}</summary><div class="capacity-allocation-trace-body"><p class="capacity-trace-verdict">${esc(item.recommendationReason || "Dibuat otomatis dari constraint planning yang tersedia.")}</p><ol class="capacity-trace-steps">${steps}</ol><section class="capacity-trace-score"><header><b>6. Pembentuk score</b><small>${hasScore ? `Total ${num(item.recommendationScore, 2)} dari 100` : "Allocation rule-based; tidak memakai weighted score."}</small></header>${hasScore ? `<div class="capacity-score-grid">${scoreRows || '<small>Breakdown scoring belum tersedia.</small>'}</div>` : ""}</section></div></details>`;
   }
   function issueDetail(issue) {
     const detail = issue.blockerDetail;
@@ -1028,7 +1152,7 @@
     try {
       const retainedCell = selectedCell;
       snapshot = await api(`/modules/api/planning-ppic/capacity-planning?${params}`);
-      renderStats(); renderHeatmap(); renderReadiness(); renderUnscheduled(); renderProcessLoad(); renderDeliveryCoverage(); renderVendorAllocations(); updateCapacityModeUi();
+      renderStats(); renderMaterialGate(); renderHeatmap(); renderReadiness(); renderUnscheduled(); renderProcessLoad(); renderDeliveryCoverage(); renderVendorAllocations(); updateCapacityModeUi();
       const firstLoaded = snapshot.machines.flatMap((machine) => snapshot.dates.map((date) => ({ machine, date, cell: machine.cells[date] }))).find((entry) => entry.cell.items.length) || (snapshot.machines[0] ? { machine: snapshot.machines[0], date: snapshot.dates[0] } : null);
       const canRetain = retainedCell && snapshot.dates.includes(retainedCell.date) && snapshot.machines.some((machine) => machine.id === retainedCell.machineId);
       if (canRetain) renderCell(retainedCell.machineId, retainedCell.date);
@@ -1319,7 +1443,7 @@
       dialog.className = "capacity-dialog capacity-allocation-dialog";
       const shell = document.createElement("div");
       shell.className = "capacity-dialog-shell";
-      shell.innerHTML = '<header class="capacity-dialog-head"><div><small>CAPACITY SLOT</small><b>Alokasi & Pengaturan Harian</b></div><button class="capacity-dialog-close" type="button" data-close-dialog="capacity-allocation-dialog" aria-label="Tutup">&times;</button></header>';
+      shell.innerHTML = '<header class="capacity-dialog-head"><div><small>CAPACITY SLOT</small><b>Alokasi & Pengaturan Harian</b><p>Review allocation terlebih dahulu. Buka pengaturan hanya saat perlu mengubah kalender atau allocation.</p></div><button class="capacity-dialog-close" type="button" data-close-dialog="capacity-allocation-dialog" aria-label="Tutup">&times;</button></header>';
       shell.append(allocationPanel);
       dialog.append(shell);
       document.body.append(dialog);
@@ -1330,6 +1454,14 @@
     document.addEventListener("click", (event) => {
       const close = event.target.closest("[data-close-dialog]");
       if (close) $(close.dataset.closeDialog)?.close();
+      const sectionToggle = event.target.closest("[data-capacity-dialog-section]");
+      if (sectionToggle) {
+        const section = $(sectionToggle.dataset.capacityDialogSection);
+        if (!section) return;
+        const collapsed = section.classList.toggle("capacity-dialog-section-collapsed");
+        sectionToggle.classList.toggle("active", !collapsed);
+        sectionToggle.setAttribute("aria-expanded", String(!collapsed));
+      }
     });
     [$("capacity-allocation-dialog"), scenarioDialog, flowDialog].filter(Boolean).forEach((dialog) => {
       dialog.addEventListener("click", (event) => {

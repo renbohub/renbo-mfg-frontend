@@ -17,7 +17,8 @@
   <section class="bom-header-form app-container">
     <div class="bom-header-field bom-header-product"><label>Produk Utama <em>*</em></label><select id="bom-root-part" class="form-select" <%= mode === 'view' ? 'disabled' : '' %>><option value="">Memuat master part...</option></select></div>
     <div class="bom-header-field"><label>Base UOM</label><select id="bom-root-uom" class="form-select" <%= mode === 'view' ? 'disabled' : '' %>><option value="">Pilih UOM</option></select></div>
-    <div class="bom-header-field"><label>Revisi</label><input id="bom-revision" class="form-control" type="number" min="1" value="1" <%= mode === 'view' ? 'disabled' : '' %>></div>
+    <div class="bom-header-field"><label>Revisi</label><input id="bom-revision" class="form-control" type="number" min="1" value="1" <%= mode === 'view' || mode === 'edit' ? 'readonly' : '' %>></div>
+    <% if (mode === 'edit') { %><div class="bom-header-field"><label>Cara Simpan</label><select id="bom-revision-mode" class="form-select"><option value="newRevision">Buat revisi baru</option><option value="correction">Koreksi revisi ini</option></select></div><div class="bom-header-field"><label>Catatan Revisi</label><input id="bom-revision-note" class="form-control" placeholder="Alasan perubahan struktur"></div><% } %>
     <div class="bom-header-field"><label>Effective Date</label><input id="bom-effective" class="form-control" type="date" <%= mode === 'view' ? 'disabled' : '' %>></div>
     <div class="bom-header-field"><label>Expiry Date</label><input id="bom-expiry" class="form-control" type="date" <%= mode === 'view' ? 'disabled' : '' %>></div>
     <button id="bom-toggle-notes" class="bom-notes-button" type="button">Catatan</button>

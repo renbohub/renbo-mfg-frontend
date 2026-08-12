@@ -21,6 +21,7 @@
     const response = await fetch(`/master-data/api/${select.dataset.lookup}?${params.toString()}`, { headers: authHeaders() });
     if (response.status === 401) return redirectLogin();
     const payload = await response.json().catch(() => ({ data: [] }));
+    select._lookupItems = payload.data || [];
     const current = select.value; select.innerHTML = `<option value="">Pilih ${select.closest('.form-field').querySelector('.form-label').textContent.replace('*','').trim().toLowerCase()}</option>`;
     (payload.data || []).forEach((item) => { const option = document.createElement("option"); option.value = valueAt(item, select.dataset.valueKey) ?? ""; const label = valueAt(item, select.dataset.labelKey) || option.value; option.textContent = select.dataset.showValue === "true" && String(label) !== String(option.value) ? `${option.value} — ${label}` : label; select.appendChild(option); });
     if (Array.isArray(field.labelKeys)) {
@@ -33,6 +34,35 @@
       });
     }
     select.value = current;
+  }
+
+  function applyPriceMasterDefaults(sourceName) {
+    if (mode !== "create") return;
+    const source = form.elements[sourceName];
+    const item = source?._lookupItems?.find((row) => String(valueAt(row, source.dataset.valueKey)) === String(source.value));
+    if (!item) return;
+    const setIfEmpty = (name, value) => { const input = form.elements[name]; if (input && !input.value && value != null) input.value = value; };
+    if (config.slug === "material-price-lists") {
+      setIfEmpty("purchasePackageUomCode", item.materialFormRef?.symbol || item.materialForm);
+      setIfEmpty("uomCode", item.defaultPurchaseUomCode || item.materialFormRef?.defaultPurchaseUomCode);
+    } else if (config.slug === "part-price-lists") {
+      setIfEmpty("uomCode", item.purchaseUomCode || item.baseUomCode || item.stockUomCode);
+    } else if (config.slug === "product-price-lists") {
+      setIfEmpty("uomCode", item.uomCode || item.uom?.uomCode);
+    }
+  }
+
+  function applyQueryPrefill() {
+    if (mode !== "create") return;
+    const params = new URLSearchParams(location.search);
+    config.fields.forEach((field) => {
+      if (!params.has(field.name)) return;
+      const input = form.elements[field.name];
+      if (!input || field.type === "file") return;
+      const value = params.get(field.name);
+      if (field.type === "checkbox") input.checked = value === "true" || value === "1";
+      else input.value = value;
+    });
   }
 
   function populate(record) {
@@ -65,11 +95,27 @@
   async function initialize() {
     try {
       await Promise.all([...document.querySelectorAll(".lookup-select")].map(loadLookup));
+      [["material-price-lists", "materialId"], ["part-price-lists", "partId"], ["product-price-lists", "productId"]]
+        .filter(([slug]) => config.slug === slug)
+        .forEach(([, name]) => form.elements[name]?.addEventListener("change", () => applyPriceMasterDefaults(name)));
       if (mode === "edit") {
         const response = await fetch(`/master-data/api/${config.slug}/${encodeURIComponent(recordKey)}`, { headers: authHeaders() });
         if (response.status === 401) return redirectLogin();
         const payload = await response.json(); if (!response.ok) throw new Error(payload.message || "Data gagal dibuka."); populate(payload); focusRequestedField();
-      } else if (config.generateCode) {
+      } else {
+        const today = toInputDate(new Date(), false);
+        config.fields.forEach((field) => {
+          const input = form.elements[field.name];
+          if (!input || input.value) return;
+          if (field.defaultValue === "today") input.value = today;
+          else if (field.defaultValue !== undefined) input.value = field.defaultValue;
+        });
+        applyQueryPrefill();
+        if (config.slug === "material-price-lists") applyPriceMasterDefaults("materialId");
+        if (config.slug === "part-price-lists") applyPriceMasterDefaults("partId");
+        if (config.slug === "product-price-lists") applyPriceMasterDefaults("productId");
+      }
+      if (mode === "create" && config.generateCode) {
         const response = await fetch(`/master-data/api/${config.slug}/generate-code`, { headers: authHeaders() });
         const payload = await response.json().catch(() => ({}));
         if (response.ok && payload[config.generateCode] && form.elements[config.generateCode]) form.elements[config.generateCode].value = payload[config.generateCode];
@@ -110,7 +156,8 @@
       const response = await fetch(url, { method: mode === "create" ? "POST" : "PATCH", headers, body });
       if (response.status === 401) return redirectLogin();
       const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.message || "Data gagal disimpan.");
-      location.replace(`/master-data/${config.slug}`);
+      const returnTo = new URLSearchParams(location.search).get("returnTo");
+      location.replace(returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : `/master-data/${config.slug}`);
     } catch (error) { alertBox.textContent = error.message; alertBox.classList.remove("d-none"); window.scrollTo({ top: 0, behavior: "smooth" }); }
     finally { saveButton.disabled = false; saveButton.querySelector("i").classList.add("d-none"); }
   });

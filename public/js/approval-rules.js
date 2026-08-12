@@ -3,6 +3,14 @@
   const catalog = Array.isArray(config.permissionCatalog) ? config.permissionCatalog : [];
   const templateActions = ["create", "update", "delete", "submit", "approve"];
   const actionLabels = { create: "Create", update: "Update", delete: "Delete", submit: "Submit", approve: "Approve / Confirm" };
+  const documentLifecycles = {
+    "purchasing/purchase-requisitions": { label: "Purchase Requisition", statuses: ["Draft", "Submitted", "Approved", "Rejected", "Partially Ordered", "Completed"], defaults: { pendingStatus: "Submitted", approvedStatus: "Approved", rejectedStatus: "Rejected" } },
+    "purchasing/purchase-order": { label: "Purchase Order", statuses: ["Draft", "Submitted", "Approved", "Rejected", "Sent", "Confirmed", "Partial Receipt", "Completed", "Cancelled"], defaults: { pendingStatus: "Submitted", approvedStatus: "Approved", rejectedStatus: "Rejected" } },
+    "purchasing/purchase-invoices": { label: "Purchase Invoice", statuses: ["Draft", "Submitted", "Matched", "Need Review", "Approved", "Posted", "Paid", "Cancelled"], defaults: { pendingStatus: "Submitted", approvedStatus: "Approved", rejectedStatus: "Need Review" } },
+    "sales/forecasts": { label: "Forecast", statuses: ["Draft", "Submitted", "Confirmed", "Rejected", "Partial Product", "Consumed", "Closed", "Obsolete"], defaults: { pendingStatus: "Submitted", approvedStatus: "Confirmed", rejectedStatus: "Rejected" } },
+    "production/production-logs": { label: "Production Log", statuses: ["Open", "Submitted", "Approved", "Rejected"], defaults: { pendingStatus: "Submitted", approvedStatus: "Approved", rejectedStatus: "Rejected" } },
+    "inventory/stock-opname": { label: "Stock Opname", statuses: ["DRAFT", "COUNTING", "WAITING_APPROVAL", "APPROVED", "ADJUSTED", "CLOSED", "CANCELLED", "REJECTED"], defaults: { pendingStatus: "WAITING_APPROVAL", approvedStatus: "APPROVED", rejectedStatus: "REJECTED" } },
+  };
   const state = { rules: [], roles: [], currentId: null, steps: [] };
   const $ = (id) => document.getElementById(id);
   const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
@@ -61,6 +69,18 @@
 
   function mergedRules() { return [...state.rules, ...templateRules()]; }
 
+  function currentLifecycle() {
+    return documentLifecycles[`${$("rule-module")?.value || ""}/${$("rule-page")?.value || ""}`] || null;
+  }
+
+  function statusControl(field, value, fallback) {
+    const lifecycle = currentLifecycle();
+    if (!lifecycle) return `<input data-field="${field}" value="${esc(value || "")}" placeholder="${esc(fallback)}"><small class="approval-status-help">Lifecycle halaman belum terdaftar.</small>`;
+    const selected = value || lifecycle.defaults[field] || "";
+    const statuses = lifecycle.statuses.includes(selected) || !selected ? lifecycle.statuses : [selected, ...lifecycle.statuses];
+    return `<select data-field="${field}">${statuses.map((status) => `<option value="${esc(status)}" ${status === selected ? "selected" : ""}>${esc(status)}${!lifecycle.statuses.includes(status) ? " (tidak valid)" : ""}</option>`).join("")}</select><small class="approval-status-help">Status aktual ${esc(lifecycle.label)}</small>`;
+  }
+
   function renderRules() {
     const query = $("rule-search").value.trim().toLowerCase();
     const allRules = mergedRules();
@@ -70,7 +90,8 @@
   }
 
   function emptyStep(order = 1) {
-    return { stepOrder: order, stepName: `Approval Level ${order}`, approverRoleId: "", requiredApprovals: 1, pendingStatus: "", approvedStatus: "", rejectedStatus: "Rejected", slaHours: "", isActive: true };
+    const defaults = currentLifecycle()?.defaults || {};
+    return { stepOrder: order, stepName: `Approval Level ${order}`, approverRoleId: "", requiredApprovals: 1, pendingStatus: defaults.pendingStatus || "", approvedStatus: defaults.approvedStatus || "", rejectedStatus: defaults.rejectedStatus || "Rejected", slaHours: "", isActive: true };
   }
 
   function renderSteps() {
@@ -80,6 +101,19 @@
       const select = $(`approval-steps`).querySelector(`tr[data-step-index="${index}"] [data-field="approverRoleId"]`);
       if (select) select.value = step.approverRoleId || "";
     });
+    const lifecycle = currentLifecycle();
+    if (lifecycle) {
+      $("approval-steps").querySelectorAll("tr[data-step-index]").forEach((row, index) => {
+        const step = state.steps[index] || {};
+        [["pendingStatus", "Submitted"], ["approvedStatus", "Approved"], ["rejectedStatus", "Rejected"]].forEach(([field, fallback]) => {
+          const input = row.querySelector(`[data-field="${field}"]`);
+          if (!input) return;
+          const wrapper = document.createElement("div");
+          wrapper.innerHTML = statusControl(field, step[field], fallback);
+          input.replaceWith(...wrapper.childNodes);
+        });
+      });
+    }
   }
 
   function syncStepsFromDom() {
@@ -170,7 +204,8 @@
     } catch (error) { alert(error.message, "danger"); }
   }
 
-  $("rule-module").addEventListener("change", () => fillPageOptions("*"));
+  $("rule-module").addEventListener("change", () => { fillPageOptions("*"); renderSteps(); });
+  $("rule-page").addEventListener("change", () => renderSteps());
   $("rule-search").addEventListener("input", renderRules);
   $("rule-list").addEventListener("click", (event) => {
     const button = event.target.closest("[data-rule-id]");

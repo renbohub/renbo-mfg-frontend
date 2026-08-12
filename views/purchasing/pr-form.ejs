@@ -9,6 +9,11 @@
     <div class="ops-title-actions"><a id="pr-cancel" class="btn btn-outline-secondary" href="<%= mode === 'edit' ? '/modules/purchasing/purchase-requisitions/' + encodeURIComponent(recordKey) + (prCategory ? '?category=' + prCategory : '') : '/modules/purchasing/purchase-requisitions?category=' + prCategory %>">Batal</a><button id="pr-save" class="btn btn-primary brand-button" type="submit" form="pr-form">Simpan Draft</button></div>
   </section>
   <div id="pr-alert" class="alert d-none" role="alert"></div>
+  <section class="pr-editor-guide" aria-label="Panduan edit PR">
+    <div><b>1</b><span><strong>Periksa kebutuhan</strong><small>Required date, qty, dan UOM</small></span></div>
+    <i>→</i><div><b>2</b><span><strong>Tentukan pembelian</strong><small>Supplier, bentuk Coil/Sheet/Pcs, dan harga</small></span></div>
+    <i>→</i><div><b>3</b><span><strong>Simpan Draft</strong><small>Trace MRP tetap dipertahankan</small></span></div>
+  </section>
   <form id="pr-form" novalidate>
     <section class="ops-detail-card pr-form-card">
       <header><div><h2>Informasi Dokumen</h2><p>Data permintaan, tanggal kebutuhan, dan PIC.</p></div><span class="ops-badge draft" id="pr-status">Draft</span></header>

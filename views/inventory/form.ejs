@@ -30,6 +30,11 @@
         <label data-adjustment-field><span>Adjustment Type *</span><select id="adjustmentType"><option value="">Pilih adjustment</option><option value="INCREASE">INCREASE</option><option value="DECREASE">DECREASE</option></select></label>
         <label><span>Reference Number</span><input id="referenceNumber" placeholder="GR / MO / WO / dokumen lain"></label>
         <label class="span-2"><span>Catatan</span><textarea id="notes" rows="3"></textarea></label>
+        <div class="span-2 inventory-batch-add"><div><strong>Item transaksi</strong><small>Isi item di atas lalu tambahkan ke daftar. Maksimal 100 baris per submit.</small></div><button id="inventory-add-line" class="btn btn-outline-primary" type="button">＋ Tambahkan ke Daftar</button></div>
+        <section class="span-2 inventory-batch-panel">
+          <header><div><strong>Daftar Stock Movement</strong><small id="inventory-batch-count">0 item siap disimpan</small></div><button id="inventory-clear-lines" class="btn btn-sm btn-outline-secondary" type="button" disabled>Kosongkan</button></header>
+          <div class="table-responsive"><table class="table align-middle mb-0" data-enterprise-table="off"><thead><tr><th>#</th><th>Type</th><th>Lokasi</th><th>Stock Type</th><th>Item / Part Number</th><th>Lot</th><th>Qty</th><th>Referensi</th><th></th></tr></thead><tbody id="inventory-batch-body"><tr data-empty><td colspan="9"><div class="inventory-batch-empty">Belum ada item. Isi form lalu klik <b>Tambahkan ke Daftar</b>.</div></td></tr></tbody></table></div>
+        </section>
       <% } else { %>
         <label><span>STO Type *</span><select id="stoType" required><option value="MATERIAL">MATERIAL</option><option value="WIP">WIP</option><option value="FG">FG</option></select></label>
         <label><span>Warehouse *</span><select id="warehouseCode" required><option value="">Pilih warehouse</option></select></label>
@@ -40,7 +45,7 @@
         <label class="span-2"><span>Catatan</span><textarea id="notes" rows="3"></textarea></label>
       <% } %>
     </div>
-    <div class="module-form-actions"><a class="btn btn-outline-secondary" href="/modules/inventory/<%= page.slug %>">Batal</a><button class="btn btn-primary brand-button" type="submit">Simpan</button></div>
+    <div class="module-form-actions"><a class="btn btn-outline-secondary" href="/modules/inventory/<%= page.slug %>">Batal</a><button id="inventory-submit" class="btn btn-primary brand-button" type="submit"><%= page.slug === 'stock-movements' ? 'Simpan Semua Movement' : 'Simpan' %></button></div>
   </form>
 </main>
 <script id="inventory-form-config" type="application/json"><%- JSON.stringify({ page: page.slug }).replace(/</g, '\\u003c') %></script>

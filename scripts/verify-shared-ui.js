@@ -140,9 +140,24 @@ requireText("public/css/master-data.css", [
 ]);
 
 requireText("public/js/shared-data-table.js", [
+  { pattern: /formatQuantity/, label: "formatter quantity berdasarkan UOM belum tersedia" },
+  { pattern: /Math\.round\(number\(value\)\)/, label: "PCS belum dibulatkan ke integer" },
+  { pattern: /normalizePcsDisplay/, label: "normalisasi tampilan PCS untuk komponen legacy belum tersedia" },
   { pattern: /installManualSorting\(\)/, label: "sorting tabel non-DataTables belum tersedia" },
   { pattern: /toggleManualSort\(index\)/, label: "toggle ascending\/descending manual belum tersedia" },
   { pattern: /parentTable = node\.closest/, label: "tabel dinamis belum otomatis mendapat sorting" },
+  { pattern: /data-column-visibility-state/, label: "status tampil\/sembunyi kolom belum eksplisit" },
+  { pattern: /Mode \$\{this\.state\.density/, label: "feedback density belum tersedia" },
+  { pattern: /Kolom \$\{this\.labels\[index\]\}.*di-freeze di kiri/, label: "feedback freeze kolom belum tersedia" },
+  { pattern: /restoreTools\(\)/, label: "toolbar tabel belum dipulihkan setelah DataTables redraw" },
+  { pattern: /filter\(\(\{ index, label \}\)/, label: "export kolom wajib membawa index ke filter" },
+  { pattern: /data-table-export="xlsx"/, label: "aksi export XLSX tabel belum tersedia" },
+  { pattern: /data-table-export="pdf"/, label: "aksi export PDF tabel belum tersedia" },
+  { pattern: /form\.action = `\/table-documents\//, label: "download attachment native belum tersedia" },
+  { pattern: /table\[data-enterprise-table-ready='true'\]/, label: "tabel aktif belum diaudit ulang setelah perubahan DOM" },
+  { pattern: /applyPinnedColumnWidth\(index, width\)/, label: "resize kolom frozen belum disinkronkan" },
+  { pattern: /pinnedTable\.style\.setProperty\("width"/, label: "lebar overlay freeze tunggal belum dikunci ke lebar kolom" },
+  { pattern: /overlay\.addEventListener\("pointerdown"/, label: "header frozen belum bisa di-resize dengan mouse" },
 ]);
 
 ["public/js/module-list.js", "public/js/operations-dashboard.js", "public/js/entity-list.js"].forEach((relativePath) => requireText(relativePath, [
@@ -167,6 +182,36 @@ requireText("public/js/ppic-dashboard.js", [
   { pattern: /data-ppic-list-filter="period"/, label: "filter periode PPIC belum tersedia" },
   { pattern: /data-ppic-list-filter="customer"/, label: "filter customer PPIC belum tersedia" },
   { pattern: /data-ppic-list-filter="status"/, label: "filter status PPIC belum tersedia" },
+  { pattern: /MPS Demand Matrix/, label: "MPS Demand Matrix belum menjadi planner view" },
+  { pattern: /Review & Lock/, label: "aksi Review & Lock Demand belum tersedia" },
+  { pattern: /Actual SO[\s\S]*Target MPS/, label: "cell MPS belum menampilkan Forecast\/SO\/Target" },
+]);
+
+requireText("views/ppic/detail.ejs", [
+  { pattern: /ppic-planner-matrix-card/, label: "workspace matrix detail PPIC belum tersedia" },
+  { pattern: /ppic-bucket-drawer/, label: "drawer exact-date bucket belum tersedia" },
+]);
+
+requireText("public/js/ppic-detail.js", [
+  { pattern: /MRP Planner Grid/, label: "MRP Planner Grid belum tersedia" },
+  { pattern: /BUY \/ PR/, label: "baris BUY\/PR belum tersedia" },
+  { pattern: /PROJECTED STOCK/, label: "baris projected stock belum tersedia" },
+  { pattern: /Part No\./, label: "part number master belum tampil di MRP Planner Grid" },
+  { pattern: /supplierDisplayName/, label: "nama supplier master belum dipakai di MRP Planner Grid" },
+  { pattern: /Supplier Harus Datang[\s\S]*PR Maksimal/, label: "detail exact purchase date belum lengkap" },
+  { pattern: /Customer Pegging/, label: "customer pegging view belum tersedia" },
+]);
+
+requireText("public/js/operations-detail.js", [
+  { pattern: /MOQ_PULL_FORWARD/, label: "allocation kebutuhan berikutnya dari MOQ belum ditampilkan" },
+  { pattern: /ps-allocation-breakdown/, label: "breakdown alokasi MOQ Purchase Suggestion belum tersedia" },
+  { pattern: /data-moq-allocation-planner/, label: "planner alokasi MOQ belum tersedia di form konfirmasi" },
+  { pattern: /moqDemandAllocations/, label: "alokasi demand berikutnya belum disimpan dari form konfirmasi" },
+]);
+
+requireText("public/css/planning-matrix.css", [
+  { pattern: /resize:horizontal/, label: "kolom matrix belum dapat di-resize" },
+  { pattern: /position:sticky/, label: "kolom identitas matrix belum di-freeze" },
 ]);
 
 if (failures.length) {

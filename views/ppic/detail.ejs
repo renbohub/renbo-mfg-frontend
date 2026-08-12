@@ -22,11 +22,21 @@
         <div class="ppic-status-summary"><h3>Status Summary</h3><div id="ppic-status-path"></div></div>
       </aside>
       <div class="ppic-detail-main">
+        <nav id="ppic-planning-flow" class="planning-flowbar planning-flowbar-detail d-none" aria-label="Alur demand sampai purchasing"></nav>
         <section class="ppic-detail-card">
           <h2 id="ppic-info-title">Informasi Dokumen</h2>
           <div id="ppic-info-grid" class="ppic-detail-info"></div>
         </section>
-        <section class="ppic-detail-card">
+        <section id="ppic-planner-matrix-card" class="ppic-detail-card planner-matrix-card d-none">
+          <div class="planner-matrix-card-head">
+            <div><small id="ppic-planner-eyebrow">PLANNER VIEW</small><h2 id="ppic-planner-title">Planning Matrix</h2><p id="ppic-planner-description"></p></div>
+            <div id="ppic-planner-tabs" class="planner-matrix-tabs"></div>
+          </div>
+          <div id="ppic-planner-toolbar" class="planner-matrix-toolbar"></div>
+          <div id="ppic-planner-content" class="planner-matrix-content"></div>
+          <footer id="ppic-planner-footer" class="planner-matrix-footer"></footer>
+        </section>
+        <section id="ppic-technical-detail-card" class="ppic-detail-card">
           <div class="ppic-table-card-head"><h2 id="ppic-table-title">Detail</h2><div id="ppic-table-filters" class="ppic-table-filters"></div></div>
           <div id="ppic-detail-table-wrap" class="table-responsive"><table id="ppic-detail-table" class="table ppic-detail-table"><thead id="ppic-detail-head"></thead><tbody id="ppic-detail-rows"></tbody></table></div>
         </section>
@@ -49,6 +59,10 @@
           <div class="table-responsive"><table class="table ppic-detail-table ppic-procurement-table"><thead><tr><th><input id="ppic-procurement-check-all" type="checkbox" aria-label="Pilih semua planned order"></th><th>Planned Order</th><th>Material / Part</th><th>Demand / Sisa</th><th>Qty Rekomendasi</th><th>UOM</th><th>Tindak Lanjut</th><th>Purchase Suggestion</th></tr></thead><tbody id="ppic-procurement-rows"></tbody></table></div>
           <div id="ppic-procurement-summary" class="ppic-procurement-summary"></div>
         </section>
+        <section id="ppic-mrp-views" class="ppic-detail-card d-none">
+          <div class="ppic-table-card-head"><div><h2>Jadwal Kebutuhan & Pembelian</h2><p class="ppic-section-help">Dipisahkan menurut bulan supplier harus datang. Tanggal PR dan PO dihitung mundur dari delivery customer, lead time proses, serta lead time pembelian.</p></div><div class="ppic-view-tabs"><button type="button" class="active" data-mrp-view="procurement">Jadwal Pembelian</button><button type="button" data-mrp-view="pegging">Customer Pegging</button></div></div>
+          <div id="ppic-mrp-view-content" class="table-responsive"><p class="ppic-empty">Memuat view MRP…</p></div>
+        </section>
         <section class="ppic-detail-card">
           <h2 id="ppic-summary-title">Ringkasan Perencanaan</h2>
           <div id="ppic-summary-grid" class="ppic-detail-summary"></div>
@@ -57,6 +71,13 @@
         </section>
       </div>
     </div>
+    <aside id="ppic-bucket-drawer" class="planner-bucket-drawer" aria-hidden="true">
+      <div class="planner-bucket-backdrop" data-close-bucket-drawer></div>
+      <section class="planner-bucket-panel" role="dialog" aria-modal="true" aria-labelledby="ppic-bucket-title">
+        <header><div><small>EXACT DATE &amp; PEGGING</small><h2 id="ppic-bucket-title">Detail bucket</h2><p id="ppic-bucket-meta"></p></div><button type="button" data-close-bucket-drawer aria-label="Tutup">&times;</button></header>
+        <div id="ppic-bucket-body"></div>
+      </section>
+    </aside>
   </section>
 </main>
 <script id="ppic-detail-config" type="application/json"><%- JSON.stringify({ activeTab: activePpicTab, recordKey }).replace(/</g, '\\u003c') %></script>

@@ -7,6 +7,7 @@ const masterDataRoutes = require("./src/routes/masterData");
 const modulesRoutes = require("./src/routes/modules");
 const pageContextRoutes = require("./src/routes/pageContext");
 const maintenanceRoutes = require("./src/routes/maintenance");
+const tableDocumentRoutes = require("./src/routes/tableDocuments");
 const { modules } = require("./src/moduleRegistry");
 
 const app = express();
@@ -18,8 +19,8 @@ app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 app.disable("x-powered-by");
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "25mb" }));
+app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 const vendor = (route, folder) => app.use(route, express.static(path.join(__dirname, "node_modules", folder)));
@@ -39,6 +40,7 @@ app.use("/modules", modulesRoutes);
 app.use("/master-data", masterDataRoutes);
 app.use("/page-context/api", pageContextRoutes);
 app.use("/maintenance", maintenanceRoutes);
+app.use("/table-documents", tableDocumentRoutes);
 app.get("/logs", (_req, res) => res.render("logs/index", {
   title: "Log Center",
   requiresAuth: true,

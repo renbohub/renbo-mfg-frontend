@@ -102,6 +102,19 @@ router.patch("/api/excel-imports/:key/approve", async (req, res) => proxyMutatio
 router.post("/api/excel-imports/:key/apply-forecast", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST", `/${encodeURIComponent(req.params.key)}/apply-forecast`));
 router.post("/api/excel-imports/:key/apply-historical", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST", `/${encodeURIComponent(req.params.key)}/apply-historical`));
 
+router.get("/api/foundation/supplier-items", async (req, res) => {
+  try {
+    const url = new URL(`${backendUrl}/api/master-data/foundation/supplier-items`);
+    Object.entries(req.query).forEach(([key, value]) => url.searchParams.set(key, String(value)));
+    const response = await fetch(url, { headers: authHeader(req), signal: AbortSignal.timeout(15000) });
+    const payload = await readBackend(response);
+    if (!response.ok) return sendBackendError(res, response, payload);
+    res.json(payload);
+  } catch (error) {
+    res.status(503).json({ message: backendOffline(error) ? `Backend belum aktif di ${backendUrl}.` : "Tidak dapat mengambil Supplier Item." });
+  }
+});
+
 router.get("/api/:entity/generate-code", async (req, res) => {
   const config = requireConfig(req, res);
   if (!config || !config.generateCode) return;
@@ -229,13 +242,13 @@ router.delete("/api/:entity/:id", async (req, res) => {
 router.get("/:entity/new", (req, res) => {
   const config = getEntity(req.params.entity);
   if (!config) return res.status(404).render("errors/404", { title: "Modul tidak ditemukan" });
-  res.render("master-data/entity-form", { title: `Tambah ${config.singular}`, config, mode: "create", recordId: "", recordKey: "", pageScript: "/js/entity-form.js?v=20260809-1", ...pageData(config) });
+  res.render("master-data/entity-form", { title: `Tambah ${config.singular}`, config, mode: "create", recordId: "", recordKey: "", pageScript: "/js/entity-form.js?v=20260812-add-price", ...pageData(config) });
 });
 
 router.get("/:entity/:id/edit", (req, res) => {
   const config = getEntity(req.params.entity);
   if (!config) return res.status(404).render("errors/404", { title: "Modul tidak ditemukan" });
-  res.render("master-data/entity-form", { title: `Edit ${config.singular}`, config, mode: "edit", recordId: req.params.id, recordKey: String(req.query.key || req.params.id), pageScript: "/js/entity-form.js?v=20260809-1", ...pageData(config) });
+  res.render("master-data/entity-form", { title: `Edit ${config.singular}`, config, mode: "edit", recordId: req.params.id, recordKey: String(req.query.key || req.params.id), pageScript: "/js/entity-form.js?v=20260812-add-price", ...pageData(config) });
 });
 
 router.get("/:entity/:key", (req, res) => {

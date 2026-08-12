@@ -11,14 +11,15 @@
   const freezeCountInput = document.getElementById("bom-table-freeze-count");
   const freezeStorageKey = "bom.tableEditor.freezeColumns";
   const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
-  const state = { record: null, parts: [], uoms: [], processes: [], machines: [], materialForms: [], partPrices: [], materialPrices: [], vendorPrices: [], suppliers: [], vendors: [], currencies: [], rows: [], omittedRows: [], editingProcessKey: null, editingMaterialKey: null, bomByNoReg: new Map() };
+  const state = { record: null, parts: [], uoms: [], processes: [], machines: [], machineCostRates: [], materialForms: [], partPrices: [], materialPrices: [], vendorPrices: [], suppliers: [], vendors: [], currencies: [], rows: [], omittedRows: [], editingProcessKey: null, editingMaterialKey: null, bomByNoReg: new Map() };
   const keyOf = (row) => row.id || row.clientKey;
   const escapeHtml = (value) => { const element = document.createElement("div"); element.textContent = value ?? ""; return element.innerHTML; };
   const escapeAttr = (value) => escapeHtml(value).replaceAll('"', "&quot;");
   const dateInput = (value) => value ? new Date(value).toISOString().slice(0, 10) : "";
+  const todayInput = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
   const newKey = () => `table_${window.crypto?.randomUUID ? window.crypto.randomUUID() : Date.now() + "_" + Math.random().toString(16).slice(2)}`;
   const money = (value) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value || 0));
-  const moneyPerSecond = (value) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(Number(value || 0));
+  const moneyPerSecond = (value) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
   const durationToHours = (value, unit = "HOUR") => { const amount = Math.max(Number(value || 0), 0); return unit === "SECOND" ? amount / 3600 : unit === "MINUTE" ? amount / 60 : unit === "DAY" ? amount * 8 : amount; };
   const leadTimeUnitOptions = (selected) => [["SECOND", "Detik"], ["MINUTE", "Menit"], ["HOUR", "Jam"], ["DAY", "Hari (8 jam)"]].map(([value, label]) => option(value, label, selected || "HOUR")).join("");
 
@@ -40,9 +41,10 @@
   function parentOptions(row) { const forbidden = descendantsOf(keyOf(row)); return `<option value="">Produk Utama (Root)</option>${state.rows.filter((candidate) => keyOf(candidate) !== keyOf(row) && !forbidden.has(keyOf(candidate))).map((candidate) => { const part = state.parts.find((item) => item.id === candidate.partId) || candidate.part || {}; return option(keyOf(candidate), `${part.partCode || "—"} — ${part.partName || ""}`, row.parentDetailId); }).join("")}`; }
   function levelOf(row) { let level = 1; let parent = state.rows.find((item) => keyOf(item) === row.parentDetailId); const visited = new Set([keyOf(row)]); while (parent && !visited.has(keyOf(parent))) { visited.add(keyOf(parent)); level += 1; parent = state.rows.find((item) => keyOf(item) === parent.parentDetailId); } return level; }
   function linkedBom(row, recordNoReg = state.record?.noReg) { return (row.part?.mbomHeaders || []).find((bom) => bom.noReg !== recordNoReg && !bom.isDeleted) || null; }
-  function priceValue(record) { const month = new Date().getMonth(); for (let offset = 0; offset < 12; offset += 1) { const value = Number(record?.[MONTHS[(month - offset + 12) % 12]]); if (value > 0) return value; } return 0; }
+  function costingDate() { const value = document.getElementById("bom-table-effective")?.value || state.record?.effectiveDate; const parsed = value ? new Date(value) : new Date(); return Number.isNaN(parsed.getTime()) ? new Date() : parsed; }
+  function priceValue(record) { const direct = Number(record?.unitPrice); if (Number.isFinite(direct) && direct >= 0 && record?.unitPrice !== null) return direct; const at = costingDate(); for (let index = at.getMonth(); index >= 0; index -= 1) { const value = Number(record?.[MONTHS[index]]); if (value > 0) return value; } return 0; }
   function toIdr(value, currencyCode) { if (!value) return 0; if (!currencyCode || currencyCode === "IDR") return Number(value); const currency = state.currencies.find((item) => item.currencyCode === currencyCode); return Number(value) * Number(currency?.exchangeRate || 1); }
-  function latest(records) { return [...records].sort((a, b) => Number(b.pricingYear || 0) - Number(a.pricingYear || 0) || new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0))[0]; }
+  function latest(records) { const at = costingDate(); const temporal = records.filter((row) => row.effectiveFrom && row.isActive !== false && new Date(row.effectiveFrom) <= at && (!row.effectiveUntil || new Date(row.effectiveUntil) >= at)).sort((a, b) => new Date(b.effectiveFrom) - new Date(a.effectiveFrom) || new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0)); if (temporal.length) return temporal[0]; return records.filter((row) => !row.effectiveFrom && Number(row.pricingYear || 0) <= at.getFullYear()).sort((a, b) => Number(b.pricingYear || 0) - Number(a.pricingYear || 0) || new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0)).find((row) => priceValue(row) > 0); }
   function selectedMaterialForm(row) {
     const formId = row.materialScheme === "ALTERNATIVE" ? row.alternateMaterialFormId : row.materialFormId;
     return state.materialForms.find((form) => form.id === formId) || null;
@@ -65,7 +67,8 @@
     }).sort((a, b) => Number(Boolean(b.materialId)) - Number(Boolean(a.materialId)));
     const materialPrice = latest(materialCandidates); const materialValue = priceValue(materialPrice);
     if (materialValue > 0) return { value: toIdr(materialValue, materialPrice.currencyCode), found: true, kind: "material", source: materialPrice };
-    return { value: 0, found: false, kind: row.category === "Vendor" ? "vendor" : "purchase", source: null };
+    const hasMaterialMaster = Boolean(part.materialId || material.materialGradeId || material.materialSubstanceId);
+    return { value: 0, found: false, kind: row.category === "Vendor" ? "vendor" : hasMaterialMaster ? "material" : "purchase", source: null };
   }
   function purchaseMaterialInfo(row) {
     const part = row.part || state.parts.find((item) => item.id === row.partId) || {};
@@ -77,28 +80,50 @@
       priceQty: weightQty ? bomQty * Number(row.grossWeight) : bomQty,
       qtyUnit: weightQty ? "kg" : row.uomCode || "unit",
       sourceSlug: price.kind === "material" ? "material-price-lists" : "part-price-lists",
+      prefill: price.kind === "material" ? {
+        materialId: part.materialId || "",
+        materialSubstanceId: part.material?.materialSubstanceId || "",
+        materialGradeId: part.material?.materialGradeId || "",
+        supplierId: part.supplierId || "",
+        thickness: part.material?.thickness ?? "",
+        CSP: selectedMaterialForm(row)?.symbol || part.material?.CSP || "",
+        purchasePackageUomCode: selectedMaterialForm(row)?.symbol || part.material?.materialForm || "",
+        uomCode: part.material?.defaultPurchaseUomCode || (weightQty ? "KG" : row.uomCode || ""),
+      } : {
+        partId: row.partId || part.id || "",
+        supplierId: part.supplierId || "",
+        uomCode: part.purchaseUomCode || row.uomCode || "",
+      },
     };
   }
   function priceListLink(info) {
     if (!info) return "";
-    const href = info.source?.id
-      ? `/master-data/${info.sourceSlug}/${encodeURIComponent(info.source.id)}/edit?key=${encodeURIComponent(info.source.id)}`
-      : `/master-data/${info.sourceSlug}`;
-    return `<a class="bom-cost-source-link" href="${href}" target="_blank" rel="noopener">${info.source?.id ? "Buka Price List" : "Lengkapi Price List"}</a>`;
+    if (info.source?.id) {
+      const href = `/master-data/${info.sourceSlug}/${encodeURIComponent(info.source.id)}/edit?key=${encodeURIComponent(info.source.id)}`;
+      return `<a class="bom-cost-source-link" href="${href}" target="_blank" rel="noopener">Buka Price List</a>`;
+    }
+    const params = new URLSearchParams({
+      ...Object.fromEntries(Object.entries(info.prefill || {}).filter(([, value]) => value !== "" && value != null)),
+      effectiveFrom: document.getElementById("bom-table-effective")?.value || new Date().toISOString().slice(0, 10),
+      returnTo: location.pathname,
+      source: "BOM",
+    });
+    return `<a class="bom-cost-source-link" href="/master-data/${info.sourceSlug}/new?${params.toString()}">+ Tambah Harga</a>`;
   }
   function purchaseMaterialCells(row) {
     const info = purchaseMaterialInfo(row);
     if (!info) return '<td class="bom-not-applicable">—</td><td class="bom-not-applicable">—</td>';
     const price = info.found ? money(info.value) : "—";
-    const quantity = Number(info.priceQty || 0).toLocaleString("id-ID", { maximumFractionDigits: 6 });
+    const quantity = Number(info.priceQty || 0).toLocaleString("id-ID", { maximumFractionDigits: 2 });
     const qtyCaption = info.kind === "material" ? "BOM Qty × Gross Weight" : "Mengikuti Qty BOM";
     return `<td><strong class="bom-purchase-price">${price}</strong>${priceListLink(info)}</td><td><strong class="bom-price-qty">${quantity}</strong><small class="bom-hour-unit">${escapeHtml(info.qtyUnit)} · ${qtyCaption}</small></td>`;
   }
   function machineCostPerSecond(process) {
     const machine = representativeMachine(process);
-    const seconds = Number(process.cycleTime || 0); const rate = toIdr(Number(machine.costingRate || 0), machine.currencyCode);
+    const effectiveRate = latest(state.machineCostRates.filter((item) => item.machineId === machine.id));
+    const seconds = Number(process.cycleTime || 0); const rate = toIdr(Number(effectiveRate?.unitPrice ?? machine.costingRate ?? 0), effectiveRate?.currencyCode || machine.currencyCode);
     if (!(rate > 0)) return { value: 0, found: false };
-    const type = String(machine.costingRateType || "PER_HOUR").toUpperCase();
+    const type = String(effectiveRate?.costingRateType || machine.costingRateType || "PER_HOUR").toUpperCase();
     if (type === "PER_SECOND") return { value: rate, found: true };
     if (type === "PER_MINUTE") return { value: rate / 60, found: true };
     if (type === "PER_CYCLE") return { value: seconds > 0 ? rate / seconds : 0, found: seconds > 0 };
@@ -111,9 +136,10 @@
   }
   function machineRateDisplay(process) {
     const machine = representativeMachine(process);
-    const rate = Number(machine.costingRate || 0); const type = String(machine.costingRateType || "PER_HOUR").toUpperCase();
+    const effectiveRate = latest(state.machineCostRates.filter((item) => item.machineId === machine.id));
+    const rate = Number(effectiveRate?.unitPrice ?? machine.costingRate ?? 0); const type = String(effectiveRate?.costingRateType || machine.costingRateType || "PER_HOUR").toUpperCase();
     const unit = { PER_SECOND: "/ detik", PER_MINUTE: "/ menit", PER_HOUR: "/ jam", PER_CYCLE: "/ cycle" }[type] || "/ jam";
-    return { value: toIdr(rate, machine.currencyCode), unit, found: rate > 0 };
+    return { value: toIdr(rate, effectiveRate?.currencyCode || machine.currencyCode), unit, found: rate > 0 };
   }
   function machineMasterLink(machine, label = "") {
     if (!machine?.id) return "";
@@ -174,7 +200,7 @@
     if (!childRecord) return `<td><strong class="bom-cost-missing">Cost belum dimuat</strong><a class="bom-cost-source-link" href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(childHeader.noReg)}/edit-table">Buka MBOM turunan</a></td>`;
     const estimate = estimateCache.get(childRecord.noReg) || estimateRecord(childRecord, new Set(state.record?.noReg ? [state.record.noReg] : [])); estimateCache.set(childRecord.noReg, estimate); const qty = Math.max(0, Number(row.qty || 0)); const extendedCost = estimate.total * qty;
     const coverage = estimate.lines > estimate.covered ? `<small class="bom-cost-missing">${estimate.lines - estimate.covered} harga/rate belum lengkap</small>` : '<small class="bom-cost-complete">Cost master lengkap</small>';
-    return `<td><strong class="bom-child-cost">${money(extendedCost)}</strong><small class="bom-hour-unit">${money(estimate.total)} / unit × ${qty.toLocaleString("id-ID", { maximumFractionDigits: 4 })}</small>${coverage}<a class="bom-cost-source-link" href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(childHeader.noReg)}/edit-table">Sumber: ${escapeHtml(childHeader.noReg)}</a></td>`;
+    return `<td><strong class="bom-child-cost">${money(extendedCost)}</strong><small class="bom-hour-unit">${money(estimate.total)} / unit × ${qty.toLocaleString("id-ID", { maximumFractionDigits: 2 })}</small>${coverage}<a class="bom-cost-source-link" href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(childHeader.noReg)}/edit-table">Sumber: ${escapeHtml(childHeader.noReg)}</a></td>`;
   }
 
   function applyFrozenColumns() {
@@ -196,11 +222,11 @@
     if (part.itemType !== "RAW" || part.rawType !== "MATERIAL") return "";
     const material = part.material || {}; const spec = material.spec || material.materialGrade || material.materialCode || "Material belum terhubung";
     const thickness = row.materialThickness ?? material.thickness; const width = row.materialWidth ?? material.width; const pitch = row.materialPitch; const csp = selectedMaterialForm(row)?.symbol || "";
-    const thicknessText = thickness !== null && thickness !== undefined ? (Number.isInteger(Number(thickness)) ? Number(thickness).toFixed(1) : String(Number(thickness))) : null;
+    const thicknessText = thickness !== null && thickness !== undefined ? Number(thickness).toLocaleString("id-ID", { maximumFractionDigits: 2 }) : null;
     const dimensions = [thicknessText ? `t${thicknessText}` : null, width !== null && width !== undefined ? Number(width) : null, pitch !== null && pitch !== undefined ? Number(pitch) : null, csp || null].filter((value) => value !== null && value !== "").join(" × ");
     const detail = part.materialId ? `${spec}${dimensions ? ` ${dimensions}` : ""}` : "Material belum terhubung ke Master Material";
     const activeScheme = row.materialScheme === "ALTERNATIVE" ? "Alternatif" : "Default"; const activeCavity = row.materialScheme === "ALTERNATIVE" ? row.alternateMaterialCavity : row.materialCavity;
-    return `<button class="bom-table-material-consumption" type="button" data-edit-material><b>${escapeHtml(detail)}</b><small>${activeScheme} · Cavity ${Number(activeCavity || 1)} · Gross ${Number(row.grossWeight || 0).toFixed(6)} kg/pcs</small><em>Edit konsumsi</em></button>`;
+    return `<button class="bom-table-material-consumption" type="button" data-edit-material><b>${escapeHtml(detail)}</b><small>${activeScheme} · Cavity ${Number(activeCavity || 1)} · Gross ${Number(row.grossWeight || 0).toFixed(2)} kg/pcs</small><em>Edit konsumsi</em></button>`;
   }
 
   function renderRows() {
@@ -210,24 +236,43 @@
     const estimate = estimateRecord(state.record); const childEstimateCache = new Map(); updateEstimateSummary(estimate);
     rowsTarget.innerHTML = state.rows.length ? state.rows.map((row) => {
       const childBom = linkedBom(row); const processes = row.mbomProcesses || []; const routing = processEstimate(row); const part = row.part || state.parts.find((item) => item.id === row.partId) || {};
-      return `<tr data-row-key="${escapeAttr(keyOf(row))}"><td><span class="bom-level-pill">${levelOf(row)}</span></td><td><select class="form-select" data-field="partId">${partOptions(row.partId)}</select>${childBom ? `<a class="bom-owned-bom-link" href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(childBom.noReg)}/edit-table">Edit MBOM turunan · ${escapeHtml(childBom.noReg)}</a>` : ""}</td><td><strong class="bom-part-number">${escapeHtml(part.partNumber || "—")}</strong><small class="bom-hour-unit">${part.partCode ? `Code: ${escapeHtml(part.partCode)}` : "Part Number belum diisi"}</small></td><td><input class="form-control" data-field="qty" type="number" min="0.0001" step="0.0001" value="${Number(row.qty || 0)}"></td><td><select class="form-select" data-field="uomCode">${uomOptions(row.uomCode)}</select></td><td><select class="form-select" data-field="parentDetailId">${parentOptions(row)}</select></td><td><select class="form-select" data-field="category">${["inHouse", "Purchase", "Vendor"].map((value) => option(value, value, row.category)).join("")}</select></td><td><select class="form-select" data-field="assemblyPolicyOverride">${["DEFAULT", "INLINE", "SUB_ASSEMBLY"].map((value) => option(value, value, row.assemblyPolicyOverride)).join("")}</select></td><td><div class="bom-lead-time-input"><input class="form-control" data-field="leadTime" type="number" min="0" step="0.01" value="${Number(row.leadTime || 0)}"><select class="form-select" data-field="leadTimeUnit">${leadTimeUnitOptions(row.leadTimeUnit)}</select></div></td><td><button class="bom-process-button" type="button" data-edit-process>${processes.length ? `${processes.length} proses` : "＋ Proses"}</button>${processes.slice(0, 2).map((item) => { const cost = machineProcessCost(item); return `<small class="bom-process-mini">${escapeHtml(item.routingNumber || "-")} · ${escapeHtml(item.occurrenceCode || item.process?.processCode || state.processes.find((process) => process.id === item.processId)?.processCode || "Process")} · ${Number(item.cycleTime || 0).toLocaleString("id-ID")} dtk · ${money(cost.value)}</small>`; }).join("")}</td>${purchaseMaterialCells(row)}${childBomCostCell(row, childEstimateCache)}<td><button class="bom-source-metric" type="button" data-edit-process title="Buka Routing MBOM untuk mengubah Cycle Time"><strong class="bom-cycle-time">${routing.seconds.toLocaleString("id-ID")}</strong><small>detik / unit · Edit routing</small></button></td><td><strong class="bom-machine-rate">${moneyPerSecond(routing.perSecond)}</strong><small class="bom-hour-unit">akumulasi rate / detik</small>${rowMachineLinks(processes)}</td><td><strong class="bom-machine-cost">${money(routing.value)}</strong><small class="bom-hour-unit">Cycle Time × Cost / Second</small></td><td><input class="form-control" data-field="notes" type="text" value="${escapeAttr(row.notes || "")}"></td><td><button class="bom-table-row-delete" type="button" data-delete-row title="Hapus baris">×</button></td></tr>`;
+      return `<tr data-row-key="${escapeAttr(keyOf(row))}"><td><span class="bom-level-pill">${levelOf(row)}</span></td><td><select class="form-select" data-field="partId">${partOptions(row.partId)}</select>${childBom ? `<a class="bom-owned-bom-link" href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(childBom.noReg)}/edit-table">Edit MBOM turunan · ${escapeHtml(childBom.noReg)}</a>` : ""}</td><td><strong class="bom-part-number">${escapeHtml(part.partNumber || "—")}</strong><small class="bom-hour-unit">${part.partCode ? `Code: ${escapeHtml(part.partCode)}` : "Part Number belum diisi"}</small></td><td><input class="form-control" data-field="qty" type="number" min="0.0001" step="0.0001" value="${Number(row.qty || 0)}"></td><td><select class="form-select" data-field="uomCode">${uomOptions(row.uomCode)}</select></td><td><select class="form-select" data-field="parentDetailId">${parentOptions(row)}</select></td><td><select class="form-select" data-field="category">${["inHouse", "Purchase", "Vendor"].map((value) => option(value, value, row.category)).join("")}</select></td><td><select class="form-select" data-field="assemblyPolicyOverride">${["DEFAULT", "INLINE", "SUB_ASSEMBLY"].map((value) => option(value, value, row.assemblyPolicyOverride)).join("")}</select></td><td><div class="bom-lead-time-input"><input class="form-control" data-field="leadTime" type="number" min="0" step="0.01" value="${Number(row.leadTime || 0)}"><select class="form-select" data-field="leadTimeUnit">${leadTimeUnitOptions(row.leadTimeUnit)}</select></div></td><td><button class="bom-process-button" type="button" data-edit-process>${processes.length ? `${processes.length} proses` : "＋ Proses"}</button>${processes.slice(0, 2).map((item) => { const cost = machineProcessCost(item); return `<small class="bom-process-mini">${escapeHtml(item.routingNumber || "-")} · ${escapeHtml(item.occurrenceCode || item.process?.processCode || state.processes.find((process) => process.id === item.processId)?.processCode || "Process")} · ${Number(item.cycleTime || 0).toLocaleString("id-ID", { maximumFractionDigits: 2 })} dtk · ${money(cost.value)}</small>`; }).join("")}</td>${purchaseMaterialCells(row)}${childBomCostCell(row, childEstimateCache)}<td><button class="bom-source-metric" type="button" data-edit-process title="Buka Routing MBOM untuk mengubah Cycle Time"><strong class="bom-cycle-time">${routing.seconds.toLocaleString("id-ID", { maximumFractionDigits: 2 })}</strong><small>detik / unit · Edit routing</small></button></td><td><strong class="bom-machine-rate">${moneyPerSecond(routing.perSecond)}</strong><small class="bom-hour-unit">akumulasi rate / detik</small>${rowMachineLinks(processes)}</td><td><strong class="bom-machine-cost">${money(routing.value)}</strong><small class="bom-hour-unit">Cycle Time × Cost / Second</small></td><td><input class="form-control" data-field="notes" type="text" value="${escapeAttr(row.notes || "")}"></td><td><button class="bom-table-row-delete" type="button" data-delete-row title="Hapus baris">×</button></td></tr>`;
     }).join("") : '<tr><td colspan="18" class="text-center py-4">Belum ada komponen. Klik Tambah Baris.</td></tr>';
   }
   async function loadLinkedBoms(record, visited = new Set()) { if (!record || visited.has(record.noReg)) return; visited.add(record.noReg); state.bomByNoReg.set(record.noReg, record); for (const row of (record.details || []).filter((item) => !item.isDeleted)) { const child = linkedBom(row, record.noReg); if (!child || state.bomByNoReg.has(child.noReg)) continue; const childRecord = await fetchJson(`/modules/api/manufacturing-bom/bill-of-materials/${encodeURIComponent(child.noReg)}`); state.bomByNoReg.set(child.noReg, childRecord); await loadLinkedBoms(childRecord, visited); } }
 
   async function initialize() {
     try {
-      const urls = ["parts", "uom", "processes", "machines", "material-forms", "part-price-lists", "material-price-lists", "vendor-price-lists", "suppliers", "vendors", "currencies"];
+      const urls = ["parts", "uom", "processes", "machines", "machine-cost-rates", "material-forms", "part-price-lists", "material-price-lists", "vendor-price-lists", "suppliers", "vendors", "currencies"];
       const [record, ...payloads] = await Promise.all([fetchJson(`/modules/api/manufacturing-bom/bill-of-materials/${encodeURIComponent(config.recordKey)}`), ...urls.map((slug, index) => index < 4 ? fetchJson(`/master-data/api/${slug}?start=0&length=500&isDeleted=false`) : optionalList(`/master-data/api/${slug}?start=0&length=500&isDeleted=false`))]);
-      [state.parts, state.uoms, state.processes, state.machines, state.materialForms, state.partPrices, state.materialPrices, state.vendorPrices, state.suppliers, state.vendors, state.currencies] = payloads.map((payload) => payload.data || []); state.parts = state.parts.filter((part) => part.canUseInBom !== false); state.record = record;
+      [state.parts, state.uoms, state.processes, state.machines, state.machineCostRates, state.materialForms, state.partPrices, state.materialPrices, state.vendorPrices, state.suppliers, state.vendors, state.currencies] = payloads.map((payload) => payload.data || []); state.parts = state.parts.filter((part) => part.canUseInBom !== false); state.record = record;
       const sourceRows = (record.details || []).filter((detail) => !detail.isDeleted).map((detail) => ({ ...detail, clientKey: detail.id || newKey(), mbomProcesses: detail.mbomProcesses || [] })); const sourceByKey = new Map(sourceRows.map((row) => [keyOf(row), row])); const boundaryKeys = new Set(sourceRows.filter((row) => row.part?.itemType === "FG" || (row.part?.mbomHeaders || []).some((bom) => bom.noReg !== record.noReg && !bom.isDeleted)).map(keyOf)); const ownedByChildBom = (row) => { let parent = sourceByKey.get(row.parentDetailId); const visited = new Set(); while (parent && !visited.has(keyOf(parent))) { visited.add(keyOf(parent)); if (boundaryKeys.has(keyOf(parent))) return true; parent = sourceByKey.get(parent.parentDetailId); } return false; };
       state.rows = sourceRows.filter((row) => !ownedByChildBom(row)); state.omittedRows = sourceRows.filter(ownedByChildBom); const ownedNote = document.getElementById("bom-table-owned-note"); if (state.omittedRows.length) { ownedNote.textContent = `${state.omittedRows.length} detail turunan dikelola oleh MBOM FG/sub-assembly masing-masing dan tidak diedit dari parent.`; ownedNote.classList.remove("d-none"); }
-      document.getElementById("bom-table-title").textContent = record.noReg; document.getElementById("bom-table-root").textContent = `${record.part?.partCode || "—"} — ${record.part?.partName || ""}`; document.getElementById("bom-table-uom").innerHTML = uomOptions(record.uomCode); document.getElementById("bom-table-revision").value = record.revision || 1; document.getElementById("bom-table-effective").value = dateInput(record.effectiveDate); document.getElementById("bom-table-expiry").value = dateInput(record.expiryDate); document.getElementById("bom-table-notes").value = record.notes || "";
+      document.getElementById("bom-table-title").textContent = record.noReg; document.getElementById("bom-table-root").textContent = `${record.part?.partCode || "—"} — ${record.part?.partName || ""}`; document.getElementById("bom-table-uom").innerHTML = uomOptions(record.uomCode); document.getElementById("bom-table-revision").value = record.revision || 1; document.getElementById("bom-table-effective").value = todayInput(); document.getElementById("bom-table-expiry").value = ""; document.getElementById("bom-table-notes").value = record.notes || ""; document.getElementById("bom-table-revision-note").value = ""; syncRevisionMode();
       await loadLinkedBoms(record); renderRows();
     } catch (error) { alertBox.textContent = error.message; alertBox.classList.remove("d-none"); }
   }
 
   document.getElementById("bom-table-add").addEventListener("click", () => { state.rows.push({ clientKey: newKey(), parentDetailId: null, partId: "", part: {}, qty: 1, uomCode: state.record?.uomCode || "", category: "Purchase", assemblyPolicyOverride: "DEFAULT", leadTime: 0, leadTimeUnit: "HOUR", notes: "", mbomProcesses: [] }); renderRows(); });
+  document.getElementById("bom-table-effective")?.addEventListener("change", renderRows);
+  function syncRevisionMode() {
+    const isNewRevision = document.getElementById("bom-table-revision-mode")?.value !== "correction";
+    const effective = document.getElementById("bom-table-effective");
+    const expiry = document.getElementById("bom-table-expiry");
+    const note = document.getElementById("bom-table-revision-note");
+    const currentRevision = Number(state.record?.revision || 1);
+    document.getElementById("bom-table-effective-label").textContent = isNewRevision ? `Mulai Berlaku Rev ${currentRevision + 1}` : "Mulai Berlaku Rev Ini";
+    document.getElementById("bom-table-revision-hint").textContent = isNewRevision
+      ? `Rev ${currentRevision + 1} dibuat sebagai record baru; Rev ${currentRevision} otomatis berakhir sesaat sebelum tanggal ini.`
+      : "Koreksi hanya untuk metadata/typo. Struktur yang sudah dipakai MPS wajib dibuat sebagai revisi baru.";
+    note.required = isNewRevision;
+    if (isNewRevision && !effective.value) effective.value = todayInput();
+    if (!isNewRevision) {
+      effective.value = dateInput(state.record?.effectiveDate);
+      expiry.value = dateInput(state.record?.expiryDate);
+    }
+  }
+  document.getElementById("bom-table-revision-mode")?.addEventListener("change", syncRevisionMode);
   if (freezeCountInput) {
     const savedFreezeCount = Number(localStorage.getItem(freezeStorageKey)); freezeCountInput.value = String(Number.isInteger(savedFreezeCount) && savedFreezeCount >= 0 && savedFreezeCount <= 6 ? savedFreezeCount : 3);
     freezeCountInput.addEventListener("change", () => { localStorage.setItem(freezeStorageKey, freezeCountInput.value); applyFrozenColumns(); });
@@ -276,7 +321,7 @@
   document.getElementById("bom-table-save").addEventListener("click", async function () {
     alertBox.classList.add("d-none"); const invalid = state.rows.find((row) => !row.partId || !(Number(row.qty) > 0)); if (invalid) { alertBox.textContent = "Semua baris wajib memiliki Part dan Qty lebih dari 0."; alertBox.classList.remove("d-none"); return; } const invalidProcess = state.rows.find((row) => (row.mbomProcesses || []).some((item) => !item.processId || !(Number(item.sequence) > 0))); if (invalidProcess) { alertBox.textContent = "Setiap routing wajib memiliki Process dan Sequence lebih dari 0."; alertBox.classList.remove("d-none"); return; }
     this.disabled = true; this.textContent = "Menyimpan...";
-    try { const details = state.rows.map((row) => ({ id: row.id || undefined, clientKey: keyOf(row), parentDetailId: row.parentDetailId || null, levelComponent: levelOf(row), partId: row.partId, qty: Number(row.qty), uomCode: row.uomCode || null, category: row.category || "Purchase", assemblyPolicyOverride: row.assemblyPolicyOverride || "DEFAULT", leadTime: Math.max(0, Number(row.leadTime || 0)), leadTimeUnit: row.leadTimeUnit || "HOUR", materialThickness: row.materialThickness ?? null, materialWidth: row.materialWidth ?? null, materialPitch: row.materialPitch ?? null, materialCavity: row.materialCavity ?? null, materialDensity: row.materialDensity ?? null, materialFormId: row.materialFormId || null, materialScheme: row.materialScheme || "DEFAULT", defaultGrossWeight: Number(row.defaultGrossWeight ?? row.grossWeight ?? 0), alternateMaterialFormId: row.alternateMaterialFormId || null, alternateMaterialPitch: row.alternateMaterialPitch ?? null, alternateMaterialCavity: row.alternateMaterialCavity ?? null, alternateGrossWeight: row.alternateGrossWeight ?? null, grossWeight: Number(row.grossWeight || 0), notes: row.notes || null, mbomProcesses: row.mbomProcesses || [] })); const header = { partId: state.record.partId, uomCode: document.getElementById("bom-table-uom").value || null, revision: Number(document.getElementById("bom-table-revision").value || 1), effectiveDate: document.getElementById("bom-table-effective").value || null, expiryDate: document.getElementById("bom-table-expiry").value || null, notes: document.getElementById("bom-table-notes").value || null }; const response = await fetch(`/modules/api/manufacturing-bom/bill-of-materials/${encodeURIComponent(state.record.id)}`, { method: "PATCH", headers: headers(true), body: JSON.stringify({ header, details }) }); const payload = await response.json().catch(() => ({})); if (response.status === 401) return location.replace(`/login?next=${encodeURIComponent(location.pathname)}`); if (!response.ok) throw new Error(payload.message || payload.detail || "BOM gagal disimpan."); location.replace(`/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(payload.noReg || state.record.noReg)}`); } catch (error) { alertBox.textContent = error.message; alertBox.classList.remove("d-none"); this.disabled = false; this.textContent = "Simpan Perubahan"; }
+    try { const details = state.rows.map((row) => ({ id: row.id || undefined, clientKey: keyOf(row), parentDetailId: row.parentDetailId || null, levelComponent: levelOf(row), partId: row.partId, qty: Number(row.qty), uomCode: row.uomCode || null, category: row.category || "Purchase", assemblyPolicyOverride: row.assemblyPolicyOverride || "DEFAULT", leadTime: Math.max(0, Number(row.leadTime || 0)), leadTimeUnit: row.leadTimeUnit || "HOUR", materialThickness: row.materialThickness ?? null, materialWidth: row.materialWidth ?? null, materialPitch: row.materialPitch ?? null, materialCavity: row.materialCavity ?? null, materialDensity: row.materialDensity ?? null, materialFormId: row.materialFormId || null, materialScheme: row.materialScheme || "DEFAULT", defaultGrossWeight: Number(row.defaultGrossWeight ?? row.grossWeight ?? 0), alternateMaterialFormId: row.alternateMaterialFormId || null, alternateMaterialPitch: row.alternateMaterialPitch ?? null, alternateMaterialCavity: row.alternateMaterialCavity ?? null, alternateGrossWeight: row.alternateGrossWeight ?? null, grossWeight: Number(row.grossWeight || 0), notes: row.notes || null, mbomProcesses: row.mbomProcesses || [] })); const revisionMode = document.getElementById("bom-table-revision-mode").value; const revisionNote = document.getElementById("bom-table-revision-note").value.trim(); if (revisionMode === "newRevision" && !revisionNote) throw new Error("Catatan revisi wajib diisi agar perubahan dapat diaudit."); const header = { partId: state.record.partId, uomCode: document.getElementById("bom-table-uom").value || null, effectiveDate: document.getElementById("bom-table-effective").value || null, expiryDate: document.getElementById("bom-table-expiry").value || null, notes: document.getElementById("bom-table-notes").value || null, revisionNote, revisionMode, expirePreviousRevision: true }; const response = await fetch(`/modules/api/manufacturing-bom/bill-of-materials/${encodeURIComponent(state.record.id)}`, { method: "PATCH", headers: headers(true), body: JSON.stringify({ revisionMode, header, details }) }); const payload = await response.json().catch(() => ({})); if (response.status === 401) return location.replace(`/login?next=${encodeURIComponent(location.pathname)}`); if (!response.ok) throw new Error(payload.message || payload.detail || "BOM gagal disimpan."); location.replace(`/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(payload.noReg || state.record.noReg)}`); } catch (error) { alertBox.textContent = error.message; alertBox.classList.remove("d-none"); this.disabled = false; this.textContent = "Simpan Perubahan"; }
   });
   initialize();
 })();

@@ -14,10 +14,12 @@
     <article class="bom-table-header-card">
       <div><label>Produk Utama</label><strong id="bom-table-root">—</strong></div>
       <div><label>UOM</label><select id="bom-table-uom" class="form-select"></select></div>
-      <div><label>Revision</label><input id="bom-table-revision" class="form-control" type="number" min="1"></div>
-      <div><label>Effective Date</label><input id="bom-table-effective" class="form-control" type="date"></div>
-      <div><label>Expiry Date</label><input id="bom-table-expiry" class="form-control" type="date"></div>
-      <div class="notes"><label>Catatan</label><input id="bom-table-notes" class="form-control" type="text"></div>
+      <div><label>Revision Saat Ini</label><input id="bom-table-revision" class="form-control" type="number" min="1" readonly></div>
+      <div><label>Cara Simpan</label><select id="bom-table-revision-mode" class="form-select"><option value="newRevision">Buat revisi baru (disarankan)</option><option value="correction">Koreksi revisi ini</option></select></div>
+      <div><label id="bom-table-effective-label">Mulai Berlaku Revisi Baru</label><input id="bom-table-effective" class="form-control" type="date"></div>
+      <div><label>Berakhir</label><input id="bom-table-expiry" class="form-control" type="date"></div>
+      <div class="notes"><label>Catatan Umum BOM</label><input id="bom-table-notes" class="form-control" type="text"></div>
+      <div class="notes"><label>Alasan / Catatan Revisi</label><input id="bom-table-revision-note" class="form-control" type="text" placeholder="Contoh: Qty bracket berubah 1 pcs menjadi 2 pcs" required><small id="bom-table-revision-hint">Akan membuat Rev berikutnya dan menutup periode revisi lama.</small></div>
     </article>
     <section class="bom-estimate-summary">
       <article><small>CRITICAL LEAD TIME</small><strong id="bom-estimate-lead">0 jam</strong><span>Jalur terlama, termasuk routing dan MBOM turunan</span></article>
