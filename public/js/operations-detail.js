@@ -97,7 +97,7 @@
     { test: /^moNumber$|^manufacturingOrderNumber$/i, type: "MO", href: (value) => `/modules/production/manufacturing-orders/${encodeURIComponent(value)}` },
     { test: /^woNumber$|^workOrderNumber$/i, type: "WO", href: (value) => `/modules/production/work-orders/${encodeURIComponent(value)}` },
     { test: /^issueNumber$|^materialIssueNumber$/i, type: "MI", href: (value) => `/modules/inventory/material-issues/${encodeURIComponent(value)}` },
-    { test: /^logNumber$|^productionLogNumber$/i, type: "Log Produksi", href: (value) => `/modules/production/production-logs/${encodeURIComponent(value)}` },
+    { test: /^logNumber$|^productionLogNumber$/i, type: "Production Entry", href: (value) => `/modules/production/production-logs/${encodeURIComponent(value)}` },
     { test: /^movementNumber$|^stockMovementNumber$/i, type: "Stock Movement", href: (value) => `/modules/inventory/stock-movements/${encodeURIComponent(value)}` },
     { test: /^downtimeNumber$/i, type: "Downtime", href: (value) => `/modules/production/downtime-logs/${encodeURIComponent(value)}` },
     { test: /^prNumber$|^sourcePrNumbers?$/i, type: "PR", href: (value) => `/modules/purchasing/purchase-requisitions/${encodeURIComponent(value)}` },
@@ -1392,7 +1392,7 @@
       if (/CAPACITY|MACHINE|SHIFT|SCHEDULE|PRESET/.test(code)) references.push({ type: "Capacity", label: "Buka capacity planning", href: "/modules/planning-ppic/capacity-planning" });
       if (/MATERIAL|STOCK|INVENTORY|SHORTAGE/.test(code)) references.push({ type: "Stock", label: "Periksa stock balance", href: `/modules/inventory/stock-balances${issue.partCode ? `?q=${encodeURIComponent(issue.partCode)}` : ""}` });
       if (/QC|QUALITY|INSPECTION/.test(code)) references.push({ type: "QC", label: "Buka quality inspection", href: "/modules/production/quality-inspections" });
-      if (/LOG|OUTPUT|PRODUCTION/.test(code)) references.push({ type: "Produksi", label: "Buka production log", href: "/modules/production/production-logs" });
+      if (/LOG|OUTPUT|PRODUCTION/.test(code)) references.push({ type: "Produksi", label: "Buka Production Entry", href: "/modules/production/production-logs" });
       if (!references.length) references.push({ type: "Produksi", label: "Buka daftar terkait", href: `/modules/production/${encodeURIComponent(config.page.slug)}` });
       return references.filter((reference, index, rows) => reference?.href && rows.findIndex((candidate) => candidate?.href === reference.href && candidate?.label === reference.label) === index);
     };
@@ -1652,7 +1652,7 @@
           details,
         }),
       });
-      location.reload();
+      await load();
     } catch (error) { saveLots.disabled = false; window.alert(error.message); }
   });
   function renderMeta(record) {
@@ -1661,6 +1661,9 @@
   }
   function actionButton(action, text, style = "outline-primary", note = "") {
     return `<button type="button" class="btn btn-${style}" data-workflow-action="${esc(action)}">${esc(text)}</button>${note ? `<small>${esc(note)}</small>` : ""}`;
+  }
+  function disabledActionButton(text, note, style = "secondary") {
+    return `<button type="button" class="btn btn-${style}" disabled aria-disabled="true">${esc(text)}</button>${note ? `<small>${esc(note)}</small>` : ""}`;
   }
   async function collectPurchaseOrderLines(selected) {
     const vendorProcessPr = String(currentRecord?.procurementCategory || currentRecord?.procurementGroup || "").toUpperCase() === "VENDOR_PROCESS";
@@ -1813,11 +1816,31 @@
     });
   }
   function finalizedPurchaseOrderLines(selected) {
+    const manualPr = String(currentRecord?.sourceType || "").toUpperCase() === "MANUAL";
     const lines = selected.flatMap((checkbox) => {
       const detail = (currentRecord?.details || []).find((row) => String(row.id) === String(checkbox.dataset.prDetailId));
-      return (detail?.sourcingAllocations || [])
+      const confirmed = (detail?.sourcingAllocations || [])
         .filter((allocation) => !allocation.isDeleted && allocation.status === "Confirmed")
         .map((allocation) => ({ prDetailId: detail.id, sourcingAllocationId: allocation.id }));
+      if (confirmed.length) return confirmed;
+      if (!manualPr) return [];
+      const supplierCode = detail?.confirmedSupplierCode || detail?.proposedSupplierCode || detail?.preferredSupplier || checkbox.dataset.supplierCode || null;
+      const vendorCode = detail?.preferredVendor || null;
+      return [{
+        prDetailId: detail.id,
+        supplierCode,
+        vendorCode,
+        sourceQty: Math.max(number(detail?.qty) - number(detail?.orderedQty), 0),
+        purchasePackageUomCode: detail?.purchasePackageUomCode || checkbox.dataset.packageUom || null,
+        purchasePackageQty: detail?.purchasePackageQty ?? null,
+        conversionUomCode: detail?.conversionUomCode || null,
+        conversionFactor: detail?.conversionFactor ?? null,
+        convertedPurchaseQty: detail?.convertedPurchaseQty ?? null,
+        materialWidth: detail?.width ?? null,
+        materialLength: detail?.materialLength ?? null,
+        deliveryDate: String(currentRecord?.requiredDate || "").slice(0, 10) || null,
+        unitPrice: detail?.estimatedPrice ?? null,
+      }];
     });
     if (!lines.length) throw new Error(String(currentRecord?.procurementCategory || currentRecord?.procurementGroup || "").toUpperCase() === "VENDOR_PROCESS"
       ? "Keputusan vendor dan target kembali belum final. Gunakan Review Vendor & Jadwal terlebih dahulu."
@@ -1959,7 +1982,11 @@
       return html || '<small>Invoice sudah selesai atau tidak memiliki transisi aktif.</small>';
     }
     if (config.page.vendorProcessFlow) {
-      if (["SEND", "ALL"].includes(config.page.vendorProcessFlow) && /planned|ready-to-send|partial-sent/.test(slug(status))) html += actionButton("send", "Kirim ke Vendor", "primary");
+      if (["SEND", "ALL"].includes(config.page.vendorProcessFlow) && /planned|waiting-material|ready-to-send|partial-sent/.test(slug(status))) {
+        html += record.materialReady === true
+          ? actionButton("send", "Kirim ke Vendor", "primary", record.materialReadinessMessage || "Material input telah siap.")
+          : disabledActionButton("Menunggu Material", record.materialReadinessMessage || "Selesaikan proses sebelumnya dan pastikan WIP input mencukupi.");
+      }
       if (["RECEIVE", "ALL"].includes(config.page.vendorProcessFlow) && /sent|partial-received/.test(slug(status))) html += actionButton("receive", "Terima dari Vendor", "primary");
       if (["SEND", "ALL"].includes(config.page.vendorProcessFlow) && !/closed|cancelled/.test(status)) html += actionButton("reprice", "Hitung Ulang Harga", "outline-primary");
       return html || '<small>Vendor Process Order ini tidak memiliki transisi aktif pada queue ini.</small>';
@@ -1977,7 +2004,13 @@
       }
       if (config.module === "outgoing" && ["delivery-schedules", "delivery-schedule"].includes(config.page.slug)) {
         if (status === "scheduled") return actionButton("pick", "Mulai Picking", "primary");
-        if (["on-process", "on process"].includes(status)) { html += actionButton("pack", "Tandai Packing", "outline-primary"); html += actionButton("ship", "Kirim Shipment", "primary"); return html; }
+        if (["on-process", "on process"].includes(status)) {
+          html += actionButton("pack", "Tandai Packing", "outline-primary");
+          html += record.fgReady === true
+            ? actionButton("ship", "Kirim Shipment", "primary", record.fgReadinessMessage || "FG siap dikirim.")
+            : disabledActionButton("Menunggu FG Receipt", record.fgReadinessMessage || "FG Receipt/stock belum mencukupi untuk seluruh delivery line.");
+          return html;
+        }
         if (["in-transit", "in transit"].includes(status)) { html += actionButton("pod", "Konfirmasi POD", "primary"); html += actionButton("fail", "Tandai Gagal Kirim", "outline-danger"); return html; }
       }
       if (config.module === "inventory" && config.page.slug === "stock-opname") {
@@ -2011,12 +2044,33 @@
     } else if (config.page.slug === "material-issues") {
       return '<small>Material Issue hanya reference di Production. Consume/issue stok dilakukan pada modul Inventory.</small>';
     } else if (config.page.slug === "quality-inspections") {
-      if (status === "draft") html += actionButton("complete", "Complete QC", "primary");
-      if (status === "completed" && /accepted|conditional-accept/.test(slug(record.decision))) html += actionButton("receive-fg", "FG Receipt", "outline-primary");
+      if (status === "draft") html += actionButton("complete", "QC OK & Release Stock", "primary", "Kurangi QC Hold dan jadikan stok tersedia untuk proses berikutnya. Jika ini proses final, lanjutkan melalui FG Receipt.");
+      if (status === "completed" && /accepted|conditional-accept/.test(slug(record.decision))) {
+        if (record.fgReceiptEligible === true) {
+          html += actionButton("receive-fg", "Masukkan ke Gudang FG", "primary", `Final output sudah QC Accepted. Posting ${num(record.fgReceiptPendingQty || record.qtyPassed)} ke warehouse/rack FG melalui FG Receipt.`);
+        } else {
+          html += '<small>QC selesai. Hasil ini adalah WIP dan stoknya sudah tersedia untuk Material Issue proses berikutnya.</small>';
+          const stockQuery = record.part?.partCode ? `?q=${encodeURIComponent(record.part.partCode)}` : "";
+          html += `<a class="btn btn-outline-primary" href="/modules/inventory/stock-balances${stockQuery}">Lihat Stok Gudang</a>`;
+        }
+      }
+    } else if (config.page.ngDispositionFlow) {
+      if (status === "pending_qc" || status === "pending qc") html += actionButton("judge", "QC Judgment NG", "primary", "Tentukan qty yang dapat dirework dan qty final reject.");
+      else html += `<small>Judgment selesai: ${esc(record.qtyRework || 0)} rework, ${esc(record.qtyReject || 0)} reject.</small>`;
     } else if (config.page.slug === "production-logs" && /draft|open/.test(status)) {
-      html += actionButton("submit", "Submit Production Log", "primary");
+      html += actionButton("submit", "Submit Production Entry", "primary");
     } else if (config.page.slug === "production-logs" && /submitted/.test(status)) {
-      html += actionButton("approve", "Approve Production Log", "primary", "Approval mengikuti Approval Master.");
+      const ngReasons = (Array.isArray(record.coilPhases) ? record.coilPhases : [])
+        .flatMap((phase) => Array.isArray(phase.ngReasons) ? phase.ngReasons : []);
+      const pendingNg = ngReasons.filter((reason) => slug(reason.status) === "pending-qc");
+      if (number(record.qtyReject) > 0 && (!ngReasons.length || pendingNg.length)) {
+        html += disabledActionButton("Menunggu Judgment QC", `${pendingNg.length || number(record.qtyReject)} reason/qty NG belum ditentukan rework atau final reject.`);
+        html += '<a class="btn btn-outline-primary" href="/modules/production/ng-dispositions">Buka QC Rework Judgment</a>';
+      } else {
+        html += actionButton("approve", "Approve Production Entry", "primary", "Approval mengikuti Approval Master; disposition NG mengikuti judgment QC.");
+      }
+    } else if (config.page.slug === "production-logs" && status === "approved" && number(record.qcRemainingQty) > 0) {
+      html += actionButton("ensure-qc", "Buka / Buat QC Release Stock", "primary", "Buat antrean pelepasan QC Hold untuk Production Entry lama, atau buka QC yang sudah tersedia.");
     }
     return html || '<small>Tidak ada transisi status yang aman pada kondisi dokumen ini. Detail tetap aktif untuk monitoring.</small>';
   }
@@ -2613,7 +2667,27 @@
       const vendorRate = await window.formPrompt("Vendor rate manual (kosong = price list):", "", { title: "Vendor Rate" }); if (vendorRate === null) return;
       requestBody = vendorRate.trim() ? { vendorRate: number(vendorRate) } : {};
     } else if (action === "complete" && config.page.slug === "quality-inspections") {
-      requestBody = { decision: "Accepted" };
+      const sourceLocation = currentRecord?.qcSourceLocation || {};
+      const warehouseCode = await window.formPrompt("Warehouse tujuan stok OK:", sourceLocation.warehouseCode || "WH-001", { title: "QC OK & Release Stock" });
+      if (!warehouseCode?.trim()) return;
+      const rackCode = await window.formPrompt("Rack tujuan (boleh kosong):", sourceLocation.rackCode || "", { title: "QC OK & Release Stock" });
+      if (rackCode === null) return;
+      requestBody = {
+        decision: "Accepted",
+        passedDestination: {
+          warehouseCode: warehouseCode.trim(),
+          rackCode: rackCode.trim() || null,
+          lotNumber: sourceLocation.lotNumber || currentRecord?.batchNumber || null,
+          qty: number(currentRecord?.qtyPassed),
+        },
+      };
+    } else if (action === "judge" && config.page.ngDispositionFlow) {
+      const qtyRework = await window.formPrompt("Qty yang dapat dirework:", String(currentRecord?.qtyNg || 0), { title: "QC Judgment NG" }); if (qtyRework === null) return;
+      const defaultReject = Math.max(0, number(currentRecord?.qtyNg) - number(qtyRework));
+      const qtyReject = await window.formPrompt("Qty final reject:", String(defaultReject), { title: "QC Judgment NG" }); if (qtyReject === null) return;
+      if (Math.abs(number(qtyRework) + number(qtyReject) - number(currentRecord?.qtyNg)) > 0.000001) { showAlert(`Qty Rework + Qty Reject harus sama dengan Qty NG ${currentRecord?.qtyNg}.`); return; }
+      const qcNotes = await window.formPrompt("Catatan judgment QC:", "", { title: "QC Judgment NG" }); if (qcNotes === null) return;
+      requestBody = { qtyRework: number(qtyRework), qtyReject: number(qtyReject), qcNotes: qcNotes.trim() || null };
     } else if (action === "approve" && config.page.slug === "production-logs") {
       // Production log approval posts the destination warehouse to the workflow
       // endpoint. The warehouse is operational context for the produced WIP and
@@ -2700,16 +2774,22 @@
       } else if (["submit", "submit-checking"].includes(action)) {
         const requestNumber = result?.approvalRequest?.requestNumber;
         showAlert(`Dokumen masuk ke alur approval${requestNumber ? ` (${requestNumber})` : ""}.`, "success");
-        setTimeout(() => location.reload(), 650);
+        await load();
+      } else if (action === "ensure-qc" && config.page.slug === "production-logs") {
+        showAlert(result?.message || "QC Release Stock siap diproses.", "success");
+        setTimeout(() => location.assign(result?.href || "/modules/production/quality-inspections"), 450);
       } else if (action === "approve" && config.page.slug === "production-logs" && result?.carryover) {
         const carryover = result.carryover;
         const allocationCount = Array.isArray(carryover.targetAllocations) ? carryover.targetAllocations.length : 0;
         const capacityNote = carryover.status === "OVER_CAPACITY"
           ? " DPP tambahan prioritas dibuat karena kapasitas hari berikutnya penuh."
           : "";
-        showAlert(`Production Log disetujui. Shortfall ${num(carryover.shortfallQty)} dialokasikan ke ${allocationCount} DPP tanggal ${format(carryover.targetDate, "targetDate")}.${capacityNote}`, carryover.status === "OVER_CAPACITY" ? "warning" : "success");
-        setTimeout(() => location.reload(), 900);
-      } else { showAlert("Workflow berhasil diproses.", "success"); setTimeout(() => location.reload(), 450); }
+        showAlert(`Production Entry disetujui. Shortfall ${num(carryover.shortfallQty)} dialokasikan ke ${allocationCount} DPP tanggal ${format(carryover.targetDate, "targetDate")}.${capacityNote}`, carryover.status === "OVER_CAPACITY" ? "warning" : "success");
+        await load();
+      } else {
+        showAlert("Workflow berhasil diproses.", "success");
+        await load();
+      }
     } catch (error) { showAlert(error.message); }
     finally { button.disabled = false; }
   });

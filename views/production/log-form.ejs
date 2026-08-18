@@ -2,11 +2,11 @@
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <main class="ops-page app-container production-log-page">
-  <nav class="module-breadcrumb"><a href="/modules/production">Production</a><span>/</span><a href="/modules/production/production-logs">Production Logs</a><span>/</span><b><%= mode === 'edit' ? 'Edit' : 'Buat' %></b></nav>
+  <nav class="module-breadcrumb"><a href="/modules/production">Production</a><span>/</span><a href="/modules/production/production-logs">Production Entries</a><span>/</span><b><%= mode === 'edit' ? 'Edit' : 'Buat' %></b></nav>
   <section class="ops-detail-titlebar">
     <div>
-      <p class="ops-eyebrow">Production Log</p>
-      <h1><%= mode === 'edit' ? 'Edit Hasil Produksi' : 'Catat Hasil Produksi' %></h1>
+      <p class="ops-eyebrow">Production Entry</p>
+      <h1><%= mode === 'edit' ? 'Edit Production Entry' : 'Buat Production Entry' %></h1>
       <p>Pilih mesin terlebih dahulu, lalu pilih Daily Production Schedule yang sudah siap diproduksi.</p>
     </div>
     <a class="btn btn-outline-secondary" href="/modules/production/production-logs">Kembali</a>
@@ -44,6 +44,9 @@
         <label><span>Shift *</span><select id="shift" required><option value="1A">1A</option><option value="1B">1B</option><option value="2A">2A</option><option value="2B">2B</option><option value="3A">3A</option><option value="3C">3C</option></select></label>
         <label><span>MO Reference *</span><input id="moNumber" readonly required></label>
         <label><span>WO Reference</span><input id="woNumber" readonly></label>
+        <label><span>Part Code</span><input id="partCode" readonly placeholder="Otomatis dari Daily Plan"></label>
+        <label><span>Part Number</span><input id="partNumber" readonly placeholder="Otomatis dari master part"></label>
+        <label><span>Part Name</span><input id="partName" readonly placeholder="Otomatis dari master part"></label>
         <label><span>Proses</span><input id="processCode" readonly></label>
         <label><span>Operator *</span><input id="operatorName" autocomplete="name" required placeholder="Nama operator"></label>
         <label><span>Target pada log ini</span><input id="qtyPlanned" type="number" min="0" step="any" readonly></label>
@@ -61,7 +64,7 @@
         <label class="production-output-field"><span>Qty Produced <small>dari phase coil</small></span><input id="qtyProduced" type="number" min="0" step="any" required readonly value="0"></label>
         <label class="production-reject-field"><span>Qty NG <small>dari phase coil</small></span><input id="qtyReject" type="number" min="0" step="any" readonly value="0"></label>
         <label class="production-good-field"><span>Qty Good <small>otomatis</small></span><input id="qtyGood" type="number" min="0" step="any" value="0" readonly></label>
-        <label><span>NG Reason</span><input id="rejectReason" placeholder="Wajib jika Qty NG lebih dari 0"></label>
+        <label><span>NG Reason</span><input id="rejectReason" readonly placeholder="Otomatis dari rincian reason per phase"></label>
       </div>
     </section>
 
@@ -80,12 +83,25 @@
             <label><span>Lot Coil / Material *</span><input data-input-lot required placeholder="Lot internal dari Material Issue"></label>
             <label><span>Qty Input</span><input data-coil-input type="number" min="0" step="any" placeholder="0"></label>
             <label><span>Qty OK *</span><input data-coil-good type="number" min="0" step="any" value="0"></label>
-            <label><span>Qty Reject *</span><input data-coil-reject type="number" min="0" step="any" value="0"></label>
+            <label><span>Qty NG *</span><input data-coil-reject type="number" min="0" step="any" value="0"></label>
             <label><span>Mulai Phase</span><input data-coil-start type="time"></label>
             <label><span>Selesai Phase</span><input data-coil-end type="time"></label>
-            <label class="production-coil-notes"><span>Catatan</span><input data-coil-notes placeholder="Kondisi coil / reject phase"></label>
+            <label class="production-coil-notes"><span>Catatan</span><input data-coil-notes placeholder="Kondisi coil / NG phase"></label>
           </div>
+          <section class="production-ng-reasons">
+            <header><div><strong>Reason NG Phase</strong><small>Satu phase dapat mempunyai beberapa reason; total qty reason harus sama dengan Qty NG.</small></div><button type="button" class="btn btn-sm btn-outline-primary" data-add-ng-reason>+ Reason NG</button></header>
+            <div data-ng-reason-rows></div>
+          </section>
         </article>
+      </template>
+      <template id="ng-reason-row-template">
+        <div class="production-ng-reason-row">
+          <label><span>Reason HMI *</span><select data-ng-reason-main required><option value="">Pilih reason HMI</option><option value="MANUAL">Input manual</option></select></label>
+          <label><span>Sub Reason HMI</span><select data-ng-reason-sub><option value="">Pilih sub reason</option></select></label>
+          <label data-ng-manual-wrap><span>Reason Manual</span><input data-ng-reason-manual placeholder="Isi jika master HMI belum tersedia"></label>
+          <label><span>Qty NG *</span><input data-ng-reason-qty type="number" min="0.01" step="any" required></label>
+          <button type="button" class="btn btn-sm btn-outline-danger" data-remove-ng-reason>Hapus</button>
+        </div>
       </template>
     </section>
 
@@ -103,11 +119,12 @@
         <article class="production-downtime-row">
           <div class="production-downtime-row-head"><strong>Downtime <span data-downtime-number></span></strong><button class="btn btn-sm btn-outline-danger" type="button" data-remove-downtime>Hapus</button></div>
           <div class="production-downtime-grid">
-            <label><span>Jenis *</span><select data-downtime-category required><option value="SETUP_DANDORI">Setup / Dandori</option><option value="DIES_QD">Dies / QD</option><option value="MATERIAL_COIL">Material / Coil</option><option value="MACHINE_TROUBLE">Machine Trouble</option><option value="QUALITY">Quality / NG Check</option><option value="BRIEFING">Briefing</option><option value="BREAK">Break</option><option value="WAITING">Waiting</option><option value="OTHER">Lainnya</option></select></label>
+            <label><span>Reason HMI *</span><select data-downtime-category required><option value="">Pilih reason HMI</option><option value="MANUAL">Input manual</option></select></label>
+            <label><span>Sub Reason HMI</span><select data-downtime-sub><option value="">Pilih sub reason</option></select></label>
             <label><span>Mulai</span><input type="time" data-downtime-start></label>
             <label><span>Selesai</span><input type="time" data-downtime-end></label>
             <label><span>Durasi (menit) *</span><input type="number" min="0.1" step="0.1" data-downtime-duration required placeholder="0"></label>
-            <label class="production-downtime-reason"><span>Alasan *</span><input data-downtime-reason required placeholder="Contoh: ganti dies untuk part berikutnya"></label>
+            <label class="production-downtime-reason"><span>Alasan Manual</span><input data-downtime-reason placeholder="Isi jika master HMI belum tersedia"></label>
             <label class="production-downtime-notes"><span>Catatan</span><input data-downtime-notes placeholder="Opsional"></label>
           </div>
         </article>
@@ -117,6 +134,21 @@
     <section class="production-log-section">
       <header class="production-log-section-header module-form-section-title">
         <span class="production-log-step">5</span>
+        <div><h2>Release kualitas hasil OK</h2><p>Pilih QC terpisah atau self-check operator. Qty NG tetap wajib melalui judgment QC.</p></div>
+      </header>
+      <div class="production-quality-choice">
+        <label class="production-quality-option">
+          <input id="operatorSelfCheck" type="checkbox">
+          <span><strong>QC dilakukan operator — lewati antrean QC hasil OK</strong><small>Setelah Production Entry disetujui, sistem membuat bukti QC Accepted dan langsung melepas stok OK. Pilihan serta operator tetap tercatat.</small></span>
+        </label>
+        <label id="selfCheckNotesWrap" class="production-self-check-notes d-none"><span>Catatan pemeriksaan operator *</span><textarea id="selfCheckNotes" rows="3" placeholder="Contoh: visual, dimensi utama, dan go/no-go gauge sudah OK"></textarea></label>
+        <div class="production-quality-route"><b>QC terpisah:</b> Production Entry Approved → QC Hold → QC Release Stock → WIP tersedia / FG Receipt. <b>Self-check:</b> Production Entry Approved → stok OK langsung tersedia.</div>
+      </div>
+    </section>
+
+    <section class="production-log-section">
+      <header class="production-log-section-header module-form-section-title">
+        <span class="production-log-step">6</span>
         <div><h2>Catatan dan bukti</h2><p>Tambahkan bukti atau informasi untuk supervisor dan shift berikutnya jika diperlukan.</p></div>
       </header>
       <div class="ops-detail-fields production-notes-fields">
@@ -127,7 +159,7 @@
 
     <div class="module-form-actions">
       <a class="btn btn-outline-secondary" href="/modules/production/production-logs">Batal</a>
-      <button id="production-log-submit" class="btn btn-primary brand-button" type="submit">Simpan Production Log</button>
+      <button id="production-log-submit" class="btn btn-primary brand-button" type="submit">Simpan Production Entry</button>
     </div>
   </form>
 </main>

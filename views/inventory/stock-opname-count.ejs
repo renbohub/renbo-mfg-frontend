@@ -3,14 +3,16 @@
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <main class="ops-page app-container">
   <nav class="module-breadcrumb"><a href="/modules/inventory">Inventory</a><span>/</span><a href="/modules/inventory/stock-opname">Stock Opname</a><span>/</span><a href="/modules/inventory/stock-opname/<%= encodeURIComponent(stoNo) %>"><%= stoNo %></a><span>/</span><b>Counting</b></nav>
-  <section class="ops-detail-titlebar"><div><p class="ops-eyebrow">BLIND COUNT</p><h1>Input Stock Opname</h1><p>Pilih identitas barang fisik dan masukkan qty hasil hitung. Saldo sistem dan variance tidak ditampilkan.</p></div><a class="btn btn-outline-secondary" href="/modules/inventory/stock-opname/<%= encodeURIComponent(stoNo) %>">Kembali ke Detail</a></section>
+  <section class="ops-detail-titlebar"><div><p class="ops-eyebrow">BLIND COUNT · PARTIAL SAVE</p><h1>Input Stock Opname</h1><p>Simpan hitungan per item secara bertahap. Saldo sistem tetap disembunyikan sampai seluruh counting disubmit.</p></div><a class="btn btn-outline-secondary" href="/modules/inventory/stock-opname/<%= encodeURIComponent(stoNo) %>">Kembali ke Detail</a></section>
   <div id="sto-count-alert" class="alert d-none" role="alert"></div>
   <section id="sto-count-loading" class="ops-detail-loading">Memuat scope counting...</section>
   <div id="sto-count-page" class="d-none">
     <section class="ops-detail-card">
       <div class="ops-collection-head"><div><h2 id="sto-count-number"><%= stoNo %></h2><p id="sto-count-scope">Memuat scope...</p></div><span id="sto-count-progress">0 / 0 dihitung</span></div>
       <form id="sto-count-form" class="p-3">
+        <div class="alert alert-info py-2 mb-3"><b>Bisa disimpan sebagian.</b> Progress tidak hilang saat halaman ditutup. Item yang sudah dihitung dapat diperbarui lagi sebelum Submit Counting.</div>
         <div class="ops-detail-fields">
+          <label><small>Nama Petugas Hitung *</small><input id="sto-counted-by" class="form-control" type="text" maxlength="100" required placeholder="Contoh: Andi / Team A"></label>
           <label><small>Jenis Stock *</small><select id="sto-stock-type" class="form-select" required><option value="">Pilih jenis stock</option></select></label>
           <label data-material-field><small>Jenis Material *</small><select id="sto-material-type" class="form-select"><option value="">Pilih jenis material</option></select></label>
           <label data-material-field><small>Material Name / Code *</small><select id="sto-material-identity" class="form-select"><option value="">Pilih material</option></select></label>
@@ -23,7 +25,7 @@
         <div class="module-form-actions mt-3"><button class="btn btn-primary" type="submit">Simpan Hasil Hitung</button></div>
       </form>
     </section>
-    <section class="ops-detail-card mt-3"><div class="ops-collection-head"><div><h2>Progress Member</h2><p>Hanya hasil input fisik yang ditampilkan.</p></div><button id="sto-finish-counting" class="btn btn-outline-primary" type="button">Selesai & Submit Counting</button></div><div class="table-responsive"><table class="table ops-collection-table"><thead><tr><th>Jenis</th><th>Material / Part</th><th>Part Name</th><th>Rack</th><th>Lot</th><th>Actual Qty</th><th>Counted By</th></tr></thead><tbody id="sto-counted-body"></tbody></table></div></section>
+    <section class="ops-detail-card mt-3"><div class="ops-collection-head"><div><h2 id="sto-result-title">Progress Counting</h2><p id="sto-result-help">Hanya hasil input fisik yang ditampilkan selama blind count.</p></div><div class="d-flex gap-2"><a id="sto-open-detail" class="btn btn-outline-secondary d-none" href="/modules/inventory/stock-opname/<%= encodeURIComponent(stoNo) %>">Buka Detail & Approval</a><button id="sto-finish-counting" class="btn btn-outline-primary" type="button">Selesai & Tampilkan Hasil</button></div></div><div class="table-responsive"><table class="table ops-collection-table"><thead id="sto-counted-head"><tr><th>Jenis</th><th>Material / Part</th><th>Part Name</th><th>Rack</th><th>Lot</th><th>Actual Qty</th><th>Counted By</th></tr></thead><tbody id="sto-counted-body"></tbody></table></div></section>
   </div>
 </main>
 <script id="sto-count-config" type="application/json"><%- JSON.stringify({ stoNo }).replace(/</g, '\\u003c') %></script>

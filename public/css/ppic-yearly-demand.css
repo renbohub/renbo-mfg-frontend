@@ -1,0 +1,111 @@
+.yearly-demand-page{min-height:calc(100vh - 116px);padding:24px 0 42px;background:#f5f7fb;color:#172033}
+.yd-page-head,.yd-toolbar,.yd-formula-panel,.yd-summary,.yd-matrix-card{width:min(100% - 32px,1800px);margin-inline:auto}
+.yd-page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:18px}
+.yd-eyebrow,.yd-matrix-head>div>span,.yd-formula-panel header span{display:block;color:#3157d5;font-size:10px;font-weight:850;letter-spacing:.11em}
+.yd-page-head h1{margin:4px 0 6px;color:#111827;font-size:28px;line-height:1.15}
+.yd-page-head p{max-width:780px;margin:0;color:#64748b;font-size:12px;line-height:1.55}
+.yd-head-actions{display:flex;gap:9px;flex:none}
+.yd-head-actions .btn{min-height:40px;padding-inline:15px;font-size:11px;font-weight:750}
+.yd-toolbar{display:grid;grid-template-columns:minmax(230px,1.5fr) minmax(190px,.85fr) 145px 150px auto;align-items:end;gap:10px;margin-bottom:14px;padding:13px;border:1px solid #dce3ee;border-radius:13px;background:#fff;box-shadow:0 3px 12px #0f172a08}
+.yd-toolbar>label,.yd-search,.yd-density{display:grid;gap:6px;margin:0;color:#64748b;font-size:9px;font-weight:850;letter-spacing:.045em;text-transform:uppercase}
+.yd-toolbar select,.yd-search>div{height:40px;border:1px solid #cfd8e6;border-radius:9px;background:#fff;color:#172033}
+.yd-toolbar select{width:100%;padding:0 34px 0 11px;font-size:11px;font-weight:650;text-transform:none;letter-spacing:0}
+.yd-search>div{display:flex;align-items:center;gap:8px;padding:0 11px}
+.yd-search svg{width:15px;height:15px;color:#64748b}
+.yd-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:#172033;font-size:12px}
+.yd-density>div{display:flex;height:40px;padding:3px;border:1px solid #cfd8e6;border-radius:9px;background:#f8fafc}
+.yd-density button{border:0;border-radius:6px;padding:0 10px;background:transparent;color:#64748b;font-size:10px;font-weight:750}
+.yd-density button.is-active{background:#fff;color:#2449c5;box-shadow:0 1px 4px #0f172a1a}
+.yd-formula-panel{margin-bottom:14px;padding:17px 19px;border:1px solid #c7d2fe;border-radius:13px;background:#f6f7ff}
+.yd-formula-panel[hidden]{display:none}
+.yd-formula-panel header{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.yd-formula-panel h2{margin:3px 0 0;color:#1e1b4b;font-size:16px}
+.yd-formula-panel code{padding:9px 12px;border:1px solid #c7d2fe;border-radius:8px;background:#fff;color:#3730a3;font-size:11px}
+.yd-formula-panel ol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 24px;margin:14px 0 8px;padding-left:20px;color:#475569;font-size:11px;line-height:1.45}
+.yd-formula-panel p{margin:0;color:#4338ca;font-size:10px;font-weight:700}
+.yd-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.yd-summary article{display:grid;gap:4px;min-height:100px;padding:16px 17px;border:1px solid #dce3ee;border-radius:12px;background:#fff;box-shadow:0 3px 12px #0f172a08}
+.yd-summary span{color:#64748b;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.yd-summary strong{color:#172554;font-size:24px;line-height:1.15}
+.yd-summary small{color:#94a3b8;font-size:9px}
+.yd-summary .yd-summary-eff{border-color:#bbf7d0;background:linear-gradient(135deg,#f0fdf4,#fff)}
+.yd-summary .yd-summary-eff strong{color:#166534}
+.yd-matrix-card{overflow:hidden;border:1px solid #d8e0ec;border-radius:14px;background:#fff;box-shadow:0 8px 24px #0f172a0d}
+.yd-matrix-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:18px 19px;border-bottom:1px solid #e5eaf1}
+.yd-matrix-head h2{margin:4px 0 3px;color:#111827;font-size:18px}
+.yd-matrix-head p{margin:0;color:#64748b;font-size:10px}
+.yd-legend{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.yd-legend>span{display:grid;grid-template-columns:auto auto;align-items:center;gap:5px;padding:7px 9px;border-radius:8px;font-size:10px;font-weight:850}
+.yd-legend small{font-size:8px;font-weight:650}
+.yd-legend .fcc{background:#eff6ff;color:#1d4ed8}.yd-legend .po{background:#fff7ed;color:#c2410c}.yd-legend .eff{background:#ecfdf5;color:#047857}
+.yd-alert{margin:12px 18px 0;padding:10px 12px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:11px}
+.yd-matrix-scroll{max-width:100%;overflow:auto;scrollbar-gutter:stable}
+.yd-matrix-table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
+.yd-matrix-table th,.yd-matrix-table td{height:48px;padding:9px 10px;border:0;border-right:1px solid #edf0f5;border-bottom:1px solid #e8ecf2;background:#fff;font-size:10px;white-space:nowrap}
+.yd-matrix-table thead th{position:sticky;top:0;z-index:5;height:39px;padding:7px 8px;background:#2448a6;color:#fff;text-align:center;font-size:9px;font-weight:800;letter-spacing:.03em}
+.yd-matrix-table thead .yd-month-head th{top:0}
+.yd-matrix-table thead .yd-metric-head th{top:39px;z-index:6;height:31px;padding:5px}
+.yd-month-head th small{display:block;margin-top:2px;color:#bfdbfe;font-size:7px;font-weight:600}
+.yd-metric-head .fcc{background:#2e63d6}.yd-metric-head .po{background:#d7671b}.yd-metric-head .eff{background:#16835c}
+.yd-matrix-table .yd-part-number{position:sticky;left:0;z-index:4;width:165px;min-width:165px;max-width:165px;text-align:left}
+.yd-matrix-table .yd-part-name{position:sticky;left:165px;z-index:4;width:220px;min-width:220px;max-width:220px;text-align:left;box-shadow:8px 0 12px -12px #0f172a}
+.yd-matrix-table thead .yd-part-number,.yd-matrix-table thead .yd-part-name{z-index:10;background:#203f92}
+.yd-matrix-table tbody tr:hover td{background:#fafbff}
+.yd-matrix-table tbody tr:hover .yd-part-number,.yd-matrix-table tbody tr:hover .yd-part-name{background:#f7f9ff}
+.yd-part-number strong,.yd-part-name strong{display:block;overflow:hidden;color:#172033;font-size:10px;text-overflow:ellipsis}
+.yd-part-number small,.yd-part-name small{display:block;overflow:hidden;margin-top:3px;color:#64748b;font-size:8px;font-weight:550;text-overflow:ellipsis}
+.yd-value{width:74px;min-width:74px;text-align:right;color:#334155}
+.yd-value.fcc{background:#f8fbff}.yd-value.po{background:#fffaf5}.yd-value.eff{background:#f4fcf8;color:#047857;font-weight:750}
+.yd-value.is-zero{color:#cbd5e1}
+.yd-value.eff button{width:100%;border:0;border-radius:5px;padding:4px;background:transparent;color:inherit;text-align:right;font:inherit;font-weight:800}
+.yd-value.eff button:hover,.yd-value.eff button:focus-visible{outline:0;background:#d1fae5;color:#065f46}
+.yd-total-head{background:#183571!important}.yd-total-col{border-left:2px solid #cbd5e1!important}
+.yd-matrix-table tfoot th,.yd-matrix-table tfoot td{position:sticky;bottom:0;z-index:5;height:39px;background:#edf2f9;color:#172554;font-weight:850;text-align:right}
+.yd-matrix-table tfoot th{left:0;z-index:7;text-align:left}
+.yd-matrix-table tfoot .fcc{color:#1d4ed8}.yd-matrix-table tfoot .po{color:#c2410c}.yd-matrix-table tfoot .eff{color:#047857}
+.yd-empty,.yd-loading-cell{height:250px!important;padding:40px!important;color:#64748b!important;text-align:center!important}
+.yd-empty strong,.yd-empty span{display:block}.yd-empty strong{margin-bottom:6px;color:#334155;font-size:13px}.yd-empty button{margin-top:12px;border:1px solid #c7d2fe;border-radius:7px;padding:7px 11px;background:#fff;color:#4338ca;font-size:10px;font-weight:750}
+.yd-loading-cell span{display:inline-block;width:14px;height:14px;margin-right:8px;border:2px solid #c7d2fe;border-top-color:#3157d5;border-radius:50%;vertical-align:-3px;animation:yd-spin .7s linear infinite}
+@keyframes yd-spin{to{transform:rotate(360deg)}}
+.yd-pagination{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 17px;background:#fff;color:#64748b;font-size:10px}
+.yd-pagination>div{display:flex;align-items:center;gap:10px}
+.yd-pagination button{border:1px solid #d8e0ec;border-radius:7px;padding:7px 10px;background:#fff;color:#334155;font-size:10px;font-weight:700}
+.yd-pagination button:disabled{cursor:not-allowed;opacity:.45}
+.is-compact .yd-matrix-table th,.is-compact .yd-matrix-table td{height:36px;padding:5px 7px}.is-compact .yd-value{width:64px;min-width:64px}
+.yd-lineage{position:fixed;inset:0;z-index:1300;visibility:hidden;pointer-events:none}
+.yd-lineage.is-open{visibility:visible;pointer-events:auto}
+.yd-lineage-backdrop{position:absolute;inset:0;background:#0f172a8c;opacity:0;transition:.18s}
+.yd-lineage.is-open .yd-lineage-backdrop{opacity:1}
+.yd-lineage-panel{position:absolute;top:0;right:0;width:min(520px,100%);height:100%;overflow:auto;background:#f8fafc;box-shadow:-20px 0 60px #0f172a29;transform:translateX(100%);transition:.22s}
+.yd-lineage.is-open .yd-lineage-panel{transform:none}
+.yd-lineage-panel>header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:22px;border-bottom:1px solid #e2e8f0;background:#fff}
+.yd-lineage-panel header span{color:#3157d5;font-size:9px;font-weight:850;letter-spacing:.1em}
+.yd-lineage-panel h2{margin:4px 0;color:#172033;font-size:19px}.yd-lineage-panel header p{margin:0;color:#64748b;font-size:10px}
+.yd-lineage-panel header button{display:grid;place-items:center;width:34px;height:34px;border:1px solid #d8e0ec;border-radius:9px;background:#fff;color:#64748b;font-size:20px}
+#yd-lineage-body{padding:18px}
+.yd-lineage-equation{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;align-items:center;gap:7px;padding:14px;border:1px solid #c7d2fe;border-radius:12px;background:#fff}
+.yd-lineage-equation div{display:grid;gap:3px;min-width:0}.yd-lineage-equation span{color:#64748b;font-size:8px;font-weight:800;text-transform:uppercase}.yd-lineage-equation strong{color:#172554;font-size:16px}.yd-lineage-equation i{color:#94a3b8;font-style:normal}.yd-lineage-equation .result{padding:8px;border-radius:8px;background:#ecfdf5}.yd-lineage-equation .result strong{color:#047857}
+.yd-equation-note{margin:9px 0 16px;color:#64748b;font-size:10px;line-height:1.5}
+.yd-lineage-grid{display:grid;gap:10px}.yd-lineage-grid article{padding:13px;border:1px solid #dce3ee;border-radius:10px;background:#fff}.yd-lineage-grid header{display:flex;justify-content:space-between;gap:12px;margin-bottom:9px}.yd-lineage-grid header span{color:#334155;font-size:11px;font-weight:800}.yd-lineage-grid header b{color:#64748b;font-size:9px}
+.yd-source-tags{display:flex;gap:5px;flex-wrap:wrap}.yd-source-tags span,.yd-source-tags em{padding:5px 7px;border-radius:6px;background:#eef2ff;color:#3730a3;font-size:9px;font-style:normal;font-weight:700}.yd-source-tags em{background:#f1f5f9;color:#64748b}.yd-source-empty{margin:0;color:#94a3b8;font-size:10px}
+#yd-lineage-body>footer{margin-top:12px;padding:11px;border-left:3px solid #10b981;background:#ecfdf5;color:#065f46;font-size:10px}
+.yd-is-loading .yd-matrix-card{cursor:progress}
+
+@media(max-width:1150px){
+  .yd-toolbar{grid-template-columns:1.3fr 1fr 145px 150px}.yd-density{grid-column:1/-1}
+  .yd-density>div{width:max-content}.yd-summary{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:720px){
+  .yearly-demand-page{padding-top:17px}.yd-page-head{flex-direction:column}.yd-head-actions{width:100%}.yd-head-actions .btn{flex:1}
+  .yd-toolbar{grid-template-columns:1fr 1fr}.yd-search,.yd-toolbar>label:nth-child(2),.yd-density{grid-column:1/-1}
+  .yd-formula-panel header{align-items:flex-start;flex-direction:column}.yd-formula-panel ol{grid-template-columns:1fr}
+  .yd-summary{grid-template-columns:1fr 1fr}.yd-summary article{min-height:90px;padding:13px}.yd-summary strong{font-size:20px}
+  .yd-matrix-head{flex-direction:column}.yd-legend{justify-content:flex-start}
+  .yd-matrix-table .yd-part-number{width:135px;min-width:135px;max-width:135px}.yd-matrix-table .yd-part-name{left:135px;width:165px;min-width:165px;max-width:165px}
+  .yd-pagination{align-items:flex-start;flex-direction:column}.yd-pagination>div{width:100%;justify-content:space-between}
+}
+@media(max-width:480px){
+  .yd-page-head,.yd-toolbar,.yd-formula-panel,.yd-summary,.yd-matrix-card{width:min(100% - 20px,1800px)}
+  .yd-toolbar{grid-template-columns:1fr}.yd-search,.yd-toolbar>label:nth-child(2),.yd-density{grid-column:auto}.yd-summary{grid-template-columns:1fr}
+  .yd-lineage-equation{grid-template-columns:1fr auto 1fr}.yd-lineage-equation .result{grid-column:1/-1}.yd-lineage-equation i:nth-of-type(3){display:none}
+}

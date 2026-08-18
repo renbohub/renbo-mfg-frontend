@@ -8,7 +8,7 @@
     "purchasing/purchase-order": { label: "Purchase Order", statuses: ["Draft", "Submitted", "Approved", "Rejected", "Sent", "Confirmed", "Partial Receipt", "Completed", "Cancelled"], defaults: { pendingStatus: "Submitted", approvedStatus: "Approved", rejectedStatus: "Rejected" } },
     "purchasing/purchase-invoices": { label: "Purchase Invoice", statuses: ["Draft", "Submitted", "Matched", "Need Review", "Approved", "Posted", "Paid", "Cancelled"], defaults: { pendingStatus: "Submitted", approvedStatus: "Approved", rejectedStatus: "Need Review" } },
     "sales/forecasts": { label: "Forecast", statuses: ["Draft", "Submitted", "Confirmed", "Rejected", "Partial Product", "Consumed", "Closed", "Obsolete"], defaults: { pendingStatus: "Submitted", approvedStatus: "Confirmed", rejectedStatus: "Rejected" } },
-    "production/production-logs": { label: "Production Log", statuses: ["Open", "Submitted", "Approved", "Rejected"], defaults: { pendingStatus: "Submitted", approvedStatus: "Approved", rejectedStatus: "Rejected" } },
+    "production/production-logs": { label: "Production Entry", statuses: ["Open", "Submitted", "Approved", "Rejected"], defaults: { pendingStatus: "Submitted", approvedStatus: "Approved", rejectedStatus: "Rejected" } },
     "inventory/stock-opname": { label: "Stock Opname", statuses: ["DRAFT", "COUNTING", "WAITING_APPROVAL", "APPROVED", "ADJUSTED", "CLOSED", "CANCELLED", "REJECTED"], defaults: { pendingStatus: "WAITING_APPROVAL", approvedStatus: "APPROVED", rejectedStatus: "REJECTED" } },
   };
   const state = { rules: [], roles: [], currentId: null, steps: [] };

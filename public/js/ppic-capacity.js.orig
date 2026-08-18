@@ -353,37 +353,9 @@
       plans = await api("/modules/api/planning-ppic/monthly-plan?start=0&length=200");
       $("capacity-plan").innerHTML = '<option value="">Semua production plan aktif</option>' + plans.map((plan) => `<option value="${esc(plan.planNumber)}">${esc(plan.planNumber)} · ${esc(plan.status)} · ${esc(plan.sourceMpsNumber || plan.sourceType || "Manual")}</option>`).join("");
       const requestedPlan = new URLSearchParams(location.search).get("planNumber");
-      const activeStatuses = new Set(["Draft", "Confirmed", "Released", "In Progress"]);
-      const selected = plans.find((plan) => plan.planNumber === requestedPlan)
-        || plans.find((plan) => String(plan.periodStart).slice(0, 7) === $("capacity-month").value && activeStatuses.has(plan.status))
-        || plans.find((plan) => activeStatuses.has(plan.status));
+      const selected = plans.find((plan) => plan.planNumber === requestedPlan);
       if (selected) { $("capacity-plan").value = selected.planNumber; $("capacity-start").value = String(selected.periodStart).slice(0, 10); $("capacity-end").value = String(selected.periodEnd).slice(0, 10); $("capacity-month").value = String(selected.periodStart).slice(0, 7); }
     } catch (_) { plans = []; }
-  }
-  function renderHorizonInsight() {
-    const target = $("capacity-horizon-insight");
-    if (!target || !snapshot) return;
-    const machineLoad = number(snapshot.summary?.totalLoadMinutes);
-    const vendors = snapshot.vendorAssignments || [];
-    const receiptCount = number(snapshot.summary?.fgReceiptLineCount);
-    const selectedPlan = plans.find((plan) => plan.planNumber === $("capacity-plan").value);
-    if (machineLoad > 0) {
-      target.classList.add("d-none");
-      target.innerHTML = "";
-      return;
-    }
-    const periodEnd = String(selectedPlan?.periodEnd || $("capacity-end").value || "").slice(0, 10);
-    const nextPlan = plans
-      .filter((plan) => plan.planNumber !== selectedPlan?.planNumber && String(plan.periodStart).slice(0, 10) > periodEnd && ["Draft", "Confirmed", "Released", "In Progress"].includes(plan.status))
-      .sort((left, right) => String(left.periodStart).localeCompare(String(right.periodStart)))[0];
-    const processNames = [...new Set(vendors.map((item) => item.processName || item.processCode).filter(Boolean))].join(", ");
-    const context = [vendors.length ? `${num(vendors.length)} allocation vendor${processNames ? ` (${esc(processNames)})` : ""}` : "", receiptCount ? `${num(receiptCount)} target FG receipt` : ""].filter(Boolean);
-    const hasNonMachineWork = context.length > 0;
-    target.classList.remove("d-none");
-    target.innerHTML = `<div class="d-flex flex-wrap align-items-center justify-content-between gap-2"><div><b>${hasNonMachineWork ? "Horizon ini tidak kosong; tidak ada beban mesin internal." : "Belum ada beban mesin pada horizon ini."}</b><div>${hasNonMachineWork ? `${context.join(" dan ")} tidak memakai menit kapasitas mesin.` : "Pilih MPP yang benar atau jalankan Buat Rekomendasi untuk membentuk schedule."}</div></div>${nextPlan ? `<button class="btn btn-sm btn-outline-primary" type="button" data-capacity-open-plan="${esc(nextPlan.planNumber)}">Buka ${esc(nextPlan.planNumber)}</button>` : ""}</div>`;
-    const vendorTimeline = document.querySelector(".capacity-vendor-heatmap-section");
-    if (vendorTimeline && vendors.length) vendorTimeline.open = true;
-    if (vendors.length && capacityUiState.workbench === "schedule") activateCapacityWorkbench("vendor");
   }
   function renderStats() {
     const summary = snapshot.summary;
@@ -1294,7 +1266,7 @@
     try {
       const retainedCell = selectedCell;
       snapshot = await api(`/modules/api/planning-ppic/capacity-planning?${params}`);
-      renderStats(); renderMaterialGate(); renderHeatmap(); renderReadiness(); renderUnscheduled(); renderProcessLoad(); renderDeliveryCoverage(); renderVendorAllocations(); renderCapacityAttention(); renderCapacityWorkbenchCounts(); renderHorizonInsight(); applyCapacityWorkbenchFilter(); updateCapacityModeUi();
+      renderStats(); renderMaterialGate(); renderHeatmap(); renderReadiness(); renderUnscheduled(); renderProcessLoad(); renderDeliveryCoverage(); renderVendorAllocations(); renderCapacityAttention(); renderCapacityWorkbenchCounts(); applyCapacityWorkbenchFilter(); updateCapacityModeUi();
       const firstLoaded = snapshot.machines.flatMap((machine) => snapshot.dates.map((date) => ({ machine, date, cell: machine.cells[date] }))).find((entry) => entry.cell.items.length) || (snapshot.machines[0] ? { machine: snapshot.machines[0], date: snapshot.dates[0] } : null);
       const canRetain = retainedCell && snapshot.dates.includes(retainedCell.date) && snapshot.machines.some((machine) => machine.id === retainedCell.machineId);
       if (canRetain) renderCell(retainedCell.machineId, retainedCell.date);
@@ -1329,12 +1301,6 @@
     document.querySelectorAll("[data-capacity-workbench]").forEach((button) => button.addEventListener("click", () => activateCapacityWorkbench(button.dataset.capacityWorkbench)));
     document.addEventListener("click", (event) => {
       const workbenchButton = event.target.closest("[data-capacity-attention-workbench], [data-capacity-stat-target]");
-      const planShortcut = event.target.closest("[data-capacity-open-plan]");
-      if (planShortcut) {
-        $("capacity-plan").value = planShortcut.dataset.capacityOpenPlan;
-        $("capacity-plan").dispatchEvent(new Event("change"));
-        return;
-      }
       if (workbenchButton) return activateCapacityWorkbench(workbenchButton.dataset.capacityAttentionWorkbench || workbenchButton.dataset.capacityStatTarget, { scroll: true });
       const attentionOpen = event.target.closest("[data-capacity-attention-open]");
       if (attentionOpen) { capacityUiState.attention = attentionOpen.dataset.capacityAttentionOpen || "all"; renderCapacityAttention(); return document.querySelector(".capacity-attention-card")?.scrollIntoView({ behavior: "smooth", block: "start" }); }

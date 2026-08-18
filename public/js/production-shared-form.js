@@ -53,7 +53,7 @@
       { name: "notes", label: "Catatan", type: "textarea", span: 2 },
     ],
     "quality-inspections": [
-      { name: "productionLogId", label: "Production Log", ...lookup("/modules/api/production/production-logs?start=0&length=500", "id", ["logNumber", "woNumber", "status"]) },
+      { name: "productionLogId", label: "Production Entry", ...lookup("/modules/api/production/production-logs?start=0&length=500", "id", ["logNumber", "woNumber", "status"]) },
       { name: "woId", label: "Work Order (fallback)", ...lookup("/modules/api/production/work-orders?start=0&length=500", "id", ["woNumber", "outputPartCode"]) },
       { name: "inspectionDate", label: "Tanggal Inspection", type: "date", required: true, default: today() },
       { name: "inspectedBy", label: "Inspector", required: true },

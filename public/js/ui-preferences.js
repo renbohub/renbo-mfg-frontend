@@ -84,7 +84,7 @@
     "Delivery Orders": { en: "Delivery Orders", ja: "出荷指示" },
     "Delivery Schedules": { en: "Delivery Schedules", ja: "納入予定" },
     "Manufacturing Orders": { en: "Manufacturing Orders", ja: "製造指図" },
-    "Production Logs": { en: "Production Logs", ja: "生産実績" },
+    "Production Entries": { en: "Production Entries", ja: "生産実績" },
     "Quality Inspections": { en: "Quality Inspections", ja: "品質検査" },
     "Logs": { en: "Logs", ja: "ログ" },
     "Maintenance": { en: "Maintenance", ja: "保全" },

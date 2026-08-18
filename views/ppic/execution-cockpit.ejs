@@ -1,0 +1,33 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/ppic-execution-cockpit.css?v=20260818-1">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'control-tower' }) %>
+
+<main class="pec-page">
+  <header class="pec-head app-container">
+    <div><span>PLANNING PPIC / EXECUTION GOVERNANCE</span><h1>Planning Execution Cockpit</h1><p>Satu runtutan resmi dari MPS, backward schedule, month-end MRP, planned order, MPP, sampai period closing.</p></div>
+    <div class="pec-actions"><label><span>Periode</span><input id="pec-month" type="month" value="<%= initialMonth %>"></label><button id="pec-refresh" class="btn btn-outline-primary" type="button">Refresh</button><button id="pec-closing-open" class="btn btn-primary" type="button">Period Closing</button></div>
+  </header>
+
+  <section id="pec-period-banner" class="pec-period app-container"><div><span>STATUS PERIODE</span><strong id="pec-period-status">Memuat…</strong><small id="pec-period-meta">Mengambil dokumen resmi dan gate closing.</small></div><div id="pec-period-badges"></div></section>
+  <section id="pec-stages" class="pec-stages app-container" aria-label="Alur PPIC"></section>
+  <section id="pec-kpis" class="pec-kpis app-container"></section>
+
+  <section class="pec-workbench app-container">
+    <nav class="pec-tabs" aria-label="Planning workbench">
+      <button class="active" type="button" data-pec-tab="capacity">Capacity &amp; Backward</button><button type="button" data-pec-tab="mrp">Month-End MRP</button><button type="button" data-pec-tab="orders">Planned Orders</button><button type="button" data-pec-tab="mpp">Monthly Production Plan</button><button type="button" data-pec-tab="control">Control Tower &amp; Closing</button>
+    </nav>
+    <div class="pec-table-tools"><label><span>Cari</span><input id="pec-search" type="search" placeholder="Part, dokumen, process, vendor, blocker…"></label><label><span>Status</span><select id="pec-status" data-searchable><option value="">Semua status</option></select></label><label><span>Baris</span><select id="pec-limit"><option>25</option><option>50</option><option>100</option></select></label><button id="pec-export" class="btn btn-outline-primary" type="button">Export CSV</button></div>
+    <div id="pec-alert" class="pec-alert" hidden></div>
+    <header class="pec-panel-head"><div><span id="pec-panel-eyebrow">BACKWARD SCHEDULING</span><h2 id="pec-panel-title">Operation schedule</h2><p id="pec-panel-help">Tanggal ditarik mundur dari customer target sampai operation pertama.</p></div><a id="pec-open-source" class="btn btn-outline-primary" href="/modules/planning-ppic/capacity-planning">Buka halaman sumber</a></header>
+    <div class="pec-table-scroll"><table><thead id="pec-thead"></thead><tbody id="pec-tbody"><tr><td class="pec-empty">Memuat data…</td></tr></tbody></table></div>
+    <footer class="pec-pagination"><span id="pec-range">0 data</span><div><button id="pec-prev" type="button">Sebelumnya</button><span id="pec-page">1 / 1</span><button id="pec-next" type="button">Berikutnya</button></div></footer>
+  </section>
+
+  <section class="pec-formulas app-container"><header><span>FORMULA LINEAGE</span><h2>Urutan pengambilan tanggal</h2><p>Semua tahap memakai tanggal yang sama; setiap output menjadi input tahap berikutnya.</p></header><div id="pec-formula-list"></div></section>
+</main>
+
+<aside id="pec-modal" class="pec-modal" aria-hidden="true"><div class="pec-modal-backdrop" data-pec-close></div><form id="pec-close-form" class="pec-modal-panel"><header><div><span>PERIOD GOVERNANCE</span><h2 id="pec-modal-title">Period Closing</h2><p id="pec-modal-subtitle"></p></div><button type="button" data-pec-close aria-label="Tutup">×</button></header><div class="pec-modal-body"><div id="pec-modal-blockers"></div><label id="pec-reason-wrap" hidden><span>Alasan reopen</span><textarea id="pec-reason" rows="3" placeholder="Jelaskan koreksi yang perlu dilakukan"></textarea></label><label><span id="pec-confirm-label">Konfirmasi</span><input id="pec-confirmation" autocomplete="off" required></label><small>Perubahan dikirim via AJAX; halaman tidak akan refresh.</small></div><footer><button type="button" class="btn btn-outline-secondary" data-pec-close>Batal</button><button id="pec-modal-submit" class="btn btn-primary" type="submit">Proses</button></footer></form></aside>
+
+<script id="pec-config" type="application/json"><%- JSON.stringify({ initialMonth }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

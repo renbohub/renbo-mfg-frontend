@@ -12,12 +12,20 @@
     'monthly-plan': 'monthly-production-plans'
   };
   const normalizedActivePage = modulePageAliases[requestedActivePage] || requestedActivePage;
+  const ppicWorkbenchNav = module.slug === 'planning-ppic' ? {
+    'master-production-schedule': { label: 'MPS Workbench', href: '/modules/planning-ppic/mps/workbench' },
+    'material-requirements-planning': { label: 'MRP Cockpit', href: '/modules/planning-ppic/control-tower?tab=mrp' },
+    'monthly-production-plans': { label: 'MPP Workbench', href: '/modules/planning-ppic/control-tower?tab=mpp' },
+    'control-tower': { label: 'Execution Cockpit', href: '/modules/planning-ppic/control-tower' },
+    'planned-orders': { label: 'Planned Order Workbench', href: '/modules/planning-ppic/control-tower?tab=orders' }
+  } : {};
   const moduleNavigationItems = (module.pages || []).filter(item => !item.navHidden).map(item => ({
     slug: item.slug,
-    label: item.label,
-    href: '/modules/' + module.slug + '/' + item.slug,
+    label: ppicWorkbenchNav[item.slug]?.label || item.label,
+    href: ppicWorkbenchNav[item.slug]?.href || '/modules/' + module.slug + '/' + item.slug,
     apiReady: item.apiReady !== false
   }));
+  if (module.slug === 'planning-ppic') moduleNavigationItems.push({ slug: 'tutorial', label: 'Tutorial', href: '/modules/planning-ppic/tutorial', apiReady: true });
 %>
 <nav class="module-subnav module-subnav--<%= module.color %>" aria-label="Menu <%= module.label %>">
   <div class="app-container module-subnav-inner">

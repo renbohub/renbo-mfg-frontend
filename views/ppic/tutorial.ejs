@@ -1,0 +1,53 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/ppic-tutorial.css?v=20260818-1">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'tutorial' }) %>
+
+<main class="ptu-page">
+  <header class="ptu-hero app-container">
+    <div><span>PPIC LEARNING CENTER</span><h1>Tutorial Sistem PPIC Baru</h1><p>Ikuti alur resmi dari demand tahunan sampai period closing. Setiap langkah menjelaskan input, formula, output, user yang bertanggung jawab, dan penyebab data belum muncul.</p></div>
+    <div class="ptu-hero-actions"><button id="ptu-start" class="btn btn-primary" type="button">Mulai Tutorial</button><button id="ptu-reset" class="btn btn-outline-secondary" type="button">Reset Progress</button></div>
+  </header>
+
+  <section class="ptu-progress app-container"><div><span id="ptu-progress-label">0 dari 9 langkah selesai</span><strong id="ptu-progress-percent">0%</strong></div><div class="ptu-progress-track"><i id="ptu-progress-bar"></i></div></section>
+
+  <div class="ptu-layout app-container">
+    <aside class="ptu-sidebar">
+      <label><span>Cari topik</span><input id="ptu-search" type="search" placeholder="MPS, vendor, MOQ, closing…"></label>
+      <nav id="ptu-nav" aria-label="Langkah tutorial"></nav>
+      <section><b>Urutan singkat</b><p>Demand → Review → Exception → MPS → Capacity → MRP → Planned Order → MPP → Closing</p></section>
+    </aside>
+
+    <div class="ptu-content">
+      <section class="ptu-intro">
+        <article><span>PRINSIP UTAMA</span><b>Satu tanggal, satu versi, satu lineage</b><p>Customer delivery menjadi anchor. Semua tanggal produksi, vendor, material, dan order ditarik mundur dari anchor yang sama.</p></article>
+        <article><span>ATURAN DATA</span><b>Draft tidak mengalir ke proses resmi</b><p>Dokumen berikutnya baru muncul setelah gate status tahap sebelumnya terpenuhi.</p></article>
+        <article><span>JIKA DATA KOSONG</span><b>Lihat blocker, jangan input ulang</b><p>Buka Execution Cockpit untuk mengetahui dokumen atau approval yang belum lengkap.</p></article>
+      </section>
+
+      <section id="ptu-steps" class="ptu-steps"></section>
+
+      <section class="ptu-reference">
+        <header><span>REFERENSI CEPAT</span><h2>Status dan tanggung jawab</h2></header>
+        <div class="ptu-reference-grid">
+          <article><h3>Marketing / Sales</h3><ul><li>Membuat Forecast dan delivery phase.</li><li>Memastikan customer, part, tanggal, dan quantity benar.</li><li>Sales Order mengonsumsi Forecast pada target yang sesuai.</li></ul></article>
+          <article><h3>PPIC</h3><ul><li>Freeze Monthly Demand Review.</li><li>Menyelesaikan exception dan konfirmasi MPS.</li><li>Review capacity, MRP, planned order, MPP, dan closing.</li></ul></article>
+          <article><h3>Purchasing</h3><ul><li>Review supplier, lead time, MOQ, dan package.</li><li>Release Planned Purchase Order menjadi suggestion/PR/PO.</li><li>Menjaga delivery PO sebelum material required date.</li></ul></article>
+          <article><h3>Production</h3><ul><li>Mengonsumsi Daily Production Plan.</li><li>Menjalankan MO/WO dan vendor dispatch.</li><li>Mencatat output, NG, WIP, dan FG receipt.</li></ul></article>
+        </div>
+      </section>
+
+      <section class="ptu-troubleshoot">
+        <header><span>TROUBLESHOOTING</span><h2>Ketika halaman terlihat kosong</h2></header>
+        <details><summary>MPS belum menampilkan data</summary><p>Pastikan Forecast sudah aktif, delivery phase tersedia, Monthly Demand Snapshot sudah <b>FROZEN</b>, dan exception blocking sudah diselesaikan. Draft Forecast tidak menjadi official MPS.</p></details>
+        <details><summary>Vendor painting tidak muncul</summary><p>Pastikan operation pada MBOM memiliki routing mode <b>VENDOR</b>, vendor dan lead time terisi, MPP sudah terbentuk, lalu jalankan Capacity Recommendation. Vendor send/return akan muncul sebagai operation tersendiri.</p></details>
+        <details><summary>Capacity atau MPP kosong</summary><p>Capacity membutuhkan MPP yang bersumber dari current MRP Completed. Jika MPS atau MRP belum resmi, kosong adalah hasil yang benar.</p></details>
+        <details><summary>Period Closing tidak dapat ditekan</summary><p>Closing hanya aktif setelah period end dan semua blocker selesai: demand frozen, MPS confirmed, MRP completed, planned order released/covered, MPP released, dan tidak ada late capacity atau pending replan.</p></details>
+      </section>
+    </div>
+  </div>
+</main>
+
+<aside id="ptu-reset-modal" class="ptu-modal" aria-hidden="true"><div class="ptu-modal-backdrop" data-ptu-close></div><section><header><h2>Reset progress tutorial?</h2><button type="button" data-ptu-close>×</button></header><p>Semua tanda selesai pada browser ini akan dihapus. Data bisnis tidak terpengaruh.</p><footer><button type="button" class="btn btn-outline-secondary" data-ptu-close>Batal</button><button id="ptu-reset-confirm" type="button" class="btn btn-danger">Reset</button></footer></section></aside>
+
+<%- include('../partials/footer') %>

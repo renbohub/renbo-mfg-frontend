@@ -12,8 +12,10 @@
   const downtimeTemplate = document.getElementById("downtime-row-template");
   const coilPhaseRows = document.getElementById("coil-phase-rows");
   const coilPhaseTemplate = document.getElementById("coil-phase-template");
+  const ngReasonTemplate = document.getElementById("ng-reason-row-template");
   const submitButton = document.getElementById("production-log-submit");
   const schedules = new Map();
+  const hmiMaster = { rejections: [], downtimes: [] };
 
   const element = (id) => document.getElementById(id);
   const value = (id) => element(id)?.value?.trim() || "";
@@ -82,9 +84,53 @@
     const produced = numeric("qtyProduced");
     const reject = numeric("qtyReject");
     setValue("qtyGood", Math.max(0, produced - reject));
-    const rejectReason = element("rejectReason");
-    rejectReason.required = reject > 0;
-    rejectReason.closest("label")?.classList.toggle("field-required", reject > 0);
+  }
+
+  function masterOptions(rows, selectedId = null) {
+    return `<option value="">Pilih master HMI</option>${rows.map((item) => `<option value="${item.id}" data-description="${escapeHtml(item.description)}" ${String(item.id) === String(selectedId || "") ? "selected" : ""}>${escapeHtml(item.description)}</option>`).join("")}<option value="MANUAL" ${selectedId === "MANUAL" ? "selected" : ""}>Input manual</option>`;
+  }
+
+  function childOptions(parent, selectedId = null) {
+    return `<option value="">Pilih sub reason</option>${(parent?.children || []).map((item) => `<option value="${item.id}" data-description="${escapeHtml(item.description)}" ${String(item.id) === String(selectedId || "") ? "selected" : ""}>${escapeHtml(item.description)}</option>`).join("")}`;
+  }
+
+  function syncNgReasonRow(row, data = {}) {
+    const main = row.querySelector("[data-ng-reason-main]");
+    const sub = row.querySelector("[data-ng-reason-sub]");
+    const manual = row.querySelector("[data-ng-reason-manual]");
+    const matched = hmiMaster.rejections.find((item) => Number(item.id) === Number(data.hmiRejectionId));
+    const selectedMain = matched ? matched.id : "MANUAL";
+    main.innerHTML = masterOptions(hmiMaster.rejections, selectedMain);
+    sub.innerHTML = childOptions(matched, data.hmiRejectionSubId);
+    sub.disabled = !matched || !(matched.children || []).length;
+    manual.value = matched ? "" : (data.reason || "");
+    manual.required = !matched;
+    row.querySelector("[data-ng-manual-wrap]").classList.toggle("d-none", Boolean(matched));
+  }
+
+  function addNgReasonRow(phaseRow, data = {}) {
+    const fragment = ngReasonTemplate.content.cloneNode(true);
+    const row = fragment.querySelector(".production-ng-reason-row");
+    syncNgReasonRow(row, data);
+    row.querySelector("[data-ng-reason-qty]").value = data.qtyNg ?? "";
+    phaseRow.querySelector("[data-ng-reason-rows]").appendChild(fragment);
+  }
+
+  function collectNgReasons(phaseRow) {
+    return [...phaseRow.querySelectorAll(".production-ng-reason-row")].map((row) => {
+      const main = row.querySelector("[data-ng-reason-main]");
+      const sub = row.querySelector("[data-ng-reason-sub]");
+      const manual = row.querySelector("[data-ng-reason-manual]").value.trim();
+      const mainDescription = main.selectedOptions[0]?.dataset.description || "";
+      const subDescription = sub.selectedOptions[0]?.dataset.description || "";
+      return {
+        hmiRejectionId: main.value && main.value !== "MANUAL" ? Number(main.value) : null,
+        hmiRejectionSubId: sub.value ? Number(sub.value) : null,
+        reason: main.value === "MANUAL" ? manual : mainDescription,
+        subReason: subDescription || null,
+        qtyNg: Number(row.querySelector("[data-ng-reason-qty]").value || 0),
+      };
+    });
   }
 
   function refreshCoilPhases() {
@@ -95,9 +141,7 @@
     setValue("qtyGood", qtyGood);
     setValue("qtyReject", qtyReject);
     setValue("qtyProduced", qtyGood + qtyReject);
-    const rejectReason = element("rejectReason");
-    rejectReason.required = qtyReject > 0;
-    rejectReason.closest("label")?.classList.toggle("field-required", qtyReject > 0);
+    setValue("rejectReason", rows.flatMap((row) => collectNgReasons(row).map((reason) => `${reason.reason}${reason.subReason ? ` / ${reason.subReason}` : ""}: ${formatNumber(reason.qtyNg)}`)).filter(Boolean).join("; "));
   }
 
   function addCoilPhase(data = {}) {
@@ -112,6 +156,8 @@
     row.querySelector("[data-coil-end]").value = timeOnly(data.endedAt) || "";
     row.querySelector("[data-coil-notes]").value = data.notes || "";
     coilPhaseRows.appendChild(fragment);
+    (data.ngReasons || []).forEach((reason) => addNgReasonRow(row, reason));
+    if (Number(data.qtyReject || 0) > 0 && !data.ngReasons?.length) addNgReasonRow(row, { qtyNg: data.qtyReject, reason: data.rejectReason || "" });
     refreshCoilPhases();
   }
 
@@ -126,6 +172,7 @@
         qtyInput: Number(row.querySelector("[data-coil-input]")?.value || 0),
         qtyGood: Number(row.querySelector("[data-coil-good]")?.value || 0),
         qtyReject: Number(row.querySelector("[data-coil-reject]")?.value || 0),
+        ngReasons: collectNgReasons(row),
         startedAt: start ? combineDateTime(date, start) : null,
         endedAt: end ? combineDateTime(date, end, Boolean(start && end && end < start)) : null,
         notes: row.querySelector("[data-coil-notes]")?.value?.trim() || null,
@@ -148,11 +195,17 @@
   function addDowntimeRow(data = {}) {
     const fragment = downtimeTemplate.content.cloneNode(true);
     const row = fragment.querySelector(".production-downtime-row");
-    row.querySelector("[data-downtime-category]").value = data.category || "SETUP_DANDORI";
+    const main = row.querySelector("[data-downtime-category]");
+    const sub = row.querySelector("[data-downtime-sub]");
+    const matched = hmiMaster.downtimes.find((item) => Number(item.id) === Number(data.hmiDowntimeId));
+    main.innerHTML = masterOptions(hmiMaster.downtimes, matched ? matched.id : "MANUAL");
+    sub.innerHTML = childOptions(matched, data.hmiDowntimeSubId);
+    sub.disabled = !matched || !(matched.children || []).length;
     row.querySelector("[data-downtime-start]").value = timeOnly(data.startTime) || data.startTime || "";
     row.querySelector("[data-downtime-end]").value = timeOnly(data.endTime) || data.endTime || "";
     row.querySelector("[data-downtime-duration]").value = data.durationMinutes ?? data.duration ?? "";
-    row.querySelector("[data-downtime-reason]").value = data.reason || "";
+    row.querySelector("[data-downtime-reason]").value = matched ? "" : (data.reason || data.category || "");
+    row.querySelector("[data-downtime-reason]").required = !matched;
     row.querySelector("[data-downtime-notes]").value = data.notes || "";
     downtimeRows.appendChild(fragment);
     refreshDowntimeRows();
@@ -165,11 +218,13 @@
       const end = row.querySelector("[data-downtime-end]")?.value || "";
       const crossesMidnight = Boolean(start && end && end < start);
       return {
-        category: row.querySelector("[data-downtime-category]")?.value || "OTHER",
+        category: row.querySelector("[data-downtime-category]")?.selectedOptions[0]?.dataset.description || "MANUAL",
+        hmiDowntimeId: row.querySelector("[data-downtime-category]")?.value !== "MANUAL" ? Number(row.querySelector("[data-downtime-category]")?.value || 0) || null : null,
+        hmiDowntimeSubId: Number(row.querySelector("[data-downtime-sub]")?.value || 0) || null,
         startTime: start ? combineDateTime(date, start) : null,
         endTime: end ? combineDateTime(date, end, crossesMidnight) : null,
         durationMinutes: Number(row.querySelector("[data-downtime-duration]")?.value || 0),
-        reason: row.querySelector("[data-downtime-reason]")?.value?.trim() || "",
+        reason: row.querySelector("[data-downtime-sub]")?.selectedOptions[0]?.dataset.description || row.querySelector("[data-downtime-reason]")?.value?.trim() || row.querySelector("[data-downtime-category]")?.selectedOptions[0]?.dataset.description || "",
         notes: row.querySelector("[data-downtime-notes]")?.value?.trim() || null,
       };
     });
@@ -186,7 +241,9 @@
     summary.className = "production-log-plan-summary";
     summary.innerHTML = `
       <div><small>Monthly Production Plan</small><strong>${escapeHtml(schedule.monthlyProductionPlanNumber || "-")} · Line ${escapeHtml(schedule.monthlyProductionPlanLineNumber || "-")}</strong></div>
-      <div><small>Part</small><strong>${escapeHtml(schedule.partCode || "-")}</strong></div>
+      <div><small>Part Code</small><strong>${escapeHtml(schedule.partCode || "-")}</strong></div>
+      <div><small>Part Number</small><strong>${escapeHtml(schedule.partNumber || "-")}</strong></div>
+      <div><small>Part Name</small><strong>${escapeHtml(schedule.partName || "-")}</strong></div>
       <div><small>Mesin / Proses</small><strong>${escapeHtml(schedule.machineCode || "-")} · ${escapeHtml(schedule.processCode || "-")}</strong></div>
       <div><small>Plan / Actual</small><strong>${formatQuantity(schedule.plannedQty,schedule.uomCode)} / ${formatQuantity(schedule.actualQty,schedule.uomCode)}</strong></div>
       <div><small>Sisa Target</small><strong>${formatQuantity(remaining,schedule.uomCode)} ${escapeHtml(schedule.uomCode || "")}</strong></div>
@@ -197,6 +254,9 @@
     if (!schedule) {
       setValue("moNumber", "");
       setValue("woNumber", "");
+      setValue("partCode", "");
+      setValue("partNumber", "");
+      setValue("partName", "");
       setValue("processCode", "");
       setValue("qtyPlanned", "");
       if (!preserveActual) {
@@ -211,6 +271,9 @@
     setValue("shift", schedule.shift || "1A");
     setValue("moNumber", schedule.moNumber || "");
     setValue("woNumber", schedule.woNumber || "");
+    setValue("partCode", schedule.partCode || "");
+    setValue("partNumber", schedule.partNumber || "");
+    setValue("partName", schedule.partName || "");
     setValue("machineCode", schedule.machineCode || "");
     setValue("processCode", schedule.processCode || "");
     setValue("operatorName", value("operatorName") || schedule.operatorName || "");
@@ -251,7 +314,7 @@
         `${Number(row.schedulePriority || 100) <= 1 ? "PRIORITAS SHORTFALL · " : ""}${row.scheduleNumber}`,
         formatDate(row.scheduleDate),
         `Shift ${row.shift}`,
-        row.partCode || "Tanpa part",
+        [row.partCode, row.partNumber, row.partName].filter(Boolean).join(" / ") || "Tanpa part",
         row.processName || row.processCode || "Tanpa proses",
         `Sisa ${formatNumber(remaining)}`,
       ].join(" · ");
@@ -294,6 +357,8 @@
       machineCode: record.machineCode,
       processCode: record.processCode,
       partCode: record.manufacturingOrder?.part?.partCode,
+      partNumber: record.outputPart?.partNumber || record.workOrder?.outputPartNumber || record.manufacturingOrder?.part?.partNumber,
+      partName: record.outputPart?.partName || record.workOrder?.outputPartName || record.manufacturingOrder?.part?.partName,
       plannedQty: record.qtyPlanned,
       actualQty: record.qtyProduced,
       status: record.status,
@@ -319,6 +384,9 @@
     setValue("shift", record.shift);
     setValue("moNumber", record.manufacturingOrder?.moNumber || record.moNumber || "");
     setValue("woNumber", record.workOrder?.woNumber || record.woNumber || "");
+    setValue("partCode", record.outputPart?.partCode || schedule?.partCode || record.manufacturingOrder?.part?.partCode || "");
+    setValue("partNumber", record.outputPart?.partNumber || schedule?.partNumber || record.workOrder?.outputPartNumber || record.manufacturingOrder?.part?.partNumber || "");
+    setValue("partName", record.outputPart?.partName || schedule?.partName || record.workOrder?.outputPartName || record.manufacturingOrder?.part?.partName || "");
     setValue("machineCode", record.machineCode || "");
     setValue("processCode", record.processCode || "");
     setValue("operatorName", record.operatorName || "");
@@ -331,6 +399,10 @@
     setValue("endTime", timeOnly(record.endTime));
     setValue("attachmentUrl", record.attachmentUrl || "");
     setValue("notes", record.notes || "");
+    element("operatorSelfCheck").checked = record.qualityCheckMode === "OPERATOR_SELF_CHECK";
+    setValue("selfCheckNotes", record.selfCheckNotes || "");
+    element("selfCheckNotesWrap").classList.toggle("d-none", !element("operatorSelfCheck").checked);
+    element("selfCheckNotes").required = element("operatorSelfCheck").checked;
     downtimeRows.innerHTML = "";
     (record.downtimeLogs || []).forEach(addDowntimeRow);
     coilPhaseRows.innerHTML = "";
@@ -347,14 +419,49 @@
   scheduleSelect.addEventListener("change", () => applySchedule(schedules.get(scheduleSelect.value)));
   element("add-coil-phase").addEventListener("click", () => addCoilPhase());
   coilPhaseRows.addEventListener("click", (event) => {
+    const addReason = event.target.closest("[data-add-ng-reason]");
+    if (addReason) {
+      addNgReasonRow(addReason.closest(".production-coil-phase-row"));
+      refreshCoilPhases();
+      return;
+    }
+    const removeReason = event.target.closest("[data-remove-ng-reason]");
+    if (removeReason) {
+      removeReason.closest(".production-ng-reason-row")?.remove();
+      refreshCoilPhases();
+      return;
+    }
     const remove = event.target.closest("[data-remove-coil-phase]");
     if (!remove) return;
     remove.closest(".production-coil-phase-row")?.remove();
     if (!coilPhaseRows.children.length) addCoilPhase();
     refreshCoilPhases();
   });
-  coilPhaseRows.addEventListener("input", refreshCoilPhases);
+  coilPhaseRows.addEventListener("change", (event) => {
+    if (!event.target.matches("[data-ng-reason-main]")) return;
+    const reasonRow = event.target.closest(".production-ng-reason-row");
+    const selected = hmiMaster.rejections.find((item) => Number(item.id) === Number(event.target.value));
+    const sub = reasonRow.querySelector("[data-ng-reason-sub]");
+    sub.innerHTML = childOptions(selected);
+    sub.disabled = !selected || !(selected.children || []).length;
+    reasonRow.querySelector("[data-ng-manual-wrap]").classList.toggle("d-none", Boolean(selected));
+    reasonRow.querySelector("[data-ng-reason-manual]").required = !selected;
+    refreshCoilPhases();
+  });
+  coilPhaseRows.addEventListener("input", (event) => {
+    const phase = event.target.closest(".production-coil-phase-row");
+    if (phase && event.target.matches("[data-coil-reject]") && Number(event.target.value || 0) > 0 && !phase.querySelector(".production-ng-reason-row")) {
+      addNgReasonRow(phase, { qtyNg: Number(event.target.value || 0) });
+    }
+    refreshCoilPhases();
+  });
   element("add-downtime").addEventListener("click", () => addDowntimeRow());
+  element("operatorSelfCheck").addEventListener("change", () => {
+    const enabled = element("operatorSelfCheck").checked;
+    element("selfCheckNotesWrap").classList.toggle("d-none", !enabled);
+    element("selfCheckNotes").required = enabled;
+    if (!enabled) setValue("selfCheckNotes", "");
+  });
   downtimeRows.addEventListener("click", (event) => {
     const remove = event.target.closest("[data-remove-downtime]");
     if (!remove) return;
@@ -372,6 +479,15 @@
     }
     refreshDowntimeRows();
   });
+  downtimeRows.addEventListener("change", (event) => {
+    if (!event.target.matches("[data-downtime-category]")) return;
+    const row = event.target.closest(".production-downtime-row");
+    const selected = hmiMaster.downtimes.find((item) => Number(item.id) === Number(event.target.value));
+    const sub = row.querySelector("[data-downtime-sub]");
+    sub.innerHTML = childOptions(selected);
+    sub.disabled = !selected || !(selected.children || []).length;
+    row.querySelector("[data-downtime-reason]").required = !selected || !(selected.children || []).length;
+  });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -380,7 +496,17 @@
     const downtimes = collectDowntimes();
     const coilPhases = collectCoilPhases();
     if (!coilPhases.length || coilPhases.some((row) => !row.inputLotNumber || row.qtyGood + row.qtyReject <= 0 || (row.qtyInput > 0 && row.qtyGood + row.qtyReject > row.qtyInput))) {
-      show("Setiap phase wajib memiliki lot coil, hasil OK/reject, dan output tidak boleh melebihi qty input.");
+      show("Setiap phase wajib memiliki lot coil, hasil OK/NG, dan output tidak boleh melebihi qty input.");
+      return;
+    }
+    const invalidNgPhase = coilPhases.find((row) => {
+      const allocated = row.ngReasons.reduce((sum, reason) => sum + Number(reason.qtyNg || 0), 0);
+      return row.qtyReject > 0
+        ? !row.ngReasons.length || row.ngReasons.some((reason) => !reason.reason || reason.qtyNg <= 0) || Math.abs(allocated - row.qtyReject) > 0.000001
+        : row.ngReasons.length > 0;
+    });
+    if (invalidNgPhase) {
+      show("Setiap Qty NG wajib dibagi ke satu atau beberapa reason pada phase yang sama; total qty reason harus sama dengan Qty NG.");
       return;
     }
     if (numeric("qtyReject") > numeric("qtyProduced")) {
@@ -389,6 +515,10 @@
     }
     if (downtimes.some((row) => !row.reason || row.durationMinutes <= 0)) {
       show("Setiap downtime harus memiliki alasan dan durasi lebih dari 0 menit.");
+      return;
+    }
+    if (element("operatorSelfCheck").checked && !value("selfCheckNotes")) {
+      show("Catatan pemeriksaan operator wajib diisi ketika antrean QC hasil OK dilewati.");
       return;
     }
     const startTimeValue = value("startTime");
@@ -410,6 +540,8 @@
       qtyGood: numeric("qtyGood"),
       qtyReject: numeric("qtyReject"),
       rejectReason: value("rejectReason") || null,
+      qualityCheckMode: element("operatorSelfCheck").checked ? "OPERATOR_SELF_CHECK" : "SEPARATE_QC",
+      selfCheckNotes: element("operatorSelfCheck").checked ? value("selfCheckNotes") : null,
       coilPhases,
       downtimes,
       attachmentUrl: value("attachmentUrl") || null,
@@ -427,18 +559,30 @@
         body: JSON.stringify(body),
       });
       const logNumber = payload.logNumber || recordKey;
-      show(`Production Log ${logNumber} berhasil disimpan.`, "success");
+      show(`Production Entry ${logNumber} berhasil disimpan.`, "success");
       setTimeout(() => location.assign(`/modules/production/production-logs/${encodeURIComponent(logNumber)}`), 500);
     } catch (error) {
       show(error.message);
       submitButton.disabled = false;
-      submitButton.textContent = "Simpan Production Log";
+      submitButton.textContent = "Simpan Production Entry";
     }
   });
 
+  async function loadHmiReasons() {
+    try {
+      const payload = await api("/modules/api/production/production-logs/hmi-reasons");
+      hmiMaster.rejections = Array.isArray(payload.rejections) ? payload.rejections : [];
+      hmiMaster.downtimes = Array.isArray(payload.downtimes) ? payload.downtimes : [];
+    } catch (_error) {
+      hmiMaster.rejections = [];
+      hmiMaster.downtimes = [];
+    }
+  }
+
   setValue("logDate", localDate());
-  if (mode !== "edit") addCoilPhase();
   Promise.resolve()
+    .then(loadHmiReasons)
+    .then(() => { if (mode !== "edit") addCoilPhase(); })
     .then(loadSchedules)
     .then(loadEditRecord)
     .catch((error) => show(error.message));

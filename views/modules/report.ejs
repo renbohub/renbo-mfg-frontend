@@ -58,7 +58,7 @@
   <dialog id="inventory-matrix-dialog" class="inventory-matrix-dialog">
     <div class="inventory-matrix-dialog-head"><div><small>MANAGEMENT STOCK SNAPSHOT</small><h2 id="inventory-matrix-title">Inventory Matrix</h2><p id="inventory-matrix-subtitle"></p></div><button id="inventory-matrix-close" type="button" aria-label="Tutup">&times;</button></div>
     <div class="inventory-matrix-table-wrap"><table class="inventory-matrix-table" data-enterprise-export="off"><thead id="inventory-matrix-head"></thead><tbody id="inventory-matrix-body"></tbody></table></div>
-    <footer><small>Raw material memakai KG dan ekuivalen PCS. Stock Reserved = reservasi fisik; Stock Allocation = pegging barang yang sudah diterima; Purchase Allocation = reserve MOQ yang masih pada purchase suggestion.</small><div><button id="inventory-matrix-xlsx" class="btn btn-outline-success" type="button">Download XLSX Matrix</button><button id="inventory-matrix-pdf" class="btn btn-danger" type="button">Download PDF Matrix</button></div></footer>
+    <footer><small>Total horizontal = Material On Hand dalam PCS + seluruh WIP On Hand + FG On Hand. Reserved/Allocated, QC, dan Free tidak dijumlah ulang. Inbound belum menjadi stock. Material KG tanpa Gross Weight ditampilkan terpisah.</small><div><button id="inventory-matrix-xlsx" class="btn btn-outline-success" type="button">Download XLSX Matrix</button><button id="inventory-matrix-pdf" class="btn btn-danger" type="button">Download PDF Matrix</button></div></footer>
   </dialog>
   <style>
     .inventory-matrix-table { width: max-content; min-width: 100%; table-layout: auto; }
@@ -66,6 +66,8 @@
     .inventory-matrix-table th:first-child, .inventory-matrix-table td:first-child { width: auto; min-width: 150px; }
     .inventory-matrix-table th:nth-child(2), .inventory-matrix-table td:nth-child(2) { min-width: 150px; text-align: left; }
     .inventory-matrix-table th:nth-child(3), .inventory-matrix-table td:nth-child(3) { min-width: 140px; text-align: left; }
+    .inventory-matrix-table th:last-child, .inventory-matrix-table td:last-child { position: sticky; right: 0; z-index: 2; min-width: 140px; border-left: 2px solid #cbd8ea; background: #f4f7fc; font-weight: 800; }
+    .inventory-matrix-table thead th:last-child { z-index: 4; background: #e6eef9; }
   </style>
   <% } %>
 </main>

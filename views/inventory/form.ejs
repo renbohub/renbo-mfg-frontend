@@ -3,12 +3,25 @@
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <main class="ops-page app-container">
   <nav class="module-breadcrumb"><a href="/modules/inventory">Inventory</a><span>/</span><a href="/modules/inventory/<%= page.slug %>"><%= page.label %></a><span>/</span><b>Buat</b></nav>
-  <section class="ops-detail-titlebar"><div><p class="ops-eyebrow">Inventory</p><h1>Buat <%= page.label %></h1><p><%= page.slug === 'stock-opname' ? 'Tentukan scope opname. Setelah Mulai Counting, member mengisi rack, lot, part, dan qty melalui form blind count.' : 'Transaksi dicatat dengan audit trail dan validasi saldo/warehouse.' %></p></div><a class="btn btn-outline-secondary" href="/modules/inventory/<%= page.slug %>">Kembali</a></section>
+  <section class="ops-detail-titlebar"><div><p class="ops-eyebrow">Inventory</p><h1>Buat <%= page.label %></h1><p><%= page.slug === 'stock-opname' ? 'Tentukan scope opname. Setelah Mulai Counting, member mengisi rack, lot, part, dan qty melalui form blind count.' : page.slug === 'stock-reservations' ? 'Pilih free stock material lalu alokasikan qty ke satu atau beberapa part number. Tidak perlu menunggu MRP.' : 'Transaksi dicatat dengan audit trail dan validasi saldo/warehouse.' %></p></div><a class="btn btn-outline-secondary" href="/modules/inventory/<%= page.slug %>">Kembali</a></section>
   <div id="inventory-form-alert" class="alert d-none" role="alert"></div>
   <form id="inventory-form" class="ops-detail-card inventory-form-card">
     <div class="module-form-section-title">Informasi <%= page.label %><span class="form-required-note">* Field wajib</span></div>
     <div class="ops-detail-fields">
-      <% if (page.slug === 'stock-movements') { %>
+      <% if (page.slug === 'stock-reservations') { %>
+        <label><span>Tanggal Reservation *</span><input id="reservationDate" type="date" required></label>
+        <label><span>Expiry Date</span><input id="expiryDate" type="date"></label>
+        <label class="span-2"><span>Material & Lokasi Stock *</span><select id="stockBalanceId" required disabled><option value="">Memuat material yang memiliki free stock...</option></select><small>Hanya Material Master dengan free stock lebih dari 0 yang ditampilkan.</small></label>
+        <section id="reservation-stock-summary" class="span-2 reservation-mrp-summary d-none" aria-live="polite"></section>
+        <label class="span-2"><span>Part Code RAW MATERIAL Terkait *</span><select id="targetPartCode" disabled><option value="">Pilih material terlebih dahulu</option></select><small>Jika hanya ada satu part terkait, part dipilih otomatis. Jika lebih dari satu, pilih tujuan secara manual.</small></label>
+        <label><span>Qty untuk Part *</span><input id="allocationQty" type="number" min="0.000001" step="any" disabled></label>
+        <div class="span-2 inventory-batch-add"><div><strong>Alokasi material ke part RAW</strong><small>Setiap pilihan dijamin memakai Material Master yang sama dengan stock terpilih.</small></div><button id="reservation-add-line" class="btn btn-outline-primary" type="button" disabled>＋ Tambah Alokasi</button></div>
+        <section class="span-2 inventory-batch-panel reservation-requirement-panel">
+          <header><div><strong>Daftar Alokasi Part Number</strong><small id="reservation-allocation-help">Total reserve tidak boleh melebihi free stock.</small></div><span id="reservation-allocation-count" class="badge text-bg-light">0 part</span></header>
+          <div class="table-responsive"><table class="table align-middle mb-0" data-enterprise-table="off"><thead><tr><th>#</th><th>Part Code</th><th>Part Number</th><th>Part Name</th><th>Qty Reserve</th><th>UOM</th><th></th></tr></thead><tbody id="reservation-allocation-body"><tr><td colspan="7" class="inventory-batch-empty">Belum ada alokasi part number.</td></tr></tbody></table></div>
+        </section>
+        <label class="span-2"><span>Catatan</span><textarea id="notes" rows="3" placeholder="Tujuan reservasi / catatan PPIC atau Inventory"></textarea></label>
+      <% } else if (page.slug === 'stock-movements') { %>
         <label><span>Movement Type *</span><select id="movementType" required><option value="IN">IN</option><option value="OUT">OUT</option><option value="TRANSFER">TRANSFER</option><option value="ADJUSTMENT">ADJUSTMENT</option></select></label>
         <label><span>Input Quantity *</span><select id="inputMode"><option value="DIRECT">Direct sesuai UOM stok</option><option value="MATERIAL_FROM_PART_PCS">Raw Material dari Part PCS</option></select></label>
         <label><span>Warehouse *</span><select id="warehouseCode" required><option value="">Pilih warehouse</option></select></label>
@@ -45,7 +58,7 @@
         <label class="span-2"><span>Catatan</span><textarea id="notes" rows="3"></textarea></label>
       <% } %>
     </div>
-    <div class="module-form-actions"><a class="btn btn-outline-secondary" href="/modules/inventory/<%= page.slug %>">Batal</a><button id="inventory-submit" class="btn btn-primary brand-button" type="submit"><%= page.slug === 'stock-movements' ? 'Simpan Semua Movement' : 'Simpan' %></button></div>
+    <div class="module-form-actions"><a class="btn btn-outline-secondary" href="/modules/inventory/<%= page.slug %>">Batal</a><button id="inventory-submit" class="btn btn-primary brand-button" type="submit"><%= page.slug === 'stock-movements' ? 'Simpan Semua Movement' : page.slug === 'stock-reservations' ? 'Reserve Stock' : 'Simpan' %></button></div>
   </form>
 </main>
 <script id="inventory-form-config" type="application/json"><%- JSON.stringify({ page: page.slug }).replace(/</g, '\\u003c') %></script>

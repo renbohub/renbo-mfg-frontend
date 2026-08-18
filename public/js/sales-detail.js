@@ -89,7 +89,7 @@
       ["Production Plan", item.productionPlans, ["planNumber", "number"], "/modules/planning-ppic/monthly-production-plans/"],
       ["Purchase Requisition", item.purchaseRequests, ["prNumber", "number"], "/modules/purchasing/purchase-requisitions/"],
       ["Manufacturing Order", item.manufacturingOrders, ["moNumber", "number"], "/modules/production/manufacturing-orders/"],
-      ["Production Log", item.productionLogs, ["logNumber", "number"], "/modules/production/production-logs/"],
+      ["Production Entry", item.productionLogs, ["logNumber", "number"], "/modules/production/production-logs/"],
     ];
     const rows = specs.flatMap(([recordType, records, keys, base]) => referenceValues(records, keys).map((reference) => ({ type: recordType, reference, href: `${base}${encodeURIComponent(reference)}`, context: cfg.recordKey })));
     const counts = specs.map(([recordType, records]) => `${recordType}: ${Array.isArray(records) ? records.length : 0}`).join(" · ");

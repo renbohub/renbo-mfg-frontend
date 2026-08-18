@@ -1,0 +1,75 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/ppic-mps-workbench.css?v=20260819-phase-compare-3">
+<link rel="stylesheet" href="/css/ppic-mps-workbench-phase-freeze.css?v=20260819-1">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'mps' }) %>
+
+<main class="mwb-page ppic-page">
+  <header class="mwb-head app-container">
+    <div>
+      <nav class="mwb-breadcrumb" aria-label="PPIC workflow">
+        <a href="/modules/planning-ppic/demand-planning">Yearly Demand</a><span>›</span>
+        <a id="mwb-review-link" href="/modules/planning-ppic/demand-planning/monthly-review?month=<%= initialMonth %>">Monthly Review</a><span>›</span>
+        <a id="mwb-exception-link" href="/modules/planning-ppic/demand-planning/exception-workbench?month=<%= initialMonth %>">Exception</a><span>›</span><b>MPS Workbench</b>
+      </nav>
+      <span class="mwb-eyebrow">PLANNING PPIC / FG NETTING</span>
+      <h1>MPS Workbench</h1>
+      <p>Audit demand phase sampai planned production dengan pemisahan free FG, reservasi SO, dan firm receipt.</p>
+    </div>
+    <div class="mwb-head-actions">
+      <a class="btn btn-outline-primary" href="/modules/planning-ppic/tutorial">Tutorial</a>
+      <a class="btn btn-outline-primary" href="/modules/planning-ppic/control-tower">Execution Cockpit</a>
+      <button id="mwb-export" class="btn btn-outline-primary" type="button">Export CSV</button>
+      <button id="mwb-sync" class="btn btn-primary" type="button">Hitung Draft MPS</button>
+      <button id="mwb-confirm-mps" class="btn btn-primary" type="button" disabled>Konfirmasi MPS</button>
+      <button id="mwb-run-mrp" class="btn btn-primary" type="button" disabled>Jalankan MRP</button>
+    </div>
+  </header>
+
+  <section class="mwb-toolbar app-container" aria-label="Filter MPS Workbench">
+    <label><span>Periode delivery</span><input id="mwb-month" type="month" value="<%= initialMonth %>"></label>
+    <label><span>Status netting</span><select id="mwb-status" data-searchable><option value="">Semua status</option></select></label>
+    <label class="mwb-search"><span>Cari FG</span><div><%- include('../partials/icon', { name: 'search' }) %><input id="mwb-search" type="search" placeholder="Part no, nama, customer, MPS…" autocomplete="off"></div></label>
+    <label><span>Baris</span><select id="mwb-page-size"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
+  </section>
+
+  <section class="mwb-source app-container">
+    <div><span>DOKUMEN RESMI</span><strong id="mwb-source-title">Memuat MPS…</strong><small id="mwb-source-meta">Angka workbench dibaca dari draft MPS kanonis periode terpilih.</small></div>
+    <div class="mwb-legend"><span><i class="free"></i>Free FG</span><span><i class="pegged"></i>Pegged SO</span><span><i class="receipt"></i>Firm receipt</span><span><i class="production"></i>Planned production</span></div>
+  </section>
+
+  <section id="mwb-next-state" class="mwb-next-state app-container" aria-live="polite">
+    <div class="mwb-flow-step"><span>1</span><div><small>MPS</small><strong id="mwb-flow-mps">Memuat…</strong></div></div>
+    <i aria-hidden="true">→</i>
+    <div class="mwb-flow-step"><span>2</span><div><small>Gate</small><strong id="mwb-flow-gate">Menunggu data</strong></div></div>
+    <i aria-hidden="true">→</i>
+    <div class="mwb-flow-step"><span>3</span><div><small>MRP</small><strong id="mwb-flow-mrp">Belum diperiksa</strong></div></div>
+    <div class="mwb-next-copy"><b id="mwb-next-title">Memeriksa langkah berikutnya…</b><small id="mwb-next-copy"></small><a id="mwb-open-mrp" href="#" hidden>Buka Month-End MRP Cockpit</a></div>
+  </section>
+
+  <section class="mwb-kpis app-container">
+    <article><span>Gross Demand</span><strong id="mwb-kpi-demand">0</strong><small>FCC + SO efektif</small></article>
+    <article><span>Free FG</span><strong id="mwb-kpi-free">0</strong><small>qtyAvailable</small></article>
+    <article><span>Pegged Reservation</span><strong id="mwb-kpi-pegged">0</strong><small>SO yang sama saja</small></article>
+    <article><span>Firm Receipt</span><strong id="mwb-kpi-receipt">0</strong><small>Open MO due bucket</small></article>
+    <article class="buffer"><span>Buffer Prepare</span><strong id="mwb-kpi-buffer">0</strong><small>FCC bulan depan × master %</small></article>
+    <article><span>Planned Production</span><strong id="mwb-kpi-production">0</strong><small>Customer + buffer</small></article>
+    <article class="risk"><span>Uncovered / Variance</span><strong id="mwb-kpi-risk">0</strong><small id="mwb-kpi-risk-meta">0 line perlu review</small></article>
+  </section>
+
+  <section class="mwb-board app-container">
+    <header><div><span>FG NETTING MATRIX</span><h2 id="mwb-title">MPS <%= initialMonth %></h2><p id="mwb-result-meta">Memuat data…</p></div><button id="mwb-density" type="button">Comfortable view</button></header>
+    <div id="mwb-alert" class="mwb-alert" hidden></div>
+    <div class="mwb-table-scroll"><table class="mwb-table"><thead><tr><th class="sticky-col">FG / MPS</th><th>Status</th><th>Gross demand</th><th>Buffer akhir bulan</th><th>Opening nettable</th><th>Firm receipt</th><th>Net production</th><th>Projected ending</th><th>Earliest need</th><th>Aksi</th></tr></thead><tbody id="mwb-body"><tr><td colspan="10" class="mwb-empty">Memuat FG netting…</td></tr></tbody></table></div>
+    <footer class="mwb-pagination"><span id="mwb-range">0 data</span><div><button id="mwb-prev" type="button">Sebelumnya</button><span id="mwb-page-label">Halaman 1 / 1</span><button id="mwb-next" type="button">Berikutnya</button></div></footer>
+  </section>
+</main>
+
+<aside id="mwb-drawer" class="mwb-drawer" aria-hidden="true"><div class="mwb-drawer-backdrop" data-close-drawer></div><section class="mwb-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="mwb-drawer-title"><header><div><span>FG NETTING &amp; PHASE PURCHASE SIMULATION</span><h2 id="mwb-drawer-title">Rincian FG</h2><p id="mwb-drawer-meta"></p></div><div class="mwb-drawer-tools" aria-label="Kontrol tampilan netting"><button id="mwb-zoom-out" type="button" aria-label="Perkecil tampilan" title="Perkecil">−</button><button id="mwb-zoom-label" type="button" aria-label="Reset zoom" title="Reset zoom">100%</button><button id="mwb-zoom-in" type="button" aria-label="Perbesar tampilan" title="Perbesar">+</button><button id="mwb-fullscreen" type="button" aria-pressed="false">Fullscreen</button><button class="mwb-drawer-close" type="button" data-close-drawer aria-label="Tutup">×</button></div></header><div id="mwb-drawer-body" class="mwb-drawer-body"></div></section></aside>
+
+<aside id="mwb-modal" class="mwb-modal" aria-hidden="true"><div class="mwb-modal-backdrop" data-close-modal></div><form id="mwb-modal-form" class="mwb-modal-panel"><header><div><span>RECALCULATE OFFICIAL DRAFT</span><h2>Hitung Draft MPS</h2><p>Demand aktif, FG stock, reservasi SO, dan open MO akan dihitung ulang tanpa refresh halaman.</p></div><button type="button" data-close-modal aria-label="Tutup">×</button></header><div class="mwb-modal-content"><p id="mwb-modal-message"></p><label><input id="mwb-confirm" type="checkbox" required> Saya memahami recalculation dapat menandai MRP dan purchase suggestion lama sebagai <b>Replan Required</b>.</label></div><footer><button type="button" class="btn btn-outline-secondary" data-close-modal>Batal</button><button id="mwb-modal-submit" class="btn btn-primary" type="submit">Hitung &amp; simpan Draft</button></footer></form></aside>
+
+<aside id="mwb-action-modal" class="mwb-modal" aria-hidden="true"><div class="mwb-modal-backdrop" data-close-action-modal></div><form id="mwb-action-form" class="mwb-modal-panel"><header><div><span id="mwb-action-eyebrow">NEXT PLANNING GATE</span><h2 id="mwb-action-title">Lanjutkan proses</h2><p id="mwb-action-description"></p></div><button type="button" data-close-action-modal aria-label="Tutup">×</button></header><div class="mwb-modal-content"><p id="mwb-action-message"></p><label><input id="mwb-action-confirm" type="checkbox" required> <span id="mwb-action-confirm-copy">Saya memahami perubahan status dokumen ini.</span></label></div><footer><button type="button" class="btn btn-outline-secondary" data-close-action-modal>Batal</button><button id="mwb-action-submit" class="btn btn-primary" type="submit">Lanjutkan</button></footer></form></aside>
+
+<script id="mwb-page-config" type="application/json"><%- JSON.stringify({ initialMonth }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

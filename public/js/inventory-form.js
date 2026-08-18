@@ -42,7 +42,7 @@
     if (config.page !== "stock-opname") return;
     const options = {
       MATERIAL: [["", "Semua material scope"], ["Material", "Material"], ["Purchase Part", "Purchase Part"]],
-      WIP: [["", "Semua WIP scope"], ["WIP", "WIP"], ["Semi-Finished", "Semi-Finished"]],
+      WIP: [["", "Semua WIP / WP scope"], ["WIP", "WIP"], ["WP", "WP"], ["Semi-Finished", "Semi-Finished"]],
       FG: [["", "Semua finished goods scope"], ["Finished Goods", "Finished Goods"], ["FG", "FG (legacy)"]],
     }[value("stoType")] || [];
     const select = document.getElementById("stockType");

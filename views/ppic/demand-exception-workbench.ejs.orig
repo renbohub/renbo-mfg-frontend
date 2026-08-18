@@ -1,0 +1,85 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/ppic-demand-exception-workbench.css?v=20260818-1">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'demand-planning' }) %>
+
+<main class="dex-page ppic-page">
+  <header class="dex-head app-container">
+    <div>
+      <nav class="dex-breadcrumb" aria-label="Demand planning workflow">
+        <a href="/modules/planning-ppic/demand-planning">Yearly Demand</a><span>›</span>
+        <a href="/modules/planning-ppic/demand-planning/monthly-review?month=<%= initialMonth %>">Monthly Review</a><span>›</span>
+        <b>Exception Workbench</b>
+      </nav>
+      <span class="dex-eyebrow">PLANNING PPIC / ACTION QUEUE</span>
+      <h1>Demand Exception Workbench</h1>
+      <p>Satu antrean untuk exception delivery phase: tentukan owner, SLA, recovery, dan bukti penyelesaian.</p>
+    </div>
+    <div class="dex-head-actions">
+      <button id="dex-export" class="btn btn-outline-primary" type="button">Export CSV</button>
+      <button id="dex-sync" class="btn btn-primary" type="button">Sinkronkan Exception</button>
+    </div>
+  </header>
+
+  <section class="dex-toolbar app-container" aria-label="Filter exception">
+    <label><span>Periode</span><input id="dex-month" type="month" value="<%= initialMonth %>"></label>
+    <label><span>Snapshot sumber</span><select id="dex-snapshot" data-searchable data-search-placeholder="Cari snapshot…"><option value="">Current snapshot / live</option></select></label>
+    <label><span>Status</span><select id="dex-status" data-searchable><option value="OPEN_QUEUE">Open queue</option><option value="">Semua status</option></select></label>
+    <label><span>Severity</span><select id="dex-severity" data-searchable><option value="">Semua severity</option></select></label>
+    <label><span>Jenis</span><select id="dex-type" data-searchable data-search-placeholder="Cari jenis exception…"><option value="">Semua jenis</option></select></label>
+    <label><span>Owner</span><select id="dex-owner" data-searchable data-search-placeholder="Cari owner…"><option value="">Semua owner</option><option value="UNASSIGNED">Belum ditugaskan</option></select></label>
+    <label><span>Sumber</span><select id="dex-source-state"><option value="ACTIVE">Masih aktif</option><option value="CLEARED">Sudah hilang dari sumber</option><option value="ALL">Semua</option></select></label>
+    <label class="dex-search"><span>Cari</span><div><%- include('../partials/icon', { name: 'search' }) %><input id="dex-search" type="search" placeholder="Nomor, part, customer, source…" autocomplete="off"></div></label>
+    <label><span>Baris</span><select id="dex-page-size"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
+  </section>
+
+  <section id="dex-source" class="dex-source app-container" aria-live="polite">
+    <div><span>SUMBER DETEKSI</span><strong id="dex-source-title">Belum disinkronkan</strong><small id="dex-source-meta">Pilih periode lalu sinkronkan dari current snapshot atau live Monthly Review.</small></div>
+    <a id="dex-review-link" href="/modules/planning-ppic/demand-planning/monthly-review?month=<%= initialMonth %>">Buka Monthly Review</a>
+  </section>
+
+  <section class="dex-kpis app-container" aria-label="Ringkasan exception">
+    <button type="button" data-kpi="OPEN_QUEUE" class="active"><span>Open Queue</span><strong id="dex-kpi-open">0</strong><small>Perlu tindakan</small></button>
+    <button type="button" data-kpi-severity="CRITICAL"><span>Critical</span><strong id="dex-kpi-critical">0</strong><small>Risiko delivery / master</small></button>
+    <button type="button" data-kpi="OVERDUE"><span>Overdue</span><strong id="dex-kpi-overdue">0</strong><small>SLA terlewati</small></button>
+    <button type="button" data-kpi-owner="UNASSIGNED"><span>Unassigned</span><strong id="dex-kpi-unassigned">0</strong><small>Belum ada PIC</small></button>
+    <button type="button" data-kpi="RESOLVED"><span>Resolved</span><strong id="dex-kpi-resolved">0</strong><small>Sudah ditangani</small></button>
+    <button type="button" data-kpi-source="CLEARED"><span>Source Cleared</span><strong id="dex-kpi-cleared">0</strong><small>Tidak muncul lagi</small></button>
+  </section>
+
+  <section class="dex-queue app-container">
+    <header>
+      <div><span>ACTIONABLE EXCEPTIONS</span><h2 id="dex-title">Antrean <%= initialMonth %></h2><p id="dex-result-meta">Memuat data…</p></div>
+      <div class="dex-density"><button id="dex-density" type="button" title="Ubah kepadatan tabel">Compact view</button></div>
+    </header>
+    <div id="dex-alert" class="dex-alert" hidden></div>
+    <div class="dex-table-scroll">
+      <table class="dex-table">
+        <thead><tr><th>Prioritas</th><th>Exception</th><th>Demand</th><th>Delivery / Start</th><th>Owner / SLA</th><th>Status</th><th>Aksi</th></tr></thead>
+        <tbody id="dex-body"><tr><td colspan="7" class="dex-empty">Memuat action queue…</td></tr></tbody>
+      </table>
+    </div>
+    <footer class="dex-pagination"><span id="dex-range">0 data</span><div><button id="dex-prev" type="button">Sebelumnya</button><span id="dex-page-label">Halaman 1 / 1</span><button id="dex-next" type="button">Berikutnya</button></div></footer>
+  </section>
+</main>
+
+<aside id="dex-drawer" class="dex-drawer" aria-hidden="true">
+  <div class="dex-drawer-backdrop" data-close-drawer></div>
+  <section class="dex-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="dex-drawer-title">
+    <header><div><span>EXCEPTION CASE &amp; FORMULA LINEAGE</span><h2 id="dex-drawer-title">Rincian exception</h2><p id="dex-drawer-meta"></p></div><button type="button" data-close-drawer aria-label="Tutup">×</button></header>
+    <div id="dex-drawer-actions" class="dex-drawer-actions"></div>
+    <div id="dex-drawer-body" class="dex-drawer-body"></div>
+  </section>
+</aside>
+
+<aside id="dex-modal" class="dex-modal" aria-hidden="true">
+  <div class="dex-modal-backdrop" data-close-modal></div>
+  <form id="dex-modal-form" class="dex-modal-panel">
+    <header><div><span id="dex-modal-eyebrow">UPDATE CASE</span><h2 id="dex-modal-title">Update exception</h2><p id="dex-modal-description"></p></div><button type="button" data-close-modal aria-label="Tutup">×</button></header>
+    <div id="dex-modal-fields"></div>
+    <footer><button type="button" class="btn btn-outline-secondary" data-close-modal>Batal</button><button id="dex-modal-submit" class="btn btn-primary" type="submit">Simpan</button></footer>
+  </form>
+</aside>
+
+<script id="dex-page-config" type="application/json"><%- JSON.stringify({ initialMonth }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

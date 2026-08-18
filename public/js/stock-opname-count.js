@@ -19,6 +19,7 @@
   }
   const details = () => Array.isArray(record?.details) ? record.details : [];
   const normalize = (value) => String(value || "").trim().toUpperCase();
+  const qty = (value) => Number(value || 0).toLocaleString("id-ID", { maximumFractionDigits: 2 });
   const physicalValue = (value) => value == null || String(value).trim() === "" ? NONE : String(value);
   const payloadValue = (value) => value === NONE ? null : value;
   const unique = (values) => [...new Set(values.filter((value) => value != null && String(value).trim()).map(String))].sort((a, b) => a.localeCompare(b));
@@ -115,14 +116,29 @@
     $("sto-count-progress").textContent = `${record.countSummary?.countedLines || 0} / ${record.countSummary?.totalLines || 0} dihitung`;
     fill("sto-stock-type", details().map((row) => row.stockType), "Pilih jenis stock");
     refreshStockFields();
-    const counted = details().filter((row) => row.actualQty != null);
-    $("sto-counted-body").innerHTML = counted.map((row) => `<tr><td>${esc(row.stockType || "-")}</td><td>${esc(normalize(row.stockType) === "MATERIAL" ? materialLabel(row) : row.partNumber || row.partCode || "-")}</td><td>${esc(row.partName || "-")}</td><td>${esc(row.rackCode || "Tanpa rack")}</td><td>${esc(row.lotNumber || "Tanpa lot")}</td><td><b>${esc(row.actualQty)} ${esc(row.uomCode || "")}</b></td><td>${esc(row.countedBy || "-")}</td></tr>`).join("") || '<tr><td colspan="7" class="text-center text-muted p-4">Belum ada hasil hitung yang disimpan.</td></tr>';
+    const reviewing = !["DRAFT", "COUNTING"].includes(normalize(record.status));
+    const counted = details();
+    $("sto-counted-head").innerHTML = reviewing
+      ? "<tr><th>Jenis</th><th>Material / Part</th><th>Part Name</th><th>Rack</th><th>Lot</th><th>System</th><th>Actual</th><th>Selisih</th><th>Petugas</th></tr>"
+      : "<tr><th>Jenis</th><th>Material / Part</th><th>Part Name</th><th>Rack</th><th>Lot</th><th>Actual Qty</th><th>Petugas</th></tr>";
+    $("sto-counted-body").innerHTML = counted.map((row) => {
+      const identity = normalize(row.stockType) === "MATERIAL" ? materialLabel(row) : row.partNumber || row.partCode || "-";
+      const base = `<td>${esc(row.stockType || "-")}</td><td><b>${esc(identity)}</b><small class="d-block">${esc(row.partCode || row.materialCode || "")}</small></td><td>${esc(row.partName || row.materialName || "-")}</td><td>${esc(row.rackCode || "Tanpa rack")}</td><td>${esc(row.lotNumber || "Tanpa lot")}</td>`;
+      if (!reviewing) return `<tr>${base}<td>${row.actualQty == null ? '<span class="badge text-bg-secondary">Belum dihitung</span>' : `<b>${esc(qty(row.actualQty))} ${esc(row.uomCode || "")}</b>`}</td><td>${esc(row.countedBy || "-")}<small class="d-block">${esc(row.countedAt ? new Date(row.countedAt).toLocaleString("id-ID") : "")}</small></td></tr>`;
+      const varianceClass = Number(row.varianceQty || 0) === 0 ? "text-success" : "text-danger";
+      return `<tr>${base}<td>${esc(qty(row.systemQty))} ${esc(row.uomCode || "")}</td><td><b>${esc(qty(row.actualQty))} ${esc(row.uomCode || "")}</b></td><td class="${varianceClass}"><b>${Number(row.varianceQty || 0) > 0 ? "+" : ""}${esc(qty(row.varianceQty))}</b><small class="d-block">${esc(row.varianceStatus || "-")}</small></td><td>${esc(row.countedBy || "-")}</td></tr>`;
+    }).join("") || `<tr><td colspan="${reviewing ? 9 : 7}" class="text-center text-muted p-4">Belum ada hasil hitung yang disimpan.</td></tr>`;
+    $("sto-count-form").classList.toggle("d-none", reviewing);
+    $("sto-finish-counting").classList.toggle("d-none", reviewing);
+    $("sto-open-detail").classList.toggle("d-none", !reviewing);
+    $("sto-result-title").textContent = reviewing ? "Hasil Stock Opname" : "Progress Counting";
+    $("sto-result-help").textContent = reviewing ? "Perbandingan snapshot sistem dengan hasil aktual. Selisih belum mengubah stok sebelum approval dan Post Adjustment." : "Hanya hasil input fisik yang ditampilkan selama blind count.";
   }
   async function load() {
     try {
       record = await api(`/modules/api/inventory/stock-opname/${encodeURIComponent(config.stoNo)}`);
       $("sto-count-loading").classList.add("d-none");
-      if (normalize(record.status) !== "COUNTING") {
+      if (!["COUNTING", "WAITING_APPROVAL", "APPROVED", "ADJUSTED", "CLOSED"].includes(normalize(record.status))) {
         show(`Form input hanya tersedia setelah Stock Opname dimulai. Status saat ini: ${record.status || "-"}.`, "warning");
         return;
       }
@@ -149,6 +165,7 @@
       rackCode: payloadValue($("sto-rack").value),
       lotNumber: payloadValue($("sto-lot").value),
       actualQty: Number($("sto-actual-qty").value),
+      countedBy: $("sto-counted-by").value.trim(),
     };
     const button = event.currentTarget.querySelector("button[type=submit]");
     button.disabled = true;
@@ -164,8 +181,9 @@
     event.currentTarget.disabled = true;
     try {
       await api(`/modules/api/inventory/stock-opname/${encodeURIComponent(config.stoNo)}/submit`, { method: "PATCH", body: "{}" });
-      show("Counting selesai dan sudah dikirim ke reviewer.", "success");
-      setTimeout(() => location.assign(`/modules/inventory/stock-opname/${encodeURIComponent(config.stoNo)}`), 500);
+      record = await api(`/modules/api/inventory/stock-opname/${encodeURIComponent(config.stoNo)}`);
+      show("Counting selesai. Hasil System, Actual, dan Selisih sudah terbuka untuk review.", "success");
+      render();
     } catch (error) { show(error.message); event.currentTarget.disabled = false; }
   });
   load();

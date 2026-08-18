@@ -1,0 +1,122 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/ppic-monthly-demand-review.css?v=20260818-1">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'demand-planning' }) %>
+
+<main class="mdr-page ppic-page">
+  <header class="mdr-page-head app-container">
+    <div>
+      <a href="/modules/planning-ppic/demand-planning" class="mdr-back">← Yearly Demand</a>
+      <span class="mdr-eyebrow">PLANNING PPIC / MONTH-END CONTROL</span>
+      <h1>Monthly Demand Review</h1>
+      <p>Bekukan baseline FCC, PO firm, dan EFF sebelum MPS serta official MRP akhir bulan.</p>
+    </div>
+    <div class="mdr-head-actions">
+      <button id="mdr-export" class="btn btn-outline-primary" type="button">Export CSV</button>
+    </div>
+  </header>
+
+  <section class="mdr-toolbar app-container" aria-label="Filter Monthly Demand Review">
+    <label>
+      <span>Periode demand</span>
+      <input id="mdr-month" type="month" value="<%= initialMonth %>">
+    </label>
+    <label>
+      <span>Snapshot / revision</span>
+      <select id="mdr-snapshot" data-searchable data-search-placeholder="Cari nomor snapshot…">
+        <option value="">Live source — belum snapshot</option>
+      </select>
+    </label>
+    <label>
+      <span>Customer</span>
+      <select id="mdr-customer" data-searchable data-search-placeholder="Cari customer…">
+        <option value="">Semua customer</option>
+      </select>
+    </label>
+    <label class="mdr-search">
+      <span>Cari part</span>
+      <div><%- include('../partials/icon', { name: 'search' }) %><input id="mdr-search" type="search" placeholder="Part number atau nama…" autocomplete="off"></div>
+    </label>
+    <label>
+      <span>Baris</span>
+      <select id="mdr-page-size" data-searchable-disabled>
+        <option value="25">25</option><option value="50">50</option><option value="100">100</option>
+      </select>
+    </label>
+  </section>
+
+  <section id="mdr-source-banner" class="mdr-source-banner app-container" aria-live="polite">
+    <div><span>SOURCE CHECK</span><strong id="mdr-source-title">Memuat demand source…</strong><small id="mdr-source-meta"></small></div>
+    <button id="mdr-source-action" type="button" hidden></button>
+  </section>
+
+  <section class="mdr-summary app-container">
+    <article><span>FCC</span><strong id="mdr-total-fcc">—</strong><small id="mdr-summary-basis">Live source</small></article>
+    <article><span>PO Firm</span><strong id="mdr-total-po">—</strong><small>Draft SO tidak dihitung</small></article>
+    <article class="eff"><span>Effective Demand</span><strong id="mdr-total-eff">—</strong><small>Basis MPS setelah Frozen</small></article>
+    <article class="exception"><span>Unplanned PO</span><strong id="mdr-total-unplanned">—</strong><small>PO tanpa FCC pasangan</small></article>
+    <article><span>Readiness</span><strong id="mdr-readiness">—</strong><small id="mdr-readiness-meta">0 blocked · 0 warning</small></article>
+  </section>
+
+  <section class="mdr-workflow-card app-container">
+    <header>
+      <div>
+        <span>MONTHLY DEMAND SNAPSHOT</span>
+        <h2 id="mdr-snapshot-title">Belum ada snapshot</h2>
+        <p id="mdr-snapshot-meta">Buat snapshot untuk memulai review.</p>
+      </div>
+      <div id="mdr-actions" class="mdr-actions"></div>
+    </header>
+    <ol id="mdr-workflow" class="mdr-workflow">
+      <li data-status="DRAFT"><span>1</span><div><b>Draft</b><small>Ambil sumber</small></div></li>
+      <li data-status="REVIEWED"><span>2</span><div><b>Reviewed</b><small>Marketing review</small></div></li>
+      <li data-status="APPROVED"><span>3</span><div><b>Approved</b><small>PPIC approval</small></div></li>
+      <li data-status="FROZEN"><span>4</span><div><b>Frozen</b><small>Baseline resmi</small></div></li>
+    </ol>
+    <div id="mdr-audit-summary" class="mdr-audit-summary"></div>
+  </section>
+
+  <section class="mdr-table-card app-container">
+    <header>
+      <div><span>MONTHLY DEMAND LINES</span><h2 id="mdr-table-title">Demand <%= initialMonth %></h2><p id="mdr-result-meta">Memuat data…</p></div>
+      <div class="mdr-legend"><span class="ready">Ready</span><span class="warning">Warning</span><span class="blocked">Blocked</span></div>
+    </header>
+    <div id="mdr-alert" class="mdr-alert" hidden></div>
+    <div class="mdr-table-scroll">
+      <table class="mdr-table">
+        <thead>
+          <tr>
+            <th>Part</th><th>Customer</th><th>FCC</th><th>PO Firm</th><th>FCC Consumed</th>
+            <th>Unplanned PO</th><th>EFF Snapshot</th><th>EFF Source Kini</th><th>Δ Source</th>
+            <th>Δ Revision</th><th>Phases</th><th>Readiness</th><th>Sumber</th>
+          </tr>
+        </thead>
+        <tbody id="mdr-body"><tr><td colspan="13" class="mdr-loading">Memuat Monthly Demand…</td></tr></tbody>
+      </table>
+    </div>
+    <footer class="mdr-pagination">
+      <span id="mdr-range">0 data</span>
+      <div><button id="mdr-prev" type="button">Sebelumnya</button><span id="mdr-page-label">Halaman 1 / 1</span><button id="mdr-next" type="button">Berikutnya</button></div>
+    </footer>
+  </section>
+</main>
+
+<aside id="mdr-drawer" class="mdr-drawer" aria-hidden="true">
+  <div class="mdr-drawer-backdrop" data-close-drawer></div>
+  <section class="mdr-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="mdr-drawer-title">
+    <header><div><span>DEMAND LINEAGE</span><h2 id="mdr-drawer-title">Rincian demand</h2><p id="mdr-drawer-meta"></p></div><button type="button" data-close-drawer aria-label="Tutup">×</button></header>
+    <div id="mdr-drawer-body"></div>
+  </section>
+</aside>
+
+<aside id="mdr-modal" class="mdr-modal" aria-hidden="true">
+  <div class="mdr-modal-backdrop" data-close-modal></div>
+  <form id="mdr-modal-form" class="mdr-modal-panel">
+    <header><div><span id="mdr-modal-eyebrow">SNAPSHOT</span><h2 id="mdr-modal-title">Buat snapshot</h2><p id="mdr-modal-description"></p></div><button type="button" data-close-modal aria-label="Tutup">×</button></header>
+    <div id="mdr-modal-fields"></div>
+    <footer><button type="button" class="btn btn-outline-secondary" data-close-modal>Batal</button><button id="mdr-modal-submit" class="btn btn-primary" type="submit">Simpan</button></footer>
+  </form>
+</aside>
+
+<script id="mdr-page-config" type="application/json"><%- JSON.stringify({ initialMonth }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

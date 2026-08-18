@@ -1,0 +1,117 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/ppic-yearly-demand.css?v=20260818-1">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'demand-planning' }) %>
+
+<main class="yearly-demand-page ppic-page">
+  <header class="yd-page-head app-container">
+    <div>
+      <span class="yd-eyebrow">PLANNING PPIC / DEMAND PLANNING</span>
+      <h1>Yearly Demand</h1>
+      <p>Satu sumber kebutuhan tahunan per part: Forecast Customer Commitment (FCC), customer PO firm, dan Effective Demand (EFF).</p>
+    </div>
+    <div class="yd-head-actions">
+      <a class="btn btn-outline-primary" href="/modules/planning-ppic/demand-planning/exception-workbench">Exception Workbench</a>
+      <a class="btn btn-primary" href="/modules/planning-ppic/demand-planning/monthly-review">Monthly Review</a>
+      <button id="yd-formula-toggle" class="btn btn-outline-secondary" type="button" aria-expanded="false" aria-controls="yd-formula-panel">Lihat formula</button>
+      <button id="yd-export" class="btn btn-outline-primary" type="button">Export CSV</button>
+    </div>
+  </header>
+
+  <section class="yd-toolbar app-container" aria-label="Filter Yearly Demand">
+    <label class="yd-search">
+      <span>Cari part</span>
+      <div><%- include('../partials/icon', { name: 'search' }) %><input id="yd-search" type="search" placeholder="Part number, part name, customer…" autocomplete="off"></div>
+    </label>
+    <label>
+      <span>Customer</span>
+      <select id="yd-customer" data-searchable data-search-placeholder="Cari customer…">
+        <option value="">Semua customer</option>
+      </select>
+    </label>
+    <label>
+      <span>Tahun demand</span>
+      <select id="yd-year" data-searchable-disabled></select>
+    </label>
+    <label>
+      <span>Baris per halaman</span>
+      <select id="yd-page-size" data-searchable-disabled>
+        <option value="25">25 baris</option>
+        <option value="50">50 baris</option>
+        <option value="100">100 baris</option>
+      </select>
+    </label>
+    <div class="yd-density" role="group" aria-label="Kepadatan tabel">
+      <span>Tampilan</span>
+      <div>
+        <button type="button" class="is-active" data-density="comfortable">Nyaman</button>
+        <button type="button" data-density="compact">Ringkas</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="yd-formula-panel" class="yd-formula-panel app-container" hidden>
+    <header>
+      <div><span>FORMULA & DATA LINEAGE</span><h2>Bagaimana EFF dihitung?</h2></div>
+      <code id="yd-formula-expression">EFF = (FCC - FCC consumed) + PO effective</code>
+    </header>
+    <ol id="yd-formula-rules">
+      <li>Memuat aturan perhitungan…</li>
+    </ol>
+    <p>Klik angka EFF pada tabel untuk melihat angka pembentuk dan nomor dokumen sumbernya.</p>
+  </section>
+
+  <section class="yd-summary app-container" aria-label="Ringkasan Yearly Demand">
+    <article><span>Total FCC</span><strong id="yd-total-fcc">—</strong><small id="yd-part-count">0 part</small></article>
+    <article><span>PO firm</span><strong id="yd-total-po">—</strong><small id="yd-customer-count">0 customer</small></article>
+    <article class="yd-summary-eff"><span>Effective Demand</span><strong id="yd-total-eff">—</strong><small>Basis demand untuk planning berikutnya</small></article>
+    <article><span>FCC dikonsumsi PO</span><strong id="yd-consumed-fcc">—</strong><small id="yd-coverage">0% dari EFF</small></article>
+  </section>
+
+  <section class="yd-matrix-card app-container">
+    <header class="yd-matrix-head">
+      <div>
+        <span>YEARLY DEMAND MATRIX</span>
+        <h2 id="yd-matrix-title">Demand <%= currentYear %></h2>
+        <p id="yd-result-meta">Memuat data…</p>
+      </div>
+      <div class="yd-legend" aria-label="Legenda">
+        <span class="fcc">FCC <small>Forecast</small></span>
+        <span class="po">PO <small>Firm order</small></span>
+        <span class="eff">EFF <small>Net demand</small></span>
+      </div>
+    </header>
+    <div id="yd-alert" class="yd-alert" hidden></div>
+    <div id="yd-scroll" class="yd-matrix-scroll">
+      <table class="yd-matrix-table">
+        <thead id="yd-head"></thead>
+        <tbody id="yd-body">
+          <tr><td class="yd-loading-cell" colspan="41"><span></span>Memuat Yearly Demand…</td></tr>
+        </tbody>
+        <tfoot id="yd-foot"></tfoot>
+      </table>
+    </div>
+    <footer class="yd-pagination">
+      <span id="yd-range">0 data</span>
+      <div>
+        <button id="yd-prev" type="button">Sebelumnya</button>
+        <span id="yd-page-label">Halaman 1 / 1</span>
+        <button id="yd-next" type="button">Berikutnya</button>
+      </div>
+    </footer>
+  </section>
+</main>
+
+<aside id="yd-lineage" class="yd-lineage" aria-hidden="true">
+  <div class="yd-lineage-backdrop" data-close-lineage></div>
+  <section class="yd-lineage-panel" role="dialog" aria-modal="true" aria-labelledby="yd-lineage-title">
+    <header>
+      <div><span>EFF DATA LINEAGE</span><h2 id="yd-lineage-title">Rincian Effective Demand</h2><p id="yd-lineage-meta"></p></div>
+      <button type="button" data-close-lineage aria-label="Tutup">×</button>
+    </header>
+    <div id="yd-lineage-body"></div>
+  </section>
+</aside>
+
+<script id="yd-page-config" type="application/json"><%- JSON.stringify({ currentYear }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

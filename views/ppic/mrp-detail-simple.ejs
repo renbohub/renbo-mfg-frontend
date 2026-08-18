@@ -1,0 +1,52 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/ppic-mrp-detail-simple.css?v=20260818-4">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'mrp' }) %>
+
+<main class="mrps-page ppic-page">
+  <header class="mrps-header app-container">
+    <div>
+      <nav class="mrps-breadcrumb" aria-label="MRP breadcrumb"><a href="/modules/planning-ppic/control-tower?tab=mrp">MRP Cockpit</a><span>›</span><b><%= recordKey %></b></nav>
+      <div class="mrps-title-line"><h1 id="mrps-title"><%= recordKey %></h1><span id="mrps-status" class="mrps-badge">Memuat</span><button class="mrps-help" type="button" title="Completed berarti explosion BOM dan netting sudah selesai. MRP belum otomatis menjadi PR atau PO." data-tip="Completed berarti explosion BOM dan netting sudah selesai. MRP belum otomatis menjadi PR atau PO." aria-label="Petunjuk status MRP">?</button></div>
+      <div id="mrps-meta" class="mrps-meta">Memuat informasi MRP…</div>
+    </div>
+    <div id="mrps-actions" class="mrps-actions"></div>
+  </header>
+
+  <section id="mrps-alert" class="mrps-alert app-container" hidden></section>
+
+  <section class="mrps-kpis app-container" aria-label="Ringkasan MRP">
+    <article><span>Material</span><strong id="mrps-kpi-material">0</strong><small>baris kebutuhan</small></article>
+    <article><span>Perlu Order</span><strong id="mrps-kpi-buy">0</strong><small>shortage material</small></article>
+    <article class="urgent"><span>Urgent</span><strong id="mrps-kpi-urgent">0</strong><small>perlu dipercepat</small></article>
+    <article><span>Planned Order</span><strong id="mrps-kpi-orders">0</strong><small>hasil MRP</small></article>
+  </section>
+
+  <section class="mrps-workbench app-container">
+    <header class="mrps-workbench-head">
+      <div class="mrps-tabs" role="tablist" aria-label="View MRP">
+        <button class="active" type="button" role="tab" aria-selected="true" data-mrps-view="requirements">Kebutuhan</button>
+        <button type="button" role="tab" aria-selected="false" data-mrps-view="orders">Planned Order</button>
+        <button type="button" role="tab" aria-selected="false" data-mrps-view="pegging">Customer Pegging</button>
+      </div>
+      <div class="mrps-toolbar">
+        <label class="mrps-search"><span class="sr-only">Cari data</span><input id="mrps-search" type="search" placeholder="Cari material, part, supplier…" autocomplete="off"></label>
+        <label><span class="sr-only">Filter status</span><select id="mrps-filter"><option value="ACTION">Perlu ditindaklanjuti</option><option value="ALL">Semua status</option><option value="URGENT">Urgent</option><option value="BUY">Perlu order</option><option value="COVERED">Covered</option></select></label>
+        <label><span class="sr-only">Jumlah baris</span><select id="mrps-page-size"><option value="25">25 baris</option><option value="50">50 baris</option><option value="100">100 baris</option></select></label>
+        <button id="mrps-view-help" class="mrps-help" type="button" title="Kebutuhan menampilkan hasil netting. Planned Order adalah rekomendasi supply. Customer Pegging menunjukkan demand customer asal." data-tip="Kebutuhan menampilkan hasil netting. Planned Order adalah rekomendasi supply. Customer Pegging menunjukkan demand customer asal." aria-label="Petunjuk tabel">?</button>
+      </div>
+    </header>
+    <div id="mrps-loading" class="mrps-empty">Memuat MRP…</div>
+    <div id="mrps-table-wrap" class="mrps-table-wrap" hidden>
+      <table class="mrps-table" data-enterprise-table="off"><thead id="mrps-head"></thead><tbody id="mrps-body"></tbody></table>
+    </div>
+    <footer class="mrps-pagination"><span id="mrps-range">0 data</span><div><button id="mrps-prev" type="button">Sebelumnya</button><span id="mrps-page">1 / 1</span><button id="mrps-next" type="button">Berikutnya</button></div></footer>
+  </section>
+</main>
+
+<aside id="mrps-drawer" class="mrps-drawer" aria-hidden="true"><div class="mrps-backdrop" data-close-mrps-drawer></div><section class="mrps-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="mrps-drawer-title"><header><div><small>DETAIL NETTING</small><h2 id="mrps-drawer-title">Rincian</h2><p id="mrps-drawer-meta"></p></div><button type="button" data-close-mrps-drawer aria-label="Tutup">×</button></header><div id="mrps-drawer-body" class="mrps-drawer-body"></div></section></aside>
+
+<aside id="mrps-modal" class="mrps-modal" aria-hidden="true"><div class="mrps-backdrop" data-close-mrps-modal></div><form id="mrps-modal-form" class="mrps-modal-panel"><header><div><small>NEXT OUTPUT</small><h2 id="mrps-modal-title">Lanjutkan MRP</h2><p id="mrps-modal-copy"></p></div><button type="button" data-close-mrps-modal aria-label="Tutup">×</button></header><div><label><input id="mrps-modal-confirm" type="checkbox" required> <span id="mrps-modal-confirm-copy"></span></label></div><footer><button type="button" class="btn btn-outline-secondary" data-close-mrps-modal>Batal</button><button id="mrps-modal-submit" class="btn btn-primary" type="submit">Lanjutkan</button></footer></form></aside>
+
+<script id="mrps-config" type="application/json"><%- JSON.stringify({ recordKey }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

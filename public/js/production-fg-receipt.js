@@ -189,7 +189,7 @@
     element("fg-modal-title").textContent = `Receive ${row.fgPart?.partCode || "Finished Goods"}`;
     element("fg-modal-subtitle").textContent = `${row.inspectionNumber} · pending ${formatNumber(row.qtyPending, row.uomCode)} ${row.uomCode || ""}`;
     element("fg-modal-reference").innerHTML = [
-      ["QC Inspection", row.inspectionNumber], ["Production Log", row.productionLogNumber],
+      ["QC Inspection", row.inspectionNumber], ["Production Entry", row.productionLogNumber],
       ["MO / WO", [row.moNumber, row.woNumber].filter(Boolean).join(" / ")], ["Source WIP", row.sourcePart?.partCode],
       ["FG Part", row.fgPart?.partCode], ["Source Location", locationLabel(row.sourceLocation)],
       ["Qty Passed", `${formatNumber(row.qtyPassed, row.uomCode)} ${row.uomCode || ""}`],

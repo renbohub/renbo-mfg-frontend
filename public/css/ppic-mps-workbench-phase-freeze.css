@@ -1,0 +1,15 @@
+/* Phase comparison matrix: freeze only P/N. */
+.mwb-comparison-table .mwb-matrix-code,
+.mwb-comparison-table .mwb-matrix-name {
+  position: static;
+  left: auto;
+  z-index: auto;
+  box-shadow: none;
+}
+
+.mwb-comparison-table thead tr:not(.mwb-group-head) th:nth-child(2),
+.mwb-comparison-table thead tr:not(.mwb-group-head) th:nth-child(3) {
+  left: auto;
+  z-index: 4;
+  box-shadow: none;
+}
