@@ -8,9 +8,8 @@
   const qty = (value) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 }).format(number(value));
   const date = (value) => value ? new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value)) : "—";
   const dateTime = (value) => value ? new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value)) : "—";
-  const signed = (value) => number(value) > 0 ? `+${qty(value)}` : qty(value);
   const config = JSON.parse($("mdr-page-config")?.textContent || "{}");
-  const state = { month: config.initialMonth, snapshotId: "", customerCode: "", q: "", page: 1, pageSize: 25, payload: null, requestId: 0, modalAction: null };
+  const state = { month: config.initialMonth, snapshotId: "", customerCode: "", q: "", page: 1, pageSize: 25, weekSpan: "all", weekStart: 0, payload: null, requestId: 0, modalAction: null };
   let searchTimer = null;
 
   async function api(url, options = {}) {
@@ -106,44 +105,122 @@
     button.dataset.action = "refresh";
   }
 
-  function valueCell(value, css = "") {
-    return `<td class="mdr-number ${css} ${number(value) === 0 ? "is-zero" : ""}">${qty(value)}</td>`;
+  function utcDate(dateKey) {
+    const [year, month, day] = String(dateKey).split("-").map(Number);
+    return new Date(Date.UTC(year, month - 1, day));
   }
 
-  function productionStartCell(planning = {}) {
-    const previous = number(planning.previousMonthPhaseCount) > 0;
-    return `<td class="mdr-production-start ${previous ? "is-previous" : ""}"><strong>${date(planning.earliestProductionStartDate)}</strong><small>Material ${date(planning.earliestMaterialRequiredDate)}</small>${previous ? `<em>${planning.previousMonthPhaseCount} phase · ${qty(planning.previousMonthQty)} qty prev. month</em>` : ""}</td>`;
+  function dayLabel(dateKey) {
+    return new Intl.DateTimeFormat("id-ID", { weekday: "short", day: "2-digit", timeZone: "UTC" }).format(utcDate(dateKey));
   }
 
-  function renderRows(payload) {
+  function shortDate(dateKey) {
+    return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "UTC" }).format(utcDate(dateKey));
+  }
+
+  function calendarWeeks(month) {
+    const [year, monthNumber] = String(month).split("-").map(Number);
+    const cursor = new Date(Date.UTC(year, monthNumber - 1, 1));
+    const weeks = [];
+    while (cursor.getUTCMonth() === monthNumber - 1) {
+      const dateKey = cursor.toISOString().slice(0, 10);
+      const day = cursor.getUTCDay();
+      if (!weeks.length || day === 1) weeks.push({ index: weeks.length, dates: [] });
+      weeks[weeks.length - 1].dates.push(dateKey);
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    return weeks.map((week) => ({
+      ...week,
+      label: `Minggu ${week.index + 1}`,
+      range: `${shortDate(week.dates[0])}–${shortDate(week.dates[week.dates.length - 1])}`,
+    }));
+  }
+
+  function visibleWeeks() {
+    const weeks = calendarWeeks(state.month);
+    if (state.weekSpan === "all") return weeks;
+    const span = Number(state.weekSpan);
+    const maxStart = Math.max(weeks.length - span, 0);
+    state.weekStart = Math.min(state.weekStart, maxStart);
+    return weeks.slice(state.weekStart, state.weekStart + span);
+  }
+
+  function updateWeekControls() {
+    const weeks = calendarWeeks(state.month);
+    const span = state.weekSpan === "all" ? weeks.length : Number(state.weekSpan);
+    const maxStart = Math.max(weeks.length - span, 0);
+    state.weekStart = Math.min(state.weekStart, maxStart);
+    const start = $("mdr-week-start");
+    start.disabled = state.weekSpan === "all";
+    start.innerHTML = weeks.slice(0, maxStart + 1).map((week) => `<option value="${week.index}">${esc(week.label)} · ${esc(week.range)}</option>`).join("");
+    start.value = String(state.weekStart);
+  }
+
+  function metricCell(row, dateKey, metric, weekStart = false) {
+    const value = number(row.daily?.[dateKey]?.[metric]);
+    const classes = `mdr-number ${metric} ${value === 0 ? "is-zero" : ""} ${weekStart ? "is-week-start" : ""}`;
+    if (metric !== "eff") return `<td class="${classes}">${qty(value)}</td>`;
+    return `<td class="${classes}"><button type="button" data-detail="${esc(row.partCode)}" title="Lihat rincian EFF ${esc(dateKey)}">${qty(value)}</button></td>`;
+  }
+
+  function rowWindowTotals(row, dates) {
+    return dates.reduce((totals, dateKey) => {
+      const metric = row.daily?.[dateKey] || {};
+      totals.fcc += number(metric.fcc); totals.po += number(metric.po); totals.eff += number(metric.eff);
+      return totals;
+    }, { fcc: 0, po: 0, eff: 0 });
+  }
+
+  function renderMatrix(payload) {
+    const weeks = visibleWeeks();
+    const dates = weeks.flatMap((week) => week.dates);
+    const columnCount = 6 + dates.length * 3;
+    $("mdr-head").innerHTML = `
+      <tr class="mdr-week-head">
+        <th rowspan="3" class="mdr-part-number">Part Number</th>
+        <th rowspan="3" class="mdr-part-name">Part Name / Customer</th>
+        ${weeks.map((week) => `<th colspan="${week.dates.length * 3}">${esc(week.label)}<small>${esc(week.range)}</small></th>`).join("")}
+        <th colspan="3" class="mdr-total-head">Total tampilan</th>
+        <th rowspan="3" class="mdr-detail-head">Detail</th>
+      </tr>
+      <tr class="mdr-date-head">
+        ${weeks.flatMap((week) => week.dates.map((dateKey, index) => `<th colspan="3" class="${index === 0 ? "is-week-start" : ""}">${esc(dayLabel(dateKey))}</th>`)).join("")}
+        <th rowspan="2" class="fcc mdr-total-col">FCC</th><th rowspan="2" class="po">PO</th><th rowspan="2" class="eff">EFF</th>
+      </tr>
+      <tr class="mdr-metric-head">
+        ${weeks.flatMap((week) => week.dates.map((_dateKey, index) => `<th class="fcc ${index === 0 ? "is-week-start" : ""}">FCC</th><th class="po">PO</th><th class="eff">EFF</th>`)).join("")}
+      </tr>`;
     if (!payload.items.length) {
-      $("mdr-body").innerHTML = '<tr><td colspan="15" class="mdr-empty"><strong>Tidak ada demand pada filter ini.</strong><span>Ganti periode, customer, atau pencarian.</span></td></tr>';
+      $("mdr-body").innerHTML = `<tr><td colspan="${columnCount}" class="mdr-empty"><strong>Tidak ada demand pada filter ini.</strong><span>Ganti periode, customer, atau pencarian.</span></td></tr>`;
+      $("mdr-foot").innerHTML = "";
       return;
     }
     $("mdr-body").innerHTML = payload.items.map((row) => {
       const current = row.currentSource || row;
-      const snapshotEff = row.isSnapshotLine ? row.effQty : current.effQty;
-      const issues = Array.isArray(row.readinessIssues) ? row.readinessIssues : current.readinessIssues || [];
       const readiness = row.readinessStatus || current.readinessStatus;
-      const planning = row.phasePlanning || current.phasePlanning || {};
+      const issues = Array.isArray(row.readinessIssues) ? row.readinessIssues : current.readinessIssues || [];
+      const totals = rowWindowTotals(row, dates);
       return `<tr>
-        <td class="mdr-part"><strong>${esc(row.partNumber || row.partCode)}</strong><small>${esc(row.partCode)} · ${esc(row.uomCode || current.uomCode || "—")}</small><span>${esc(row.partName || current.partName || "—")}</span></td>
-        <td><div class="mdr-customer-list">${(row.customerCodes || current.customerCodes || []).map((code) => `<span>${esc(code)}</span>`).join("") || "—"}</div></td>
-        ${valueCell(row.fccQty ?? current.fccQty, "fcc")}
-        ${valueCell(row.poFirmQty ?? current.poFirmQty, "po")}
-        ${valueCell(row.consumedFccQty ?? current.consumedFccQty)}
-        ${valueCell(row.unplannedPoQty ?? current.unplannedPoQty, number(row.unplannedPoQty ?? current.unplannedPoQty) > 0 ? "is-risk" : "")}
-        ${valueCell(snapshotEff, "eff")}
-        ${valueCell(current.effQty, "eff-current")}
-        <td class="mdr-number delta ${number(row.sourceDeltaEffQty) ? "is-changed" : ""}">${signed(row.sourceDeltaEffQty)}</td>
-        <td class="mdr-number delta ${number(row.deltaEffQty) ? "is-changed" : ""}">${signed(row.deltaEffQty)}</td>
-        ${productionStartCell(planning)}
-        <td class="mdr-lead-status">${statusBadge(planning.status)}<small>${planning.lateCount || 0} late · ${planning.atRiskCount || 0} risk</small></td>
-        <td class="mdr-number"><strong>${qty(row.effectivePhaseCount ?? current.effectivePhaseCount)}</strong><small class="mdr-phase-count">EFF / ${qty(row.deliveryPhaseCount ?? current.deliveryPhaseCount)} source</small></td>
-        <td><button class="mdr-readiness-button" type="button" data-detail="${esc(row.partCode)}">${statusBadge(readiness)}<small>${issues.length} issue</small></button></td>
-        <td><button class="mdr-source-button" type="button" data-detail="${esc(row.partCode)}">Timeline</button></td>
+        <td class="mdr-part-number"><strong>${esc(row.partNumber || row.partCode)}</strong><small>${esc(row.partCode)} · ${esc(row.uomCode || current.uomCode || "—")}</small></td>
+        <td class="mdr-part-name"><strong>${esc(row.partName || current.partName || "—")}</strong><small>${esc((row.customerCodes || current.customerCodes || []).join(", ") || "Tanpa customer")}</small>${statusBadge(readiness)}</td>
+        ${weeks.flatMap((week) => week.dates.map((dateKey, index) => metricCell(row, dateKey, "fcc", index === 0) + metricCell(row, dateKey, "po") + metricCell(row, dateKey, "eff"))).join("")}
+        <td class="mdr-number fcc mdr-total-col"><strong>${qty(totals.fcc)}</strong></td><td class="mdr-number po"><strong>${qty(totals.po)}</strong></td><td class="mdr-number eff"><strong>${qty(totals.eff)}</strong></td>
+        <td class="mdr-detail"><button class="mdr-source-button" type="button" data-detail="${esc(row.partCode)}">${issues.length ? `${issues.length} issue` : "Timeline"}</button></td>
       </tr>`;
     }).join("");
+    const pageTotals = payload.items.reduce((totals, row) => {
+      const rowTotals = rowWindowTotals(row, dates);
+      totals.fcc += rowTotals.fcc; totals.po += rowTotals.po; totals.eff += rowTotals.eff;
+      return totals;
+    }, { fcc: 0, po: 0, eff: 0 });
+    $("mdr-foot").innerHTML = `<tr><th colspan="2">Total halaman ini</th>${dates.map((dateKey, index) => {
+      const total = payload.items.reduce((sum, row) => {
+        const metric = row.daily?.[dateKey] || {};
+        sum.fcc += number(metric.fcc); sum.po += number(metric.po); sum.eff += number(metric.eff);
+        return sum;
+      }, { fcc: 0, po: 0, eff: 0 });
+      return `<td class="fcc ${weeks.some((week) => week.dates[0] === dateKey) ? "is-week-start" : ""}">${qty(total.fcc)}</td><td class="po">${qty(total.po)}</td><td class="eff">${qty(total.eff)}</td>`;
+    }).join("")}<td class="fcc mdr-total-col">${qty(pageTotals.fcc)}</td><td class="po">${qty(pageTotals.po)}</td><td class="eff">${qty(pageTotals.eff)}</td><td></td></tr>`;
   }
 
   function renderPagination(payload) {
@@ -154,7 +231,9 @@
     $("mdr-page-label").textContent = `Halaman ${page.page} / ${page.totalPages}`;
     $("mdr-prev").disabled = page.page <= 1;
     $("mdr-next").disabled = page.page >= page.totalPages;
-    $("mdr-result-meta").textContent = `${page.total} part · ${payload.selectedSnapshot ? payload.selectedSnapshot.snapshotNumber : "Live source"} · ${payload.formula.expression}`;
+    const weeks = visibleWeeks();
+    const range = weeks.length ? `${shortDate(weeks[0].dates[0])}–${shortDate(weeks[weeks.length - 1].dates.at(-1))}` : "—";
+    $("mdr-result-meta").textContent = `${page.total} part · ${range} · ${payload.selectedSnapshot ? payload.selectedSnapshot.snapshotNumber : "Live source"} · FCC / PO / EFF per tanggal`;
     $("mdr-table-title").textContent = `Demand ${payload.period.key}`;
   }
 
@@ -164,10 +243,11 @@
     state.snapshotId = selectedId;
     updateSelect($("mdr-snapshot"), "Live source — belum snapshot", payload.snapshots, selectedId, (row) => `${row.snapshotNumber} · ${row.status}${row.isCurrentRevision ? " · Current" : ""}`);
     updateSelect($("mdr-customer"), "Semua customer", payload.filters.customerOptions, state.customerCode);
+    updateWeekControls();
     renderSummary(payload);
     renderWorkflow(payload);
     renderSourceBanner(payload);
-    renderRows(payload);
+    renderMatrix(payload);
     renderPagination(payload);
   }
 
@@ -185,7 +265,7 @@
     } catch (error) {
       if (requestId === state.requestId) {
         alert(error.message);
-        $("mdr-body").innerHTML = `<tr><td colspan="15" class="mdr-empty"><strong>Monthly Demand gagal dimuat.</strong><span>${esc(error.message)}</span></td></tr>`;
+        $("mdr-body").innerHTML = `<tr><td colspan="98" class="mdr-empty"><strong>Monthly Demand gagal dimuat.</strong><span>${esc(error.message)}</span></td></tr>`;
       }
     } finally {
       if (requestId === state.requestId) document.body.classList.remove("mdr-busy");
@@ -303,10 +383,20 @@
 
   function closeDrawer() { $("mdr-drawer").classList.remove("is-open"); $("mdr-drawer").setAttribute("aria-hidden", "true"); }
 
-  $("mdr-month").addEventListener("change", (event) => { state.month = event.target.value; state.snapshotId = ""; state.page = 1; load(); });
+  $("mdr-month").addEventListener("change", (event) => { state.month = event.target.value; state.snapshotId = ""; state.weekStart = 0; state.page = 1; load(); });
   $("mdr-snapshot").addEventListener("change", (event) => { state.snapshotId = event.target.value; state.page = 1; load(); });
   $("mdr-customer").addEventListener("change", (event) => { state.customerCode = event.target.value; state.page = 1; load(); });
   $("mdr-page-size").addEventListener("change", (event) => { state.pageSize = Number(event.target.value); state.page = 1; load(); });
+  $("mdr-week-span").addEventListener("change", (event) => {
+    state.weekSpan = event.target.value; state.weekStart = 0; updateWeekControls();
+    if (state.payload) { renderMatrix(state.payload); renderPagination(state.payload); }
+    $("mdr-scroll").scrollLeft = 0;
+  });
+  $("mdr-week-start").addEventListener("change", (event) => {
+    state.weekStart = Number(event.target.value); updateWeekControls();
+    if (state.payload) { renderMatrix(state.payload); renderPagination(state.payload); }
+    $("mdr-scroll").scrollLeft = 0;
+  });
   $("mdr-search").addEventListener("input", (event) => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { state.q = event.target.value.trim(); state.page = 1; load(); }, 300); });
   $("mdr-prev").addEventListener("click", () => { if (state.page > 1) { state.page -= 1; load(); } });
   $("mdr-next").addEventListener("click", () => { if (state.page < (state.payload?.pagination.totalPages || 1)) { state.page += 1; load(); } });
@@ -326,9 +416,16 @@
   });
   $("mdr-export").addEventListener("click", () => {
     if (!state.payload) return;
-    const columns = ["Part Number","Part Code","Part Name","Customer","FCC","PO Firm","FCC Consumed","Unplanned PO","EFF Snapshot","EFF Source","Delta Source","Readiness"];
+    const dates = visibleWeeks().flatMap((week) => week.dates);
+    const columns = ["Part Number", "Part Code", "Part Name", "Customer", "UOM", ...dates.flatMap((dateKey) => [`${dateKey} FCC`, `${dateKey} PO`, `${dateKey} EFF`]), "Total FCC", "Total PO", "Total EFF", "Readiness"];
     const quote = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
-    const rows = state.payload.items.map((row) => [row.partNumber,row.partCode,row.partName,(row.customerCodes||[]).join("; "),row.fccQty,row.poFirmQty,row.consumedFccQty,row.unplannedPoQty,row.effQty,row.currentSource?.effQty,row.sourceDeltaEffQty,row.readinessStatus]);
+    const rows = state.payload.items.map((row) => {
+      const values = [row.partNumber, row.partCode, row.partName, (row.customerCodes || []).join("; "), row.uomCode];
+      for (const dateKey of dates) values.push(row.daily?.[dateKey]?.fcc || 0, row.daily?.[dateKey]?.po || 0, row.daily?.[dateKey]?.eff || 0);
+      const totals = rowWindowTotals(row, dates);
+      values.push(totals.fcc, totals.po, totals.eff, row.readinessStatus);
+      return values;
+    });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob(["\ufeff" + [columns, ...rows].map((row) => row.map(quote).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" }));
     link.download = `monthly-demand-review-${state.month}.csv`; link.click(); URL.revokeObjectURL(link.href);

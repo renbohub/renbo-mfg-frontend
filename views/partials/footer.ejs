@@ -1,9 +1,11 @@
   <div id="toast-stack" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
   <% if (typeof requiresAuth !== 'undefined' && requiresAuth) { %>
     <%- include('page-context-panel') %>
+    <%- include('ai-assistant') %>
   <% } %>
   <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-  <script src="/vendor/jquery/jquery.min.js"></script>
+  <script src="/vendor/jquery/jquery.min.js?v=3.7.1"></script>
+  <script src="/vendor/select2/js/select2.full.min.js?v=4.1.0"></script>
   <script src="/vendor/datatables/datatables.min.js"></script>
   <script src="/vendor/datatables-bs5/js/dataTables.bootstrap5.min.js"></script>
   <script src="/vendor/socket.io-client/socket.io.min.js"></script>
@@ -11,8 +13,16 @@
   <script src="/vendor/apexcharts/apexcharts.min.js"></script>
   <script src="/js/session.js"></script>
   <% if (typeof requiresAuth !== 'undefined' && requiresAuth) { %><script src="/js/page-context.js"></script><% } %>
+  <% if (typeof requiresAuth !== 'undefined' && requiresAuth) { %>
+    <script src="/js/ai-assistant-model.js?v=20260825-1"></script>
+    <script src="/js/ai-assistant.js?v=20260825-2"></script>
+    <script src="/js/ai-context-actions.js?v=20260825-1"></script>
+  <% } %>
   <script src="/js/shared-data-table.js?v=20260812-export-3"></script>
-  <script src="/js/interaction-guard.js?v=20260817-1"></script>
+  <script src="/js/interaction-guard.js?v=20260827-5"></script>
+  <script src="/js/enterprise-lookup-model.js?v=20260826-1"></script>
+  <script src="/js/enterprise-lookup.js?v=20260827-3"></script>
+  <script src="/js/document-form-state.js?v=20260826-1"></script>
   <script src="/js/searchable-select.js?v=20260817-1"></script>
   <script src="/js/form-dialog.js"></script>
   <script src="/js/shared-form-ux.js?v=20260809-1"></script>
@@ -20,6 +30,6 @@
   <link rel="stylesheet" href="/css/workflow-views.css">
   <script>window.REALTIME_CONFIG = <%- JSON.stringify({ socketUrl: typeof socketUrl === 'undefined' ? '' : socketUrl, mqttUrl: typeof mqttUrl === 'undefined' ? '' : mqttUrl }) %>;</script>
   <script src="/js/realtime.js"></script>
-  <% if (typeof pageScript !== 'undefined' && pageScript) { %><script src="<%= pageScript %>"></script><% } %>
+  <% if (typeof pageScript !== 'undefined' && pageScript) { %><script src="<%= pageScript %><%= pageScript.includes('?') ? '&' : '?' %>v=20260827-18"></script><% } %>
 </body>
 </html>

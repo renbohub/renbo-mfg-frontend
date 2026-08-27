@@ -1,10 +1,10 @@
 <%- include('../partials/head') %>
-<link rel="stylesheet" href="/css/ppic-monthly-demand-review.css?v=20260818-2">
+<link rel="stylesheet" href="/css/ppic-monthly-demand-review.css?v=20260820-1">
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: 'demand-planning' }) %>
 
 <main class="mdr-page ppic-page">
-  <header class="mdr-page-head app-container">
+  <header class="mdr-page-head app-container planning-shared-header">
     <div>
       <a href="/modules/planning-ppic/demand-planning" class="mdr-back">← Yearly Demand</a>
       <span class="mdr-eyebrow">PLANNING PPIC / MONTH-END CONTROL</span>
@@ -44,6 +44,21 @@
         <option value="25">25</option><option value="50">50</option><option value="100">100</option>
       </select>
     </label>
+    <label>
+      <span>Rentang tanggal</span>
+      <select id="mdr-week-span" data-searchable-disabled>
+        <option value="all">Semua minggu</option>
+        <option value="1">1 minggu</option>
+        <option value="2">2 minggu</option>
+        <option value="3">3 minggu</option>
+      </select>
+    </label>
+    <label>
+      <span>Mulai dari</span>
+      <select id="mdr-week-start" data-searchable-disabled disabled>
+        <option value="0">Minggu 1</option>
+      </select>
+    </label>
   </section>
 
   <section id="mdr-source-banner" class="mdr-source-banner app-container" aria-live="polite">
@@ -80,20 +95,15 @@
 
   <section class="mdr-table-card app-container">
     <header>
-      <div><span>MONTHLY DEMAND LINES</span><h2 id="mdr-table-title">Demand <%= initialMonth %></h2><p id="mdr-result-meta">Memuat data…</p></div>
-      <div class="mdr-legend"><span class="ready">Ready</span><span class="warning">Warning</span><span class="blocked">Blocked</span></div>
+      <div><span>DAILY DEMAND MATRIX</span><h2 id="mdr-table-title">Demand <%= initialMonth %></h2><p id="mdr-result-meta">Memuat data per tanggal…</p></div>
+      <div class="mdr-legend" aria-label="Legenda demand"><span class="fcc">FCC <small>Forecast</small></span><span class="po">PO <small>Firm order</small></span><span class="eff">EFF <small>Effective</small></span></div>
     </header>
     <div id="mdr-alert" class="mdr-alert" hidden></div>
-    <div class="mdr-table-scroll">
-      <table class="mdr-table">
-        <thead>
-          <tr>
-            <th>Part</th><th>Customer</th><th>FCC</th><th>PO Firm</th><th>FCC Consumed</th>
-            <th>Unplanned PO</th><th>EFF Snapshot</th><th>EFF Source Kini</th><th>Δ Source</th>
-            <th>Δ Revision</th><th>Production Start</th><th>Lead Time</th><th>Phases</th><th>Readiness</th><th>Rincian</th>
-          </tr>
-        </thead>
-        <tbody id="mdr-body"><tr><td colspan="15" class="mdr-loading">Menghitung lead time setiap delivery phase…</td></tr></tbody>
+    <div id="mdr-scroll" class="mdr-table-scroll">
+      <table class="mdr-table" data-enterprise-table="off">
+        <thead id="mdr-head"></thead>
+        <tbody id="mdr-body"><tr><td colspan="98" class="mdr-loading">Menghitung FCC, PO, dan EFF per tanggal…</td></tr></tbody>
+        <tfoot id="mdr-foot"></tfoot>
       </table>
     </div>
     <footer class="mdr-pagination">
@@ -101,6 +111,7 @@
       <div><button id="mdr-prev" type="button">Sebelumnya</button><span id="mdr-page-label">Halaman 1 / 1</span><button id="mdr-next" type="button">Berikutnya</button></div>
     </footer>
   </section>
+  <div class="app-container"><%- include('../partials/document-comments', { documentComments: { recordKey: `MONTHLY-DEMAND-REVIEW-${initialMonth}`, title: 'Komentar Monthly Demand Review', variant: 'receipt' } }) %></div>
 </main>
 
 <aside id="mdr-drawer" class="mdr-drawer" aria-hidden="true">

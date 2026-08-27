@@ -71,3 +71,34 @@
 @media(max-width:1400px){.mdr-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:720px){.mdr-phase-grid{grid-template-columns:1fr 1fr}.mdr-phase-list li{grid-template-columns:1fr}.mdr-summary{grid-template-columns:1fr 1fr}}
 @media(max-width:480px){.mdr-phase-summary,.mdr-phase-grid{grid-template-columns:1fr}}
+
+/* Daily FCC / PO / EFF matrix */
+.mdr-toolbar{grid-template-columns:150px minmax(220px,.85fr) minmax(170px,.65fr) minmax(220px,1fr) 72px 145px 175px}
+.mdr-legend .fcc{background:#dbeafe;color:#1d4ed8}.mdr-legend .po{background:#ffedd5;color:#c2410c}.mdr-legend .eff{background:#dcfce7;color:#047857}.mdr-legend small{margin-left:4px;font-size:7px;font-weight:650;text-transform:none}
+.mdr-table{width:max-content;min-width:100%;font-variant-numeric:tabular-nums}
+.mdr-table th,.mdr-table td{height:44px;padding:7px 8px;text-align:right}
+.mdr-table thead th{text-align:center}
+.mdr-table .mdr-week-head th{top:0;height:34px;background:#203f92;color:#fff;letter-spacing:.03em}
+.mdr-table .mdr-week-head th:nth-of-type(even):not(.mdr-part-name):not(.mdr-total-head):not(.mdr-detail-head){background:#294eaa}
+.mdr-table .mdr-week-head small{display:block;margin-top:2px;color:#cbd7ff;font-size:7px;font-weight:650;letter-spacing:0}
+.mdr-table .mdr-date-head th{top:34px;height:34px;background:#3157b7;color:#fff;font-size:8px}
+.mdr-table .mdr-metric-head th{top:68px;height:30px;background:#eef2ff;color:#475569;font-size:7px}
+.mdr-table .mdr-metric-head th.fcc{color:#1d4ed8}.mdr-table .mdr-metric-head th.po{color:#c2410c}.mdr-table .mdr-metric-head th.eff{color:#047857}
+.mdr-table .is-week-start{border-left:3px solid #9fb4e8!important}
+.mdr-table td.mdr-number{width:58px;min-width:58px}
+.mdr-table td.mdr-number.fcc{background:#f8fbff;color:#1d4ed8}.mdr-table td.mdr-number.po{background:#fffaf5;color:#c2410c}.mdr-table td.mdr-number.eff{background:#f4fcf8;color:#047857;font-weight:800}
+.mdr-table td.mdr-number.eff button{width:100%;border:0;background:transparent;color:inherit;font:inherit;font-weight:inherit;text-align:right}.mdr-table td.mdr-number.eff button:hover{text-decoration:underline}
+.mdr-table .mdr-part-number,.mdr-table .mdr-part-name{position:sticky;text-align:left!important;background:#fff}
+.mdr-table .mdr-part-number{left:0;width:175px;min-width:175px;max-width:175px;z-index:5}.mdr-table .mdr-part-name{left:175px;width:190px;min-width:190px;max-width:190px;z-index:5;border-right:2px solid #cbd5e1}
+.mdr-table thead .mdr-part-number,.mdr-table thead .mdr-part-name{z-index:9;background:#203f92}
+.mdr-table tbody .mdr-part-number strong,.mdr-table tbody .mdr-part-number small,.mdr-table tbody .mdr-part-name strong,.mdr-table tbody .mdr-part-name small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mdr-table tbody .mdr-part-number strong,.mdr-table tbody .mdr-part-name strong{color:#172033;font-size:9px}.mdr-table tbody .mdr-part-number small{margin-top:3px;color:#3157d5;font-size:7px}.mdr-table tbody .mdr-part-name small{margin:3px 0;color:#64748b;font-size:7px}
+.mdr-table tbody tr:hover .mdr-part-number,.mdr-table tbody tr:hover .mdr-part-name{background:#f6f8ff}
+.mdr-table .mdr-total-head,.mdr-table .mdr-total-col{border-left:3px solid #6478ad!important}.mdr-table .mdr-total-head{background:#172f75!important}
+.mdr-table .mdr-detail-head{background:#172f75!important}.mdr-table .mdr-detail{min-width:78px;text-align:center}
+.mdr-table tfoot th,.mdr-table tfoot td{position:sticky;bottom:0;z-index:4;height:36px;border-top:2px solid #cbd5e1;background:#f1f5f9;color:#334155;font-size:8px;font-weight:850}.mdr-table tfoot th{left:0;z-index:7;background:#e7ecf5;text-align:left}
+.mdr-table tfoot td.fcc{color:#1d4ed8}.mdr-table tfoot td.po{color:#c2410c}.mdr-table tfoot td.eff{color:#047857}
+.mdr-table .mdr-empty,.mdr-table .mdr-loading{position:static!important;background:#fff!important}
+@media(max-width:1400px){.mdr-toolbar{grid-template-columns:150px repeat(3,minmax(180px,1fr))}.mdr-toolbar .mdr-search{grid-column:auto}}
+@media(max-width:900px){.mdr-toolbar{grid-template-columns:1fr 1fr}.mdr-toolbar>label,.mdr-toolbar .mdr-search{grid-column:auto}.mdr-toolbar>label:nth-child(2),.mdr-toolbar>label:nth-child(3),.mdr-toolbar .mdr-search{grid-column:1/-1}}
+@media(max-width:540px){.mdr-toolbar{grid-template-columns:1fr}.mdr-toolbar>label,.mdr-toolbar>label:nth-child(2),.mdr-toolbar>label:nth-child(3),.mdr-toolbar .mdr-search{grid-column:auto}.mdr-table .mdr-part-number{width:145px;min-width:145px;max-width:145px}.mdr-table .mdr-part-name{left:145px;width:155px;min-width:155px;max-width:155px}}

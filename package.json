@@ -7,12 +7,33 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "check": "node --check server.js && node --check src/masterDataRegistry.js && node --check src/moduleRegistry.js && node --check src/routes/auth.js && node --check src/routes/masterData.js && node --check src/routes/modules.js && node --check src/routes/pageContext.js && node --check public/js/login.js && node --check public/js/session.js && node --check public/js/page-context.js && node --check public/js/log-center.js && node --check public/js/form-dialog.js && node --check public/js/entity-list.js && node --check public/js/entity-form.js && node --check public/js/entity-detail.js && node --check public/js/module-list.js && node --check public/js/module-report.js && node --check public/js/modules-index.js && node --check public/js/bom-list.js && node --check public/js/bom-report.js && node --check public/js/bom-editor.js && node --check public/js/bom-detail.js && node --check public/js/sales-list.js && node --check public/js/sales-form.js && node --check public/js/sales-detail.js && node --check public/js/ppic-dashboard.js && node --check public/js/ppic-detail.js && node --check public/js/ppic-capacity.js && node --check public/js/ppic-mps-workbench.js && node --check public/js/operations-dashboard.js && node --check public/js/operations-detail.js && node --check public/js/incoming-dashboard.js && node --check public/js/purchasing-pr-form.js && node --check public/js/purchasing-po-form.js && node --check public/js/purchasing-invoice-form.js && node --check public/js/production-schedule-form.js && node --check public/js/production-log-form.js && node --check public/js/production-fg-receipt.js && node --check public/js/production-shared-form.js && node --check public/js/supply-chain-form.js && node --check public/js/inventory-form.js && node --check public/js/roles-permissions.js && node --check public/js/approval-rules.js && node --check public/js/executive-dashboard.js && node --check public/js/ui-preferences.js",
-    "check:ppic-cockpit": "node --check public/js/ppic-execution-cockpit.js && node --check public/js/ppic-tutorial.js",
+    "check": "node --check server.js && node --check src/masterDataRegistry.js && node --check src/moduleRegistry.js && node --check src/routes/auth.js && node --check src/routes/masterData.js && node --check src/routes/modules.js && node --check src/routes/pageContext.js && node --check public/js/login.js && node --check public/js/session.js && node --check public/js/page-context.js && node --check public/js/log-center.js && node --check public/js/form-dialog.js && node --check public/js/entity-list.js && node --check public/js/entity-form.js && node --check public/js/entity-detail.js && node --check public/js/work-center-form.js && node --check public/js/work-center-detail.js && node --check public/js/working-hour-profile-model.js && node --check public/js/working-hour-profile-form.js && node --check public/js/working-hour-profile-detail.js && node --check public/js/module-list.js && node --check public/js/module-report.js && node --check public/js/modules-index.js && node --check public/js/bom-list.js && node --check public/js/bom-report.js && node --check public/js/bom-editor.js && node --check public/js/bom-detail.js && node --check public/js/sales-list.js && node --check public/js/sales-form.js && node --check public/js/sales-detail.js && node --check public/js/ppic-dashboard.js && node --check public/js/ppic-detail.js && node --check public/js/ppic-capacity.js && node --check public/js/ppic-mps-delivery-status.js && node --check public/js/ppic-mps-recovery-actions.js && node --check public/js/ppic-mps-workbench.js && node --check public/js/operations-dashboard.js && node --check public/js/operations-detail.js && node --check public/js/incoming-dashboard.js && node --check public/js/purchasing-pr-form.js && node --check public/js/purchasing-po-form.js && node --check public/js/purchasing-invoice-form.js && node --check public/js/production-schedule-form.js && node --check public/js/production-log-form.js && node --check public/js/production-fg-receipt.js && node --check public/js/production-shared-form.js && node --check public/js/supply-chain-form.js && node --check public/js/inventory-form.js && node --check public/js/roles-permissions.js && node --check public/js/approval-rules.js && node --check public/js/executive-dashboard.js && node --check public/js/ui-preferences.js",
+    "check:ppic-cockpit": "node --check public/js/ppic-execution-cockpit.js && node --check public/js/ppic-tutorial.js && node --check public/js/ppic-mrp-planning-runs.js && node --check public/js/ppic-mrp-detail-simple.js && node --check public/js/ppic-monthly-production-plan.js && node --check public/js/ppic-monthly-capacity-editor.js && node --check public/js/ppic-monthly-recommendation.js && node --check public/js/ppic-daily-plan-model.js && node --check public/js/ppic-daily-production-plan.js",
     "test:p3-contracts": "node scripts/verify-encoding.js",
     "test:encoding": "node scripts/verify-encoding.js",
     "test:shared-ui": "node scripts/verify-shared-ui.js",
-    "build": "npm run test:encoding && npm run test:shared-ui && npm run check && npm run check:ppic-cockpit"
+    "test:enterprise-lookup": "node scripts/verify-enterprise-lookup.js",
+    "test:document-shell": "node scripts/verify-document-shell.js",
+    "test:relational-fields": "node scripts/verify-relational-fields.js",
+    "test:ai-assistant-ui": "node scripts/verify-ai-assistant-ui.js",
+    "test:ai-model-profile-page": "node scripts/verify-ai-model-profile-page.js",
+    "test:ai-context-actions": "node scripts/verify-ai-context-actions.js",
+    "test:ai-capacity-actions": "node scripts/verify-ai-capacity-actions.js",
+    "test:mpp-gantt": "node scripts/verify-mpp-gantt.js",
+    "test:mps-delivery-status": "node scripts/verify-mps-delivery-status.js",
+    "test:mps-recovery-actions": "node scripts/verify-mps-recovery-actions.js",
+    "test:mrp-planning-runs-page": "node scripts/verify-mrp-planning-runs-page.js",
+    "test:mrp-current-stock": "node scripts/verify-mrp-current-stock.js",
+    "test:monthly-production-plan-page": "node scripts/verify-monthly-production-plan-page.js",
+    "test:daily-production-plan-model": "node scripts/verify-daily-plan-model.js",
+    "test:mpp-capacity-editor": "node scripts/verify-mpp-capacity-editor.js",
+    "test:mpp-recommendation": "node scripts/verify-mpp-recommendation.js",
+    "test:work-center-master": "node scripts/verify-work-center-master.js",
+    "test:working-hour-profile-master": "node scripts/verify-working-hour-profile-master.js",
+    "test:vendor-process-master": "node scripts/verify-vendor-process-master.js",
+    "test:vendor-receipt-layout": "node scripts/verify-vendor-receipt-layout.js",
+    "test:schedule-board": "node scripts/verify-schedule-board.js",
+    "build": "npm run test:ai-assistant-ui && npm run test:ai-model-profile-page && npm run test:ai-context-actions && npm run test:ai-capacity-actions && npm run test:encoding && npm run test:enterprise-lookup && npm run test:document-shell && npm run test:shared-ui && npm run test:mpp-gantt && npm run test:mps-delivery-status && npm run test:mps-recovery-actions && npm run test:mrp-planning-runs-page && npm run test:mrp-current-stock && npm run test:monthly-production-plan-page && npm run test:daily-production-plan-model && npm run test:mpp-recommendation && npm run test:mpp-capacity-editor && npm run test:work-center-master && npm run test:working-hour-profile-master && npm run check && npm run check:ppic-cockpit"
   },
   "dependencies": {
     "alpinejs": "^3.14.9",
@@ -23,9 +44,12 @@
     "dotenv": "^17.2.1",
     "ejs": "^3.1.10",
     "express": "^5.1.0",
+    "frappe-gantt": "^1.2.2",
     "jquery": "^3.7.1",
     "mqtt": "^5.13.3",
-    "socket.io-client": "^4.8.3"
+    "select2": "^4.1.0-rc.0",
+    "socket.io-client": "^4.8.3",
+    "tabulator-tables": "^6.5.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

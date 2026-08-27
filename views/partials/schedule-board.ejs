@@ -1,0 +1,54 @@
+<% const scheduleKind = typeof boardKind === 'string' ? boardKind : 'incoming'; %>
+<section class="schedule-board" data-schedule-board data-kind="<%= scheduleKind %>" aria-label="<%= scheduleKind === 'incoming' ? 'Jadwal kedatangan' : 'Jadwal pengiriman' %>">
+  <header class="schedule-board__header">
+    <div>
+      <p class="schedule-board__eyebrow"><%= scheduleKind === 'incoming' ? 'ARRIVAL MATRIX' : 'DELIVERY MATRIX' %></p>
+      <h2><%= scheduleKind === 'incoming' ? 'Tabel Kedatangan' : 'Tabel Pengiriman FG' %></h2>
+      <p><%= scheduleKind === 'incoming' ? 'Purchase part, material, dan incoming dari vendor dalam satu kalender operasional.' : 'Rencana pengiriman finished goods per customer dan tanggal delivery.' %></p>
+    </div>
+    <div class="schedule-board__totals" aria-live="polite">
+      <span><small>BARIS</small><b data-board-row-count>0</b></span>
+      <span><small>TOTAL QTY</small><b data-board-total-qty>0</b></span>
+    </div>
+  </header>
+
+  <div class="schedule-board__toolbar">
+    <% if (scheduleKind === 'incoming') { %>
+      <div class="schedule-board__scope" role="group" aria-label="Sumber incoming">
+        <button type="button" class="active" data-board-scope="purchase">Purchase Part &amp; Material</button>
+        <button type="button" data-board-scope="vendor">Incoming Vendor</button>
+      </div>
+    <% } else { %>
+      <span class="schedule-board__scope-label">FINISHED GOODS ONLY</span>
+    <% } %>
+    <div class="schedule-board__view" role="group" aria-label="Skala kalender">
+      <button type="button" data-board-mode="hour">Jam</button>
+      <button type="button" data-board-mode="week">Week</button>
+      <button type="button" class="active" data-board-mode="date">Tanggal</button>
+    </div>
+    <label class="schedule-board__search">
+      <span class="visually-hidden">Cari jadwal</span>
+      <input type="search" data-board-search placeholder="Cari part, customer, supplier, PO, SO...">
+    </label>
+  </div>
+
+  <div class="schedule-board__periodbar">
+    <button type="button" data-board-shift="-1" aria-label="Periode sebelumnya">&#8592;</button>
+    <button type="button" data-board-today>Hari ini</button>
+    <div><small data-board-period-kicker>MONTH VIEW</small><strong data-board-period-label>-</strong></div>
+    <button type="button" data-board-shift="1" aria-label="Periode berikutnya">&#8594;</button>
+  </div>
+
+  <div class="schedule-board__legend">
+    <span><i class="is-planned"></i> Planned</span>
+    <span><i class="is-progress"></i> Partial / Process</span>
+    <span><i class="is-complete"></i> Complete</span>
+    <span><i class="is-overdue"></i> Overdue</span>
+    <em>Geser horizontal untuk melihat seluruh periode</em>
+  </div>
+
+  <div class="schedule-board__matrix" data-board-matrix aria-live="polite">
+    <div class="schedule-board__loading">Memuat jadwal...</div>
+  </div>
+  <div class="schedule-board__error d-none" data-board-error role="alert"></div>
+</section>

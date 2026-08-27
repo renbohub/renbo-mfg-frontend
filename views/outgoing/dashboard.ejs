@@ -1,0 +1,12 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/schedule-board.css?v=20260825-1">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<main class="outgoing-schedule-page app-container">
+  <section class="outgoing-schedule-hero">
+    <div><p class="ops-eyebrow">OUTGOING CONTROL</p><h1>Jadwal Pengiriman Finished Goods</h1><p>Kontrol rencana delivery FG per customer dalam tampilan jam, minggu, atau tanggal.</p></div>
+    <a class="btn btn-primary brand-button" href="/modules/outgoing/delivery-schedules/new">+ Buat Delivery Schedule</a>
+  </section>
+  <%- include('../partials/schedule-board', { boardKind: 'outgoing' }) %>
+</main>
+<%- include('../partials/footer') %>

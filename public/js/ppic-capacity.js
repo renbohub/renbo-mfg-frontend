@@ -30,7 +30,10 @@
   let pendingRecommendationRequiresPreset = false;
   let readinessIssuesByKey = new Map();
   let activeReadinessTrigger = null;
-  let capacityPlanningMode = localStorage.getItem("capacity-planning-mode") === "SIMULATION" ? "SIMULATION" : "PRODUCTION";
+  // Capacity Planning is a read-only projection of Monthly Production Plan
+  // allocations. The only editable data on this page is machine-day capacity.
+  let capacityPlanningMode = "PRODUCTION";
+  localStorage.setItem("capacity-planning-mode", "PRODUCTION");
   let activeCapacityView = localStorage.getItem("capacity-main-view") || "heatmap";
   const capacityUiDefaults = { search: "", status: "ALL", exceptionsOnly: false, density: "comfortable", page: 1, pageSize: 25, attention: "all", workbench: "schedule", detailSearch: "", detailPage: 1, detailPageSize: 25, advanced: false };
   let capacityUiState = { ...capacityUiDefaults };
@@ -48,6 +51,13 @@
   const selectedPresetKey = () => $("capacity-scenario").value.startsWith("preset-") ? $("capacity-scenario").value : null;
   const activeScenarioKey = () => capacityPlanningMode === "SIMULATION" ? selectedPresetKey() : null;
   const activePreset = () => simulationPresets.find((preset) => preset.id === selectedPresetKey()) || null;
+  const monthlyPlanHref = (planNumber = $("capacity-plan")?.value) => {
+    const month = $("capacity-month")?.value || "";
+    const params = new URLSearchParams();
+    if (month) params.set("month", month);
+    if (planNumber) params.set("planNumber", planNumber);
+    return `/modules/planning-ppic/monthly-production-plans${params.size ? `?${params}` : ""}`;
+  };
   const shiftMinutes = (shift) => { const minutes = (value) => Number(String(value || "00:00").slice(0, 2)) * 60 + Number(String(value || "00:00").slice(3, 5)); const start = minutes(shift.start); const end = minutes(shift.end); return end > start ? end - start : end + 1440 - start; };
   const overtimeHours = (preset) => preset?.overtimeStart && preset?.overtimeEnd ? shiftMinutes({ start: preset.overtimeStart, end: preset.overtimeEnd }) / 60 : 0;
   function scenarioConfig(key) {
@@ -110,7 +120,9 @@
     const payload = await api(`/modules/api/planning-ppic/capacity-planning/presets?month=${encodeURIComponent(month)}`); simulationPresets = payload.presets || []; currentUsePresetId = payload.currentPresetId || null; syncScenarioOptions(preferredId); const selected = activePreset(); if (selected) fillPresetForm(selected); else resetPresetForm();
   }
   function updateCapacityModeUi() {
-    const simulation = capacityPlanningMode === "SIMULATION";
+    capacityPlanningMode = "PRODUCTION";
+    localStorage.setItem("capacity-planning-mode", "PRODUCTION");
+    const simulation = false;
     const selectedPlan = plans.find((plan) => plan.planNumber === $("capacity-plan").value);
     const canAdoptPlan = selectedPlan && ["Draft", "Confirmed", "Released", "In Progress"].includes(selectedPlan.status);
     document.querySelectorAll("[data-capacity-mode]").forEach((button) => {
@@ -118,22 +130,19 @@
       button.classList.toggle("active", active);
       button.setAttribute("aria-selected", String(active));
     });
-    $("capacity-open-scenario").classList.remove("d-none");
-    $("capacity-recommend").textContent = simulation ? "Auto Allocation" : "Buat Rekomendasi";
-    $("capacity-adopt-simulation").classList.toggle("d-none", !simulation || !canAdoptPlan || !activeScenarioKey());
-    $("capacity-sync-dpp").classList.toggle("d-none", simulation || !selectedPlan || selectedPlan.replanRequired || !["Released", "In Progress"].includes(selectedPlan.status));
-    $("capacity-recommend").classList.toggle("d-none", !selectedPlan || (simulation && !activeScenarioKey()) || (!simulation && !["Draft", "Confirmed", "Released", "In Progress"].includes(selectedPlan.status)));
-    $("capacity-override").classList.toggle("d-none", simulation || $("capacity-override").classList.contains("d-none"));
+    $("capacity-open-scenario").classList.add("d-none");
+    $("capacity-adopt-simulation").classList.add("d-none");
+    $("capacity-sync-dpp").classList.toggle("d-none", !selectedPlan || !["Released", "In Progress"].includes(selectedPlan.status));
+    $("capacity-recommend").classList.add("d-none");
+    $("capacity-override").classList.add("d-none");
     const title = $("capacity-main-view-title");
-    if (title) title.textContent = simulation ? "Capacity Simulation Workspace" : "Current Use Capacity Workspace";
+    if (title) title.textContent = "Capacity Check dari Monthly Production Plan";
     const help = $("capacity-main-view-help");
-    if (help) help.textContent = simulation
-      ? activePreset() ? `Preset ${activePreset().name}. Langkah berikutnya: Auto Allocation, periksa hasilnya, lalu klik Tetapkan sebagai Current Use. Hari lampau terkunci.` : "Pilih MPP dan preset bulanan, lalu jalankan Auto Allocation."
-      : selectedPlan?.replanRequired ? `Replan wajib: ${selectedPlan.replanReason || "target delivery berubah"}` : selectedPlan?.status === "In Progress" ? "Replan hanya menghitung sisa pekerjaan; DPP Released, In Progress, dan Completed tetap menjadi firm history." : activePreset() ? `Production memakai parameter preset ${activePreset().name}. Allocation tetap tersimpan sebagai Production, bukan Simulation.` : "Sumber resmi untuk generate dan revisi Draft Daily Production Plan (DPP).";
-    $("capacity-scenario-label").firstChild.textContent = simulation ? "Preset Bulanan" : "Capacity Setup / Preset";
-    $("capacity-production-guide-steps").textContent = simulation && selectedPlan && !canAdoptPlan
-      ? `${selectedPlan.planNumber} berstatus ${selectedPlan.status}; pilih MPP Draft, Confirmed, Released, atau In Progress untuk menetapkan preset.`
-      : "Simulation → pilih MPP dan preset → Auto Allocation → Tetapkan sebagai Current Use.";
+    if (help) help.textContent = selectedPlan
+      ? `${selectedPlan.planNumber} menjadi sumber tunggal qty, tanggal, mesin, dan vendor. Klik cell hanya untuk review load atau menyesuaikan jam capacity.`
+      : "Pilih Monthly Production Plan agar jadwal dan load capacity langsung mengikuti allocation plan tersebut.";
+    $("capacity-production-guide-steps").textContent = "Qty, tanggal, mesin, proses vendor, dan urutan mengikuti allocation tersimpan pada Monthly Production Plan.";
+    $("capacity-production-guide-lock").textContent = "Di halaman ini PPIC hanya mengubah jam kerja, jumlah shift, dan overtime per mesin–tanggal.";
   }
   function applyScenario(key, refresh = true) {
     const scenario = scenarioConfig(key);
@@ -351,13 +360,14 @@
   async function loadPlans() {
     try {
       plans = await api("/modules/api/planning-ppic/monthly-plan?start=0&length=200");
-      $("capacity-plan").innerHTML = '<option value="">Semua production plan aktif</option>' + plans.map((plan) => `<option value="${esc(plan.planNumber)}">${esc(plan.planNumber)} · ${esc(plan.status)} · ${esc(plan.sourceMpsNumber || plan.sourceType || "Manual")}</option>`).join("");
+      $("capacity-plan").innerHTML = '<option value="">Pilih Monthly Production Plan</option>' + plans.map((plan) => `<option value="${esc(plan.planNumber)}">${esc(plan.planNumber)} · ${esc(plan.status)} · ${esc(plan.sourceMpsNumber || plan.sourceType || "Manual")}</option>`).join("");
       const requestedPlan = new URLSearchParams(location.search).get("planNumber");
       const activeStatuses = new Set(["Draft", "Confirmed", "Released", "In Progress"]);
       const selected = plans.find((plan) => plan.planNumber === requestedPlan)
         || plans.find((plan) => String(plan.periodStart).slice(0, 7) === $("capacity-month").value && activeStatuses.has(plan.status))
-        || plans.find((plan) => activeStatuses.has(plan.status));
-      if (selected) { $("capacity-plan").value = selected.planNumber; $("capacity-start").value = String(selected.periodStart).slice(0, 10); $("capacity-end").value = String(selected.periodEnd).slice(0, 10); $("capacity-month").value = String(selected.periodStart).slice(0, 7); }
+        || plans.filter((plan) => activeStatuses.has(plan.status)).sort((left, right) => String(right.periodStart).localeCompare(String(left.periodStart)))[0];
+      if (selected) { $("capacity-plan").value = selected.planNumber; $("capacity-start").value = String(selected.periodStart).slice(0, 10); $("capacity-end").value = String(selected.schedulingHorizonEnd || selected.periodEnd).slice(0, 10); $("capacity-month").value = String(selected.periodStart).slice(0, 7); }
+      window.PpicWorkflow?.refresh($("capacity-month").value);
     } catch (_) { plans = []; }
   }
   function renderHorizonInsight() {
@@ -508,7 +518,7 @@
       if (cell && (number(cell.loadPercent) > 100 || String(cell.status).toLowerCase() === "overload")) overload.push({ kind: "overload", title: `${machine.machineCode} · ${num(cell.loadPercent, 1)}%`, detail: `${date} · ${hours(cell.loadMinutes)} load / ${hours(cell.availableMinutes)} available`, machineId: machine.id, date });
     }
     const delivery = (snapshot?.deliveryCoverage?.phases || []).filter((phase) => phase.status !== "COVERED").map((phase) => ({ kind: "blocking", title: `${phase.partCode} · Delivery ${phase.plannedDate}`, detail: `Phase ${phase.phaseNumber || "-"} shortage ${qty(phase.shortageQty, phase.uomCode)} ${phase.uomCode || ""}`, workbench: "delivery" }));
-    const unscheduled = (snapshot?.unscheduled || []).map((item) => ({ kind: "blocking", title: `${item.partCode || item.reference} · ${item.processCode || "Process"}`, detail: `${item.reason || "Belum terjadwal"} · ${num(item.minutes, 1)} menit`, workbench: "unscheduled" }));
+    const unscheduled = (snapshot?.unscheduled || []).map((item) => ({ kind: "warning", title: `${item.partCode || item.reference} · ${item.processCode || "Process"}`, detail: `${item.reason || "Belum terjadwal"} · warning tindak lanjut · ${num(item.minutes, 1)} menit`, workbench: "unscheduled" }));
     const vendor = (snapshot?.vendorAssignments || []).filter((item) => item.status === "AT_RISK" || !item.vendorId || (item.riskReasons || []).length).map((item) => ({ kind: "vendor", title: `${item.partCode || item.planNumber} · ${item.processCode || item.processName || "Vendor"}`, detail: `${item.sendDate || item.scheduleDate || "-"} → ${item.returnDate || "-"} · ${(item.riskReasons || []).join(", ") || "Vendor belum ditentukan"}`, workbench: "vendor" }));
     const readiness = (snapshot?.readiness?.issues || []).filter((issue) => ["blocking", "warning", "overridable"].includes(issue.severity)).map((issue) => ({ kind: issue.severity === "blocking" ? "blocking" : "warning", title: issue.code || issue.category || "Master data", detail: compactIssueMessage(issue), workbench: "readiness" }));
     return { all: [...delivery, ...overload, ...unscheduled, ...vendor, ...readiness], overload, unscheduled, vendor, readiness };
@@ -617,7 +627,7 @@
       if (!entry) return '<div class="capacity-gantt-slot"></div>';
       const source = entry.sources.has("FIRM") ? "firm" : entry.sources.has("MANUAL") ? "manual" : "proposed";
       const dies = (snapshot?.catalogs?.dies || []).find((item) => item.id === entry.diesId);
-      return `<div class="capacity-gantt-slot"><button type="button" class="capacity-gantt-bar ${source} ${esc(entry.status)}" data-machine="${esc(row.machine.id)}" data-date="${esc(date)}" ${entry.allocationId ? `draggable="true" data-drag-allocation="${esc(entry.allocationId)}"` : ""} title="${esc(entry.reference)} · ${qty(entry.qty, entry.uomCode)} ${esc(entry.uomCode || "")} · ${num(entry.minutes, 1)} menit${dies ? ` · Dies ${esc(dies.diesCode)}` : ""}"><b>${qty(entry.qty, entry.uomCode)}</b><span>${num(entry.minutes)}m</span></button></div>`;
+      return `<div class="capacity-gantt-slot"><button type="button" class="capacity-gantt-bar ${source} ${esc(entry.status)}" data-machine="${esc(row.machine.id)}" data-date="${esc(date)}" title="${esc(entry.reference)} · ${qty(entry.qty, entry.uomCode)} ${esc(entry.uomCode || "")} · ${num(entry.minutes, 1)} menit${dies ? ` · Dies ${esc(dies.diesCode)}` : ""}"><b>${qty(entry.qty, entry.uomCode)}</b><span>${num(entry.minutes)}m</span></button></div>`;
     }).join("")}`).join("");
     target.innerHTML = rows.length
       ? `<div class="capacity-gantt-scroll"><div class="capacity-gantt-grid" style="--gantt-days:${snapshot.dates.length}"><div class="capacity-gantt-corner"><small>Routing Load</small><b>Part / Process / Machine</b></div>${dateHeaders}${body}</div></div>${rows.length > 150 ? `<p class="capacity-view-note">Menampilkan 150 dari ${num(rows.length)} routing load. Persempit horizon atau Production Plan untuk detail lengkap.</p>` : ""}`
@@ -884,8 +894,8 @@
     const vendors = new Map((snapshot?.catalogs?.vendors || []).map((vendor) => [vendor.id, vendor]));
     $("capacity-vendor-allocation-body").innerHTML = (snapshot?.vendorAssignments || []).map((item) => {
       const vendor = vendors.get(item.vendorId);
-      const action = ["MANUAL", "RECOMMENDED"].includes(item.source) && item.allocationId && !isPastDate(item.sendDate || item.scheduleDate)
-        ? `<div class="d-flex gap-1" draggable="true" data-drag-allocation="${esc(item.allocationId)}" title="Geser ke tanggal/mesin lain"><button class="btn btn-sm btn-outline-primary" type="button" data-edit-manual-allocation="${esc(item.allocationId)}">Edit</button><button class="btn btn-sm btn-outline-danger" type="button" data-remove-manual-allocation="${esc(item.allocationId)}" data-plan="${esc(item.planNumber)}">Hapus</button></div>`
+      const action = item.planNumber
+        ? `<a class="btn btn-sm btn-outline-primary" href="${esc(monthlyPlanHref(item.planNumber))}">Ubah di Monthly Plan</a>`
         : "-";
       const risk = Array.isArray(item.riskReasons) && item.riskReasons.length
         ? `<small class="d-block text-danger">${esc(item.riskReasons.join(", "))}</small>`
@@ -919,16 +929,26 @@
     $("capacity-cell-ot-start").value = setting.overtimeStart || "";
     $("capacity-cell-ot-end").value = setting.overtimeEnd || "";
     $("capacity-cell-reason").value = setting.reason || "";
-    const preset = activePreset(); const shifts = setting.shifts || preset?.shifts || defaultShiftWindows;
-    defaultShiftWindows.forEach((fallback, index) => { const shift = shifts[index] || fallback; $(`capacity-cell-shift-${index + 1}-start`).value = shift.start; $(`capacity-cell-shift-${index + 1}-end`).value = shift.end; });
-    $("capacity-cell-scope-note").textContent = historical ? `${date} sudah lewat dan dikunci sebagai histori Production.` : capacityPlanningMode === "SIMULATION" ? `Override berlaku untuk semua mesin pada ${date}, hanya di preset ${preset?.name || "aktif"}.` : "Pengaturan ini hanya berlaku untuk mesin dan tanggal yang sedang dipilih; tidak mengubah tanggal lain.";
+    const preset = activePreset(); const shifts = setting.shifts || rule.shifts || preset?.shifts || defaultShiftWindows;
+    defaultShiftWindows.forEach((fallback, index) => {
+      const shift = shifts[index] || fallback;
+      const startInput = $(`capacity-cell-shift-${index + 1}-start`);
+      const endInput = $(`capacity-cell-shift-${index + 1}-end`);
+      startInput.value = shift.startTime || shift.start || fallback.start;
+      endInput.value = shift.endTime || shift.end || fallback.end;
+      startInput.dataset.breakMinutes = String(number(shift.breakMinutes));
+      startInput.dataset.overtimeMinutes = String(number(shift.overtimeMinutes));
+    });
+    $("capacity-cell-scope-note").textContent = historical
+      ? `${date} sudah lewat dan dikunci sebagai histori Production.`
+      : `Hanya jam capacity ${machine.machineCode} pada ${date} yang berubah. Qty, part, proses, tanggal, dan mesin allocation tetap mengikuti ${$("capacity-plan").value || "Monthly Production Plan"}.`;
     toggleDailyFields();
     const manualTasks = manualTasksForMachine(machineId);
-    $("capacity-manual-allocation-form").classList.toggle("d-none", historical || manualTasks.length === 0);
+    $("capacity-manual-allocation-form").classList.add("d-none");
     const dailyToggle = document.querySelector('[data-capacity-dialog-section="capacity-cell-form"]');
     const manualToggle = document.querySelector('[data-capacity-dialog-section="capacity-manual-allocation-form"]');
     dailyToggle?.classList.toggle("d-none", historical);
-    manualToggle?.classList.toggle("d-none", historical || manualTasks.length === 0);
+    manualToggle?.classList.add("d-none");
     if (openDialog) {
       $("capacity-cell-form").classList.add("capacity-dialog-section-collapsed");
       $("capacity-manual-allocation-form").classList.add("capacity-dialog-section-collapsed");
@@ -947,34 +967,10 @@
         const schedule = item.plannedStartTime && item.plannedEndTime
           ? `<small class="d-block">${esc(item.plannedStartTime)}–${esc(item.plannedEndTime)} · ${esc(item.capacityMode || "NORMAL")}${item.diesId ? ` · Dies ${esc((snapshot?.catalogs?.dies || []).find((row) => row.id === item.diesId)?.diesCode || item.diesId)}` : ""}${item.deliveryPhaseNumber ? ` · Delivery Phase ${num(item.deliveryPhaseNumber)}` : ""}${item.transferBatchNumber ? ` · Transfer Batch ${num(item.transferBatchNumber)}` : ""}</small>`
           : "";
-        return `<div class="capacity-allocation-actions" draggable="true" data-drag-allocation="${esc(item.allocationId)}" title="Geser allocation ke cell mesin/tanggal lain"><small class="text-primary fw-semibold">${item.source === "RECOMMENDED" ? "Rekomendasi sistem" : "Draft allocation MPP"}</small>${schedule}<div class="d-flex gap-1"><button class="btn btn-sm btn-outline-primary" type="button" data-edit-manual-allocation="${esc(item.allocationId)}">Edit</button><button class="btn btn-sm btn-outline-danger" type="button" data-remove-manual-allocation="${esc(item.allocationId)}" data-plan="${esc(item.planNumber || item.reference)}">Hapus</button></div></div>`;
+        return `<div class="capacity-allocation-actions"><small class="text-primary fw-semibold">Allocation Monthly Plan</small>${schedule}<a class="btn btn-sm btn-outline-primary" href="${esc(monthlyPlanHref(item.planNumber || item.reference))}">Ubah di Monthly Plan</a></div>`;
       }
-      if (capacityPlanningMode === "SIMULATION") return "<small>Gunakan form alokasi simulasi. Routing production tidak diubah.</small>";
-      if (item.source !== "PROPOSED" || !item.mbomProcessId) return esc(item.status);
-      const plan = plans.find((row) => row.planNumber === item.reference);
-      const machineOptions = snapshot.machines
-        .filter((row) => (item.allowedMachineIds || []).includes(row.id))
-        .map((row) => `<option value="${esc(row.id)}" ${row.id === machine.id ? "selected" : ""}>${esc(row.machineCode)} · ${esc(row.machineName || "")}</option>`).join("")
-        || `<option value="${esc(machine.id)}">${esc(machine.machineCode)} · ${esc(machine.machineName || "")}</option>`;
-      const vendorOptions = (snapshot.catalogs?.vendors || [])
-        .map((row) => `<option value="${esc(row.id)}">${esc(row.vendorCode)} · ${esc(row.vendorName || "")}</option>`).join("");
-      if (false && ["Released", "In Progress"].includes(plan?.status)) {
-        return `<div class="d-flex flex-column gap-1" data-manual-daily data-plan="${esc(item.reference)}" data-line="${esc(item.lineNumber)}" data-route="${esc(item.mbomProcessId)}" data-date="${esc(date)}">
-          <small class="text-primary fw-semibold">Alokasi Daily Plan Manual</small>
-          <div class="d-flex gap-1"><select class="form-select form-select-sm" data-daily-mode><option value="INHOUSE">In-house</option><option value="VENDOR">Vendor</option></select><select class="form-select form-select-sm" data-daily-shift><option value="1">Shift 1</option><option value="2">Shift 2</option><option value="3">Shift 3</option></select></div>
-          <select class="form-select form-select-sm" data-daily-machine>${machineOptions}</select>
-          <select class="form-select form-select-sm d-none" data-daily-vendor><option value="">Pilih Vendor</option>${vendorOptions}</select>
-          <div class="input-group input-group-sm"><span class="input-group-text">Qty</span><input class="form-control" data-daily-qty type="number" min="0.001" step="0.001" max="${esc(item.qty)}" value="${esc(item.qty)}"><span class="input-group-text">${esc(item.uomCode || "")}</span></div>
-          <input class="form-control form-control-sm" data-daily-notes placeholder="Catatan / kebutuhan due date">
-          <button class="btn btn-sm btn-primary" type="button" data-save-manual-daily>Simpan Daily Plan</button>
-        </div>`;
-      }
-      if (["Draft", "Confirmed"].includes(plan?.status)) {
-        return `<div class="d-flex flex-column gap-1" data-routing-assignment data-plan="${esc(item.reference)}" data-line="${esc(item.lineNumber)}" data-route="${esc(item.mbomProcessId)}"><small class="text-muted">Assignment sebelum release</small><select class="form-select form-select-sm" data-routing-mode><option value="INHOUSE">In-house</option><option value="VENDOR">Move to Vendor</option></select><select class="form-select form-select-sm" data-routing-machine>${machineOptions}</select><select class="form-select form-select-sm" data-routing-dies><option value="">Tanpa QD/Dies</option>${(snapshot.catalogs?.dies || []).map((row) => `<option value="${esc(row.id)}">${esc(row.diesCode)} · ${esc(row.diesName || "")}</option>`).join("")}</select><select class="form-select form-select-sm d-none" data-routing-vendor><option value="">Pilih Vendor</option>${vendorOptions}</select><input class="form-control form-control-sm" data-routing-reason placeholder="Alasan perubahan"><button class="btn btn-sm btn-outline-primary" type="button" data-save-routing>Simpan Assignment</button></div>`;
-      }
-      return `<small>Gunakan form Alokasi MPP di atas.</small>`;
+      return `<div class="capacity-allocation-actions"><small>${esc(item.status || "Mengikuti Monthly Plan")}</small><a class="btn btn-sm btn-outline-primary" href="${esc(monthlyPlanHref(item.planNumber || item.reference))}">Buka Monthly Plan</a></div>`;
     };
-    const assignment = (item) => item.source === "PROPOSED" && item.mbomProcessId ? `<div class="d-flex flex-column gap-1" data-routing-assignment data-plan="${esc(item.reference)}" data-line="${esc(item.lineNumber)}" data-route="${esc(item.mbomProcessId)}"><select class="form-select form-select-sm" data-routing-mode><option value="INHOUSE">In-house</option><option value="VENDOR">Move to Vendor</option></select><select class="form-select form-select-sm" data-routing-machine>${machine.id ? `<option value="${esc(machine.id)}">${esc(machine.machineCode)}</option>` : ""}${snapshot.machines.filter((row) => (item.allowedMachineIds || []).includes(row.id) && row.id !== machine.id).map((row) => `<option value="${esc(row.id)}">${esc(row.machineCode)}</option>`).join("")}</select><select class="form-select form-select-sm" data-routing-dies><option value="">Tanpa QD/Dies</option>${(snapshot.catalogs?.dies || []).map((row) => `<option value="${esc(row.id)}" ${row.id === item.diesId ? "selected" : ""}>${esc(row.diesCode)} · ${esc(row.diesType || row.diesName || "")}</option>`).join("")}</select><select class="form-select form-select-sm d-none" data-routing-vendor><option value="">Pilih Vendor</option>${(snapshot.catalogs?.vendors || []).map((row) => `<option value="${esc(row.id)}">${esc(row.vendorCode)} · ${esc(row.vendorName || "")}</option>`).join("")}</select><input class="form-control form-control-sm" data-routing-reason placeholder="Alasan perubahan"><button class="btn btn-sm btn-outline-primary" type="button" data-save-routing>Simpan Assignment</button></div>` : esc(item.status);
     $("capacity-detail-body").innerHTML = cell.items.map((item) => {
       const allocationRow = `<tr class="capacity-allocation-data-row"><td><span class="capacity-source ${esc(String(item.source || "").toLowerCase())}">${esc(item.source)}</span>${item.capacityLate?'<small class="d-block text-danger">CAPACITY_LATE</small>':''}</td><td><b>${esc(item.reference)}</b>${item.moNumber ? `<small class="d-block">${esc(item.moNumber)} / ${esc(item.woNumber)}</small>` : ""}${item.demandSourceNumber?`<small class="d-block">${esc(item.demandSourceType||'DEMAND')} · ${esc(item.demandSourceNumber)}</small>`:''}</td><td>${esc(item.partCode)}${item.customerCode?`<small class="d-block">${esc(item.customerCode)}</small>`:''}</td><td>${esc(item.processCode || item.label)}${item.fgRequiredDate?`<small class="d-block">FG ready ${esc(String(item.fgRequiredDate).slice(0,10))}</small>`:''}</td><td>${esc(item.shift)}${item.priorityClass?`<small class="d-block">${esc(item.priorityClass)} · ${num(item.priorityScore,1)}</small>`:''}</td><td>${qty(item.qty, item.uomCode)} ${esc(item.uomCode || "")}</td><td>${num(item.minutes, 1)} min${item.customerTargetDate?`<small class="d-block">Delivery ${esc(String(item.customerTargetDate).slice(0,10))}</small>`:''}</td><td>${manualAssignment(item)}</td></tr>`;
       const auditRow = item.source === "RECOMMENDED" ? `<tr class="capacity-allocation-audit-row"><td colspan="8">${allocationScoreDetail(item)}</td></tr>` : "";
@@ -984,15 +980,7 @@
   }
   function issueActions(issue) {
     const actions = [];
-    if (issue.allocationId) {
-      const successor = issue.blockerDetail?.successor;
-      const label = issue.code === "PLAN_VENDOR_REQUIRED" ? "Pilih vendor" : /PREDECESSOR|SEQUENCE|OVERLAP/.test(issue.code) ? `Atur successor${successor?.processCode ? ` ${successor.processCode}` : ""}` : "Ubah allocation";
-      actions.push(`<button type="button" data-edit-manual-allocation="${esc(issue.allocationId)}">${esc(label)} →</button>`);
-    }
-    if (issue.relatedAllocationId) {
-      const predecessor = issue.blockerDetail?.predecessor;
-      actions.push(`<button type="button" data-edit-manual-allocation="${esc(issue.relatedAllocationId)}">Tambah predecessor${predecessor?.processCode ? ` ${esc(predecessor.processCode)}` : ""} →</button>`);
-    }
+    if (issue.allocationId || issue.relatedAllocationId || issue.planNumber) actions.push(`<a href="${esc(monthlyPlanHref(issue.planNumber))}">Perbaiki allocation di Monthly Plan →</a>`);
     if (!issue.allocationId && issue.machineCode) actions.push(`<a href="/master-data/machines/${encodeURIComponent(issue.machineCode)}/edit?key=${encodeURIComponent(issue.machineCode)}">Perbaiki master machine →</a>`);
     if (!issue.allocationId && /ROUTING|CYCLE|MACHINE/.test(issue.code)) actions.push('<a href="/modules/manufacturing-bom/bill-of-materials">Buka routing MBOM →</a>');
     if (/PROCESS/.test(issue.code)) actions.push('<a href="/master-data/processes">Buka master process →</a>');
@@ -1264,9 +1252,7 @@
   }, true);
   function renderUnscheduled() {
     $("capacity-unscheduled-count").textContent = `${num(snapshot.unscheduled.length)} item`;
-    const canAssign = Boolean($("capacity-plan").value);
-    const alternativeControl = (item) => canAssign && item.mbomProcessId && item.lineNumber && (item.suggestedMachines || []).length ? `<div class="mt-2 d-flex gap-1"><select class="form-select form-select-sm" data-alt-machine>${item.suggestedMachines.map((machine) => `<option value="${esc(machine.id)}">${esc(machine.machineCode)} · ${esc(machine.machineName || "")}</option>`).join("")}</select><button class="btn btn-sm btn-outline-primary" type="button" data-assign-alt data-plan="${esc(item.reference)}" data-line="${esc(item.lineNumber)}" data-route="${esc(item.mbomProcessId)}">Pindah</button></div>` : "";
-    $("capacity-unscheduled-body").innerHTML = snapshot.unscheduled.map((item) => `<tr><td><span class="capacity-source ${esc(String(item.source || "").toLowerCase())}">${esc(item.source)}</span></td><td><b>${esc(item.reference)}</b>${item.lineNumber ? `<small class="d-block">Line ${num(item.lineNumber)}</small>` : ""}</td><td>${esc(item.partCode)}</td><td>${esc(item.processCode)}</td><td>${esc(item.machineCode)}</td><td>${qty(item.qty, item.uomCode)} ${esc(item.uomCode || "")}</td><td>${num(item.minutes, 1)}</td><td>${esc(item.reason)}${item.allocationId ? `<button class="btn btn-sm btn-outline-primary d-block mt-2" type="button" data-edit-manual-allocation="${esc(item.allocationId)}">Edit allocation</button>` : alternativeControl(item)}</td></tr>`).join("") || '<tr><td colspan="8" class="capacity-empty">Tidak ada load yang tertinggal di luar schedule.</td></tr>';
+    $("capacity-unscheduled-body").innerHTML = snapshot.unscheduled.map((item) => `<tr><td><span class="capacity-source ${esc(String(item.source || "").toLowerCase())}">${esc(item.source)}</span></td><td><b>${esc(item.reference)}</b>${item.lineNumber ? `<small class="d-block">Line ${num(item.lineNumber)}</small>` : ""}</td><td>${esc(item.partCode)}</td><td>${esc(item.processCode)}</td><td>${esc(item.machineCode)}</td><td>${qty(item.qty, item.uomCode)} ${esc(item.uomCode || "")}</td><td>${num(item.minutes, 1)}</td><td>${esc(item.reason)}<a class="btn btn-sm btn-outline-primary d-block mt-2" href="${esc(monthlyPlanHref(item.planNumber || item.reference))}">Tangani di Monthly Plan</a></td></tr>`).join("") || '<tr><td colspan="8" class="capacity-empty">Tidak ada load yang tertinggal di luar schedule.</td></tr>';
   }
   function renderProcessLoad() {
     const body = $("capacity-process-load-body");
@@ -1278,13 +1264,20 @@
     $("capacity-cell-shifts").disabled = holiday;
     $("capacity-cell-ot-start").disabled = holiday;
     $("capacity-cell-ot-end").disabled = holiday;
-    $("capacity-cell-shift-windows").classList.toggle("d-none", capacityPlanningMode !== "SIMULATION" || holiday);
+    $("capacity-cell-shift-windows").classList.toggle("d-none", holiday);
     document.querySelectorAll("[data-daily-shift-window]").forEach((row) => row.classList.toggle("d-none", holiday || Number(row.dataset.dailyShiftWindow) > Number($("capacity-cell-shifts").value || 1)));
   }
   async function load() {
     $("capacity-loading").classList.remove("d-none");
     ["capacity-table-view", "capacity-heatmap-wrap", "capacity-gallery-view", "capacity-kanban-view", "capacity-gantt-view", "capacity-calendar-view"].forEach((id) => $(id).classList.add("d-none"));
     $("capacity-alert").classList.add("d-none");
+    if (!$("capacity-plan").value) {
+      $("capacity-loading").classList.add("d-none");
+      $("capacity-alert").className = "alert alert-info";
+      $("capacity-alert").innerHTML = `Belum ada Monthly Production Plan aktif untuk periode ini. Capacity tidak membuat allocation sendiri. <a href="${esc(monthlyPlanHref())}">Buka Monthly Production Plan</a>.`;
+      updateCapacityModeUi();
+      return;
+    }
     if (capacityPlanningMode === "SIMULATION" && !activeScenarioKey()) { $("capacity-loading").classList.add("d-none"); updateCapacityModeUi(); return alert("Belum ada preset simulasi aktif. Buat preset untuk bulan ini melalui Kelola Preset.", "warning"); }
     const activeScenario = scenarioConfig($("capacity-scenario").value);
     const params = new URLSearchParams({ startDate: $("capacity-start").value, endDate: $("capacity-end").value, shiftsPerDay: $("capacity-shifts").value, shiftHours: $("capacity-hours").value, efficiencyPercent: $("capacity-efficiency").value, scenarioName: activeScenario.name, overtimeHours: $("capacity-overtime").value, includeSaturday: $("capacity-saturday").value, includeSunday: $("capacity-sunday").value, planningGranularity: activeScenario.granularity || "DAY", rollingLookbackWeeks: activeScenario.lookbackWeeks || "0", freezeFenceDays: activeScenario.freezeDays || "0", manualAllocation: "true", planningMode: capacityPlanningMode });
@@ -1295,6 +1288,7 @@
       const retainedCell = selectedCell;
       snapshot = await api(`/modules/api/planning-ppic/capacity-planning?${params}`);
       renderStats(); renderMaterialGate(); renderHeatmap(); renderReadiness(); renderUnscheduled(); renderProcessLoad(); renderDeliveryCoverage(); renderVendorAllocations(); renderCapacityAttention(); renderCapacityWorkbenchCounts(); renderHorizonInsight(); applyCapacityWorkbenchFilter(); updateCapacityModeUi();
+      if ((snapshot.unscheduled || []).length) alert(`${num(snapshot.unscheduled.length)} item belum terjadwal. Plan tetap dapat dilanjutkan, tetapi item ini wajib ditindaklanjuti pada review berikutnya.`, "warning");
       const firstLoaded = snapshot.machines.flatMap((machine) => snapshot.dates.map((date) => ({ machine, date, cell: machine.cells[date] }))).find((entry) => entry.cell.items.length) || (snapshot.machines[0] ? { machine: snapshot.machines[0], date: snapshot.dates[0] } : null);
       const canRetain = retainedCell && snapshot.dates.includes(retainedCell.date) && snapshot.machines.some((machine) => machine.id === retainedCell.machineId);
       if (canRetain) renderCell(retainedCell.machineId, retainedCell.date);
@@ -1356,6 +1350,7 @@
     });
   }
   $("capacity-refresh").addEventListener("click", load);
+  $("capacity-open-monthly-plan")?.addEventListener("click", () => { location.href = monthlyPlanHref(); });
   $("capacity-compare-run")?.addEventListener("click", loadSharedScenarios);
   async function runCapacityRecommendation(button, requirePreset = false, flowRule = null) {
     const planNumber = $("capacity-plan").value;
@@ -1403,8 +1398,21 @@
     renderCapacityViews();
   }));
   $("capacity-override").addEventListener("click", async () => { const planNumber = $("capacity-plan").value; if (!planNumber) return; const reason = await window.formPrompt("Jelaskan alasan override capacity (minimal 10 karakter):", "Urgent customer demand; overload akan dijadwalkan ulang oleh PPIC.", { title: "Override Capacity" }); if (!reason || reason.trim().length < 10) return; try { await api(`/modules/api/planning-ppic/monthly-plan/${encodeURIComponent(planNumber)}/capacity-override`, { method: "POST", body: JSON.stringify({ reason }) }); alert("Override diproses melalui Approval Master.", "success"); await loadPlans(); await load(); } catch (error) { alert(error.message); } });
-  $("capacity-plan").addEventListener("change", async function () { const plan = plans.find((row) => row.planNumber === this.value); $("capacity-recommend").classList.toggle("d-none", !this.value); if (plan) { $("capacity-start").value = String(plan.periodStart).slice(0, 10); $("capacity-end").value = String(plan.periodEnd).slice(0, 10); const nextMonth = String(plan.periodStart).slice(0, 7); if (nextMonth !== $("capacity-month").value) { $("capacity-month").value = nextMonth; await loadSimulationPresets(); } } updateCapacityModeUi(); load(); });
-  $("capacity-month").addEventListener("change", async function () { if (!this.value) return; setMonthRange(this.value); await loadSimulationPresets(); load(); });
+  $("capacity-plan").addEventListener("change", async function () { const plan = plans.find((row) => row.planNumber === this.value); $("capacity-recommend").classList.toggle("d-none", !this.value); if (plan) { $("capacity-start").value = String(plan.periodStart).slice(0, 10); $("capacity-end").value = String(plan.schedulingHorizonEnd || plan.periodEnd).slice(0, 10); const nextMonth = String(plan.periodStart).slice(0, 7); if (nextMonth !== $("capacity-month").value) { $("capacity-month").value = nextMonth; await loadSimulationPresets(); } } updateCapacityModeUi(); load(); });
+  $("capacity-month").addEventListener("change", async function () {
+    if (!this.value) return;
+    const month = this.value;
+    setMonthRange(month);
+    const activeStatuses = new Set(["Draft", "Confirmed", "Released", "In Progress"]);
+    const matchingPlan = plans.find((plan) => String(plan.periodStart).slice(0, 7) === month && activeStatuses.has(plan.status));
+    $("capacity-plan").value = matchingPlan?.planNumber || "";
+    if (matchingPlan) {
+      $("capacity-start").value = String(matchingPlan.periodStart).slice(0, 10);
+      $("capacity-end").value = String(matchingPlan.schedulingHorizonEnd || matchingPlan.periodEnd).slice(0, 10);
+    }
+    await loadSimulationPresets();
+    load();
+  });
   $("capacity-scenario").addEventListener("change", function () {
     applyScenario(this.value);
   });
@@ -1478,15 +1486,19 @@
   $("capacity-cell-form").addEventListener("submit", async (event) => { event.preventDefault(); const planNumber = $("capacity-plan").value;
     try {
       if (isPastDate($("capacity-cell-date").value)) return alert("Hari yang sudah lewat dikunci dan tidak dapat mengubah preset/capacity.", "warning");
-      if (capacityPlanningMode === "SIMULATION") {
-        const preset = activePreset(); if (!preset) return alert("Pilih preset simulasi terlebih dahulu.", "warning"); const date = $("capacity-cell-date").value; const shiftCount = Number($("capacity-cell-shifts").value); const shifts = defaultShiftWindows.map((_, index) => ({ start: $(`capacity-cell-shift-${index + 1}-start`).value, end: $(`capacity-cell-shift-${index + 1}-end`).value })).slice(0, shiftCount); const dailyOverrides = { ...(preset.dailyOverrides || {}), [date]: { dayStatus: $("capacity-cell-status").value, shiftCount, shifts, overtimeStart: $("capacity-cell-ot-start").value || null, overtimeEnd: $("capacity-cell-ot-end").value || null, reason: $("capacity-cell-reason").value || "Daily simulation adjustment" } };
-        const result = await api(`/modules/api/planning-ppic/capacity-planning/presets/${encodeURIComponent(preset.id)}`, { method: "PUT", body: JSON.stringify({ ...preset, dailyOverrides }) }); await loadSimulationPresets(result.preset.id); alert(`Kalender simulasi ${date} diperbarui untuk semua mesin.`, "success"); await load(); return;
-      }
-      const endpoint = planNumber ? `/modules/api/planning-ppic/monthly-plan/${encodeURIComponent(planNumber)}/capacity-day` : "/modules/api/planning-ppic/capacity-day"; await api(endpoint, { method: "POST", body: JSON.stringify({ machineId: $("capacity-cell-machine").value, scheduleDate: $("capacity-cell-date").value, dayStatus: $("capacity-cell-status").value, shiftsPerDay: Number($("capacity-cell-shifts").value), overtimeStart: $("capacity-cell-ot-start").value, overtimeEnd: $("capacity-cell-ot-end").value, reason: $("capacity-cell-reason").value }) }); alert(planNumber ? "Capacity mesin–tanggal Production Plan tersimpan." : "Capacity mesin–tanggal global tersimpan.", "success"); await load();
+      if (!planNumber) return alert("Pilih Monthly Production Plan terlebih dahulu.", "warning");
+      const shiftCount = Number($("capacity-cell-shifts").value);
+      const shiftOverrides = defaultShiftWindows.slice(0, shiftCount).map((_, index) => ({
+        startTime: $(`capacity-cell-shift-${index + 1}-start`).value,
+        endTime: $(`capacity-cell-shift-${index + 1}-end`).value,
+        breakMinutes: number($(`capacity-cell-shift-${index + 1}-start`).dataset.breakMinutes),
+        overtimeMinutes: number($(`capacity-cell-shift-${index + 1}-start`).dataset.overtimeMinutes),
+      }));
+      await api(`/modules/api/planning-ppic/monthly-plan/${encodeURIComponent(planNumber)}/capacity-day`, { method: "POST", body: JSON.stringify({ machineId: $("capacity-cell-machine").value, scheduleDate: $("capacity-cell-date").value, dayStatus: $("capacity-cell-status").value, shiftsPerDay: shiftCount, shiftOverrides, overtimeStart: $("capacity-cell-ot-start").value, overtimeEnd: $("capacity-cell-ot-end").value, reason: $("capacity-cell-reason").value }) }); alert("Jam capacity mesin–tanggal tersimpan; allocation Monthly Plan tidak berubah.", "success"); await load();
     } catch (error) { alert(error.message); }
   });
   document.addEventListener("change", (event) => { const mode = event.target.closest("[data-routing-mode]"); if (!mode) return; const wrap = mode.closest("[data-routing-assignment]"); wrap.querySelector("[data-routing-machine]").classList.toggle("d-none", mode.value === "VENDOR"); wrap.querySelector("[data-routing-vendor]").classList.toggle("d-none", mode.value !== "VENDOR"); });
-  document.addEventListener("click", async (event) => { const cell = event.target.closest("[data-machine][data-date]"); if (cell) return renderCell(cell.dataset.machine, cell.dataset.date, true); const button = event.target.closest("[data-save-routing]"); if (!button) return; const wrap = button.closest("[data-routing-assignment]"); const routingMode = wrap.querySelector("[data-routing-mode]").value; const reason = wrap.querySelector("[data-routing-reason]").value; if (reason.trim().length < 10) return alert("Alasan assignment minimal 10 karakter.", "warning"); try { button.disabled = true; await api(`/modules/api/planning-ppic/monthly-plan/${encodeURIComponent(wrap.dataset.plan)}/capacity-machine-override`, { method: "POST", body: JSON.stringify({ lineNumber: Number(wrap.dataset.line), mbomProcessId: wrap.dataset.route, scheduleDate: $("capacity-cell-date").value, routingMode, machineId: routingMode === "INHOUSE" ? wrap.querySelector("[data-routing-machine]").value : null, diesId: wrap.querySelector("[data-routing-dies]").value || null, vendorId: routingMode === "VENDOR" ? wrap.querySelector("[data-routing-vendor]").value : null, reason }) }); alert("Assignment QD/vendor tersimpan; BOM default tidak berubah.", "success"); await load(); } catch (error) { button.disabled = false; alert(error.message); } });
+  document.addEventListener("click", async (event) => { const cell = event.target.closest("[data-machine][data-date]"); if (cell) { activateCapacityWorkbench("schedule"); return renderCell(cell.dataset.machine, cell.dataset.date, true); } const button = event.target.closest("[data-save-routing]"); if (!button) return; const wrap = button.closest("[data-routing-assignment]"); const routingMode = wrap.querySelector("[data-routing-mode]").value; const reason = wrap.querySelector("[data-routing-reason]").value; if (reason.trim().length < 10) return alert("Alasan assignment minimal 10 karakter.", "warning"); try { button.disabled = true; await api(`/modules/api/planning-ppic/monthly-plan/${encodeURIComponent(wrap.dataset.plan)}/capacity-machine-override`, { method: "POST", body: JSON.stringify({ lineNumber: Number(wrap.dataset.line), mbomProcessId: wrap.dataset.route, scheduleDate: $("capacity-cell-date").value, routingMode, machineId: routingMode === "INHOUSE" ? wrap.querySelector("[data-routing-machine]").value : null, diesId: wrap.querySelector("[data-routing-dies]").value || null, vendorId: routingMode === "VENDOR" ? wrap.querySelector("[data-routing-vendor]").value : null, reason }) }); alert("Assignment QD/vendor tersimpan; BOM default tidak berubah.", "success"); await load(); } catch (error) { button.disabled = false; alert(error.message); } });
   document.addEventListener("change", (event) => {
     const mode = event.target.closest("[data-daily-mode]");
     if (!mode) return;
@@ -1639,7 +1651,7 @@
       dialog.className = "capacity-dialog capacity-allocation-dialog";
       const shell = document.createElement("div");
       shell.className = "capacity-dialog-shell";
-      shell.innerHTML = '<header class="capacity-dialog-head"><div><small>CAPACITY SLOT</small><b>Alokasi & Pengaturan Harian</b><p>Review allocation terlebih dahulu. Buka pengaturan hanya saat perlu mengubah kalender atau allocation.</p></div><button class="capacity-dialog-close" type="button" data-close-dialog="capacity-allocation-dialog" aria-label="Tutup">&times;</button></header>';
+      shell.innerHTML = '<header class="capacity-dialog-head"><div><small>MACHINE–DAY CAPACITY</small><b>Review Load & Jam Capacity</b><p>Jadwal mengikuti Monthly Production Plan. Di sini hanya jam kerja, shift, dan overtime yang dapat disesuaikan.</p></div><button class="capacity-dialog-close" type="button" data-close-dialog="capacity-allocation-dialog" aria-label="Tutup">&times;</button></header>';
       shell.append(allocationPanel);
       dialog.append(shell);
       document.body.append(dialog);
@@ -1697,6 +1709,7 @@
         const summary = result.summary || {};
         alert(`DPP tersinkron: ${num(summary.createdCount)} dibuat, ${num(summary.updatedCount)} direvisi, ${num(summary.cancelledDraftCount)} dibatalkan.`, "success");
         await load();
+        window.PpicWorkflow?.refresh($("capacity-month").value);
       } catch (error) { alert(error.message); }
     });
   }

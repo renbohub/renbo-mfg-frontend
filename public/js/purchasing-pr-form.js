@@ -133,6 +133,19 @@
       ? row.sourcingAllocations.filter((allocation) => !allocation.isDeleted && allocation.status !== "Cancelled").map((allocation) => ({ ...allocation }))
       : [];
   }
+  function supplierPanelOf(tr) {
+    if (!tr) return null;
+    if (tr._supplierPanel?.isConnected) return tr._supplierPanel;
+    const candidate = tr.nextElementSibling;
+    return candidate?.classList.contains("pr-supplier-row") ? candidate : null;
+  }
+  function itemRowFromTarget(target) {
+    const itemRow = target?.closest?.(".pr-item-row");
+    if (itemRow) return itemRow;
+    const supplierRow = target?.closest?.(".pr-supplier-row");
+    const previous = supplierRow?.previousElementSibling;
+    return previous?.classList.contains("pr-item-row") ? previous : null;
+  }
   function sourceTrace(row) {
     const links = (row.sources || []).map((source) => {
       const mrp = source.mrpRunNumber
@@ -154,7 +167,9 @@
     return links.length ? [...new Set(links)].join("<br>") : "Manual / tanpa trace MRP";
   }
   function renderSupplierAllocations(tr) {
-    const target = tr.querySelector(".line-supplier-rows");
+    const panel = supplierPanelOf(tr);
+    const target = panel?.querySelector(".line-supplier-rows");
+    if (!target) return;
     const allocations = tr._supplierAllocations || [];
     const trace = sourceTrace(tr._sourceRecord || {});
     target.innerHTML = allocations.length ? allocations.map((allocation, index) => {
@@ -175,18 +190,20 @@
     recalculateSupplierAllocation(tr);
   }
   function recalculateSupplierAllocation(tr) {
+    const panel = supplierPanelOf(tr);
     const required = number(tr.querySelector(".line-qty")?.value);
-    const allocated = [...tr.querySelectorAll(".supplier-allocation-qty")].reduce((sum, input) => sum + number(input.value), 0);
+    const allocated = [...(panel?.querySelectorAll(".supplier-allocation-qty") || [])].reduce((sum, input) => sum + number(input.value), 0);
     const variance = allocated - required;
     const status = Math.abs(variance) <= 0.000001 ? "EXACT" : variance < 0 ? "UNDER" : "OVER";
-    const badge = tr.querySelector(".supplier-allocation-status");
+    const badge = panel?.querySelector(".supplier-allocation-status");
     if (badge) {
       badge.textContent = `${status} - ${allocated.toLocaleString("id-ID", { maximumFractionDigits: 2 })} / ${required.toLocaleString("id-ID", { maximumFractionDigits: 2 })}`;
       badge.dataset.status = status;
     }
   }
   function supplierAllocationPayload(tr, uomCode) {
-    return [...tr.querySelectorAll(".line-supplier-rows tr[data-supplier-allocation-index]")].map((rowElement) => {
+    const panel = supplierPanelOf(tr);
+    return [...(panel?.querySelectorAll(".line-supplier-rows tr[data-supplier-allocation-index]") || [])].map((rowElement) => {
       const source = tr._supplierAllocations[Number(rowElement.dataset.supplierAllocationIndex)] || {};
       const form = rowElement.querySelector(".supplier-allocation-form").value || null;
       const packageQty = number(rowElement.querySelector(".supplier-allocation-package-qty").value);
@@ -229,7 +246,7 @@
     tr.className = "pr-item-row";
     tr.innerHTML = `
       <td><select class="form-select line-category" disabled><option value="MATERIAL" ${category === "MATERIAL" ? "selected" : ""}>Material</option><option value="PURCHASE_PART" ${category === "PURCHASE_PART" ? "selected" : ""}>Purchase Part (Drawing)</option><option value="UNIVERSAL_PURCHASE_PART" ${category === "UNIVERSAL_PURCHASE_PART" ? "selected" : ""}>Universal Part (No Drawing)</option><option value="NON_PRODUCTION" ${category === "NON_PRODUCTION" ? "selected" : ""}>Non Produksi</option></select></td>
-      <td><select class="form-select line-part">${partOptions(category, category === "MATERIAL" ? (row.materialCode || "") : (row.partCode || ""))}</select><input class="form-control line-description mt-1" placeholder="${category === "NON_PRODUCTION" ? "Deskripsi wajib" : "Deskripsi item"}" value="${esc(row.description || "")}"><details class="line-supplier-control" ${row.sources?.length || row.sourcingAllocations?.length ? "open" : ""}><summary>Split Supplier <span class="supplier-allocation-status" data-status="UNDER"></span></summary><div class="supplier-allocation-scroll"><table><thead><tr><th>Supplier</th><th>Trace MRP / MPS / SO</th><th>Qty Alokasi</th><th>Form</th><th>Qty Form</th><th>Isi/Form</th><th>Delivery</th><th>Harga</th><th></th></tr></thead><tbody class="line-supplier-rows"></tbody></table></div><button class="supplier-allocation-add" type="button">+ Split Supplier</button><small>Total alokasi boleh kurang, pas, atau lebih. Sistem hanya memberi status UNDER / EXACT / OVER.</small></details></td>
+      <td><select class="form-select line-part">${partOptions(category, category === "MATERIAL" ? (row.materialCode || "") : (row.partCode || ""))}</select><input class="form-control line-description mt-1" placeholder="${category === "NON_PRODUCTION" ? "Deskripsi wajib" : "Deskripsi item"}" value="${esc(row.description || "")}"></td>
       <td><strong class="line-part-code">${esc(row.partCode || "-")}</strong></td>
       <td><span class="line-part-number">${esc(row.partNumber || "-")}</span></td>
       <td><span class="line-material">-</span></td>
@@ -248,8 +265,13 @@
     const editorLabels = ["Jenis kebutuhan", "Material / item dan alokasi supplier", "Part code internal", "Part number / drawing", "Material type", "Qty kebutuhan", "UOM", "Draft bentuk pembelian", "Supplier utama", "Harga estimasi", "Total", "Aksi"];
     [...tr.children].forEach((cell, index) => { cell.dataset.label = editorLabels[index] || "Field"; });
     $("pr-lines").appendChild(tr);
+    const supplierTr = document.createElement("tr");
+    supplierTr.className = "pr-supplier-row";
+    supplierTr.innerHTML = `<td colspan="12"><details class="line-supplier-control"><summary><span class="pr-supplier-summary-title">Trace &amp; Split Supplier</span><span class="supplier-allocation-status" data-status="UNDER"></span><small>Buka rincian sumber MRP/MPS dan alokasi vendor</small></summary><div class="supplier-allocation-scroll"><table data-enterprise-table="off"><thead><tr><th>Supplier</th><th>Trace MRP / MPS / SO</th><th>Qty Alokasi</th><th>Form</th><th>Qty Form</th><th>Isi/Form</th><th>Delivery</th><th>Harga</th><th></th></tr></thead><tbody class="line-supplier-rows"></tbody></table></div><div class="pr-supplier-actions"><button class="supplier-allocation-add" type="button">+ Split Supplier</button><small>Total alokasi dibandingkan dengan qty kebutuhan dan ditandai UNDER, EXACT, atau OVER.</small></div></details></td>`;
+    $("pr-lines").appendChild(supplierTr);
     tr._sourceRecord = row;
     tr._supplierAllocations = initialSupplierAllocations(row);
+    tr._supplierPanel = supplierTr;
     renderSupplierAllocations(tr);
     syncPart(tr, false);
     recalculate();
@@ -408,7 +430,7 @@
   $("pr-category").addEventListener("change", (event) => applyDocumentCategory(event.target.value, { resetLines: true, updateUrl: true, announce: true }));
   $("pr-add-line").addEventListener("click", () => addLine({ procurementCategory: state.currentCategory }));
   $("pr-lines").addEventListener("click", (event) => {
-    const tr = event.target.closest(".pr-item-row");
+    const tr = itemRowFromTarget(event.target);
     if (event.target.closest(".supplier-allocation-add") && tr) {
       tr._supplierAllocations = supplierAllocationPayload(tr, tr.querySelector(".line-uom").value.trim().toUpperCase());
       tr._supplierAllocations.push({
@@ -427,18 +449,22 @@
       renderSupplierAllocations(tr);
       return;
     }
-    const button = event.target.closest(".pr-remove-line"); if (!button) return;
-    button.closest(".pr-item-row").remove(); if (!$("pr-lines").children.length) addLine(); recalculate();
+    const button = event.target.closest(".pr-remove-line"); if (!button || !tr) return;
+    if (!window.confirm("Hapus baris item ini? Rincian trace dan split supplier pada baris ini ikut dihapus dari draft.")) return;
+    supplierPanelOf(tr)?.remove();
+    tr.remove();
+    if (!$("pr-lines").querySelector(".pr-item-row")) addLine();
+    recalculate();
   });
   $("pr-lines").addEventListener("change", (event) => {
-    const tr = event.target.closest(".pr-item-row"); if (!tr) return;
+    const tr = itemRowFromTarget(event.target); if (!tr) return;
     if (event.target.matches(".line-category")) syncPart(tr, true);
     if (event.target.matches(".line-part")) syncPart(tr, false);
     recalculate();
   });
   $("pr-lines").addEventListener("input", (event) => {
     recalculate();
-    const tr = event.target.closest(".pr-item-row");
+    const tr = itemRowFromTarget(event.target);
     if (tr) recalculateSupplierAllocation(tr);
   });
   $("required-date").addEventListener("change", () => {

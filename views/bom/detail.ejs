@@ -2,11 +2,11 @@
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <%- include('../partials/bom-subnav', { activeBomTab: 'detail', recordKey }) %>
-<main class="bom-record-page" data-bom-view="detail">
-  <section class="bom-record-toolbar app-container">
-    <nav class="bom-crumb"><span>Master Data</span><i>/</i><span>BOM</span><i>/</i><b><%= recordKey %></b></nav>
-    <div class="bom-toolbar-spacer"></div><a class="bom-toolbar-button" href="/modules/manufacturing-bom/bill-of-materials/<%= encodeURIComponent(recordKey) %>/edit-table">☷ <span>Edit via Table</span></a><a class="bom-toolbar-button" href="/modules/manufacturing-bom/bill-of-materials/<%= encodeURIComponent(recordKey) %>/edit">✎ <span>Edit Canvas</span></a>
-  </section>
+<main class="bom-record-page transaction-detail-page" data-bom-view="detail">
+  <div class="app-container">
+    <% const bomDetailActions = `<a class="bom-toolbar-button" href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(recordKey)}/edit-table">☷ <span>Edit via Table</span></a><a class="bom-toolbar-button" href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(recordKey)}/edit">✎ <span>Edit Canvas</span></a>`; %>
+    <%- include('../partials/document-shell', { documentShell: { variant: 'planning', eyebrow: 'Manufacturing BOM · Released Structure', number: recordKey, title: 'Detail BOM', subtitle: 'Struktur komponen, routing, biaya, dan masa berlaku dokumen.', actions: bomDetailActions, backHref: '/modules/manufacturing-bom/bill-of-materials', breadcrumbHtml: '<a href="/modules/manufacturing-bom/bill-of-materials">BOM List</a><span>/</span><strong>Detail</strong>' } }) %>
+  </div>
   <div id="bom-record-alert" class="alert alert-danger d-none mx-4 mt-3"></div>
   <section class="bom-record-content app-container">
     <div class="bom-detail-grid">
@@ -18,6 +18,7 @@
     </div>
     <h2 class="bom-section-title">Struktur Komponen (BOM Tree Grid)</h2>
     <div class="bom-tree-table"><table class="table"><thead><tr><th>LVL</th><th>KODE ITEM</th><th>NAMA ITEM</th><th>QTY</th><th>SATUAN</th><th>POSISI</th><th>PROSES</th><th>MATERIAL / GROSS</th><th>SCRAP %</th><th>LEAD TIME</th></tr></thead><tbody id="bom-detail-rows"><tr><td colspan="10" class="text-center py-4">Memuat detail BOM...</td></tr></tbody></table></div>
+    <%- include('../partials/document-comments', { documentComments: { recordKey, title: 'Komentar BOM', variant: 'receipt' } }) %>
   </section>
 </main>
 <script id="bom-record-config" type="application/json"><%- JSON.stringify({ recordKey, view: 'detail' }).replace(/</g, '\\u003c') %></script>

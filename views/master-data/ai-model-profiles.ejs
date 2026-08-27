@@ -1,0 +1,69 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-master') %>
+<main class="ai-model-registry app-container">
+  <section class="ai-model-registry__heading">
+    <div>
+      <span>MASTER DATA · OFFLINE AI</span>
+      <h1>AI Model Registry</h1>
+      <p>Kelola model GGUF lokal, uji kesiapan runtime, lalu aktifkan versi yang telah lulus seluruh gate.</p>
+    </div>
+    <button id="ai-add-profile" class="btn btn-primary" type="button" data-action="create">+ Tambah Profile</button>
+  </section>
+
+  <section id="ai-model-access-warning" class="ai-model-notice is-hidden" role="alert">
+    Halaman ini khusus Super Administrator. Perubahan model memengaruhi seluruh AI Assistant ERP.
+  </section>
+  <section id="ai-model-alert" class="ai-model-notice is-hidden" role="alert"></section>
+
+  <section class="ai-model-summary" aria-label="Ringkasan model">
+    <article><span>MODEL AKTIF</span><strong id="ai-active-count">0</strong><small>satu model melayani seluruh ERP</small></article>
+    <article><span>SIAP DIAKTIFKAN</span><strong id="ai-ready-count">0</strong><small>sudah lulus benchmark</small></article>
+    <article><span>FILE TERDETEKSI</span><strong id="ai-file-count">0</strong><small>GGUF dalam allowlist server</small></article>
+    <article class="runtime"><span>RUNTIME</span><strong id="ai-runtime-state">Memeriksa</strong><small id="ai-runtime-detail">node-llama-cpp · lokal</small></article>
+  </section>
+
+  <section class="ai-model-panel">
+    <header>
+      <div><span>MODEL DEPLOYMENT CONTROL</span><h2>Profile Model</h2></div>
+      <label class="ai-model-search"><span aria-hidden="true">⌕</span><input id="ai-profile-search" type="search" placeholder="Cari kode, nama, atau file model..."></label>
+    </header>
+    <div class="ai-model-table-wrap">
+      <table id="ai-profile-table">
+        <thead><tr><th>Profile</th><th>Model &amp; Quantization</th><th>Runtime</th><th>Benchmark</th><th>Status</th><th>Aktivasi</th><th>Aksi</th></tr></thead>
+        <tbody id="ai-profile-body"><tr><td colspan="7" class="ai-model-empty">Memuat model registry...</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<div class="modal fade" id="ai-profile-dialog" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content ai-profile-dialog">
+    <div class="modal-header"><div><span>NEW LOCAL MODEL PROFILE</span><h2 class="modal-title">Daftarkan Model GGUF</h2><p>File model harus sudah ditempatkan admin server di direktori allowlist.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button></div>
+    <form id="ai-profile-form">
+      <div class="modal-body">
+        <section class="ai-profile-section"><header><b>01</b><div><strong>Identitas model</strong><small>Versi yang dapat diaudit dan di-rollback.</small></div></header>
+          <div class="ai-profile-grid">
+            <label><span>Kode Profile *</span><input id="ai-profile-code" required maxlength="64" placeholder="QWEN3_4B_Q4_CPU"></label>
+            <label><span>Nama Tampilan *</span><input id="ai-display-name" required maxlength="120" placeholder="Qwen3 4B · CPU Production"></label>
+            <label><span>Model Family *</span><input id="ai-model-family" required value="Qwen3"></label>
+            <label><span>Quantization *</span><input id="ai-quantization" required value="Q4_K_M"></label>
+            <label class="wide"><span>File GGUF terdeteksi *</span><select id="ai-model-file" required><option value="">Memuat file...</option></select><small>Tidak ada input path bebas. Daftar berasal dari server.</small></label>
+            <label><span>Prompt Compatibility *</span><input id="ai-prompt-version" required value="ERP_ASSISTANT_V1" readonly></label>
+          </div>
+        </section>
+        <section class="ai-profile-section"><header><b>02</b><div><strong>Runtime guardrail</strong><small>Default aman untuk RAM bebas 8 GB tanpa GPU.</small></div></header>
+          <div class="ai-profile-grid compact">
+            <label><span>Context</span><input id="ai-context-size" type="number" min="1024" max="8192" value="4096"></label>
+            <label><span>Max Tokens</span><input id="ai-max-tokens" type="number" min="128" max="1200" value="800"></label>
+            <label><span>CPU Threads</span><input id="ai-cpu-threads" type="number" min="1" max="64" value="6"></label>
+            <label><span>Batch Size</span><input id="ai-batch-size" type="number" min="32" max="256" value="128"></label>
+            <label><span>GPU Mode</span><select id="ai-gpu-mode"><option value="cpu">CPU only</option><option value="auto">Auto / future hardware</option><option value="cuda">CUDA</option><option value="vulkan">Vulkan</option></select></label>
+            <label><span>Max Memory (MB)</span><input id="ai-max-memory" type="number" min="2048" max="6144" value="5120"></label>
+          </div>
+        </section>
+      </div>
+      <div class="modal-footer"><small id="ai-profile-form-state">Profile baru disimpan sebagai DRAFT.</small><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button><button id="ai-save-profile" class="btn btn-primary" type="submit">Simpan Draft</button></div>
+    </form>
+  </div></div>
+</div>
+<%- include('../partials/footer') %>

@@ -55,13 +55,13 @@
   }
 
   const columns = [
-    { data: null, orderable: false, searchable: false, width: "42px", render: (_v, _t, row) => `<input class="form-check-input row-select" type="checkbox" value="${esc(row.id)}" ${selected.has(row.id) ? "checked" : ""}>` },
+    { data: null, orderable: false, searchable: false, width: "42px", render: (_v, _t, row) => row.isVirtual ? '<span title="Resource otomatis">◇</span>' : `<input class="form-check-input row-select" type="checkbox" value="${esc(row.id)}" ${selected.has(row.id) ? "checked" : ""}>` },
     ...config.columns.map((col) => ({ data: null, name: col.data, render: (_v, renderType, row) => { const value = get(row, col.data); return renderType === "display" ? renderColumn(value, col) : value ?? ""; } })),
     { data: null, orderable: false, searchable: false, width: "142px", render: (_v, _t, row) => completeness(row) },
     { data: null, orderable: false, searchable: false, width: "118px", render: (_v, _t, row) => {
       const key = row[config.detailKey] || row.id;
       const mutationKey = row[config.mutationKey] || row.id;
-      return `<div class="row-actions"><a href="/master-data/${config.slug}/${encodeURIComponent(key)}" title="Detail">Lihat</a>${can("update") ? `<a href="/master-data/${config.slug}/${encodeURIComponent(mutationKey)}/edit?key=${encodeURIComponent(key)}" title="Edit"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path></svg></a>` : ""}${can("delete") ? `<button class="delete-row" data-id="${esc(mutationKey)}" title="Hapus"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6"></path></svg></button>` : ""}</div>`;
+      return `<div class="row-actions"><a href="/master-data/${config.slug}/${encodeURIComponent(key)}" title="Detail">Lihat</a>${can("update") ? `<a href="/master-data/${config.slug}/${encodeURIComponent(mutationKey)}/edit?key=${encodeURIComponent(key)}" title="${row.isVirtual ? "Jadikan master" : "Edit"}"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path></svg></a>` : ""}${can("delete") && !row.isVirtual ? `<button class="delete-row" data-id="${esc(mutationKey)}" title="Nonaktifkan"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6"></path></svg></button>` : ""}</div>`;
     }}
   ];
 

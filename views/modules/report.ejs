@@ -1,15 +1,20 @@
 <%- include('../partials/head') %>
+<% if (page.reportMode === 'inventory-traceability') { %><link rel="stylesheet" href="/css/inventory-matrix-value.css?v=20260826-qty-value-1"><% } %>
+<% if (page.reportMode === 'quality-value') { %><link rel="stylesheet" href="/css/qc-report.css?v=20260826-1"><% } %>
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <main class="entity-page report-page module-report-page">
   <section class="entity-toolbar report-master-toolbar app-container">
     <div class="enterprise-page-heading"><span><%= module.label %></span><h1><%= page.label %></h1><p><%= page.description %></p></div>
-    <label class="toolbar-search report-master-search"><%- include('../partials/icon', { name: 'search' }) %><input id="report-search" type="search" placeholder="<%= page.reportMode === 'inventory-traceability' ? 'Cari FG, child part, material, atau proses...' : 'Cari nomor, part, customer, lot...' %>"></label>
-    <% if (page.reportMode === 'production-machine') { %>
+    <label class="toolbar-search report-master-search"><%- include('../partials/icon', { name: 'search' }) %><input id="report-search" type="search" placeholder="<%= page.reportMode === 'inventory-traceability' ? 'Cari FG, child part, material, atau proses...' : page.reportMode === 'quality-value' ? 'Cari Production Entry, part, proses, atau alasan NG...' : 'Cari nomor, part, customer, lot...' %>"></label>
+    <% if (['production-machine', 'quality-value'].includes(page.reportMode)) { %>
       <label class="report-toolbar-field"><span>Bulan</span><input id="report-month" type="month" value="<%= new Date().toISOString().slice(0, 7) %>"></label>
+    <% } %>
+    <% if (page.reportMode === 'production-machine') { %>
       <label class="report-toolbar-field"><span>Mesin</span><select id="report-machine"><option value="">Semua mesin</option></select></label>
     <% } %>
     <div class="toolbar-spacer"></div>
+    <% if (module.slug === 'inventory') { %><button class="btn btn-outline-primary" type="button" data-ai-capability="inventory.get_stock_risk" data-ai-context='{"reportMode":"<%= page.reportMode || '' %>"}' data-ai-prompt="Analisis stock risk dari data inventory resmi.">AI Stock Risk</button><% } %>
     <%- include('../partials/view-switcher') %>
     <div class="dropdown enterprise-more-actions">
       <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">More Actions</button>
@@ -19,6 +24,14 @@
   </section>
   <% if (!page.apiReady) { %><section class="api-notice mx-4 mt-3"><span>Belum tersedia</span><div><b>Endpoint laporan belum tersedia</b></div></section><% } %>
   <div id="report-alert" class="alert alert-warning mx-4 mt-3 d-none" role="alert"></div>
+  <% if (page.reportMode === 'quality-value') { %>
+  <section class="qc-formula-strip app-container" aria-label="Formula laporan QC">
+    <article><span>REWORK BERHASIL</span><strong>Qty Good Work Order Rework</strong><small>Nilai = qty berhasil × biaya per unit dari Live mBOM Costing</small></article>
+    <i aria-hidden="true">+</i>
+    <article><span>SCRAP FINAL</span><strong>Qty keputusan scrap QC</strong><small>Nilai = pcs × berat part per unit × harga scrap per KG</small></article>
+    <a href="/master-data/scrap-price-masters">Atur harga scrap / KG →</a>
+  </section>
+  <% } %>
   <div class="report-content app-container">
     <section class="report-stat-grid">
       <% for (let index = 0; index < 4; index += 1) { %>
@@ -26,8 +39,8 @@
       <% } %>
     </section>
     <section class="report-panels report-panels--p2">
-      <article><div><h2>Analitik &amp; Perbandingan</h2><p><%= page.reportMode === 'production-machine' ? 'Perbandingan output, good, NG, dan downtime per mesin.' : 'Ringkasan berdasarkan filter aktif.' %></p></div><div id="report-chart"></div></article>
-      <article class="report-insight-panel"><div><h2><%= page.reportMode === 'production-machine' ? 'Ringkasan Produksi' : 'Audit Coverage' %></h2><p><%= page.reportMode === 'production-machine' ? 'Gross time dikurangi seluruh downtime menjadi net process time.' : 'Readiness, missing cost, aging, atau gap data tanpa mengubah transaksi existing.' %></p></div><div id="report-insights" class="report-insights"><span>Memuat insight...</span></div></article>
+      <article><div><h2>Analitik &amp; Perbandingan</h2><p><%= page.reportMode === 'production-machine' ? 'Perbandingan output, good, NG, dan downtime per mesin.' : page.reportMode === 'quality-value' ? 'Perbandingan Qty rework berhasil dan scrap per part.' : 'Ringkasan berdasarkan filter aktif.' %></p></div><div id="report-chart"></div></article>
+      <article class="report-insight-panel"><div><h2><%= page.reportMode === 'production-machine' ? 'Ringkasan Produksi' : page.reportMode === 'quality-value' ? 'Kelengkapan Valuasi' : 'Audit Coverage' %></h2><p><%= page.reportMode === 'production-machine' ? 'Gross time dikurangi seluruh downtime menjadi net process time.' : page.reportMode === 'quality-value' ? 'Gap biaya part, berat per unit, dan harga scrap per KG yang perlu dilengkapi.' : 'Readiness, missing cost, aging, atau gap data tanpa mengubah transaksi existing.' %></p></div><div id="report-insights" class="report-insights"><span>Memuat insight...</span></div></article>
     </section>
   </div>
   <section id="report-list-root" class="table-shell entity-table-shell report-detail-card report-master-table">
@@ -56,9 +69,9 @@
   </section>
   <% if (page.reportMode === 'inventory-traceability') { %>
   <dialog id="inventory-matrix-dialog" class="inventory-matrix-dialog">
-    <div class="inventory-matrix-dialog-head"><div><small>MANAGEMENT STOCK SNAPSHOT</small><h2 id="inventory-matrix-title">Inventory Matrix</h2><p id="inventory-matrix-subtitle"></p></div><button id="inventory-matrix-close" type="button" aria-label="Tutup">&times;</button></div>
+    <div class="inventory-matrix-dialog-head"><div><small>MANAGEMENT STOCK SNAPSHOT</small><h2 id="inventory-matrix-title">Inventory Matrix</h2><p id="inventory-matrix-subtitle"></p></div><div class="inventory-matrix-head-actions"><span id="inventory-matrix-mode">QTY PCS</span><button id="inventory-matrix-change" type="button" aria-pressed="false">Change ke Rupiah</button><button id="inventory-matrix-close" type="button" aria-label="Tutup">&times;</button></div></div>
     <div class="inventory-matrix-table-wrap"><table class="inventory-matrix-table" data-enterprise-export="off"><thead id="inventory-matrix-head"></thead><tbody id="inventory-matrix-body"></tbody></table></div>
-    <footer><small>Total horizontal = Material On Hand dalam PCS + seluruh WIP On Hand + FG On Hand. Reserved/Allocated, QC, dan Free tidak dijumlah ulang. Inbound belum menjadi stock. Material KG tanpa Gross Weight ditampilkan terpisah.</small><div><button id="inventory-matrix-xlsx" class="btn btn-outline-success" type="button">Download XLSX Matrix</button><button id="inventory-matrix-pdf" class="btn btn-danger" type="button">Download PDF Matrix</button></div></footer>
+    <footer><small id="inventory-matrix-note">Free = On Hand - Reserved - QC. Total horizontal = Material On Hand dalam PCS + seluruh WIP On Hand + FG On Hand. Reserved/Allocated, QC, dan Free tidak dijumlah ulang. Inbound belum menjadi stock.</small><div><button id="inventory-matrix-xlsx" class="btn btn-outline-success" type="button">Download XLSX · 2 Sheet</button><button id="inventory-matrix-pdf" class="btn btn-danger" type="button">Download PDF · 2 Page</button></div></footer>
   </dialog>
   <style>
     .inventory-matrix-table { width: max-content; min-width: 100%; table-layout: auto; }

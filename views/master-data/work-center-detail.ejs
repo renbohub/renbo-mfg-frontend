@@ -1,0 +1,28 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/work-center-master.css?v=20260824-enterprise-1">
+<%- include('../partials/header-master') %>
+<main class="wc-master-page wc-detail-page app-container transaction-detail-page">
+  <%- include('../partials/document-shell', { documentShell: { variant: 'master', eyebrow: 'Master Data · Resource Profile', number: recordKey, title: 'Detail Work Center', titleId: 'wc-detail-code', subtitle: 'Memuat konfigurasi Work Center...', subtitleId: 'wc-detail-name', status: 'MEMUAT', statusId: 'wc-detail-status', actions: '<a id="wc-detail-edit" class="btn btn-primary brand-button" href="#">Edit Work Center</a>', backHref: '/master-data/work-centers', breadcrumbHtml: '<a href="/master-data/work-centers">Work Centers</a><span>/</span><strong>Detail</strong>' } }) %>
+  <div id="wc-detail-alert" class="wc-form-alert" hidden></div>
+  <section class="wc-detail-kpis">
+    <article><span>Mesin Anggota</span><strong id="wc-kpi-machines">0</strong><small id="wc-kpi-primary">Primary belum ditentukan</small></article>
+    <article><span>Kapasitas Nominal</span><strong id="wc-kpi-capacity">0</strong><small>menit per hari</small></article>
+    <article><span>Efisiensi</span><strong id="wc-kpi-efficiency">0%</strong><small>faktor kapasitas</small></article>
+    <article class="effective"><span>Effective Capacity</span><strong id="wc-kpi-effective">0</strong><small>menit siap dialokasikan</small></article>
+  </section>
+  <section class="wc-detail-layout">
+    <article class="wc-detail-card wc-profile-card">
+      <header><div><span>RESOURCE IDENTITY</span><h2>Profil Work Center</h2></div><em id="wc-source-chip">MASTER</em></header>
+      <dl id="wc-profile-fields"><div><dt>Plant</dt><dd>–</dd></div><div><dt>Line</dt><dd>–</dd></div></dl>
+      <div id="wc-source-note" class="wc-source-note"></div>
+    </article>
+    <article class="wc-detail-card wc-members-card">
+      <header><div><span>MACHINE MEMBERSHIP</span><h2>Mesin yang Terhubung</h2></div><small id="wc-machine-total">0 resource</small></header>
+      <div class="wc-detail-machine-wrap"><table class="wc-detail-machine-table" data-enterprise-table="off" data-enterprise-sort="off"><thead><tr><th>MESIN</th><th>SPECIFICATION</th><th>LINE</th><th>STATUS</th><th>ROLE</th></tr></thead><tbody id="wc-detail-machines"><tr><td colspan="5">Memuat mesin...</td></tr></tbody></table></div>
+    </article>
+    <article class="wc-detail-card wc-notes-card"><header><div><span>GOVERNANCE</span><h2>Catatan Master</h2></div></header><p id="wc-detail-notes">–</p></article>
+  </section>
+  <%- include('../partials/document-comments', { documentComments: { recordKey, title: 'Komentar Work Center', variant: 'receipt' } }) %>
+</main>
+<script id="wc-config" type="application/json"><%- JSON.stringify({ config, recordKey }).replace(/</g, '\u003c') %></script>
+<%- include('../partials/footer') %>

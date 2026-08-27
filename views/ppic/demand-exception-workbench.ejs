@@ -4,7 +4,7 @@
 <%- include('../partials/module-subnav', { activePage: 'demand-planning' }) %>
 
 <main class="dex-page ppic-page">
-  <header class="dex-head app-container">
+  <header class="dex-head app-container planning-shared-header">
     <div>
       <nav class="dex-breadcrumb" aria-label="Demand planning workflow">
         <a href="/modules/planning-ppic/demand-planning">Yearly Demand</a><span>›</span>
@@ -61,6 +61,7 @@
     </div>
     <footer class="dex-pagination"><span id="dex-range">0 data</span><div><button id="dex-prev" type="button">Sebelumnya</button><span id="dex-page-label">Halaman 1 / 1</span><button id="dex-next" type="button">Berikutnya</button></div></footer>
   </section>
+  <div class="app-container"><%- include('../partials/document-comments', { documentComments: { recordKey: `DEMAND-EXCEPTION-${initialMonth}`, title: 'Komentar Demand Exception', variant: 'receipt' } }) %></div>
 </main>
 
 <aside id="dex-drawer" class="dex-drawer" aria-hidden="true">

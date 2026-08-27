@@ -18,7 +18,36 @@
   }
   function show(message, kind = "danger") { const alert = $id("sales-alert"); alert.textContent = message; alert.className = `alert alert-${kind}`; }
   function info(label, value) { return `<div><small>${esc(label)}</small><strong>${esc(value ?? "-")}</strong></div>`; }
-  function renderStatus() { const value = String(doc.status || "Draft").toLowerCase(); $id("document-status").textContent = doc.status || "Draft"; $id("document-status").className = `sales-badge ${value.replaceAll(" ", "-")}`; }
+  function initDetailTabs() {
+    const tabs = [...document.querySelectorAll("[data-sales-tab]")];
+    const panels = [...document.querySelectorAll("[data-sales-panel]")];
+    if (!tabs.length) return;
+    const activate = (tab) => {
+      const target = tab.dataset.salesTab;
+      tabs.forEach((item) => {
+        const active = item === tab;
+        item.classList.toggle("is-active", active);
+        item.setAttribute("aria-selected", String(active));
+        item.tabIndex = active ? 0 : -1;
+      });
+      panels.forEach((panel) => { panel.hidden = panel.dataset.salesPanel !== target; });
+      const activePanel = panels.find((panel) => panel.dataset.salesPanel === target);
+      if (activePanel && window.SharedDataTable) window.SharedDataTable.enhanceAll(activePanel);
+      window.dispatchEvent(new Event("resize"));
+    };
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => activate(tab));
+      tab.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+        tabs[nextIndex].focus();
+        activate(tabs[nextIndex]);
+      });
+    });
+    activate(tabs.find((tab) => tab.getAttribute("aria-selected") === "true") || tabs[0]);
+  }
+  function renderStatus() { const value = String(doc.status || "Draft").toLowerCase(); $id("document-status").textContent = doc.status || "Draft"; $id("document-status").className = `document-shell__status sales-badge ${value.replaceAll(" ", "-")}`; }
   function renderForecastActions() {
     const submit = $id("submit-forecast");
     if (submit) submit.classList.toggle("d-none", type !== "forecast" || doc.status !== "Draft");
@@ -149,5 +178,6 @@
   });
   $id("delete-document").addEventListener("click", async () => { if (!confirm(`Hapus ${cfg.recordKey}?`)) return; try { await api(`/modules/api/sales/${cfg.slug}/${encodeURIComponent(cfg.recordKey)}`, { method: "DELETE" }); location.href = `/modules/sales/${cfg.slug}`; } catch (error) { show(error.message); } });
   const planningButton = $id("forecast-planning-tool"); if (planningButton) planningButton.addEventListener("click", async () => { planningButton.disabled = true; planningButton.textContent = "Sinkronisasi..."; try { const result = await api(`/modules/api/sales/forecasts/${encodeURIComponent(cfg.recordKey)}/planning-tool`, { method: "POST", body: JSON.stringify({ execute: true }) }); renderPlanning(result); show("Planning chain berhasil ditarik dan disinkronkan sejauh yang tidak membutuhkan approval.", "success"); } catch (error) { show(error.message); } finally { planningButton.disabled = false; planningButton.textContent = "Tarik Planning"; } });
+  initDetailTabs();
   load().catch((error) => show(error.message));
 })();

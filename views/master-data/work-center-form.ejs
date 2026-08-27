@@ -1,0 +1,62 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/work-center-master.css?v=20260824-enterprise-1">
+<%- include('../partials/header-master') %>
+<main class="wc-master-page transaction-form-page">
+  <div class="app-container">
+    <%
+      const wcFormActions = `<button id="wc-save" class="btn btn-primary brand-button" type="submit" form="wc-form"><span>${mode === 'create' ? 'Simpan Work Center' : 'Simpan Perubahan'}</span><i class="spinner-border spinner-border-sm" hidden></i></button>`;
+      const wcFormBreadcrumb = `<a href="/master-data/work-centers">Work Centers</a><span>/</span><strong>${mode === 'create' ? 'Tambah Baru' : 'Edit Data'}</strong>`;
+    %>
+    <%- include('../partials/document-shell', { documentShell: { variant: 'master', eyebrow: 'Master Data · Operations Registry', number: mode === 'create' ? 'NEW' : (recordKey || 'EDIT'), title: mode === 'create' ? 'Buat Work Center' : 'Konfigurasi Work Center', subtitle: 'Satukan mesin, kapasitas efektif, dan line produksi dalam satu resource yang dipakai PPIC.', actions: wcFormActions, backHref: '/master-data/work-centers', breadcrumbHtml: wcFormBreadcrumb } }) %>
+  </div>
+
+  <form id="wc-form" class="wc-form-shell app-container" novalidate>
+    <div id="wc-form-alert" class="wc-form-alert" hidden></div>
+    <div class="wc-form-grid">
+      <div class="wc-config-column">
+        <section class="wc-panel identity">
+          <header><span>01</span><div><h2>Identitas Work Center</h2><p>Kode operasional yang tampil pada routing dan planning.</p></div></header>
+          <div class="wc-field-grid">
+            <label><span>Kode Work Center <em>*</em></span><input name="workCenterCode" required maxlength="50" placeholder="Contoh: WC-WELD-L2"><small>Gunakan kode singkat, konsisten, dan mudah dikenali PPIC.</small></label>
+            <label><span>Nama Work Center <em>*</em></span><input name="workCenterName" required maxlength="120" placeholder="Welding Line 2"></label>
+            <label><span>Plant</span><input name="plantCode" maxlength="50" placeholder="MITINDO"></label>
+            <label><span>Line</span><input name="lineCode" maxlength="50" placeholder="L2"></label>
+          </div>
+        </section>
+
+        <section class="wc-panel capacity">
+          <header><span>02</span><div><h2>Kapasitas Operasional</h2><p>Basis perhitungan load pada Monthly Production Plan.</p></div></header>
+          <div class="wc-field-grid">
+            <label><span>Kapasitas / Hari <em>*</em></span><div class="wc-input-unit"><input name="capacityMinutesPerDay" type="number" min="0" step="1" required value="840"><b>menit</b></div></label>
+            <label><span>Efisiensi <em>*</em></span><div class="wc-input-unit"><input name="efficiencyPercent" type="number" min="0.01" max="100" step="0.01" required value="100"><b>%</b></div></label>
+          </div>
+          <div class="wc-capacity-preview"><span>Effective capacity</span><strong id="wc-effective-capacity">840 menit/hari</strong><small id="wc-capacity-hours">14 jam tersedia setelah efisiensi</small></div>
+        </section>
+
+        <section class="wc-panel governance">
+          <header><span>03</span><div><h2>Kontrol Master</h2><p>Status dan catatan perubahan resource.</p></div></header>
+          <label class="wc-switch"><input name="isActive" type="checkbox" checked><i></i><span><b>Work Center Aktif</b><small>Resource dapat digunakan oleh routing dan capacity planning.</small></span></label>
+          <label class="wc-note"><span>Catatan</span><textarea name="notes" rows="4" placeholder="Tambahkan batasan proses, aturan line, atau informasi audit..."></textarea></label>
+        </section>
+      </div>
+
+      <section class="wc-machine-panel">
+        <header class="wc-machine-head"><div><span>RESOURCE ASSIGNMENT</span><h2>Mesin Anggota</h2><p>Pilih mesin yang berbagi kapasitas dalam Work Center ini.</p></div><strong id="wc-selected-count">0 dipilih</strong></header>
+        <div id="wc-virtual-notice" class="wc-virtual-notice" hidden><b>Work Center otomatis</b><span>Menyimpan form akan menjadikannya Master Work Center yang dapat dikelola.</span></div>
+        <div class="wc-machine-toolbar">
+          <label><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><input id="wc-machine-search" type="search" placeholder="Cari kode, nama, specification, atau line..."></label>
+          <div role="group" aria-label="Filter mesin"><button type="button" class="active" data-machine-filter="all">Semua</button><button type="button" data-machine-filter="available">Tersedia</button><button type="button" data-machine-filter="selected">Dipilih</button></div>
+        </div>
+        <div class="wc-machine-table-wrap">
+          <table class="wc-machine-table" data-enterprise-table="off" data-enterprise-sort="off"><thead><tr><th>PILIH</th><th>MESIN / SPECIFICATION</th><th>LINE</th><th>STATUS</th><th>PRIMARY</th></tr></thead><tbody id="wc-machine-body"><tr><td colspan="5" class="wc-machine-empty">Memuat master mesin...</td></tr></tbody></table>
+        </div>
+        <footer class="wc-machine-foot"><div><span>Primary machine</span><strong id="wc-primary-label">Belum dipilih</strong></div><p>Primary dipakai sebagai referensi utama; seluruh mesin anggota tetap dapat menerima alokasi.</p></footer>
+      </section>
+    </div>
+
+    <footer class="wc-form-actions"><div><span id="wc-save-state">Perubahan belum disimpan</span><small>Validasi relasi mesin dijalankan saat submit.</small></div><a class="btn btn-light" href="/master-data/work-centers">Batal</a></footer>
+  </form>
+  <div class="app-container"><%- include('../partials/document-comments', { documentComments: { recordKey: mode === 'create' ? null : recordKey, showPending: mode === 'create', title: 'Komentar Work Center', variant: 'receipt' } }) %></div>
+</main>
+<script id="wc-config" type="application/json"><%- JSON.stringify({ config, mode, recordId, recordKey }).replace(/</g, '\u003c') %></script>
+<%- include('../partials/footer') %>

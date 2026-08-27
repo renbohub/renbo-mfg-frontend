@@ -1,10 +1,10 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
-<main class="ops-page app-container fg-receipt-page">
+<main class="ops-page app-container fg-receipt-page transaction-detail-page">
   <nav class="module-breadcrumb"><a href="/modules/production">Production</a><span>/</span><b>FG Receipt</b></nav>
 
-  <section class="ops-detail-titlebar fg-receipt-titlebar">
+  <section class="ops-detail-titlebar fg-receipt-titlebar transaction-command-header">
     <div>
       <p class="ops-eyebrow">Production · Inventory</p>
       <h1>FG Receipt</h1>
@@ -51,6 +51,7 @@
       <div id="fg-history-empty" class="fg-empty d-none"><strong>Belum ada history FG Receipt.</strong><span>Receipt yang berhasil diposting akan muncul di sini.</span></div>
     </div>
   </section>
+  <%- include('../partials/document-comments', { documentComments: { recordKey: 'FG-RECEIPT-WORKSPACE', title: 'Komentar FG Receipt', variant: 'receipt' } }) %>
 </main>
 
 <div id="fg-receive-modal" class="fg-modal-backdrop d-none" role="dialog" aria-modal="true" aria-labelledby="fg-modal-title">

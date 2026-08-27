@@ -1,22 +1,49 @@
-<%- include('../partials/head') %>
+<% const isGoodsReceiptDetail = module.slug === 'incoming' && page.slug === 'goods-receipts'; %>
+<% const isStockBalanceDetail = module.slug === 'inventory' && page.slug === 'stock-balances'; %>
+<% const isDocumentStyleDetail = isGoodsReceiptDetail || isStockBalanceDetail; %>
+<%- include('../partials/head', { pageStyles: isDocumentStyleDetail ? (isGoodsReceiptDetail ? ['/vendor/tabulator/css/tabulator.min.css', '/css/goods-receipt-detail.css?v=20260827-stock-balance-style-1'] : ['/css/goods-receipt-detail.css?v=20260827-stock-balance-style-1']) : [] }) %>
+<% if (module.slug === 'planning-ppic' && page.slug === 'monthly-production-plans') { %><link rel="stylesheet" href="/vendor/frappe-gantt/frappe-gantt.css"><link rel="stylesheet" href="/css/mpp-p2-hierarchy.css?v=20260822-business-workbench-1"><% } %>
+<% if (module.slug === 'purchasing' && page.slug === 'purchase-suggestions') { %><link rel="stylesheet" href="/css/purchase-suggestion-workbench.css?v=20260825-mpp-style-1"><% } %>
+<% if (module.slug === 'purchasing' && page.slug === 'purchase-suggestions') { %><link rel="stylesheet" href="/css/purchase-suggestion-compact-ui.css?v=20260826-allocation-popup-1"><% } %>
+<% if (module.slug === 'production' && page.slug === 'daily-production-schedules') { %><link rel="stylesheet" href="/css/production-daily-schedule-detail.css?v=20260826-layout-fix-2"><% } %>
+<% if (module.slug === 'production' && page.slug === 'ng-dispositions') { %><link rel="stylesheet" href="/css/production-ng-disposition-detail.css?v=20260826-qc-workbench-1"><% } %>
+<% if (module.slug === 'production' && page.slug === 'prepare-delivery-vendor') { %><link rel="stylesheet" href="/css/vendor-send-modal.css?v=20260826-scheduled-dispatch-1"><% } %>
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
-<main class="ops-page operations-detail-page app-container <%= module.slug === 'purchasing' ? 'purchasing-detail-page' : '' %> <%= module.slug === 'purchasing' && page.slug === 'purchase-order' ? 'purchase-order-detail-page' : '' %> <%= module.slug === 'purchasing' && page.slug === 'purchase-suggestions' ? 'purchase-suggestion-page' : '' %> <%= module.slug === 'production' ? 'production-detail-page' : '' %> <%= module.slug === 'incoming' && page.slug === 'incoming-inspections' ? 'incoming-inspection-page' : '' %>">
+<main class="ops-page operations-detail-page transaction-detail-page app-container <%= module.slug === 'purchasing' ? 'purchasing-detail-page' : '' %> <%= module.slug === 'purchasing' && page.slug === 'purchase-order' ? 'purchase-order-detail-page' : '' %> <%= module.slug === 'purchasing' && page.slug === 'purchase-suggestions' ? 'purchase-suggestion-page' : '' %> <%= module.slug === 'production' ? 'production-detail-page' : '' %> <%= module.slug === 'production' && page.slug === 'daily-production-schedules' ? 'daily-schedule-workbench' : '' %> <%= module.slug === 'production' && page.slug === 'ng-dispositions' ? 'ng-disposition-workbench' : '' %> <%= module.slug === 'incoming' && page.slug === 'incoming-inspections' ? 'incoming-inspection-page' : '' %> <%= isGoodsReceiptDetail ? 'goods-receipt-detail-page' : '' %> <%= isStockBalanceDetail ? 'stock-balance-detail-page' : '' %>">
   <nav class="module-breadcrumb"><a href="/modules">Modul</a><span>/</span><a href="/modules/<%= module.slug %>"><%= module.label %></a><span>/</span><a href="/modules/<%= module.slug %>/<%= page.slug %>"><%= page.label %></a><span>/</span><b><%= recordKey %></b></nav>
-  <section class="ops-detail-titlebar">
+  <section class="ops-detail-titlebar transaction-command-header <%= isDocumentStyleDetail ? 'gr-detail-commandbar' : '' %>">
     <div><p class="ops-eyebrow"><%= page.label %></p><h1 id="ops-detail-title"><%= recordKey %></h1><p id="ops-detail-subtitle">Memuat detail dokumen...</p></div>
-    <div id="ops-detail-actions" class="ops-title-actions">
+    <div id="ops-detail-actions" class="ops-title-actions <%= isDocumentStyleDetail ? 'gr-detail-command-actions' : '' %>">
+      <% if (isDocumentStyleDetail) { %><div class="gr-detail-status"><small><%= isGoodsReceiptDetail ? 'Document Status' : 'Stock Status' %></small><span id="ops-detail-status"></span></div><div id="ops-workflow-actions" class="ops-workflow-actions gr-detail-workflow-actions"></div><% } %>
       <% if (module.slug === 'purchasing' && page.slug === 'purchase-requisitions') { %><a id="pr-edit-link" class="btn btn-outline-primary" href="/modules/purchasing/purchase-requisitions/<%= encodeURIComponent(recordKey) %>/edit<%= purchaseCategory ? '?category=' + purchaseCategory : '' %>">Edit PR</a><% } %>
       <% if (module.slug === 'purchasing' && page.slug === 'purchase-order') { %><a class="btn btn-outline-primary" href="/modules/purchasing/purchase-order/<%= encodeURIComponent(recordKey) %>/edit">Edit PO</a><% } %>
       <% if (module.slug === 'purchasing' && page.slug === 'purchase-invoices') { %><a class="btn btn-outline-primary" href="/modules/purchasing/purchase-invoices/<%= encodeURIComponent(recordKey) %>/edit">Edit Invoice</a><% } %>
       <% if (module.slug === 'production' && page.slug === 'production-logs') { %><a id="production-log-edit-link" class="btn btn-outline-primary" href="/modules/production/production-logs/<%= encodeURIComponent(recordKey) %>/edit">Edit Log</a><% } %>
       <% if (module.slug === 'production' && page.slug === 'daily-production-schedules') { %><a id="daily-plan-edit-link" class="btn btn-outline-primary d-none" href="/modules/production/daily-production-schedules/<%= encodeURIComponent(recordKey) %>/edit">Revisi DPP</a><% } %>
       <% if (module.slug === 'production' && page.createRoute && !['production-logs', 'daily-production-schedules'].includes(page.slug)) { %><a class="btn btn-outline-primary" href="/modules/production/<%= page.slug %>/<%= encodeURIComponent(recordKey) %>/edit">Edit</a><% } %>
-      <a class="btn btn-outline-secondary" href="/modules/<%= module.slug %>/<%= page.slug %><%= purchaseCategory ? '?category=' + purchaseCategory : '' %>">← Kembali</a>
+      <a id="ops-detail-back-link" class="btn btn-outline-secondary" href="/modules/<%= module.slug %>/<%= page.slug %><%= purchaseCategory ? '?category=' + purchaseCategory : '' %>">← Kembali</a>
     </div>
   </section>
   <div id="ops-detail-alert" class="alert d-none" role="alert"></div>
   <section id="ops-detail-loading" class="ops-detail-loading">Memuat detail <%= page.label %>...</section>
+  <% if (isGoodsReceiptDetail) { %>
+  <div id="ops-detail-shell" class="gr-detail-shell d-none">
+    <section class="gr-detail-metadata" aria-label="Informasi Goods Receipt">
+      <div id="ops-detail-fields" class="ops-detail-fields"></div>
+      <div id="ops-document-meta" class="ops-document-meta"></div>
+    </section>
+    <div id="ops-detail-collections" class="gr-detail-collections"></div>
+  </div>
+  <% } else if (isStockBalanceDetail) { %>
+  <div id="ops-detail-shell" class="gr-detail-shell d-none">
+    <section class="gr-detail-metadata" aria-label="Informasi Stock Balance">
+      <div id="ops-detail-fields" class="ops-detail-fields"></div>
+      <div id="ops-document-meta" class="ops-document-meta"></div>
+    </section>
+    <div id="ops-detail-collections" class="gr-detail-collections"></div>
+  </div>
+  <% } else { %>
   <div id="ops-detail-shell" class="ops-detail-layout d-none">
     <div class="ops-detail-main">
       <section class="ops-detail-card"><header><h2>Informasi Dokumen</h2><span id="ops-detail-status"></span></header><div id="ops-detail-fields" class="ops-detail-fields"></div></section>
@@ -27,6 +54,11 @@
       <section class="ops-detail-card"><h2>Kontrol Dokumen</h2><div id="ops-document-meta" class="ops-document-meta"></div></section>
     </aside>
   </div>
+  <% } %>
+  <%- include('../partials/document-comments', { documentComments: { recordKey, title: `Komentar ${page.label}`, variant: 'receipt' } }) %>
 </main>
 <script id="ops-detail-config" type="application/json"><%- JSON.stringify({ module: module.slug, moduleLabel: module.label, page, recordKey, purchaseCategory }).replace(/</g, '\\u003c') %></script>
+<% if (module.slug === 'planning-ppic' && page.slug === 'monthly-production-plans') { %><script src="/vendor/frappe-gantt/frappe-gantt.umd.js"></script><% } %>
+<% if (module.slug === 'purchasing' && page.slug === 'purchase-suggestions') { %><script src="/js/purchase-suggestion-compact-ui.js?v=20260825-compact-2"></script><% } %>
+<% if (isGoodsReceiptDetail) { %><script src="/vendor/tabulator/js/tabulator.min.js"></script><% } %>
 <%- include('../partials/footer') %>

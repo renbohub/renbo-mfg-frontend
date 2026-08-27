@@ -1,27 +1,73 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
-<main class="entity-page app-container maintenance-page">
-  <section class="entity-toolbar">
-    <div class="entity-title"><span>System</span><b>/</b><strong>Maintenance Data</strong></div>
+
+<main class="maintenance-page app-container">
+  <header class="maintenance-head">
+    <div><span>SYSTEM GOVERNANCE</span><h1>Maintenance Data</h1><p>Controlled reset untuk mengulang siklus sales dan planning tanpa mengubah inventory aktual.</p></div>
+    <button id="refresh-maintenance" type="button" class="maintenance-outline">↻ Refresh Status</button>
+  </header>
+
+  <section class="maintenance-summary" aria-label="Ringkasan dokumen">
+    <article><span>Sales Order</span><strong id="count-salesOrderHeader">—</strong><small>dokumen demand</small></article>
+    <article><span>Forecast</span><strong id="count-forecast">—</strong><small>dokumen demand</small></article>
+    <article><span>MPS</span><strong id="count-mPS">—</strong><small>master schedule</small></article>
+    <article><span>MRP Run</span><strong id="count-mRPRun">—</strong><small>revision planning</small></article>
   </section>
-  <section class="maintenance-card">
-    <div class="maintenance-eyebrow">DANGER ZONE / SUPER ADMIN</div>
-    <h1>Reset Sales & Planning</h1>
-    <p class="maintenance-warning">Menghapus permanen Sales Order, Forecast, MPS, MRP, planned order, pegging, reservation SO, dan delivery schedule. Master data, user, BOM, inventory, purchasing, dan production tidak ikut dihapus.</p>
-    <div id="maintenance-alert" class="alert d-none" role="alert"></div>
-    <div class="maintenance-summary">
-      <div><small>Sales Order</small><strong id="count-salesOrderHeader">-</strong></div>
-      <div><small>Forecast</small><strong id="count-forecast">-</strong></div>
-      <div><small>MPS</small><strong id="count-mPS">-</strong></div>
-      <div><small>MRP Run</small><strong id="count-mRPRun">-</strong></div>
-    </div>
-    <div class="maintenance-actions">
-      <button id="refresh-maintenance" type="button" class="btn btn-outline-secondary">Refresh Status</button>
-      <button id="reset-demand-flow" type="button" class="btn btn-danger">Reset SO + Forecast + MPS + MRP</button>
-      <button id="reset-planning-flow" type="button" class="btn btn-warning">Reset MRP sampai Delivery</button>
-    </div>
-    <p class="maintenance-note">Reset demand membutuhkan <code>RESET_SO_MPS_MRP_FORECAST</code>. Reset planning membutuhkan <code>RESET_MPS_TO_DELIVERY</code>; keduanya hanya dapat dijalankan oleh Super Admin.</p>
+
+  <section class="maintenance-workspace">
+    <header class="maintenance-workspace-head">
+      <div><span>SUPER ADMIN · CONTROLLED RESET</span><h2>Reset sumber &amp; planning terkait</h2><p>Forecast/SO tetap tersimpan dan kembali Draft. Hanya lapisan planning yang dipilih yang dihapus.</p></div>
+      <div class="maintenance-lock"><b>STOCK PROTECTED</b><small>Receipt &amp; execution tetap utuh</small></div>
+    </header>
+
+    <div id="maintenance-alert" class="maintenance-alert" hidden role="alert"></div>
+
+    <section class="maintenance-step">
+      <div class="maintenance-step-no">1</div>
+      <div class="maintenance-step-body">
+        <div class="maintenance-section-title"><div><h3>Pilih sumber demand</h3><p>Pilih satu atau beberapa Forecast/Sales Order yang akan dikembalikan menjadi Draft.</p></div><span id="reset-selected-count">0 dipilih</span></div>
+        <div class="maintenance-source-tools">
+          <div class="maintenance-segment" role="radiogroup" aria-label="Tipe sumber reset">
+            <button type="button" class="active" data-reset-source-type="FORECAST" aria-pressed="true">Forecast</button>
+            <button type="button" data-reset-source-type="SALES_ORDER" aria-pressed="false">Sales Order</button>
+          </div>
+          <label class="maintenance-search"><span aria-hidden="true">⌕</span><input id="reset-search" type="search" placeholder="Cari nomor, customer…" autocomplete="off"></label>
+        </div>
+        <div id="reset-source-list" class="maintenance-source-list" role="listbox" aria-multiselectable="true"><p>Memuat sumber demand…</p></div>
+      </div>
+    </section>
+
+    <section class="maintenance-step">
+      <div class="maintenance-step-no">2</div>
+      <div class="maintenance-step-body">
+        <div class="maintenance-section-title"><div><h3>Pilih batas penghapusan</h3><p>Lapisan atas otomatis mencakup dependency yang berada di bawahnya.</p></div></div>
+        <div class="maintenance-layers">
+          <label><input type="checkbox" value="PRODUCTION_PLAN" data-reset-layer><span><b>Production Plan</b><small>Monthly Plan, capacity allocation, recommendation, dan Daily Plan</small></span></label>
+          <label><input type="checkbox" value="MRP" data-reset-layer><span><b>MRP &amp; Purchase Suggestion</b><small>Requirement, planned order, pegging, dan saran pembelian</small></span></label>
+          <label><input type="checkbox" value="MPS" data-reset-layer><span><b>MPS &amp; RCCP</b><small>MPS schedule, delivery snapshot, RCCP load, dan offset</small></span></label>
+        </div>
+        <div class="maintenance-protected"><span aria-hidden="true">✓</span><div><b>Inventory &amp; execution tidak dapat dipilih</b><small>Stock Balance, Stock Movement, Goods Receipt, Production Log, MO/WO berjalan, PR, dan PO tetap dipertahankan.</small></div></div>
+      </div>
+    </section>
+
+    <section class="maintenance-step">
+      <div class="maintenance-step-no">3</div>
+      <div class="maintenance-step-body no-border">
+        <div class="maintenance-section-title"><div><h3>Preview dampak</h3><p>Preview wajib diperbarui setiap kali sumber atau checklist berubah.</p></div><button id="reset-preview" class="maintenance-outline compact" type="button">Tampilkan Preview</button></div>
+        <div id="reset-impact" class="maintenance-impact empty"><p>Belum ada preview.</p></div>
+        <div class="maintenance-confirm-fields">
+          <label>Alasan reset<textarea id="reset-reason" rows="2" placeholder="Contoh: ulang planning September karena revisi forecast" disabled></textarea></label>
+          <label>Konfirmasi<input id="reset-confirmation" type="text" placeholder="Ketik RESET_SELECTED_PLANNING" autocomplete="off" disabled></label>
+        </div>
+      </div>
+    </section>
+
+    <footer class="maintenance-actionbar">
+      <p><b>Tindakan permanen.</b> Sistem menjalankan ulang validasi inventory sebelum transaksi disimpan.</p>
+      <button id="reset-submit" class="maintenance-danger" type="button" disabled>Reset yang Dipilih</button>
+    </footer>
   </section>
 </main>
-<script id="maintenance-config" type="application/json"><%- JSON.stringify({ requiresAuth: true }).replace(/</g, '\\u003c') %></script>
+
+<script id="maintenance-config" type="application/json"><%- JSON.stringify({ requiresAuth: true }).replace(/</g, '\u003c') %></script>
 <%- include('../partials/footer') %>

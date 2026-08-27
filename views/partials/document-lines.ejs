@@ -1,0 +1,19 @@
+<%
+  const lines = typeof documentLines === 'object' && documentLines ? documentLines : {};
+  const lineTableId = lines.tableId || 'document-lines-table';
+  const lineState = lines.state || '';
+%>
+<section class="document-lines <%= lines.className || '' %>" aria-labelledby="<%= lineTableId %>-title">
+  <div class="document-lines__head">
+    <div><p><%= lines.eyebrow || 'DOCUMENT LINES' %></p><h2 id="<%= lineTableId %>-title"><%= lines.title || 'Item Dokumen' %></h2></div>
+    <% if (lines.legendHtml) { %><div class="document-lines__legend"><%- lines.legendHtml %></div><% } %>
+  </div>
+  <div class="document-lines__viewport">
+    <table id="<%= lineTableId %>" class="document-lines__table <%= lines.tableClass || '' %>" <%- lines.tableAttributes || '' %>>
+      <caption><%= lines.caption || lines.title || 'Item dokumen' %></caption>
+      <% if (lines.headerHtml) { %><thead><%- lines.headerHtml %></thead><% } %>
+      <tbody <%- lines.bodyAttributes || '' %>><% if (lines.bodyHtml) { %><%- lines.bodyHtml %><% } else { %><tr data-document-lines-state="<%= lineState || 'empty' %>"><td colspan="<%= lines.columnCount || 1 %>"><%= lineState === 'loading' ? 'Memuat item…' : lineState === 'error' ? 'Item gagal dimuat.' : (lines.emptyText || 'Belum ada item.') %></td></tr><% } %></tbody>
+      <% if (lines.footerHtml) { %><tfoot><%- lines.footerHtml %></tfoot><% } %>
+    </table>
+  </div>
+</section>

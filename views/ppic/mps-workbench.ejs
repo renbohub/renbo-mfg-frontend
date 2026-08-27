@@ -1,53 +1,59 @@
 <%- include('../partials/head') %>
-<link rel="stylesheet" href="/css/ppic-mps-workbench.css?v=20260819-phase-compare-3">
+<link rel="stylesheet" href="/css/ppic-mps-workbench.css?v=20260823-recovery-pic-7">
 <link rel="stylesheet" href="/css/ppic-mps-workbench-phase-freeze.css?v=20260819-1">
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: 'mps' }) %>
 
 <main class="mwb-page ppic-page">
-  <header class="mwb-head app-container">
-    <div>
-      <nav class="mwb-breadcrumb" aria-label="PPIC workflow">
-        <a href="/modules/planning-ppic/demand-planning">Yearly Demand</a><span>›</span>
-        <a id="mwb-review-link" href="/modules/planning-ppic/demand-planning/monthly-review?month=<%= initialMonth %>">Monthly Review</a><span>›</span>
-        <a id="mwb-exception-link" href="/modules/planning-ppic/demand-planning/exception-workbench?month=<%= initialMonth %>">Exception</a><span>›</span><b>MPS Workbench</b>
-      </nav>
-      <span class="mwb-eyebrow">PLANNING PPIC / FG NETTING</span>
-      <h1>MPS Workbench</h1>
-      <p>Audit demand phase sampai planned production dengan pemisahan free FG, reservasi SO, dan firm receipt.</p>
+  <header class="mwb-head app-container planning-shared-header">
+    <div class="mwb-title-block">
+      <span class="mwb-eyebrow">PLANNING PPIC</span>
+      <h1>Master Production Schedule</h1>
     </div>
     <div class="mwb-head-actions">
-      <a class="btn btn-outline-primary" href="/modules/planning-ppic/tutorial">Tutorial</a>
-      <a class="btn btn-outline-primary" href="/modules/planning-ppic/control-tower">Execution Cockpit</a>
-      <button id="mwb-export" class="btn btn-outline-primary" type="button">Export CSV</button>
-      <button id="mwb-sync" class="btn btn-primary" type="button">Hitung Draft MPS</button>
-      <button id="mwb-confirm-mps" class="btn btn-primary" type="button" disabled>Konfirmasi MPS</button>
-      <button id="mwb-run-mrp" class="btn btn-primary" type="button" disabled>Jalankan MRP</button>
+      <label class="mwb-search"><%- include('../partials/icon', { name: 'search' }) %><input id="mwb-search" type="search" placeholder="Cari data PPIC..." autocomplete="off"></label>
+      <select id="mwb-status" data-searchable-disabled aria-label="Filter status"><option value="">Semua Status</option></select>
+      <button id="mwb-density" class="mwb-view-button" type="button" title="Ubah kerapatan tabel">▦</button>
+      <button id="mwb-export" class="mwb-outline-action" type="button">↓&nbsp; Export CSV</button>
+      <button id="mwb-sync" class="mwb-primary-action" type="button">＋&nbsp; <span class="mwb-sync-full">Buat MPS Production Plan</span><span class="mwb-sync-short">Buat MPS</span></button>
     </div>
   </header>
 
-  <section class="mwb-toolbar app-container" aria-label="Filter MPS Workbench">
-    <label><span>Periode delivery</span><input id="mwb-month" type="month" value="<%= initialMonth %>"></label>
-    <label><span>Status netting</span><select id="mwb-status" data-searchable><option value="">Semua status</option></select></label>
-    <label class="mwb-search"><span>Cari FG</span><div><%- include('../partials/icon', { name: 'search' }) %><input id="mwb-search" type="search" placeholder="Part no, nama, customer, MPS…" autocomplete="off"></div></label>
-    <label><span>Baris</span><select id="mwb-page-size"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
+  <%- include('../partials/ppic-workflow-strip', { currentStage: 'MPS', monthControl: 'mwb-month', dateControl: '' }) %>
+
+  <section class="mwb-period-bar app-container" aria-label="Periode produksi">
+    <div class="mwb-period-left">
+      <strong>Periode Produksi:</strong>
+      <label class="mwb-month-picker"><span aria-hidden="true">▣</span><input id="mwb-month" type="month" value="<%= initialMonth %>"></label>
+      <div class="mwb-window-pills" aria-label="Jendela EFD">
+        <span id="mwb-pill-m1">M-1</span><i>→</i><span id="mwb-pill-m" class="current">M</span><i>→</i><span id="mwb-pill-mp1" class="lookahead">M+1</span>
+      </div>
+    </div>
+    <span id="mwb-doc-status" class="mwb-doc-status">Memuat</span>
   </section>
 
-  <section class="mwb-source app-container">
-    <div><span>DOKUMEN RESMI</span><strong id="mwb-source-title">Memuat MPS…</strong><small id="mwb-source-meta">Angka workbench dibaca dari draft MPS kanonis periode terpilih.</small></div>
+  <section class="mwb-efd-window app-container" aria-label="EFD tiga bulan">
+    <article><span id="mwb-efd-m1-label">EFD M-1</span><strong id="mwb-efd-m1">0</strong></article>
+    <article class="current"><span id="mwb-efd-m-label">EFD M</span><strong id="mwb-efd-m">0</strong></article>
+    <article class="lookahead"><span id="mwb-efd-mp1-label">EFD M+1</span><strong id="mwb-efd-mp1">0</strong><small>Look-ahead · acuan buffer</small></article>
+    <article class="total"><span>Total EFD Window</span><strong id="mwb-efd-total">0</strong><small id="mwb-efd-rule">Memuat general rule…</small></article>
+  </section>
+
+  <section class="mwb-source app-container mwb-aux-data" aria-hidden="true">
+    <div><span>REVISION RESMI</span><strong id="mwb-source-title">Memuat MPS…</strong><small id="mwb-source-meta">Angka workbench dibaca dari revision MPS pada demand horizon aktif.</small></div>
     <div class="mwb-legend"><span><i class="free"></i>Free FG</span><span><i class="pegged"></i>Pegged SO</span><span><i class="receipt"></i>Firm receipt</span><span><i class="production"></i>Planned production</span></div>
   </section>
 
-  <section id="mwb-next-state" class="mwb-next-state app-container" aria-live="polite">
+  <section id="mwb-next-state" class="mwb-next-state app-container mwb-aux-data" aria-live="polite">
     <div class="mwb-flow-step"><span>1</span><div><small>MPS</small><strong id="mwb-flow-mps">Memuat…</strong></div></div>
     <i aria-hidden="true">→</i>
     <div class="mwb-flow-step"><span>2</span><div><small>Gate</small><strong id="mwb-flow-gate">Menunggu data</strong></div></div>
     <i aria-hidden="true">→</i>
     <div class="mwb-flow-step"><span>3</span><div><small>MRP</small><strong id="mwb-flow-mrp">Belum diperiksa</strong></div></div>
-    <div class="mwb-next-copy"><b id="mwb-next-title">Memeriksa langkah berikutnya…</b><small id="mwb-next-copy"></small><a id="mwb-open-mrp" href="#" hidden>Buka Month-End MRP Cockpit</a></div>
+    <div class="mwb-next-copy"><b id="mwb-next-title">Memeriksa langkah berikutnya…</b><small id="mwb-next-copy"></small><a id="mwb-open-mrp" href="#" hidden>Buka MRP Planning Run</a></div>
   </section>
 
-  <section class="mwb-kpis app-container">
+  <section class="mwb-kpis app-container mwb-aux-data" aria-hidden="true">
     <article><span>Gross Demand</span><strong id="mwb-kpi-demand">0</strong><small>FCC + SO efektif</small></article>
     <article><span>Free FG</span><strong id="mwb-kpi-free">0</strong><small>qtyAvailable</small></article>
     <article><span>Pegged Reservation</span><strong id="mwb-kpi-pegged">0</strong><small>SO yang sama saja</small></article>
@@ -58,18 +64,60 @@
   </section>
 
   <section class="mwb-board app-container">
-    <header><div><span>FG NETTING MATRIX</span><h2 id="mwb-title">MPS <%= initialMonth %></h2><p id="mwb-result-meta">Memuat data…</p></div><button id="mwb-density" type="button">Comfortable view</button></header>
+    <header class="mwb-board-meta"><div><span>MPS PRODUCTION PLANNING MATRIX</span><h2 id="mwb-title">Master Production Schedule</h2><p id="mwb-result-meta">Memuat data…</p></div></header>
+    <div class="mwb-baseline-toolbar" aria-label="Kontrol baseline dan additional customer PO">
+      <div><span>BASELINE &amp; ADDITIONAL PO</span><strong id="mwb-baseline-status">Memeriksa baseline…</strong><small id="mwb-baseline-meta">EFD yang dikunci tetap menjadi acuan; PO baru dihitung sebagai Delta.</small></div>
+      <div class="mwb-baseline-actions"><button id="mwb-preview-baseline" class="mwb-outline-action" type="button" disabled>Preview Baseline</button><button id="mwb-generate-baseline" class="mwb-primary-action" type="button" disabled>Generate Baseline</button><button id="mwb-preview-delta" class="mwb-outline-action" type="button" disabled>Preview Delta</button><button id="mwb-generate-delta" class="mwb-primary-action" type="button" disabled>Generate Delta MPS</button><button id="mwb-run-delta-mrp" class="mwb-outline-action" type="button" disabled>Run Delta MRP</button></div>
+    </div>
     <div id="mwb-alert" class="mwb-alert" hidden></div>
-    <div class="mwb-table-scroll"><table class="mwb-table"><thead><tr><th class="sticky-col">FG / MPS</th><th>Status</th><th>Gross demand</th><th>Buffer akhir bulan</th><th>Opening nettable</th><th>Firm receipt</th><th>Net production</th><th>Projected ending</th><th>Earliest need</th><th>Aksi</th></tr></thead><tbody id="mwb-body"><tr><td colspan="10" class="mwb-empty">Memuat FG netting…</td></tr></tbody></table></div>
-    <footer class="mwb-pagination"><span id="mwb-range">0 data</span><div><button id="mwb-prev" type="button">Sebelumnya</button><span id="mwb-page-label">Halaman 1 / 1</span><button id="mwb-next" type="button">Berikutnya</button></div></footer>
+    <div class="mwb-table-scroll" tabindex="0" aria-label="Matriks MPS, geser horizontal untuk melihat seluruh kolom"><table class="mwb-table mwb-demand-table" data-enterprise-sort="off"><colgroup><col class="c-toggle"><col class="c-pn"><col class="c-name"><col class="c-type"><col class="c-efd"><col class="c-dlv"><col class="c-short"><col class="c-efd-m"><col class="c-efd-next"><col class="c-buff-p"><col class="c-buff-q"><col class="c-qty-fg"><col class="c-stock"><col class="c-mps"><col class="c-lt"><col class="c-capacity"><col class="c-load"><col class="c-action"><col class="c-status"></colgroup><thead><tr class="mwb-group-head"><th colspan="4"></th><th colspan="3" id="mwb-group-m1">M-1</th><th id="mwb-group-m">M</th><th colspan="3" id="mwb-group-mp1" class="mwb-lookahead-group">M+1 · Look-ahead</th><th>Qty/FG</th><th class="stock-group">Current Stock</th><th colspan="4">Production Plan &amp; RCCP</th><th class="mwb-group-action">Aksi</th><th class="mwb-group-status">Status</th></tr><tr class="mwb-sub-head"><th>▶</th><th>Part Number</th><th>Part Name</th><th>Type</th><th>EFD</th><th>DLV</th><th>Shortage</th><th>EFD</th><th class="mwb-lookahead-head" title="Demand EFD M+1 ditampilkan langsung sebagai look-ahead">EFD</th><th>Buff%</th><th>Buff Qty</th><th>Qty/FG</th><th>Stock</th><th>MPS Qty</th><th>Lead Time</th><th>Capacity</th><th>Load</th><th aria-label="Aksi">Aksi</th><th>Status</th></tr></thead><tbody id="mwb-body"><tr><td colspan="19" class="mwb-empty">Memuat MPS…</td></tr></tbody></table></div>
+    <p class="mwb-formula">Formula: MPS Qty = Shortage(M-1) + EFD(M) + (Buffer% × EFD M+1), dinetkan terhadap available stock dan firm receipt.</p>
+    <div class="mwb-action-bar"><p id="mwb-action-note">Catatan: Planned Qty (M) adalah target produksi bulan berjalan.</p><div><button id="mwb-check-delivery" class="mwb-outline-action mwb-delivery-check warning" type="button" disabled><span aria-hidden="true">✓</span> Periksa Delivery</button><button id="mwb-capacity-check" class="mwb-outline-action" type="button" disabled>Cek Kapasitas</button><button id="mwb-confirm-mps" class="mwb-primary-action" type="button" disabled>Approve MPS</button><button id="mwb-run-mrp" class="mwb-outline-action" type="button" disabled>Hitung MRP</button></div></div>
+    <footer class="mwb-pagination"><span id="mwb-range">0 data</span><div><label>Baris <select id="mwb-page-size" data-searchable-disabled><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label><button id="mwb-prev" type="button">Sebelumnya</button><span id="mwb-page-label">Halaman 1 / 1</span><button id="mwb-next" type="button">Berikutnya</button></div></footer>
   </section>
+  <nav class="mwb-hidden-links" aria-hidden="true"><a id="mwb-review-link" href="/modules/planning-ppic/demand-planning/monthly-review?month=<%= initialMonth %>"></a><a id="mwb-exception-link" href="/modules/planning-ppic/demand-planning/exception-workbench?month=<%= initialMonth %>"></a></nav>
+  <div class="app-container"><%- include('../partials/document-comments', { documentComments: { recordKey: `MPS-WORKBENCH-${initialMonth}`, title: 'Komentar MPS Workbench', variant: 'receipt' } }) %></div>
 </main>
 
 <aside id="mwb-drawer" class="mwb-drawer" aria-hidden="true"><div class="mwb-drawer-backdrop" data-close-drawer></div><section class="mwb-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="mwb-drawer-title"><header><div><span>FG NETTING &amp; PHASE PURCHASE SIMULATION</span><h2 id="mwb-drawer-title">Rincian FG</h2><p id="mwb-drawer-meta"></p></div><div class="mwb-drawer-tools" aria-label="Kontrol tampilan netting"><button id="mwb-zoom-out" type="button" aria-label="Perkecil tampilan" title="Perkecil">−</button><button id="mwb-zoom-label" type="button" aria-label="Reset zoom" title="Reset zoom">100%</button><button id="mwb-zoom-in" type="button" aria-label="Perbesar tampilan" title="Perbesar">+</button><button id="mwb-fullscreen" type="button" aria-pressed="false">Fullscreen</button><button class="mwb-drawer-close" type="button" data-close-drawer aria-label="Tutup">×</button></div></header><div id="mwb-drawer-body" class="mwb-drawer-body"></div></section></aside>
+
+<aside id="mwb-gate-drawer" class="mwb-drawer" aria-hidden="true"><div class="mwb-drawer-backdrop" data-close-gate-drawer></div><section class="mwb-drawer-panel mwb-gate-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="mwb-gate-drawer-title"><header><div><span>DELIVERY FEASIBILITY AUDIT</span><h2 id="mwb-gate-drawer-title">Delivery Phase MPS</h2><p id="mwb-gate-drawer-meta"></p></div><button class="mwb-drawer-close" type="button" data-close-gate-drawer aria-label="Tutup">×</button></header><div id="mwb-gate-drawer-body" class="mwb-drawer-body"></div></section></aside>
+
+<aside id="mwb-recovery-drawer" class="mwb-drawer" aria-hidden="true"><div class="mwb-drawer-backdrop" data-close-recovery-drawer></div><section class="mwb-drawer-panel mwb-recovery-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="mwb-recovery-title"><header><div><span>PENANGANAN DELIVERY</span><h2 id="mwb-recovery-title">Keputusan Delivery Phase</h2><p id="mwb-recovery-meta"></p></div><button class="mwb-drawer-close" type="button" data-close-recovery-drawer aria-label="Tutup">×</button></header><div id="mwb-recovery-message" class="mwb-recovery-message" hidden></div><div id="mwb-recovery-body" class="mwb-drawer-body"><div class="mwb-recovery-loading">Memuat kondisi delivery…</div></div></section></aside>
 
 <aside id="mwb-modal" class="mwb-modal" aria-hidden="true"><div class="mwb-modal-backdrop" data-close-modal></div><form id="mwb-modal-form" class="mwb-modal-panel"><header><div><span>RECALCULATE OFFICIAL DRAFT</span><h2>Hitung Draft MPS</h2><p>Demand aktif, FG stock, reservasi SO, dan open MO akan dihitung ulang tanpa refresh halaman.</p></div><button type="button" data-close-modal aria-label="Tutup">×</button></header><div class="mwb-modal-content"><p id="mwb-modal-message"></p><label><input id="mwb-confirm" type="checkbox" required> Saya memahami recalculation dapat menandai MRP dan purchase suggestion lama sebagai <b>Replan Required</b>.</label></div><footer><button type="button" class="btn btn-outline-secondary" data-close-modal>Batal</button><button id="mwb-modal-submit" class="btn btn-primary" type="submit">Hitung &amp; simpan Draft</button></footer></form></aside>
 
 <aside id="mwb-action-modal" class="mwb-modal" aria-hidden="true"><div class="mwb-modal-backdrop" data-close-action-modal></div><form id="mwb-action-form" class="mwb-modal-panel"><header><div><span id="mwb-action-eyebrow">NEXT PLANNING GATE</span><h2 id="mwb-action-title">Lanjutkan proses</h2><p id="mwb-action-description"></p></div><button type="button" data-close-action-modal aria-label="Tutup">×</button></header><div class="mwb-modal-content"><p id="mwb-action-message"></p><label><input id="mwb-action-confirm" type="checkbox" required> <span id="mwb-action-confirm-copy">Saya memahami perubahan status dokumen ini.</span></label></div><footer><button type="button" class="btn btn-outline-secondary" data-close-action-modal>Batal</button><button id="mwb-action-submit" class="btn btn-primary" type="submit">Lanjutkan</button></footer></form></aside>
 
+<aside id="mwb-planning-modal" class="mwb-modal" aria-hidden="true"><div class="mwb-modal-backdrop" data-close-planning-modal></div><section class="mwb-modal-panel mwb-planning-panel" role="dialog" aria-modal="true" aria-labelledby="mwb-planning-title"><header><div><span>BASELINE / DELTA PREVIEW</span><h2 id="mwb-planning-title">Preview perubahan planning</h2><p id="mwb-planning-meta"></p></div><button type="button" data-close-planning-modal aria-label="Tutup">×</button></header><div id="mwb-planning-body" class="mwb-modal-content"></div><footer><button type="button" class="btn btn-outline-secondary" data-close-planning-modal>Tutup</button><button id="mwb-planning-confirm" class="btn btn-primary" type="button" hidden>Generate</button></footer></section></aside>
+
+<div id="mwb-row-menu" class="mwb-row-menu" role="menu" hidden><button type="button" role="menuitem" data-row-action="buffer"><span>◫</span><b>Edit Buffer Stock</b></button><button type="button" role="menuitem" data-row-action="confirm"><span>✓</span><b>Approve MPS</b></button></div>
+
+<aside id="mwb-formula-modal" class="mwb-modal" aria-hidden="true"><div class="mwb-modal-backdrop" data-close-formula-modal></div><section class="mwb-modal-panel mwb-formula-panel" role="dialog" aria-modal="true" aria-labelledby="mwb-formula-title"><header><div><span>CALCULATION AUDIT</span><h2 id="mwb-formula-title">Formula MPS Qty</h2><p id="mwb-formula-meta"></p></div><button type="button" data-close-formula-modal aria-label="Tutup">×</button></header><div id="mwb-formula-body" class="mwb-modal-content"></div><footer><button type="button" class="btn btn-primary" data-close-formula-modal>Tutup</button></footer></section></aside>
+
+<aside id="mwb-buffer-modal" class="mwb-modal" aria-hidden="true"><div class="mwb-modal-backdrop" data-close-buffer-modal></div><form id="mwb-buffer-form" class="mwb-modal-panel mwb-buffer-panel"><header><div><span>BUFFER STOCK SETTING</span><h2>Edit Buffer Stock</h2><p id="mwb-buffer-part"></p></div><button type="button" data-close-buffer-modal aria-label="Tutup">×</button></header><div class="mwb-modal-content"><label class="mwb-field"><span>Buffer Stock (%)</span><input id="mwb-buffer-percent" type="number" min="0" max="100" step="0.01" required></label><fieldset class="mwb-buffer-modes"><legend>Distribusi buffer ke schedule</legend><label><input type="radio" name="bufferAllocationMode" value="DISTRIBUTE_TO_PHASES"><span><b>Bagikan ke setiap phase</b><small>Buffer dibagi proporsional mengikuti MPS Qty customer pada setiap phase.</small></span></label><label><input type="radio" name="bufferAllocationMode" value="SEPARATE_END_MONTH"><span><b>Batch terpisah akhir bulan</b><small>Buffer menjadi batch produksi sendiri dengan target selesai pada hari terakhir bulan.</small></span></label></fieldset><p id="mwb-buffer-message" class="mwb-buffer-message"></p></div><footer><button type="button" class="btn btn-outline-secondary" data-close-buffer-modal>Batal</button><button id="mwb-buffer-submit" class="btn btn-primary" type="submit">Simpan Buffer</button></footer></form></aside>
+
+<aside id="mwb-rccp-modal" class="mwb-modal" aria-hidden="true"><div class="mwb-modal-backdrop" data-close-rccp-modal></div><section class="mwb-modal-panel mwb-rccp-panel" role="dialog" aria-modal="true" aria-labelledby="mwb-rccp-title"><header><div><span>ROUGH-CUT CAPACITY PLANNING</span><h2 id="mwb-rccp-title">RCCP — Feasibility Check</h2><p id="mwb-rccp-meta"></p></div><button type="button" data-close-rccp-modal aria-label="Tutup">×</button></header><div class="mwb-modal-content">
+  <form id="mwb-rccp-form" class="mwb-rccp-form" hidden>
+    <div class="mwb-rccp-form-head"><div><small>PRE-CHECK CONFIGURATION</small><h3>Required Date dan capacity horizon</h3><p>MPS tetap berada pada periodenya; hanya load produksi yang dapat mundur ke M-1.</p></div><span id="mwb-rccp-form-qty"></span></div>
+    <fieldset><legend>Required Date Source</legend><label><input type="radio" name="rccpRequiredDateSource" value="DELIVERY_PHASE" checked><span><b>Delivery Phase</b><small>Gunakan due date per customer/demand phase.</small></span></label><label><input type="radio" name="rccpRequiredDateSource" value="MANUAL"><span><b>Manual Preliminary Date</b><small>Gunakan satu preliminary due date untuk seluruh MPS.</small></span></label></fieldset>
+    <label id="mwb-rccp-manual-wrap" class="mwb-field" hidden><span>Manual Preliminary Date</span><input id="mwb-rccp-manual-date" type="date"></label>
+    <div class="mwb-rccp-options"><label><input type="checkbox" checked disabled><span><b>Previous Month Capacity</b><small>Aktif otomatis saat cumulative lead time masuk M-1.</small></span></label><label><input type="checkbox" checked disabled><span><b>Vendor Lead Time</b><small>Proses outsource ikut backward offset.</small></span></label><label><input type="checkbox" checked disabled><span><b>Working Calendar</b><small>Weekend, holiday, dan shutdown diperhitungkan.</small></span></label></div>
+    <button id="mwb-rccp-calculate" class="btn btn-primary" type="submit">Calculate Feasibility</button>
+  </form>
+  <div id="mwb-rccp-results" hidden>
+    <div id="mwb-rccp-summary" class="mwb-rccp-summary"></div>
+    <div id="mwb-rccp-offset-warning" class="mwb-rccp-offset-warning" hidden></div>
+    <section class="mwb-rccp-section"><header><div><small>WEEKLY TIME-PHASED LOAD</small><h3>Capacity M-1 + M</h3></div></header><div id="mwb-rccp-weekly" class="mwb-rccp-table-wrap"></div></section>
+    <section class="mwb-rccp-section"><header><div><small>RESOURCE SUMMARY</small><h3>Load per critical resource</h3></div></header><div class="mwb-rccp-table-wrap"><table class="mwb-rccp-table" data-enterprise-table="off"><thead><tr><th>Resource</th><th>Current MPS</th><th>Existing</th><th>Total Load</th><th>Capacity</th><th>Load</th><th>Status</th></tr></thead><tbody id="mwb-rccp-body"><tr><td colspan="7">Belum ada hasil RCCP.</td></tr></tbody></table></div></section>
+    <section id="mwb-rccp-recommendations" class="mwb-rccp-section" hidden></section>
+    <details class="mwb-rccp-timeline"><summary>View Timeline Detail</summary><div id="mwb-rccp-timeline"></div></details>
+    <label id="mwb-rccp-reason-field" class="mwb-rccp-reason" hidden><span>Alasan / acknowledgement</span><textarea id="mwb-rccp-reason" rows="3" placeholder="Wajib diisi untuk menerima warning atau override overload"></textarea></label><div id="mwb-rccp-exceptions" class="mwb-rccp-exceptions" hidden></div>
+  </div>
+</div><footer id="mwb-rccp-actions"><button type="button" class="btn btn-outline-secondary" data-close-rccp-modal>Kembali ke MPS</button></footer></section></aside>
+
 <script id="mwb-page-config" type="application/json"><%- JSON.stringify({ initialMonth }).replace(/</g, '\\u003c') %></script>
+<script src="/js/ppic-mps-baseline-delta-model.js?v=20260827-1"></script>
+<script src="/js/ppic-mps-delivery-status.js?v=20260823-recovery-pic-7"></script>
+<script src="/js/ppic-mps-recovery-actions.js?v=20260823-recovery-pic-7"></script>
 <%- include('../partials/footer') %>

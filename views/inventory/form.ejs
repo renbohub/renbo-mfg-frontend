@@ -1,9 +1,9 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
-<main class="ops-page app-container">
+<main class="ops-page app-container transaction-form-page">
   <nav class="module-breadcrumb"><a href="/modules/inventory">Inventory</a><span>/</span><a href="/modules/inventory/<%= page.slug %>"><%= page.label %></a><span>/</span><b>Buat</b></nav>
-  <section class="ops-detail-titlebar"><div><p class="ops-eyebrow">Inventory</p><h1>Buat <%= page.label %></h1><p><%= page.slug === 'stock-opname' ? 'Tentukan scope opname. Setelah Mulai Counting, member mengisi rack, lot, part, dan qty melalui form blind count.' : page.slug === 'stock-reservations' ? 'Pilih free stock material lalu alokasikan qty ke satu atau beberapa part number. Tidak perlu menunggu MRP.' : 'Transaksi dicatat dengan audit trail dan validasi saldo/warehouse.' %></p></div><a class="btn btn-outline-secondary" href="/modules/inventory/<%= page.slug %>">Kembali</a></section>
+  <section class="ops-detail-titlebar transaction-command-header"><div><p class="ops-eyebrow">Inventory</p><h1>Buat <%= page.label %></h1><p><%= page.slug === 'stock-opname' ? 'Tentukan scope opname. Setelah Mulai Counting, member mengisi rack, lot, part, dan qty melalui form blind count.' : page.slug === 'stock-reservations' ? 'Pilih free stock material lalu alokasikan qty ke satu atau beberapa part number. Tidak perlu menunggu MRP.' : 'Transaksi dicatat dengan audit trail dan validasi saldo/warehouse.' %></p></div><div class="ops-title-actions"><button id="inventory-submit" class="btn btn-primary brand-button" type="submit" form="inventory-form"><%= page.slug === 'stock-movements' ? 'Simpan Semua Movement' : page.slug === 'stock-reservations' ? 'Reserve Stock' : 'Simpan' %></button><a class="btn btn-outline-secondary" href="/modules/inventory/<%= page.slug %>">Kembali ke daftar</a></div></section>
   <div id="inventory-form-alert" class="alert d-none" role="alert"></div>
   <form id="inventory-form" class="ops-detail-card inventory-form-card">
     <div class="module-form-section-title">Informasi <%= page.label %><span class="form-required-note">* Field wajib</span></div>
@@ -49,17 +49,25 @@
           <div class="table-responsive"><table class="table align-middle mb-0" data-enterprise-table="off"><thead><tr><th>#</th><th>Type</th><th>Lokasi</th><th>Stock Type</th><th>Item / Part Number</th><th>Lot</th><th>Qty</th><th>Referensi</th><th></th></tr></thead><tbody id="inventory-batch-body"><tr data-empty><td colspan="9"><div class="inventory-batch-empty">Belum ada item. Isi form lalu klik <b>Tambahkan ke Daftar</b>.</div></td></tr></tbody></table></div>
         </section>
       <% } else { %>
-        <label><span>STO Type *</span><select id="stoType" required><option value="MATERIAL">MATERIAL</option><option value="WIP">WIP</option><option value="FG">FG</option></select></label>
+        <label><span>Mode Count *</span><select id="countMode" required><option value="FULL">Full Count</option><option value="CYCLE">Cycle Count</option></select><small>Full mencakup seluruh scope terpilih; Cycle wajib dibatasi rack atau lot.</small></label>
+        <label><span>Jenis Inventory *</span><select id="stoType" required><option value="MATERIAL">Material / Purchase Part</option><option value="WIP">WIP / WP / Semi-Finished</option><option value="FG">Finished Goods</option></select></label>
         <label><span>Warehouse *</span><select id="warehouseCode" required><option value="">Pilih warehouse</option></select></label>
-        <label><span>Rack Scope</span><select id="rackCode"><option value="">Semua rack</option></select></label>
-        <label><span>Stock Scope</span><select id="stockType"><option value="">Semua material scope</option><option value="Material">Material</option><option value="Purchase Part">Purchase Part</option></select></label>
         <label><span>Tanggal *</span><input id="stoDate" type="date" required></label>
-        <div class="span-2 alert alert-info mb-0"><strong>Blind count:</strong> qty sistem diambil ulang dan disembunyikan saat <em>Mulai Counting</em>. Member hanya mengisi rack, nomor lot, Part No/Part Code, dan qty fisik. Saldo sistem serta variance baru tampil setelah counting disubmit untuk review.</div>
+        <label><span>Jenis Stock</span><select id="stockType" multiple size="4" aria-label="Pilih satu atau beberapa jenis stock"></select><small>Kosongkan untuk seluruh jenis stock yang sesuai.</small></label>
+        <label><span>Rack Scope</span><select id="rackCode" multiple size="4" aria-label="Pilih satu atau beberapa rack"></select><small>Kosongkan untuk seluruh rack.</small></label>
+        <label class="span-2"><span>Lot Scope</span><input id="lotNumbers" placeholder="Opsional, pisahkan beberapa lot dengan koma"><small>Cycle Count wajib memiliki rack atau lot.</small></label>
+        <label><span>Toleransi Qty *</span><input id="toleranceQty" type="number" min="0" step="any" value="0" required></label>
+        <label><span>Toleransi Persen *</span><input id="tolerancePercent" type="number" min="0" step="any" value="0" required></label>
+        <label class="span-2"><span><input id="includeZeroBalance" type="checkbox" checked> Sertakan balance qty 0</span><small>Berguna untuk menemukan stock fisik pada lokasi yang saldo sistemnya nol.</small></label>
+        <div class="span-2 alert alert-info mb-0"><strong>Blind count:</strong> snapshot qty sistem diambil ulang saat <em>Mulai Counting</em>, lalu hanya scope terpilih yang dibekukan. Jenis WP ikut dalam scope WIP.</div>
+        <div class="span-2 d-flex align-items-center gap-3"><button id="sto-preview-scope" class="btn btn-outline-primary" type="button">Preview Scope</button><small>Periksa jumlah line, on hand, reserved, QC, serta warning sebelum dokumen dibuat.</small></div>
+        <section id="sto-scope-preview" class="span-2 inventory-batch-panel d-none" aria-live="polite"></section>
         <label class="span-2"><span>Catatan</span><textarea id="notes" rows="3"></textarea></label>
       <% } %>
     </div>
-    <div class="module-form-actions"><a class="btn btn-outline-secondary" href="/modules/inventory/<%= page.slug %>">Batal</a><button id="inventory-submit" class="btn btn-primary brand-button" type="submit"><%= page.slug === 'stock-movements' ? 'Simpan Semua Movement' : page.slug === 'stock-reservations' ? 'Reserve Stock' : 'Simpan' %></button></div>
+    <div class="module-form-actions transaction-progress-slot" aria-label="Kelengkapan form"></div>
   </form>
+  <%- include('../partials/document-comments', { documentComments: { recordKey: null, showPending: true, title: `Komentar ${page.label}`, variant: 'receipt' } }) %>
 </main>
 <script id="inventory-form-config" type="application/json"><%- JSON.stringify({ page: page.slug }).replace(/</g, '\\u003c') %></script>
 <%- include('../partials/footer') %>

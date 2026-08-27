@@ -11,6 +11,7 @@
       <input id="ops-search" type="search" placeholder="Cari nomor, part, lokasi, atau status..." aria-label="Cari <%= page.label %>">
     </label>
     <div class="toolbar-spacer"></div>
+    <% if (module.slug === 'purchasing') { %><button class="btn btn-outline-primary" type="button" data-ai-capability="purchasing.get_material_shortage" data-ai-context='{"pageCode":"<%= page.slug %>"}' data-ai-prompt="Tampilkan material shortage dan PO yang terlambat terhadap required arrival date.">AI Material Risk</button><% } %>
     <%- include('../partials/view-switcher', isDailyWorkQueue ? { viewModes: ['gallery', 'table', 'kanban', 'gantt'], viewLabels: { gallery: 'Work Cards', table: 'Table', kanban: 'Status Board', gantt: 'Weekly Gantt' } } : {}) %>
     <button id="ops-refresh" type="button" class="btn btn-outline-secondary">Refresh</button>
     <button id="ops-export" type="button" class="btn btn-export">Export CSV</button>
@@ -45,6 +46,13 @@
       <% ['WO', 'DR', 'RUN', '%'].forEach((icon, index) => { %><article><i><%= icon %></i><div><small id="ops-stat-label-<%= index %>">-</small><strong id="ops-stat-value-<%= index %>">0</strong><span id="ops-stat-note-<%= index %>">-</span></div></article><% }) %>
     </section>
     <section id="daily-machine-tables" class="daily-machine-tables app-container" aria-live="polite"><div class="daily-machine-empty">Memuat Daily Production Schedule per mesin...</div></section>
+  <% } %>
+  <% if (module.slug === 'planning-ppic' && page.slug === 'monthly-production-plans') { %>
+    <section class="app-container d-flex flex-wrap align-items-end gap-3 py-3 border-bottom bg-white" aria-label="Filter kalender Production Plan">
+      <div class="me-auto"><small class="text-uppercase text-muted">Calendar filter</small><h1 class="h5 mb-1">Production Plan Horizon</h1><p class="mb-0 text-muted">Plan tampil jika horizon produksinya menyentuh bulan terpilih; bulan bukan identitas dokumen.</p></div>
+      <label><span class="d-block small text-muted mb-1">Bulan kalender</span><input id="ops-filter-horizon-month" class="form-control form-control-sm" type="month" value="<%= typeof initialHorizonMonth === 'string' ? initialHorizonMonth : '' %>"></label>
+      <button id="ops-filter-reset" type="button" class="btn btn-sm btn-outline-secondary">Semua Horizon</button>
+    </section>
   <% } %>
   <% if (module.slug === 'inventory') { %>
     <section class="app-container d-flex flex-wrap align-items-center gap-2 py-3 border-bottom bg-white" aria-label="Warehouse operational filters">
@@ -99,5 +107,5 @@
     <div class="list-gallery is-hidden" aria-live="polite"></div>
   </section>
 </main>
-<script id="ops-page-config" type="application/json"><%- JSON.stringify({ module: module.slug, moduleLabel: module.label, moduleColor: module.color, page, purchaseCategory: typeof purchaseCategory === 'undefined' ? null : purchaseCategory }).replace(/</g, '\\u003c') %></script>
+<script id="ops-page-config" type="application/json"><%- JSON.stringify({ module: module.slug, moduleLabel: module.label, moduleColor: module.color, page, purchaseCategory: typeof purchaseCategory === 'undefined' ? null : purchaseCategory, initialHorizonMonth: typeof initialHorizonMonth === 'undefined' ? '' : initialHorizonMonth }).replace(/</g, '\\u003c') %></script>
 <%- include('../partials/footer') %>

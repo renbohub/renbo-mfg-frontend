@@ -1,0 +1,21 @@
+<%
+  const shell = typeof documentShell === 'object' && documentShell ? documentShell : {};
+  const shellVariant = ['transaction', 'master', 'planning'].includes(shell.variant) ? shell.variant : 'transaction';
+  const shellTitleId = shell.titleId || 'document-shell-title';
+  const shellNumber = shell.number || 'NEW';
+%>
+<% if (shell.breadcrumbHtml) { %><nav class="document-breadcrumb" aria-label="Breadcrumb"><%- shell.breadcrumbHtml %></nav><% } %>
+<header class="document-shell document-shell--<%= shellVariant %> <%= shell.className || '' %>" data-document-shell data-document-variant="<%= shellVariant %>" aria-labelledby="<%= shellTitleId %>">
+  <div class="document-shell__identity">
+    <% if (shell.eyebrow) { %><p class="document-shell__eyebrow"><%= shell.eyebrow %></p><% } %>
+    <div class="document-shell__title-row">
+      <h1 id="<%= shellTitleId %>"><span class="document-shell__number"><%= shellNumber %></span><% if (shell.title) { %><span class="document-shell__title"><%= shell.title %></span><% } %></h1>
+      <% if (shell.status) { %><span id="<%= shell.statusId || '' %>" class="document-shell__status <%= shell.statusTone ? `is-${shell.statusTone}` : '' %>"><%= shell.status %></span><% } %>
+    </div>
+    <% if (shell.subtitle) { %><p id="<%= shell.subtitleId || '' %>" class="document-shell__subtitle"><%= shell.subtitle %></p><% } %>
+  </div>
+  <div class="document-shell__command">
+    <% if (shell.postingRule) { %><div class="document-shell__posting"><span><%= shell.postingLabel || 'Posting Rule' %></span><strong><%= shell.postingRule %></strong></div><% } %>
+    <div class="document-shell__actions"><% if (shell.actions) { %><%- shell.actions %><% } %><% if (shell.backHref) { %><a class="btn btn-outline-secondary" href="<%= shell.backHref %>">Kembali ke daftar</a><% } %></div>
+  </div>
+</header>

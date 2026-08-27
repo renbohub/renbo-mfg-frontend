@@ -1,0 +1,30 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/ppic-daily-production-plan.css?v=20260826-execution-queue-3">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'daily-production-schedules' }) %>
+
+<main class="dpp-page production-mode" data-role="PRODUCTION">
+  <header class="dpp-head app-container">
+    <div><span>PRODUCTION EXECUTION</span><h1>Daily Production Schedule</h1><p>Jalankan plan Released, pantau output aktual, NG, dan downtime per mesin dan jam.</p></div>
+    <div class="dpp-head-actions"><button class="dpp-button ghost" type="button" data-ai-capability="production.analyze_ng_and_downtime" data-ai-context='{"pageCode":"daily-production-schedules"}' data-ai-prompt="Analisis output good, NG, downtime, dan dampaknya ke FG.">AI Execution Analysis</button><a class="dpp-button ghost" href="/modules/production/production-logs">Production Log</a><button class="dpp-button ghost" id="dpp-refresh" type="button">↻ Refresh</button></div>
+  </header>
+  <section class="dpp-context app-container" aria-label="Filter jadwal produksi">
+    <div class="dpp-filter-block"><span>DATE</span><div class="dpp-date-nav"><button id="dpp-prev" type="button" aria-label="Tanggal sebelumnya">‹</button><input id="dpp-date" type="date" value="<%= initialDate %>"><button id="dpp-next" type="button" aria-label="Tanggal berikutnya">›</button></div></div>
+    <div class="dpp-filter-block"><span>DAYS</span><div class="dpp-day-control"><strong id="dpp-day-label">-</strong><nav class="dpp-scope-tabs"><button data-scope="today" type="button">Hari Ini</button><button data-scope="tomorrow" type="button">Besok</button></nav></div></div>
+    <label class="dpp-filter-block dpp-hours-filter"><span>HOURS</span><select id="dpp-hour-range"><option value="07-07">1 hari · 07:00–07:00 (+1)</option><option value="07-15">Shift 1 · 07:00–15:00</option><option value="15-23">Shift 2 · 15:00–23:00</option><option value="23-07">Shift 3 · 23:00–07:00</option></select></label>
+    <span id="dpp-revision-badge" class="dpp-revision-badge ready">EXECUTION QUEUE</span>
+  </section>
+  <section class="dpp-kpis app-container"><article><span>MESIN TERJADWAL</span><strong id="dpp-kpi-machines">0</strong><small>Released plan</small></article><article><span>TARGET HARIAN</span><strong id="dpp-kpi-qty">0</strong><small id="dpp-kpi-items">0 operation</small></article><article><span>OUTPUT GOOD</span><strong id="dpp-kpi-good">0</strong><small>Production Log</small></article><article><span>SHORTAGE HARIAN</span><strong id="dpp-kpi-ng">0</strong><small>Plan − actual good</small></article></section>
+  <section class="dpp-board app-container">
+    <div class="dpp-board-head"><div><span>DAILY MACHINE MATRIX</span><h2 id="dpp-caption">Execution Board</h2><p id="dpp-subtitle">Qty hanya muncul pada jam mulai; jam proses berikutnya ditandai abu-abu.</p></div><div class="dpp-matrix-legend"><span><i class="plan"></i>PLAN</span><span><i class="actual"></i>ACT</span><span><i class="shortage"></i>SHT</span><span><i class="occupied"></i>Jam terpakai</span></div></div>
+    <div class="dpp-machine-filter"><span>MESIN</span><nav id="dpp-machine-tabs" aria-label="Filter mesin"><button class="active" type="button" data-machine="ALL">Semua Mesin</button></nav></div>
+    <div id="dpp-alert" class="dpp-alert" hidden></div>
+    <div class="dpp-matrix-scroll" tabindex="0"><div id="dpp-matrix" class="dpp-matrix"><div class="dpp-empty">Memuat released plan…</div></div></div>
+  </section>
+  <section class="dpp-lower app-container"><article class="dpp-queue-card"><header><div><span>EXECUTION DETAIL</span><h3>Production Entries</h3></div><b id="dpp-unscheduled-count">0</b></header><div id="dpp-unscheduled" class="dpp-list"><p class="dpp-muted">Pilih operation pada matrix.</p></div></article><article class="dpp-queue-card"><header><div><span>RISIKO AKTUAL</span><h3>NG & Downtime</h3></div><b id="dpp-exception-count">0</b></header><div id="dpp-exceptions" class="dpp-list"><p class="dpp-muted">Tidak ada exception terbuka.</p></div></article></section>
+</main>
+<dialog id="dpp-dialog" class="dpp-dialog"><form id="dpp-dialog-form"><header><div><span>EXECUTION OPERATION</span><h3 id="dpp-dialog-title">-</h3></div><button id="dpp-dialog-close" type="button">×</button></header><div id="dpp-dialog-body"></div><footer><button class="dpp-button ghost" id="dpp-breakdown" type="button">⚠ Mesin Rusak</button><button class="dpp-button ghost" id="dpp-prepare" type="button">Siapkan Material</button><button class="dpp-button primary" id="dpp-start" type="button">Mulai Produksi</button><button class="dpp-button ghost" id="dpp-dialog-cancel" type="button">Tutup</button><a class="dpp-button primary" id="dpp-production-log" href="#">Buka Production Entry</a></footer></form></dialog>
+<script id="dpp-config" type="application/json"><%- JSON.stringify({ initialDate, role: 'PRODUCTION' }).replace(/</g, '\u003c') %></script>
+<script src="/js/ppic-daily-plan-model.js?v=20260825-preview-time-edit-2"></script>
+<script src="/js/ppic-daily-production-plan.js?v=20260826-execution-queue-4"></script>
+<%- include('../partials/footer') %>

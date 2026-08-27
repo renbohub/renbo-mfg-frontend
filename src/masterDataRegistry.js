@@ -130,6 +130,21 @@ const registry = {
   }),
   "part-price-lists": monthlyPriceEntity("part-price-lists", "Harga Part per Bulan", "/api/master-data/part-price-lists", lookup("partId", "Purchase Part", "parts", "id", "partCode", { lookupQuery: { itemType: "RAW", rawType: "PURCHASE_PART" }, labelKeys: ["partCode", "partNumber"], labelSeparator: " — ", help: "Hanya Part Master bertipe Purchase Part yang dapat dipilih." }), [lookup("supplierId", "Supplier", "suppliers", "id", "supplierName", { required: true })]),
   "material-price-lists": monthlyPriceEntity("material-price-lists", "Harga Material per Bulan", "/api/master-data/material-price-lists", lookup("materialGradeId", "Material Grade + Thickness", "material-grades", "id", "displayName"), [lookup("materialSubstanceId", "Bahan Material", "material-substances", "id", "substanceName", { required: true }), lookup("materialId", "Material SKU (opsional)", "materials", "id", "materialCode"), lookup("supplierId", "Supplier", "suppliers", "id", "supplierName", { required: true }), field("thickness", "Thickness dari Grade", "number", { step: "0.001", help: "Diisi otomatis dari Material Grade saat disimpan." }), field("CSP", "C/S/P (opsional)"), field("partNumberCP", "Part Number CP"), field("partNameCP", "Part Name CP")]),
+  "scrap-price-masters": entity({
+    slug: "scrap-price-masters", permission: "materialPriceLists", label: "Harga Scrap per KG", singular: "Harga Scrap", group: "Data Keuangan", icon: "currency", endpoint: "/api/master-data/scrap-price-masters",
+    columns: [column("scrapCode", "Kode Scrap"), column("scrapName", "Nama Scrap"), column("materialType", "Jenis Material"), column("partCode", "Khusus Part"), column("pricePerKg", "Harga / KG", { type: "currency" }), column("effectiveFrom", "Berlaku Mulai", { type: "date" }), column("effectiveUntil", "Berlaku Sampai", { type: "date" }), column("isActive", "Status", { type: "active" })],
+    fields: [
+      field("scrapCode", "Kode Scrap", "text", { required: true, help: "Contoh SCRAP-STEEL. Kode unik untuk audit harga." }),
+      field("scrapName", "Nama Scrap", "text", { required: true }),
+      field("materialType", "Jenis Material", "select", { options: [{ value: "", label: "Semua jenis (default)" }, ...materialTypes], help: "Kosong berarti harga default bila tidak ada harga yang lebih spesifik." }),
+      lookup("partCode", "Part Khusus", "parts", "partCode", "partName", { showValue: true, help: "Opsional. Jika dipilih, harga ini diprioritaskan hanya untuk part tersebut." }),
+      field("pricePerKg", "Harga Scrap / KG (Rupiah)", "number", { required: true, min: 0.01, step: "0.01" }),
+      field("effectiveFrom", "Berlaku Mulai", "date", { required: true, defaultValue: "today" }),
+      field("effectiveUntil", "Berlaku Sampai", "date"),
+      field("isActive", "Aktif", "checkbox", { defaultChecked: true }),
+      field("notes", "Catatan / sumber harga", "textarea")
+    ]
+  }),
   "product-price-lists": monthlyPriceEntity("product-price-lists", "Price List Barang", "/api/master-data/product-price-lists", lookup("productId", "Barang", "products", "id", "productName"), [lookup("supplierId", "Supplier", "suppliers", "id", "supplierName"), lookup("uomCode", "Satuan", "uom", "uomCode", "uomName")]),
   departments: entity({
     slug: "departments", label: "Data Departemen", singular: "Departemen", group: "Data Karyawan", icon: "layers", endpoint: "/api/master-data/departments", detailKey: "departmentCode", generateCode: "departmentCode",
@@ -173,9 +188,62 @@ const registry = {
     fields: [field("subProcessCode", "Kode Sub Proses", "text", { required: true, generated: true }), field("subProcessName", "Nama Sub Proses", "text", { required: true }), lookup("processId", "Proses Induk", "processes", "id", "processName", { required: true }), field("notes", "Catatan", "textarea")]
   }),
   "vendor-processes": entity({
-    slug: "vendor-processes", label: "Proses Vendor", singular: "Proses Vendor", group: "Data Operasional", icon: "briefcase", endpoint: "/api/master-data/vendor-processes", detailKey: "vendorProcessCode",
-    columns: [column("vendorProcessCode", "Kode"), column("vendorProcessName", "Nama Proses"), column("category", "Kategori"), column("notes", "Catatan")],
-    fields: [field("vendorProcessCode", "Kode Proses Vendor", "text", { required: true }), field("vendorProcessName", "Nama Proses Vendor", "text", { required: true }), field("category", "Kategori"), field("notes", "Catatan", "textarea")]
+    slug: "vendor-processes", label: "Kode Proses Vendor", singular: "Kode Proses Vendor", group: "Data Operasional", icon: "briefcase", endpoint: "/api/master-data/vendor-processes", detailKey: "vendorProcessCode",
+    columns: [
+      column("vendorProcessCode", "Kode Proses"), column("vendorProcessName", "Nama Proses Vendor"), column("routingProcessName", "Proses Routing"),
+      column("category", "Kategori"), column("vendorCodes", "Vendor Pelaksana"),
+      column("vendorCount", "Jml Vendor", { type: "number" }), column("priceListCount", "Dipakai Price List", { type: "number" }),
+      column("isDeleted", "Status", { type: "status" })
+    ],
+    fields: [
+      lookup("vendorProcessCode", "Kode Proses Routing", "processes", "processCode", "processName", { required: true, showValue: true, section: "Identitas Proses", help: "Pilih dari Master Data Proses agar kode vendor sama persis dengan routing BOM dan pencarian harga tidak ambigu." }),
+      field("vendorProcessName", "Nama Proses Vendor", "text", { required: true, section: "Identitas Proses" }),
+      field("routingProcessName", "Nama Proses Routing", "text", { formHidden: true, section: "Identitas Proses" }),
+      field("category", "Kategori Proses", "select", { required: true, section: "Identitas Proses", options: option("COATING", "PLATING", "HEAT_TREATMENT", "MACHINING", "WELDING", "ASSEMBLY", "INSPECTION", "OTHER") }),
+      lookup("vendorIds", "Vendor Pelaksana", "vendors", "id", "vendorCode", { multiple: true, sourceValueKey: "id", detailHidden: true, section: "Vendor Pelaksana", labelKeys: ["vendorCode", "vendorName"], help: "Pilih seluruh vendor yang memiliki kapabilitas menjalankan proses ini. Lead time tetap mengikuti master masing-masing vendor." }),
+      field("vendorCodes", "Kode Vendor Pelaksana", "text", { formHidden: true, section: "Vendor Pelaksana" }),
+      field("vendorNames", "Nama Vendor Pelaksana", "text", { formHidden: true, section: "Vendor Pelaksana" }),
+      field("priceListCount", "Jumlah Price List Aktif", "number", { formHidden: true, section: "Penggunaan Master" }),
+      field("notes", "Catatan & Standar Proses", "textarea", { section: "Tata Kelola", help: "Tuliskan spesifikasi umum, standar kualitas, atau persyaratan sertifikat. Harga proses tetap dikelola di Vendor Price List." })
+    ]
+  }),
+  "work-centers": entity({
+    slug: "work-centers", permission: "machines", label: "Work Centers", singular: "Work Center", group: "Data Operasional", icon: "layers",
+    endpoint: "/api/engineering/work-centers", detailKey: "workCenterCode", mutationKey: "id",
+    formView: "master-data/work-center-form", detailView: "master-data/work-center-detail",
+    formPageScript: "/js/work-center-form.js?v=20260824-enterprise-1", detailPageScript: "/js/work-center-detail.js?v=20260824-enterprise-1",
+    columns: [
+      column("workCenterCode", "Kode Work Center"), column("workCenterName", "Nama Work Center"),
+      column("lineCode", "Line"), column("machineCount", "Mesin", { type: "number" }),
+      column("primaryMachineCode", "Mesin Primary"), column("capacityMinutesPerDay", "Kapasitas/Hari", { type: "number" }),
+      column("efficiencyPercent", "Efisiensi %", { type: "number" }), column("sourceLabel", "Sumber"),
+      column("isActive", "Status", { type: "active" })
+    ],
+    fields: [
+      field("workCenterCode", "Kode Work Center", "text", { required: true, section: "Identitas Work Center", help: "Kode unik yang digunakan oleh routing dan Monthly Production Plan." }),
+      field("workCenterName", "Nama Work Center", "text", { required: true, section: "Identitas Work Center" }),
+      field("plantCode", "Plant", "text", { section: "Lokasi & Organisasi" }),
+      field("lineCode", "Line", "text", { section: "Lokasi & Organisasi", help: "Contoh: L1, L2, atau WELDING-A." }),
+      field("capacityMinutesPerDay", "Kapasitas per Hari (menit)", "number", { required: true, min: 0, step: "1", section: "Kapasitas" }),
+      field("efficiencyPercent", "Efisiensi (%)", "number", { required: true, min: 0.01, max: 100, step: "0.01", defaultValue: 100, section: "Kapasitas" }),
+      lookup("workingHourProfileId", "Working Hour Profile", "working-hour-profiles", "id", "profileName", { section: "Kapasitas", labelKeys: ["profileCode", "profileName"], help: "Kalender default Work Center. Override plan atau mesin memiliki prioritas lebih tinggi." }),
+      lookup("machineIds", "Mesin Anggota", "machines", "id", "machineCode", { required: true, multiple: true, sourceValueKey: "machineId", section: "Assignment Mesin", labelKeys: ["machineCode", "machineName"] }),
+      lookup("primaryMachineId", "Mesin Primary", "machines", "id", "machineCode", { section: "Assignment Mesin", labelKeys: ["machineCode", "machineName"] }),
+      field("isActive", "Work Center Aktif", "checkbox", { defaultChecked: true, section: "Kontrol" }),
+      field("notes", "Catatan", "textarea", { section: "Kontrol" })
+    ]
+  }),
+  shifts: entity({
+    slug: "shifts", permission: "machines", label: "Shift", singular: "Shift", group: "Data Operasional", icon: "clock", endpoint: "/api/master-data/shifts", detailKey: "shiftCode",
+    columns: [column("shiftCode", "Kode Shift"), column("shiftName", "Nama Shift"), column("sequence", "Urutan", { type: "number" }), column("isActive", "Status", { type: "active" })],
+    fields: [field("shiftCode", "Kode Shift", "text", { required: true, section: "Identitas" }), field("shiftName", "Nama Shift", "text", { required: true, section: "Identitas" }), field("sequence", "Urutan", "number", { required: true, min: 1, section: "Identitas" }), field("isActive", "Aktif", "checkbox", { defaultChecked: true, section: "Kontrol" }), field("notes", "Catatan", "textarea", { section: "Kontrol" })]
+  }),
+  "working-hour-profiles": entity({
+    slug: "working-hour-profiles", permission: "machines", label: "Working Hours", singular: "Working Hour Profile", group: "Data Operasional", icon: "calendar", endpoint: "/api/master-data/working-hour-profiles", detailKey: "profileCode",
+    mutationKey: "id", formView: "master-data/working-hour-profile-form", detailView: "master-data/working-hour-profile-detail",
+    formPageScript: "/js/working-hour-profile-form.js?v=20260824-enterprise-1", detailPageScript: "/js/working-hour-profile-detail.js?v=20260824-enterprise-1",
+    columns: [column("profileCode", "Kode Profile"), column("profileName", "Nama Profile"), column("profileType", "Tipe"), column("effectiveFrom", "Berlaku Mulai", { type: "date" }), column("effectiveUntil", "Berlaku Sampai", { type: "date" }), column("assignmentCount", "Dipakai", { type: "number" }), column("isActive", "Status", { type: "active" })],
+    fields: [field("profileCode", "Kode Profile", "text", { required: true, section: "Identitas" }), field("profileName", "Nama Profile", "text", { required: true, section: "Identitas" }), field("profileType", "Tipe Profile", "select", { required: true, options: option("REGULAR", "RAMADAN", "SPECIAL"), section: "Masa Berlaku" }), field("effectiveFrom", "Berlaku Mulai", "date", { section: "Masa Berlaku" }), field("effectiveUntil", "Berlaku Sampai", "date", { section: "Masa Berlaku" }), field("priority", "Prioritas", "number", { min: 0, defaultValue: 0, section: "Masa Berlaku" }), field("isActive", "Aktif", "checkbox", { defaultChecked: true, section: "Kontrol" }), field("notes", "Catatan", "textarea", { section: "Kontrol" })]
   }),
   machines: machineEntity(),
   dies: diesEntity(),
@@ -199,6 +267,11 @@ const registry = {
   "approval-rules": entity({
     slug: "approval-rules", label: "Approval Rules", singular: "Approval Rule", group: "Data Sistem", icon: "file",
     endpoint: "/api/system/approval-rules", customView: "master-data/approval-rules", pageScript: "/js/approval-rules.js?v=20260812-lifecycle",
+    columns: [], fields: []
+  }),
+  "ai-model-profiles": entity({
+    slug: "ai-model-profiles", permission: "aiModelProfiles", label: "AI Model Registry", singular: "AI Model Profile", group: "Data Sistem", icon: "cpu",
+    endpoint: "/api/ai/admin/model-profiles", customView: "master-data/ai-model-profiles", pageScript: "/js/ai-model-profiles.js?v=20260825-1",
     columns: [], fields: []
   }),
   formulas: entity({
@@ -257,6 +330,31 @@ registry["customer-part-prices"].fields.find((item) => item.name === "effectiveF
 registry["customer-part-prices"].fields.find((item) => item.name === "effectiveFrom").help = "Harga sebelumnya ditutup otomatis saat Harga Baru disimpan.";
 registry["customer-part-prices"].fields.find((item) => item.name === "effectiveUntil").help = "Boleh kosong; sistem mengisi saat harga berikutnya berlaku.";
 
+const machineCalendarIndex = registry.machines.fields.findIndex((item) => item.name === "defaultShiftHours");
+registry.machines.fields.splice(machineCalendarIndex < 0 ? registry.machines.fields.length : machineCalendarIndex, 0,
+  lookup("workingHourProfileId", "Working Hour Profile", "working-hour-profiles", "id", "profileName", { section: "Capacity Calendar", labelKeys: ["profileCode", "profileName"], help: "Override khusus mesin; bila kosong mengikuti profile Work Center." }));
+
+function replaceRegistryField(slug, name, replacement) {
+  const index = registry[slug]?.fields?.findIndex((item) => item.name === name) ?? -1;
+  if (index >= 0) registry[slug].fields.splice(index, 1, replacement);
+}
+
+replaceRegistryField("parts", "customerCode", lookup("customerCode", "Pelanggan Utama", "customer-codes", "customerCode", "customerName", { showValue: true, detailLink: { entity: "customers" }, help: "Kode diambil langsung dari Master Pelanggan." }));
+replaceRegistryField("parts", "customerCodes", lookup("customerCodes", "Daftar Pelanggan", "customer-codes", "customerCode", "customerName", { multiple: true, showValue: true, help: "Pilih satu atau beberapa pelanggan yang menggunakan part ini." }));
+replaceRegistryField("racks", "warehouseCode", lookup("warehouseCode", "Warehouse", "warehouse-codes", "warehouseCode", "warehouseName", { required: true, showValue: true }));
+replaceRegistryField("price-list", "partCode", lookup("partCode", "Part", "part-codes", "partCode", "partName", { showValue: true }));
+replaceRegistryField("price-list", "materialCode", lookup("materialCode", "Material", "material-codes", "materialCode", "materialName", { showValue: true }));
+replaceRegistryField("price-list", "supplierCode", lookup("supplierCode", "Supplier", "supplier-codes", "supplierCode", "supplierName", { showValue: true }));
+replaceRegistryField("customer-part-prices", "customerCode", lookup("customerCode", "Customer", "customer-codes", "customerCode", "customerName", { required: true, showValue: true }));
+replaceRegistryField("scrap-price-masters", "partCode", lookup("partCode", "Part Khusus", "part-codes", "partCode", "partName", { showValue: true, help: "Opsional. Jika dipilih, harga ini diprioritaskan hanya untuk part tersebut." }));
+replaceRegistryField("vendor-processes", "vendorProcessCode", lookup("vendorProcessCode", "Kode Proses Routing", "process-codes", "processCode", "processName", { required: true, showValue: true, section: "Identitas Proses", help: "Pilih dari Master Data Proses agar kode vendor sama persis dengan routing BOM dan pencarian harga tidak ambigu." }));
+replaceRegistryField("machines", "warehouseCode", lookup("warehouseCode", "Gudang", "warehouse-codes", "warehouseCode", "warehouseName", { showValue: true, section: "Lokasi" }));
+replaceRegistryField("dies", "customerCode", lookup("customerCode", "Customer Pemilik", "customer-codes", "customerCode", "customerName", { showValue: true }));
+replaceRegistryField("dies", "warehouseCode", lookup("warehouseCode", "Gudang", "warehouse-codes", "warehouseCode", "warehouseName", { showValue: true }));
+replaceRegistryField("dies-maintenance", "vendorCode", lookup("vendorCode", "Vendor Maintenance", "vendor-codes", "vendorCode", "vendorName", { showValue: true }));
+replaceRegistryField("dies-usage", "machineCode", lookup("machineCode", "Mesin", "machine-codes", "machineCode", "machineName", { showValue: true }));
+replaceRegistryField("employees", "divisionIds", lookup("divisionIds", "Semua Divisi", "divisions", "id", "divisionName", { multiple: true, sourceValueKey: "id", help: "Pilih satu atau beberapa divisi pegawai." }));
+
 registry["vendor-price-lists"].columns = [
   column("vendor.vendorName", "Vendor"), column("part.partCode", "Part"), column("category", "Kategori"),
   column("currencyCode", "Mata Uang"), column("effectiveFrom", "Berlaku Mulai", { type: "date" }),
@@ -272,7 +370,7 @@ registry["vendor-price-lists"].fields = [
   field("effectiveUntil", "Berlaku Sampai", "date", { help: "Boleh kosong; diisi otomatis saat periode berikutnya dibuat." }),
   field("isActive", "Aktif", "checkbox", { defaultChecked: true }),
   field("quotationFiles", "File Quotation", "file", { multiple: true }),
-  field("details", "Detail Proses dan Harga", "json", { help: "Array contoh: [{\"vendorProcessId\":\"...\",\"unitPrice\":1500,\"uomCode\":\"PCS\"}]." }),
+  field("details", "Detail Proses, Harga & MOQ", "json", { help: "Array contoh: [{\"vendorProcessId\":\"...\",\"unitPrice\":1500,\"uomCode\":\"PCS\",\"minimumOrderQty\":50,\"orderMultipleQty\":25,\"minimumCharge\":100000}]. MOQ berlaku per vendor + part + proses + periode harga." }),
   field("notes", "Catatan", "textarea")
 ];
 
@@ -283,7 +381,7 @@ function partyFields(codeName, nameName, noun) {
 function priceListEntity(slug, label, endpoint, icon) {
   return entity({ slug, label, singular: label, group: "Data Keuangan", icon, endpoint,
     columns: [column("priceListCode", "Kode"), column("itemType", "Tipe Item"), column("partCode", "Part"), column("materialCode", "Material"), column("supplierName", "Supplier"), column("unitPrice", "Harga", { type: "currency" }), column("currencyCode", "Mata Uang")],
-    fields: [field("priceListCode", "Kode Price List", "text", { help: "Dibuat otomatis bila kosong." }), field("itemType", "Tipe Item", "select", { options: option("PART", "MATERIAL", "PRODUCT") }), field("partCode", "Kode Part"), field("partName", "Nama Part"), field("partDiameter", "Diameter Part", "number", { step: "0.001" }), field("materialCode", "Kode Material"), field("materialType", "Tipe Material"), field("materialThickness", "Thickness Material", "number", { step: "0.001" }), field("supplierCode", "Kode Supplier"), field("supplierName", "Nama Supplier"), field("unitPrice", "Harga Satuan", "number", { required: true, step: "0.01" }), lookup("currencyCode", "Mata Uang", "currencies", "currencyCode", "currencyName"), field("notes", "Catatan", "textarea")]
+    fields: [field("priceListCode", "Kode Price List", "text", { help: "Dibuat otomatis bila kosong." }), field("itemType", "Tipe Item", "select", { options: option("PART", "MATERIAL", "PRODUCT") }), lookup("partCode", "Part", "parts", "partCode", "partName", { showValue: true }), field("partName", "Nama Part", "text", { readOnly: true }), field("partDiameter", "Diameter Part", "number", { step: "0.001" }), lookup("materialCode", "Material", "materials", "materialCode", "materialName", { showValue: true }), field("materialType", "Tipe Material", "text", { readOnly: true }), field("materialThickness", "Thickness Material", "number", { step: "0.001", readOnly: true }), lookup("supplierCode", "Supplier", "suppliers", "supplierCode", "supplierName", { showValue: true }), field("supplierName", "Nama Supplier", "text", { readOnly: true }), field("unitPrice", "Harga Satuan", "number", { required: true, step: "0.01" }), lookup("currencyCode", "Mata Uang", "currencies", "currencyCode", "currencyName"), field("notes", "Catatan", "textarea")]
   });
 }
 

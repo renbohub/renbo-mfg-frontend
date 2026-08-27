@@ -4,7 +4,7 @@
   const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
   const columns = Array.isArray(config.reportColumns) ? config.reportColumns : [];
   const inventoryMode = config.reportMode === "inventory-traceability";
-  const state = { rows: [], report: null, chart: null, selectedFgPartId: "" };
+  const state = { rows: [], report: null, chart: null, selectedFgPartId: "", inventoryMatrixMode: "qty" };
   let timer = null;
   const gallery = window.ListGallery?.init({
     root: "#report-list-root",
@@ -14,11 +14,24 @@
     status: (row) => row.status || row.readinessStatus || row.costingStatus || row.agingStatus || "Report",
   });
 
-  const label = (key) => String(key || "").replace(/([A-Z])/g, " $1").replace(/^./, (character) => character.toUpperCase());
+  const reportLabels = {
+    reworkSuccessfulQty: "Rework Berhasil",
+    reworkRecoveredValue: "Nilai Rework Terselamatkan",
+    scrapQty: "Scrap Final",
+    scrapValue: "Nilai Scrap",
+    scrapKg: "Berat Scrap",
+    missingUnitCostRows: "Part Belum Ada Biaya",
+    missingWeightRows: "Part Belum Ada Berat",
+    missingScrapPriceRows: "Scrap Belum Ada Harga/KG",
+  };
+  const label = (key) => reportLabels[key] || String(key || "").replace(/([A-Z])/g, " $1").replace(/^./, (character) => character.toUpperCase());
   const numberFrom = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
-  const isCurrencyKey = (key) => /cost|amount|revenue|margin|cogs|spend|price/i.test(key);
+  const isCurrencyKey = (key) => /cost|amount|revenue|margin|cogs|spend|price|value/i.test(key);
   const isPercentKey = (key) => /percent|coverage|rate|efficiency/i.test(key);
   const displayValue = (key, value) => {
+    if (/Rows$/.test(key)) return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(numberFrom(value));
+    if (["reworkSuccessfulQty", "scrapQty"].includes(key)) return `${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(numberFrom(value))} PCS`;
+    if (key === "scrapKg") return `${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 }).format(numberFrom(value))} KG`;
     if (isPercentKey(key)) return `${new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(numberFrom(value))}%`;
     if (isCurrencyKey(key)) return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(numberFrom(value));
     return new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(numberFrom(value));
@@ -31,10 +44,16 @@
   }
   function renderSummary() {
     const entries = Object.entries(state.report?.summary || {});
+    const notes = {
+      reworkSuccessfulQty: "Qty Good dari Work Order Rework",
+      reworkRecoveredValue: "Aset terselamatkan dalam Rupiah",
+      scrapQty: "Keputusan final QC dalam PCS",
+      scrapValue: "Estimasi nilai jual scrap dalam Rupiah",
+    };
     entries.slice(0, 4).forEach(([key, value], index) => {
       document.getElementById(`report-label-${index}`).textContent = label(key);
       document.getElementById(`report-value-${index}`).textContent = displayValue(key, value);
-      document.getElementById(`report-note-${index}`).textContent = "Sesuai filter laporan";
+      document.getElementById(`report-note-${index}`).textContent = notes[key] || "Sesuai filter laporan";
     });
     for (let index = entries.length; index < 4; index += 1) {
       document.getElementById(`report-label-${index}`).textContent = "No Data";
@@ -80,7 +99,7 @@
       ? `${Math.round(value).toLocaleString("id-ID")} ${uom}`
       : `${value.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${uom}`;
     if (uom !== "KG" || numberFrom(grossWeight) <= 0) return primary;
-    return `${primary} / ≈ ${Math.round(value / numberFrom(grossWeight)).toLocaleString("id-ID")} PCS`;
+    return `${primary} / ~ ${Math.round(value / numberFrom(grossWeight)).toLocaleString("id-ID")} PCS`;
   };
   const matrixBasePartCode = (partCode) => String(partCode || "").replace(/-\d{3}$/, "-000");
   const matrixPartLabel = (partNumber, _partName, partCode) => String(partNumber || partCode || "-").trim();
@@ -99,6 +118,32 @@
     if (/INSP|QC|PACK|ASSY|ASSEMB/.test(label)) return 50;
     return 35;
   };
+  const matrixRupiah = (value) => new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(numberFrom(value));
+  const matrixValuationAmount = (quantity, uomCode, valuation, grossWeight = 0) => {
+    const qtyValue = numberFrom(quantity);
+    if (!qtyValue) return { amount: 0, missing: false };
+    if (!valuation?.priced || numberFrom(valuation.unitPriceIdr) <= 0) return { amount: 0, missing: true };
+    const qtyUom = String(uomCode || "PCS").toUpperCase();
+    const priceUom = String(valuation.uomCode || qtyUom).toUpperCase();
+    let pricedQty = qtyValue;
+    if (priceUom !== qtyUom) {
+      if (shared.isDiscreteUom(priceUom) && shared.isDiscreteUom(qtyUom)) pricedQty = qtyValue;
+      else if (priceUom === "PCS" && qtyUom === "KG" && numberFrom(grossWeight) > 0) pricedQty = qtyValue / numberFrom(grossWeight);
+      else if (priceUom === "KG" && shared.isDiscreteUom(qtyUom) && numberFrom(grossWeight) > 0) pricedQty = qtyValue * numberFrom(grossWeight);
+      else return { amount: 0, missing: true };
+    }
+    return { amount: pricedQty * numberFrom(valuation.unitPriceIdr), missing: false };
+  };
+  const matrixValueLabel = (value, missing, hasQuantity = true) => {
+    if (!hasQuantity) return "";
+    if (missing && numberFrom(value) > 0) return `${matrixRupiah(value)} + harga belum lengkap`;
+    if (missing) return "Belum ada harga";
+    return matrixRupiah(value);
+  };
   function buildInventoryMatrix(fg) {
     const lines = fg?.traceLines || [];
     const partNumberByBaseCode = new Map([[matrixBasePartCode(fg.fgPartCode), fg.fgPartNumber]]);
@@ -113,6 +158,12 @@
         partNumber: resolvedPartNumber,
       };
     };
+    const valuationByPartNumber = new Map();
+    if (fg.fgPartNumber && fg.fgValuation?.priced) valuationByPartNumber.set(fg.fgPartNumber, fg.fgValuation);
+    lines.forEach((line) => {
+      const partNumber = line.partNumber || partNumberByBaseCode.get(matrixBasePartCode(line.partCode));
+      if (partNumber && line.valuation?.priced && !valuationByPartNumber.has(partNumber)) valuationByPartNumber.set(partNumber, line.valuation);
+    });
     const wipByPart = new Map();
     for (const line of lines.filter((row) => row.category === "WIP")) {
       const part = identity(line);
@@ -158,6 +209,17 @@
         fgReserved: 0,
         fgFree: 0,
         stages: Object.fromEntries(stages.map((stage) => [stage, 0])),
+        values: {
+          material: { onHand: 0, reserved: 0, qc: 0, available: 0, inbound: 0 },
+          fg: { onHand: 0, reserved: 0, free: 0 },
+          stages: Object.fromEntries(stages.map((stage) => [stage, 0])),
+        },
+        missingValues: {
+          material: { onHand: false, reserved: false, qc: false, available: false, inbound: false },
+          fg: { onHand: false, reserved: false, free: false },
+          stages: Object.fromEntries(stages.map((stage) => [stage, false])),
+        },
+        priceSources: new Set(),
       });
       const row = grouped.get(key);
       row.rank = Math.min(row.rank, rank);
@@ -166,41 +228,81 @@
       if ((!row.partCode || row.partCode === "-") && partCode) row.partCode = matrixBasePartCode(partCode);
       return row;
     };
+    const addValue = (row, bucket, field, quantity, uomCode, valuation, grossWeight = 0) => {
+      const result = matrixValuationAmount(quantity, uomCode, valuation, grossWeight);
+      row.values[bucket][field] = numberFrom(row.values[bucket][field]) + result.amount;
+      row.missingValues[bucket][field] = Boolean(row.missingValues[bucket][field] || result.missing);
+      if (valuation?.priced && valuation.source) row.priceSources.add(valuation.source);
+    };
     const root = ensure({ partNumber: fg.fgPartNumber, partName: fg.fgPartName, partCode: fg.fgPartCode, rank: 0 });
     // FG tetap harus terlihat saat seluruh stock sudah reserved. Menggunakan
     // qtyAvailable di sini dahulu membuat FG COMP 20 pcs hilang dari matrix.
-    root.fgOnHand += Math.round(uomStock(fg.fgStock, "pcs", "qtyOnHand"));
-    root.fgReserved += Math.round(uomStock(fg.fgStock, "pcs", "qtyReserved"));
-    root.fgFree += Math.round(uomStock(fg.fgStock, "pcs", "qtyAvailable"));
+    const rootFgOnHand = Math.round(uomStock(fg.fgStock, "pcs", "qtyOnHand"));
+    const rootFgReserved = Math.round(uomStock(fg.fgStock, "pcs", "qtyReserved"));
+    const rootFgFree = Math.round(uomStock(fg.fgStock, "pcs", "qtyAvailable"));
+    root.fgOnHand += rootFgOnHand;
+    root.fgReserved += rootFgReserved;
+    root.fgFree += rootFgFree;
+    addValue(root, "fg", "onHand", rootFgOnHand, "PCS", fg.fgValuation);
+    addValue(root, "fg", "reserved", rootFgReserved, "PCS", fg.fgValuation);
+    addValue(root, "fg", "free", rootFgFree, "PCS", fg.fgValuation);
     for (const line of lines) {
       const part = identity(line);
       const row = ensure({ partNumber: part.partNumber, partName: line.partName, partCode: line.partCode, rank: line.category === "PURCHASE_PART" ? 2 : 1 });
       if (line.category === "MATERIAL") {
         row.materialUomCode = "KG";
         row.grossWeight = numberFrom(line.grossWeightPerPieceKg);
-        row.materialOnHand += uomStock(line.stock, "kg", "qtyOnHand");
-        row.materialReserved += uomStock(line.stock, "kg", "qtyReserved");
-        row.materialQC += uomStock(line.stock, "kg", "qtyQC");
-        row.materialAvailable += uomStock(line.stock, "kg", "qtyAvailable");
-        row.materialPlannedAllocation += plannedAllocatedByUom(line, "kg") || plannedAllocatedByUom(line, "pcs") * row.grossWeight;
+        const quantities = {
+          onHand: uomStock(line.stock, "kg", "qtyOnHand"),
+          reserved: uomStock(line.stock, "kg", "qtyReserved"),
+          qc: uomStock(line.stock, "kg", "qtyQC"),
+          available: uomStock(line.stock, "kg", "qtyAvailable"),
+          inbound: plannedAllocatedByUom(line, "kg") || plannedAllocatedByUom(line, "pcs") * row.grossWeight,
+        };
+        row.materialOnHand += quantities.onHand;
+        row.materialReserved += quantities.reserved;
+        row.materialQC += quantities.qc;
+        row.materialAvailable += quantities.available;
+        row.materialPlannedAllocation += quantities.inbound;
+        Object.entries(quantities).forEach(([field, value]) => addValue(row, "material", field, value, "KG", line.valuation, row.grossWeight));
       } else if (line.category === "PURCHASE_PART") {
         const uom = String(line.requirementUomCode || "PCS").toUpperCase();
         row.materialUomCode = uom;
-        row.materialOnHand += uomStock(line.stock, uom.toLowerCase(), "qtyOnHand");
-        row.materialReserved += uomStock(line.stock, uom.toLowerCase(), "qtyReserved");
-        row.materialQC += uomStock(line.stock, uom.toLowerCase(), "qtyQC");
-        row.materialAvailable += uomStock(line.stock, uom.toLowerCase(), "qtyAvailable");
-        row.materialPlannedAllocation += plannedAllocatedByUom(line, uom);
+        const quantities = {
+          onHand: uomStock(line.stock, uom.toLowerCase(), "qtyOnHand"),
+          reserved: uomStock(line.stock, uom.toLowerCase(), "qtyReserved"),
+          qc: uomStock(line.stock, uom.toLowerCase(), "qtyQC"),
+          available: uomStock(line.stock, uom.toLowerCase(), "qtyAvailable"),
+          inbound: plannedAllocatedByUom(line, uom),
+        };
+        row.materialOnHand += quantities.onHand;
+        row.materialReserved += quantities.reserved;
+        row.materialQC += quantities.qc;
+        row.materialAvailable += quantities.available;
+        row.materialPlannedAllocation += quantities.inbound;
+        Object.entries(quantities).forEach(([field, value]) => addValue(row, "material", field, value, uom, line.valuation));
       }
       else if (line.category === "COMPONENT_FG") {
-        row.fgOnHand += Math.round(uomStock(line.stock, "pcs", "qtyOnHand"));
-        row.fgReserved += Math.round(uomStock(line.stock, "pcs", "qtyReserved"));
-        row.fgFree += Math.round(uomStock(line.stock, "pcs", "qtyAvailable"));
+        const quantities = {
+          onHand: Math.round(uomStock(line.stock, "pcs", "qtyOnHand")),
+          reserved: Math.round(uomStock(line.stock, "pcs", "qtyReserved")),
+          free: Math.round(uomStock(line.stock, "pcs", "qtyAvailable")),
+        };
+        row.fgOnHand += quantities.onHand;
+        row.fgReserved += quantities.reserved;
+        row.fgFree += quantities.free;
+        Object.entries(quantities).forEach(([field, value]) => addValue(row, "fg", field, value, "PCS", line.valuation));
       }
       else if (line.category === "WIP") {
         const stage = stageByLine.get(`${part.key}|${line.partCode}`) || matrixProcessLabel(line);
-        if (!Object.prototype.hasOwnProperty.call(row.stages, stage)) row.stages[stage] = 0;
-        row.stages[stage] = numberFrom(row.stages[stage]) + Math.round(uomStock(line.stock, "pcs", "qtyOnHand"));
+        if (!Object.prototype.hasOwnProperty.call(row.stages, stage)) {
+          row.stages[stage] = 0;
+          row.values.stages[stage] = 0;
+          row.missingValues.stages[stage] = false;
+        }
+        const stageQty = Math.round(uomStock(line.stock, "pcs", "qtyOnHand"));
+        row.stages[stage] = numberFrom(row.stages[stage]) + stageQty;
+        addValue(row, "stages", stage, stageQty, "PCS", line.valuation?.priced ? line.valuation : valuationByPartNumber.get(part.partNumber));
       }
     }
     const rows = [...grouped.values()].filter((row) => row.label && row.label !== "-")
@@ -225,6 +327,7 @@
       return labels.join(" + ") || "0 PCS";
     };
     const headers = ["P/N", "Part Code", "Part Name", "Material On Hand", "Reserved / Allocated", "QC Hold", "Material Free", "Inbound Allocation", ...stages, "FG On Hand", "FG Reserved", "FG Free", "Total Physical (PCS)"];
+    const valueHeaders = ["P/N", "Part Code", "Part Name", "Material On Hand (Rp)", "Reserved / Allocated (Rp)", "QC Hold (Rp)", "Material Free (Rp)", "Inbound Allocation (Rp)", ...stages.map((stage) => `${stage} (Rp)`), "FG On Hand (Rp)", "FG Reserved (Rp)", "FG Free (Rp)", "Total Nilai Stock (Rp)"];
     const totalsByUom = (field) => {
       const totals = new Map();
       rows.forEach((row) => totals.set(row.materialUomCode, numberFrom(totals.get(row.materialUomCode)) + numberFrom(row[field])));
@@ -249,9 +352,63 @@
       matrixQty(rows.reduce((sum, row) => sum + numberFrom(row.fgFree), 0), "PCS"),
       horizontalGrandTotalLabel,
     ];
+    const horizontalValue = (row) => {
+      const amount = numberFrom(row.values.material.onHand)
+        + stages.reduce((sum, stage) => sum + numberFrom(row.values.stages[stage]), 0)
+        + numberFrom(row.values.fg.onHand);
+      const missing = Boolean(row.missingValues.material.onHand
+        || stages.some((stage) => row.missingValues.stages[stage])
+        || row.missingValues.fg.onHand);
+      return { amount, missing };
+    };
+    const aggregateValue = (bucket, field, qtyField) => {
+      const amount = rows.reduce((sum, row) => sum + numberFrom(row.values[bucket][field]), 0);
+      const missing = rows.some((row) => row.missingValues[bucket][field]);
+      const hasQuantity = rows.some((row) => numberFrom(row[qtyField]) !== 0);
+      return matrixValueLabel(amount, missing, hasQuantity);
+    };
+    const aggregateStageValue = (stage) => matrixValueLabel(
+      rows.reduce((sum, row) => sum + numberFrom(row.values.stages[stage]), 0),
+      rows.some((row) => row.missingValues.stages[stage]),
+      rows.some((row) => numberFrom(row.stages[stage]) !== 0),
+    );
+    const valueRows = rows.map((row) => {
+      const totalValue = horizontalValue(row);
+      return [
+        row.label,
+        row.partCode,
+        row.partName,
+        matrixValueLabel(row.values.material.onHand, row.missingValues.material.onHand, row.materialOnHand !== 0),
+        matrixValueLabel(row.values.material.reserved, row.missingValues.material.reserved, row.materialReserved !== 0),
+        matrixValueLabel(row.values.material.qc, row.missingValues.material.qc, row.materialQC !== 0),
+        matrixValueLabel(row.values.material.available, row.missingValues.material.available, row.materialAvailable !== 0),
+        matrixValueLabel(row.values.material.inbound, row.missingValues.material.inbound, row.materialPlannedAllocation !== 0),
+        ...stages.map((stage) => matrixValueLabel(row.values.stages[stage], row.missingValues.stages[stage], row.stages[stage] !== 0)),
+        matrixValueLabel(row.values.fg.onHand, row.missingValues.fg.onHand, row.fgOnHand !== 0),
+        matrixValueLabel(row.values.fg.reserved, row.missingValues.fg.reserved, row.fgReserved !== 0),
+        matrixValueLabel(row.values.fg.free, row.missingValues.fg.free, row.fgFree !== 0),
+        matrixValueLabel(totalValue.amount, totalValue.missing, true),
+      ];
+    });
+    const grandValue = rows.reduce((sum, row) => sum + horizontalValue(row).amount, 0);
+    const grandValueMissing = rows.some((row) => horizontalValue(row).missing);
+    const valueTotals = [
+      "TOTAL NILAI", "-", "Snapshot nilai referensi",
+      aggregateValue("material", "onHand", "materialOnHand"),
+      aggregateValue("material", "reserved", "materialReserved"),
+      aggregateValue("material", "qc", "materialQC"),
+      aggregateValue("material", "available", "materialAvailable"),
+      aggregateValue("material", "inbound", "materialPlannedAllocation"),
+      ...stages.map(aggregateStageValue),
+      aggregateValue("fg", "onHand", "fgOnHand"),
+      aggregateValue("fg", "reserved", "fgReserved"),
+      aggregateValue("fg", "free", "fgFree"),
+      matrixValueLabel(grandValue, grandValueMissing, true),
+    ];
     return {
       stages,
       headers,
+      valueHeaders,
       rows,
       values: [...rows.map((row) => [
           row.label,
@@ -268,7 +425,10 @@
           row.fgFree ? matrixQty(row.fgFree, "PCS") : "",
           horizontalPhysicalLabel(row),
         ]), totals],
+      valueValues: [...valueRows, valueTotals],
       totals,
+      valueTotals,
+      valuationMissingRows: rows.filter((row) => horizontalValue(row).missing).length,
     };
   }
   const inventorySubtitle = (fg) => `${fg.fgPartCode} | ${[fg.fgPartNumber, fg.fgPartName].filter(Boolean).join(" - ")} | BOM ${fg.mbomNoReg || "-"} Rev ${fg.mbomRevision ?? "-"} | Snapshot ${new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeStyle: "short" }).format(new Date())}`;
@@ -311,18 +471,36 @@
   }
   function inventoryMatrixPayload(fg) {
     const matrix = buildInventoryMatrix(fg);
+    const groupHeaders = [{ label: "WIP On Hand", start: 8, span: matrix.stages.length }, { label: "Finished Goods", start: 8 + matrix.stages.length, span: 3 }, { label: "Horizontal Total", start: 11 + matrix.stages.length, span: 1 }].filter((group) => group.span > 0);
+    const columnWidths = matrix.headers.map((_header, index) => index === 0 ? 1.4 : index === 1 ? 1.35 : index === 2 ? 1.25 : index >= 3 && index <= 7 ? 1.35 : 1);
+    const alignments = matrix.headers.map((_header, index) => index < 3 ? "left" : "center");
+    const valueSubtitle = `Nilai referensi per ${new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date())}: qty x harga aktif dalam IDR; part in-house fallback Live MBOM Costing${matrix.valuationMissingRows ? `; ${matrix.valuationMissingRows} baris belum lengkap harganya` : ""}.`;
     return {
       title: `Inventory Stock Matrix - ${fg.fgPartCode}`,
-      subtitle: inventorySubtitle(fg),
+      subtitle: `${inventorySubtitle(fg)} | Tampilan Qty PCS`,
       fileName: `inventory-matrix-${fg.fgPartCode}-${new Date().toISOString().slice(0, 10)}`,
       headers: matrix.headers,
       rows: matrix.values,
       summary: inventorySummary(fg),
       pageSize: matrix.headers.length > 8 ? "A3" : "A4",
       keepColumnsTogether: true,
-      columnWidths: matrix.headers.map((_header, index) => index === 0 ? 1.4 : index === 1 ? 1.35 : index === 2 ? 1.25 : index >= 3 && index <= 7 ? 1.35 : 1),
-      alignments: matrix.headers.map((_header, index) => index < 3 ? "left" : "center"),
-      groupHeaders: [{ label: "WIP On Hand", start: 8, span: matrix.stages.length }, { label: "Finished Goods", start: 8 + matrix.stages.length, span: 3 }, { label: "Horizontal Total", start: 11 + matrix.stages.length, span: 1 }].filter((group) => group.span > 0),
+      columnWidths,
+      alignments,
+      groupHeaders,
+      sheets: [
+        { name: "Qty PCS", title: `Stock Matrix Qty - ${fg.fgPartCode}`, subtitle: inventorySubtitle(fg), headers: matrix.headers, rows: matrix.values, groupHeaders },
+        { name: "Nilai Rupiah", title: `Stock Matrix Rupiah - ${fg.fgPartCode}`, subtitle: valueSubtitle, headers: matrix.valueHeaders, rows: matrix.valueValues, groupHeaders },
+      ],
+      sections: [{
+        title: `Inventory Stock Matrix Rupiah - ${fg.fgPartCode}`,
+        subtitle: valueSubtitle,
+        headers: matrix.valueHeaders,
+        rows: matrix.valueValues,
+        keepColumnsTogether: true,
+        columnWidths,
+        alignments,
+        groupHeaders,
+      }],
     };
   }
   function syncInventoryExportButtons() {
@@ -332,11 +510,25 @@
   function renderInventoryMatrixDialog() {
     const fg = selectedFg(); if (!fg) return;
     const matrix = buildInventoryMatrix(fg);
+    const valueMode = state.inventoryMatrixMode === "value";
+    const headers = valueMode ? matrix.valueHeaders : matrix.headers;
+    const values = valueMode ? matrix.valueValues : matrix.values;
     document.getElementById("inventory-matrix-title").textContent = `Stock Matrix - ${fg.fgPartCode}`;
-    document.getElementById("inventory-matrix-subtitle").textContent = inventorySubtitle(fg);
+    document.getElementById("inventory-matrix-subtitle").textContent = `${inventorySubtitle(fg)} | ${valueMode ? "Nilai Rupiah" : "Qty PCS"}`;
+    const mode = document.getElementById("inventory-matrix-mode");
+    if (mode) mode.textContent = valueMode ? "NILAI RUPIAH" : "QTY PCS";
+    const change = document.getElementById("inventory-matrix-change");
+    if (change) {
+      change.textContent = valueMode ? "Change ke Qty" : "Change ke Rupiah";
+      change.setAttribute("aria-pressed", valueMode ? "true" : "false");
+    }
     const groupHeader = `<tr><th colspan="8"></th>${matrix.stages.length ? `<th colspan="${matrix.stages.length}">WIP On Hand</th>` : ""}<th colspan="3">Finished Goods</th><th colspan="1">Horizontal Total</th></tr>`;
-    document.getElementById("inventory-matrix-head").innerHTML = `${groupHeader}<tr>${matrix.headers.map((header) => `<th>${shared.escapeHtml(header)}</th>`).join("")}</tr>`;
-    document.getElementById("inventory-matrix-body").innerHTML = matrix.values.map((row) => `<tr>${row.map((cell) => `<td>${shared.escapeHtml(cell)}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${matrix.headers.length}">Belum ada saldo untuk ditampilkan.</td></tr>`;
+    document.getElementById("inventory-matrix-head").innerHTML = `${groupHeader}<tr>${headers.map((header) => `<th>${shared.escapeHtml(header)}</th>`).join("")}</tr>`;
+    document.getElementById("inventory-matrix-body").innerHTML = values.map((row) => `<tr>${row.map((cell) => `<td class="${String(cell).includes("Belum ada harga") || String(cell).includes("harga belum lengkap") ? "is-unpriced" : ""}">${shared.escapeHtml(cell)}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${headers.length}">Belum ada saldo untuk ditampilkan.</td></tr>`;
+    const note = document.getElementById("inventory-matrix-note");
+    if (note) note.textContent = valueMode
+      ? `Nilai = qty × harga referensi aktif dalam IDR. Part in-house memakai fallback Live MBOM Costing. ${matrix.valuationMissingRows ? `${matrix.valuationMissingRows} baris mempunyai harga yang belum lengkap dan ditandai pada tabel.` : "Seluruh baris stock fisik mempunyai referensi harga."}`
+      : "Free = On Hand - Reserved - QC. Total horizontal = Material On Hand dalam PCS + seluruh WIP On Hand + FG On Hand. Reserved/Allocated, QC, dan Free tidak dijumlah ulang. Inbound belum menjadi stock.";
   }
   const groupValue = (line, grouping) => grouping === "process" ? processLabel(line) : grouping === "level" ? `Level ${numberFrom(line.minimumLevel)}` : traceCategory(line.category);
   function renderInventoryOptions() {
@@ -403,6 +595,13 @@
     state.chart?.destroy();
     const chart = state.report?.chart || {};
     const rawSeries = Array.isArray(chart.series) ? chart.series : [];
+    const chartRoot = document.querySelector("#report-chart");
+    if (!Array.isArray(chart.labels) || !chart.labels.length) {
+      chartRoot.innerHTML = '<div class="report-chart-empty"><strong>Belum ada hasil QC final</strong><span>Grafik muncul setelah ada judgment rework atau scrap pada bulan terpilih.</span></div>';
+      state.chart = null;
+      return;
+    }
+    chartRoot.innerHTML = "";
     const multiSeries = rawSeries.some((item) => typeof item === "object");
     const options = multiSeries ? {
       chart: { type: "line", height: 290, toolbar: { show: false } }, series: rawSeries,
@@ -413,7 +612,7 @@
       xaxis: { categories: chart.labels || [] }, plotOptions: { bar: { borderRadius: 6, distributed: true } },
       colors: ["#4f46e5", "#10b981", "#f59e0b", "#ef4444"], dataLabels: { enabled: false }, legend: { show: false },
     };
-    state.chart = new ApexCharts(document.querySelector("#report-chart"), options);
+    state.chart = new ApexCharts(chartRoot, options);
     state.chart.render();
   }
   async function load() {
@@ -476,7 +675,8 @@
   ));
   document.getElementById("inventory-detail-xlsx")?.addEventListener("click", function () { const fg = selectedFg(); if (fg) shared.exportTablePayload(inventoryDetailPayload(fg), "xlsx", this); });
   document.getElementById("inventory-detail-pdf")?.addEventListener("click", function () { const fg = selectedFg(); if (fg) shared.exportTablePayload(inventoryDetailPayload(fg), "pdf", this); });
-  document.getElementById("inventory-matrix-open")?.addEventListener("click", () => { const dialog = document.getElementById("inventory-matrix-dialog"); renderInventoryMatrixDialog(); if (dialog?.showModal) dialog.showModal(); else dialog?.setAttribute("open", ""); });
+  document.getElementById("inventory-matrix-open")?.addEventListener("click", () => { const dialog = document.getElementById("inventory-matrix-dialog"); state.inventoryMatrixMode = "qty"; renderInventoryMatrixDialog(); if (dialog?.showModal) dialog.showModal(); else dialog?.setAttribute("open", ""); });
+  document.getElementById("inventory-matrix-change")?.addEventListener("click", () => { state.inventoryMatrixMode = state.inventoryMatrixMode === "qty" ? "value" : "qty"; renderInventoryMatrixDialog(); });
   document.getElementById("inventory-matrix-close")?.addEventListener("click", () => document.getElementById("inventory-matrix-dialog")?.close());
   document.getElementById("inventory-matrix-dialog")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) event.currentTarget.close(); });
   document.getElementById("inventory-matrix-xlsx")?.addEventListener("click", function () { const fg = selectedFg(); if (fg) shared.exportTablePayload(inventoryMatrixPayload(fg), "xlsx", this); });

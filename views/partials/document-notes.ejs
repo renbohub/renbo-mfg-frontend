@@ -1,0 +1,5 @@
+<% const notes = typeof documentNotes === 'object' && documentNotes ? documentNotes : {}; %>
+<section class="document-notes <%= notes.className || '' %>" aria-labelledby="<%= notes.id || 'document-notes' %>-label">
+  <label id="<%= notes.id || 'document-notes' %>-label" for="<%= notes.controlId || notes.id || 'document-notes-control' %>"><%= notes.label || 'Catatan Dokumen' %></label>
+  <% if (notes.editable && notes.controlHtml) { %><div class="document-notes__control"><%- notes.controlHtml %></div><% } else { %><p class="document-notes__value"><%= notes.value || 'Tidak ada catatan.' %></p><% } %>
+</section>

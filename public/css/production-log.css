@@ -22,6 +22,11 @@
 .production-log-form input:focus,.production-log-form select:focus,.production-log-form textarea:focus{border-color:#756bed;box-shadow:0 0 0 3px rgba(79,70,229,.1)}
 .production-log-form input[readonly]{border-color:#e4e8ee;background:#f5f7fa!important;color:#667085}
 .production-log-form .form-help{display:block;margin-top:7px;color:#7b8494;font-size:10px;line-height:1.45}
+.production-log-schedule-gate{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:13px;margin:0 20px 14px;padding:13px 14px;border:1px solid #f2cf8d;border-left:4px solid #d99016;border-radius:9px;background:#fffbeb;color:#714b12}
+.production-log-schedule-gate.d-none{display:none!important}
+.production-log-gate-mark{width:30px;height:30px;display:grid;place-items:center;border-radius:8px;background:#fef0c7;color:#b54708;font-size:15px;font-weight:850}
+.production-log-gate-copy{display:grid;gap:3px;min-width:0}.production-log-gate-copy strong{color:#7a4b0b;font-size:11px}.production-log-gate-copy p{margin:0;color:#8a5c1b;font-size:10px;line-height:1.45}.production-log-gate-status{width:max-content;margin-top:3px;padding:3px 7px;border-radius:5px;background:#fef0c7;color:#934f0d;font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.production-log-schedule-gate .btn{min-height:34px;white-space:nowrap;background:#fff;font-size:9px;font-weight:750}
 .production-reference-fields{grid-template-columns:repeat(4,minmax(0,1fr))!important;padding-top:18px!important}
 .production-result-fields{grid-template-columns:repeat(3,minmax(0,1fr))!important}
 .production-output-field input{border-color:#b9b3fb;background:#fafaff}
@@ -69,6 +74,7 @@
   .production-log-section-header .form-required-note,.production-downtime-actions{grid-column:1/-1}
   .production-downtime-actions{width:100%;justify-content:space-between;padding-top:5px}
   .production-log-plan-summary{grid-template-columns:1fr;margin:0 16px}
+  .production-log-schedule-gate{grid-template-columns:30px minmax(0,1fr);margin:0 16px 14px}.production-log-schedule-gate .btn{grid-column:1/-1;width:100%}
   .production-downtime-list{padding:16px}
   .production-downtime-grid{grid-template-columns:1fr}
   .production-ng-reason-row{grid-template-columns:1fr}

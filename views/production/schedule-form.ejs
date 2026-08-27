@@ -1,9 +1,9 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
-<main class="ops-page app-container">
+<main class="ops-page app-container transaction-form-page">
   <nav class="module-breadcrumb"><a href="/modules/production">Production</a><span>/</span><a href="/modules/production/daily-production-schedules">Daily Production Schedule</a><span>/</span><b><%= mode === 'edit' ? 'Revisi' : 'Buat' %></b></nav>
-  <section class="ops-detail-titlebar"><div><p class="ops-eyebrow">Production</p><h1><%= mode === 'edit' ? 'Revisi Daily Production Schedule' : 'Buat Daily Production Schedule' %></h1><p><%= mode === 'edit' ? 'Tanggal, shift, mesin, operator, sequence, dan target tersisa dapat disesuaikan tanpa menghapus progres produksi.' : 'Jadwal per tanggal dan shift. Work Order akan mengisi MO, part, proses, mesin, dan UOM secara otomatis bila tersedia.' %></p></div><a class="btn btn-outline-secondary" href="<%= mode === 'edit' ? '/modules/production/daily-production-schedules/' + encodeURIComponent(recordKey) : '/modules/production/daily-production-schedules' %>">Kembali</a></section>
+  <section class="ops-detail-titlebar transaction-command-header"><div><p class="ops-eyebrow">Production</p><h1><%= mode === 'edit' ? 'Revisi Daily Production Schedule' : 'Buat Daily Production Schedule' %></h1><p><%= mode === 'edit' ? 'Tanggal, shift, mesin, operator, sequence, dan target tersisa dapat disesuaikan tanpa menghapus progres produksi.' : 'Jadwal per tanggal dan shift. Work Order akan mengisi MO, part, proses, mesin, dan UOM secara otomatis bila tersedia.' %></p></div><div class="ops-title-actions"><button class="btn btn-primary brand-button" type="submit" form="production-schedule-form"><%= mode === 'edit' ? 'Simpan Revisi' : 'Simpan Jadwal' %></button><a class="btn btn-outline-secondary" href="<%= mode === 'edit' ? '/modules/production/daily-production-schedules/' + encodeURIComponent(recordKey) : '/modules/production/daily-production-schedules' %>">Kembali ke daftar</a></div></section>
   <div id="production-schedule-alert" class="alert d-none" role="alert"></div>
   <form id="production-schedule-form" class="ops-detail-card">
     <div class="module-form-section-title">Informasi Daily Schedule<span class="form-required-note">* Field wajib</span></div>
@@ -19,8 +19,9 @@
       <label class="span-2"><span>Catatan</span><textarea id="notes" rows="3"></textarea></label>
     </div>
     <datalist id="schedule-work-orders"></datalist>
-    <div class="module-form-actions"><a class="btn btn-outline-secondary" href="<%= mode === 'edit' ? '/modules/production/daily-production-schedules/' + encodeURIComponent(recordKey) : '/modules/production/daily-production-schedules' %>">Batal</a><button class="btn btn-primary brand-button" type="submit"><%= mode === 'edit' ? 'Simpan Revisi' : 'Simpan Jadwal' %></button></div>
+    <div class="module-form-actions transaction-progress-slot" aria-label="Kelengkapan form"></div>
   </form>
+  <%- include('../partials/document-comments', { documentComments: { recordKey: mode === 'edit' ? recordKey : null, showPending: mode !== 'edit', title: 'Komentar Daily Production Schedule', variant: 'receipt' } }) %>
 </main>
 <script id="production-schedule-config" type="application/json"><%- JSON.stringify({ mode, recordKey }).replace(/</g, '\\u003c') %></script>
 <%- include('../partials/footer') %>

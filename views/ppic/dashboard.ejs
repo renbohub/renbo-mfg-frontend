@@ -7,7 +7,7 @@
     <label class="toolbar-search ppic-search"><%- include('../partials/icon', { name: 'search' }) %><input id="ppic-search" type="search" placeholder="Cari data PPIC..."></label>
     <button id="ppic-filter" class="btn btn-outline-secondary" type="button" aria-controls="ppic-list-filter-panel" aria-expanded="false">Filter</button>
     <div class="toolbar-spacer"></div>
-    <% if (activePpicTab === 'mps') { %><a class="btn btn-outline-primary" href="/modules/planning-ppic/mps/workbench">MPS Workbench</a><% } %>
+    <% if (activePpicTab === 'mps') { %><a class="btn btn-outline-primary" href="/modules/planning-ppic/mps/workbench">Rolling MPS</a><% } %>
     <%- include('../partials/view-switcher') %>
     <button id="ppic-export" class="btn btn-export" type="button">Export CSV</button>
     <button id="ppic-primary" class="btn btn-primary brand-button" type="button"></button>

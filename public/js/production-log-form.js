@@ -8,6 +8,7 @@
   const recordKey = form.dataset.recordKey || "";
   const machineSelect = document.getElementById("machineCode");
   const scheduleSelect = document.getElementById("scheduleNumber");
+  const scheduleGate = document.getElementById("production-log-schedule-gate");
   const downtimeRows = document.getElementById("downtime-rows");
   const downtimeTemplate = document.getElementById("downtime-row-template");
   const coilPhaseRows = document.getElementById("coil-phase-rows");
@@ -15,6 +16,7 @@
   const ngReasonTemplate = document.getElementById("ng-reason-row-template");
   const submitButton = document.getElementById("production-log-submit");
   const schedules = new Map();
+  const ACTIVE_SCHEDULE_STATUSES = ["Draft", "Released", "In Progress"];
   const hmiMaster = { rejections: [], downtimes: [] };
 
   const element = (id) => document.getElementById(id);
@@ -305,10 +307,47 @@
     );
   }
 
+  function renderScheduleGate(machineCode, machineRows = [], readyRows = []) {
+    if (!scheduleGate) return;
+    if (!machineCode || readyRows.length || mode === "edit") {
+      scheduleGate.className = "production-log-schedule-gate d-none";
+      scheduleGate.innerHTML = "";
+      return;
+    }
+
+    const waitingRows = machineRows
+      .filter((row) => row.status !== "In Progress")
+      .sort((left, right) => {
+        const rank = (status) => status === "Released" ? 0 : 1;
+        return rank(left.status) - rank(right.status)
+          || new Date(left.scheduleDate || 0) - new Date(right.scheduleDate || 0)
+          || String(left.scheduleNumber || "").localeCompare(String(right.scheduleNumber || ""));
+      });
+    const primary = waitingRows[0];
+    const releasedCount = waitingRows.filter((row) => row.status === "Released").length;
+    const draftCount = waitingRows.filter((row) => row.status === "Draft").length;
+    const nextAction = releasedCount
+      ? "Daily Plan sudah Released. Buka dokumennya lalu jalankan Start Daily Plan."
+      : "Daily Plan masih Draft. Selesaikan Consume Material, lalu Start Daily Plan.";
+
+    scheduleGate.className = "production-log-schedule-gate";
+    scheduleGate.innerHTML = `
+      <span class="production-log-gate-mark" aria-hidden="true">!</span>
+      <div class="production-log-gate-copy">
+        <strong>Mesin ${escapeHtml(machineCode)} belum memiliki pekerjaan In Progress</strong>
+        <p>${escapeHtml(nextAction)} Production Entry baru dapat dicatat setelah proses tersebut.</p>
+        <span class="production-log-gate-status">${releasedCount} Released · ${draftCount} Draft</span>
+      </div>
+      ${primary ? `<a class="btn btn-outline-primary btn-sm" href="/modules/production/daily-production-schedules/${encodeURIComponent(primary.scheduleNumber)}">Buka Daily Plan</a>` : ""}`;
+  }
+
   function renderScheduleOptions(selectedScheduleNumber = "") {
     const machineCode = machineSelect.value;
-    const rows = [...schedules.values()].filter((row) => row.machineCode === machineCode).sort((left, right) => Number(left.schedulePriority || 100) - Number(right.schedulePriority || 100) || String(left.plannedStartTime || "99:99").localeCompare(String(right.plannedStartTime || "99:99")));
-    const options = rows.map((row) => {
+    const machineRows = [...schedules.values()]
+      .filter((row) => row.machineCode === machineCode)
+      .sort((left, right) => Number(left.schedulePriority || 100) - Number(right.schedulePriority || 100) || String(left.plannedStartTime || "99:99").localeCompare(String(right.plannedStartTime || "99:99")));
+    const readyRows = machineRows.filter((row) => row.status === "In Progress");
+    const options = readyRows.map((row) => {
       const remaining = Math.max(0, Number(row.plannedQty || 0) - Number(row.actualQty || 0));
       const label = [
         `${Number(row.schedulePriority || 100) <= 1 ? "PRIORITAS SHORTFALL · " : ""}${row.scheduleNumber}`,
@@ -320,29 +359,35 @@
       ].join(" · ");
       return `<option value="${escapeHtml(row.scheduleNumber)}">${escapeHtml(label)}</option>`;
     }).join("");
-    scheduleSelect.disabled = !machineCode || !rows.length;
+    scheduleSelect.disabled = !machineCode || !readyRows.length;
     scheduleSelect.innerHTML = !machineCode
       ? '<option value="">Pilih mesin terlebih dahulu</option>'
-      : rows.length
+      : readyRows.length
         ? `<option value="">Pilih Daily Production Schedule siap produksi</option>${options}`
-        : '<option value="">Belum ada Daily Production Schedule siap produksi</option>';
-    if (selectedScheduleNumber && rows.some((row) => row.scheduleNumber === selectedScheduleNumber)) {
+        : '<option value="">Belum ada DPS berstatus In Progress</option>';
+    renderScheduleGate(machineCode, machineRows, readyRows);
+    if (selectedScheduleNumber && readyRows.some((row) => row.scheduleNumber === selectedScheduleNumber)) {
       scheduleSelect.value = selectedScheduleNumber;
     }
   }
 
   async function loadSchedules() {
-    const payload = await api("/modules/api/production/daily-production-schedules?start=0&length=500&sourceModule=PPIC&status=In%20Progress");
+    const payload = await api("/modules/api/production/daily-production-schedules?start=0&length=500&sourceModule=PPIC");
     const rows = Array.isArray(payload.data) ? payload.data : [];
     rows
-      .filter((row) => row.status === "In Progress" && row.machineCode)
+      .filter((row) => ACTIVE_SCHEDULE_STATUSES.includes(row.status) && row.machineCode)
       .forEach((row) => schedules.set(row.scheduleNumber, row));
     const machines = [...new Map(
       [...schedules.values()].map((row) => [row.machineCode, { code: row.machineCode, name: row.machineName || "" }]),
     ).values()].sort((left, right) => left.code.localeCompare(right.code));
-    machineSelect.innerHTML = `<option value="">Pilih mesin</option>${machines.map((machine) => (
-      `<option value="${escapeHtml(machine.code)}">${escapeHtml(machine.code)}${machine.name ? ` · ${escapeHtml(machine.name)}` : ""}</option>`
-    )).join("")}`;
+    machineSelect.disabled = machines.length === 0;
+    machineSelect.innerHTML = `<option value="">${machines.length ? "Pilih mesin" : "Belum ada mesin pada Daily Plan aktif"}</option>${machines.map((machine) => {
+      const assigned = [...schedules.values()].filter((row) => row.machineCode === machine.code);
+      const readyCount = assigned.filter((row) => row.status === "In Progress").length;
+      const releasedCount = assigned.filter((row) => row.status === "Released").length;
+      const state = readyCount ? `${readyCount} siap entry` : releasedCount ? `${releasedCount} menunggu Start` : `${assigned.length} masih Draft`;
+      return `<option value="${escapeHtml(machine.code)}">${escapeHtml(machine.code)}${machine.name ? ` · ${escapeHtml(machine.name)}` : ""} — ${escapeHtml(state)}</option>`;
+    }).join("")}`;
     renderScheduleOptions();
   }
 

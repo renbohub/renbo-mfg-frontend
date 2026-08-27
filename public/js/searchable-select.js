@@ -1,9 +1,10 @@
 (function () {
-  const SELECTOR = "select[data-searchable], .ppic-page select:not([data-searchable-disabled]), .ops-modal select:not([data-searchable-disabled]), [data-enterprise-form] select:not([data-searchable-disabled])";
+  const ELIGIBLE = "select:not([data-searchable-disabled]):not([data-enterprise-lookup])";
+  const SELECTOR = `select[data-searchable]:not([data-enterprise-lookup]), .ppic-page ${ELIGIBLE}, .ops-modal ${ELIGIBLE}, [data-enterprise-form] ${ELIGIBLE}`;
   const esc = (value) => String(value ?? "").replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
 
   function enhance(select) {
-    if (!select || select.dataset.searchableReady === "true" || select.multiple || select.size > 1) return;
+    if (!select || select.dataset.searchableReady === "true" || select.hasAttribute("data-enterprise-lookup") || select.classList.contains("select2-hidden-accessible") || select.multiple || select.size > 1) return;
     select.dataset.searchableReady = "true";
     const wrap = document.createElement("div");
     wrap.className = "searchable-select";

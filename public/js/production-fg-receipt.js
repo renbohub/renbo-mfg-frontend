@@ -99,7 +99,7 @@
     element("fg-pending-body").innerHTML = rows.map((row) => `
       <tr data-inspection="${escapeHtml(row.inspectionNumber)}">
         <td><div class="fg-cell-stack">${row.inspectionNumber
-          ? reference(`/modules/production/quality-inspections/${encodeURIComponent(row.inspectionNumber)}`, row.inspectionNumber)
+          ? reference(`/modules/qc/quality-inspections/${encodeURIComponent(row.inspectionNumber)}`, row.inspectionNumber)
           : reference(`/modules/planning-ppic/monthly-production-plans/${encodeURIComponent(row.monthlyProductionPlanNumber)}`, row.monthlyProductionPlanNumber, "MPP")}<small>${formatDate(row.inspectionDate || row.dueDate)}</small></div></td>
         <td><div class="fg-cell-stack"><span class="fg-receipt-state ${escapeHtml(String(row.receiptState || "").toLowerCase())}">${escapeHtml(stateLabels[row.receiptState] || row.receiptState || "Pending")}</span>${row.blockers?.[0]?.message ? `<small title="${escapeHtml(row.blockers[0].message)}">${escapeHtml(row.blockers[0].code || "BLOCKER")}</small>` : ""}</div></td>
         <td>${reference(`/modules/production/production-logs/${encodeURIComponent(row.productionLogNumber)}`, row.productionLogNumber)}</td>
@@ -123,7 +123,7 @@
       <tr>
         <td>${reference(`/modules/production/fg-receipt/${encodeURIComponent(row.movementNumber)}`, row.movementNumber)}</td>
         <td>${formatDate(row.receivedAt, true)}</td>
-        <td>${reference(`/modules/production/quality-inspections/${encodeURIComponent(row.inspectionNumber)}`, row.inspectionNumber)}</td>
+        <td>${reference(`/modules/qc/quality-inspections/${encodeURIComponent(row.inspectionNumber)}`, row.inspectionNumber)}</td>
         <td><div class="fg-cell-stack">${reference(`/modules/production/manufacturing-orders/${encodeURIComponent(row.moNumber)}`, row.moNumber, "MO")}${reference(`/modules/production/work-orders/${encodeURIComponent(row.woNumber)}`, row.woNumber, "WO")}</div></td>
         <td>${reference(`/modules/production/production-logs/${encodeURIComponent(row.productionLogNumber)}`, row.productionLogNumber)}</td>
         <td><div class="fg-cell-stack fg-part"><strong>${escapeHtml(row.fgPart?.partCode || "-")}</strong><small>${escapeHtml(row.fgPart?.partName || row.fgPart?.partNumber || "-")}</small></div></td>

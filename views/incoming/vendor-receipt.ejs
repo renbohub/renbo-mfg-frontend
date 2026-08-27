@@ -1,0 +1,97 @@
+<%- include('../partials/head', { pageStyles: ['/vendor/tabulator/css/tabulator.min.css'] }) %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+
+<main class="app-container ops-page vendor-receipt-page">
+  <nav class="module-breadcrumb" aria-label="Breadcrumb"><a href="/modules/<%= module.slug %>"><%= module.label %></a><span>/</span><a href="/modules/<%= module.slug %>/<%= page.slug %>"><%= page.label %></a><span>/</span><b><%= recordKey %></b></nav>
+  <article class="vendor-receipt-document">
+    <header class="vendor-receipt-command-header" data-vendor-receipt-header>
+      <div class="vendor-receipt-command-bar">
+        <div class="vendor-receipt-document-title">
+          <p>VENDOR RECEIPT</p>
+          <div class="vendor-receipt-title-row">
+            <h1 id="vendor-receipt-title"><%= recordKey %></h1>
+            <span id="vendor-receipt-status" class="badge status-badge vendor-receipt-status">Memuat</span>
+          </div>
+          <span id="vendor-receipt-subtitle">Memuat dokumen pengiriman vendor…</span>
+        </div>
+        <div class="vendor-receipt-command-meta">
+          <div><small>Posting Rule</small><b>QC Hold</b></div>
+          <button id="vendor-receipt-submit" class="btn btn-primary brand-button vendor-receipt-post-button" type="submit" form="vendor-receipt-form">Post Receipt to QC Hold</button>
+          <a class="btn btn-outline-secondary" href="/modules/incoming/incoming-from-vendor">Kembali ke daftar</a>
+        </div>
+      </div>
+      <form id="vendor-receipt-form" class="vendor-receipt-form" aria-label="Informasi dan input penerimaan vendor">
+        <input id="qtyReceived" type="hidden" value="0">
+        <section class="vendor-receipt-unified-grid" aria-label="Informasi dan input penerimaan vendor">
+          <div class="vendor-receipt-unified-field is-readonly"><small>Vendor</small><b id="reference-vendor">—</b></div>
+          <div class="vendor-receipt-unified-field is-readonly"><small>Process</small><b id="reference-process">—</b></div>
+          <label class="vendor-receipt-unified-field is-editable" for="receivedAt"><small>Posting Date *</small><input id="receivedAt" class="form-control" type="datetime-local" required></label>
+          <label class="vendor-receipt-unified-field is-editable" for="deliveryNoteNumber"><small>Vendor Delivery Note</small><input id="deliveryNoteNumber" class="form-control" placeholder="Nomor surat jalan"></label>
+
+          <div class="vendor-receipt-unified-field is-readonly"><small>Sent Qty</small><div class="vendor-receipt-metric-value"><strong id="metric-sent">—</strong><em id="metric-sent-uom">—</em></div></div>
+          <div class="vendor-receipt-unified-field is-readonly is-attention"><small>Open Qty</small><div class="vendor-receipt-metric-value"><strong id="metric-outstanding">—</strong><em id="metric-outstanding-uom">—</em></div></div>
+          <label class="vendor-receipt-unified-field is-editable" for="warehouseCode"><small>Receiving Warehouse *</small><select id="warehouseCode" class="form-select" required><option value="">Pilih warehouse</option></select></label>
+          <label class="vendor-receipt-unified-field is-editable" for="rackCode"><small>QC Hold Rack</small><select id="rackCode" class="form-select"><option value="">Pilih warehouse dahulu</option></select></label>
+
+          <div class="vendor-receipt-unified-field is-readonly"><small>Manufacturing Order</small><a id="reference-mo" href="#">—</a></div>
+          <div class="vendor-receipt-unified-field is-readonly"><small>Received / Pending QC</small><div class="vendor-receipt-metric-value is-combined"><strong id="metric-received">—</strong><i>/</i><strong id="metric-qc">—</strong><em id="metric-received-uom">—</em></div></div>
+          <div class="vendor-receipt-unified-field is-readonly"><small>Required Return</small><b id="reference-due">—</b></div>
+          <label class="vendor-receipt-unified-field is-editable" for="lotNumber"><small>Lot / Batch Number *</small><input id="lotNumber" class="form-control" required placeholder="Lot output vendor"></label>
+          <p class="vendor-receipt-header-qc-note"><b>QC Hold otomatis</b> · Satu receipt membuat satu inspection agar audit qty tidak tercampur.</p>
+        </section>
+      </form>
+    </header>
+
+    <div id="vendor-receipt-alert" class="alert d-none vendor-receipt-alert" role="alert" aria-live="polite"></div>
+
+    <section class="vendor-receipt-flow" aria-label="Alur penerimaan vendor">
+      <div class="is-done"><span>01</span><div><b>Vendor Dispatch</b><small>Barang dikirim ke vendor</small></div></div>
+      <i aria-hidden="true">›</i>
+      <div id="flow-received"><span>02</span><div><b>Goods Receipt</b><small>Catat qty aktual datang</small></div></div>
+      <i aria-hidden="true">›</i>
+      <div id="flow-qc"><span>03</span><div><b>QC Inspection</b><small>Stock berada di QC Hold</small></div></div>
+      <i aria-hidden="true">›</i>
+      <div id="flow-release"><span>04</span><div><b>Stock Release</b><small>Available setelah QC lulus</small></div></div>
+    </section>
+
+    <section class="vendor-receipt-line-card vendor-receipt-data-workspace" aria-labelledby="vendor-receipt-table-title">
+      <nav class="vendor-receipt-view-tabs" role="tablist" aria-label="Detail penerimaan vendor">
+        <button id="vendor-receipt-tab-items" class="is-active" type="button" role="tab" aria-selected="true" aria-controls="vendor-receipt-panel-items" data-vendor-receipt-view="items">Receipt Items</button>
+        <button id="vendor-receipt-tab-posting" type="button" role="tab" aria-selected="false" aria-controls="vendor-receipt-panel-posting" data-vendor-receipt-view="posting">Inventory Posting</button>
+        <button id="vendor-receipt-tab-audit" type="button" role="tab" aria-selected="false" aria-controls="vendor-receipt-panel-audit" data-vendor-receipt-view="audit">Audit Trail <span id="vendor-receipt-audit-count">0</span></button>
+      </nav>
+
+      <section id="vendor-receipt-panel-items" class="vendor-receipt-view-panel is-active" role="tabpanel" aria-labelledby="vendor-receipt-tab-items" data-vendor-receipt-panel="items">
+        <div class="vendor-receipt-section-head">
+          <div><p>RECEIPT ITEMS</p><h2 id="vendor-receipt-table-title">Item yang Diterima</h2></div>
+          <div class="vendor-receipt-sheet-legend" aria-label="Legenda kolom"><span class="is-editable">Editable</span><span class="is-locked">Locked</span></div>
+        </div>
+        <div class="vendor-receipt-table-wrap">
+          <div id="vendor-receipt-table" class="vendor-receipt-tabulator" aria-label="Worksheet item penerimaan vendor"></div>
+        </div>
+        <label class="vendor-receipt-receipt-notes" for="receiptNotes"><span>Receipt Notes</span><textarea id="receiptNotes" class="form-control" rows="2" placeholder="Kondisi barang atau kemasan" form="vendor-receipt-form"></textarea></label>
+      </section>
+
+      <section id="vendor-receipt-panel-posting" class="vendor-receipt-view-panel" role="tabpanel" aria-labelledby="vendor-receipt-tab-posting" data-vendor-receipt-panel="posting" hidden>
+        <div class="vendor-receipt-posting-card">
+          <div class="vendor-receipt-section-head"><div><p>INVENTORY POSTING</p><h2>Dampak Transaksi</h2></div><span>Otomatis</span></div>
+          <div class="vendor-receipt-posting-flow"><div><small>FROM</small><b>Vendor WIP</b><strong id="posting-vendor-out">− —</strong></div><i aria-hidden="true">→</i><div class="is-qc"><small>TO</small><b>QC Hold</b><strong id="posting-qc-in">+ —</strong></div><i aria-hidden="true">→</i><div class="is-blocked"><small>AVAILABLE STOCK</small><b>Belum Diposting</b><strong>0</strong></div></div>
+          <p class="vendor-receipt-posting-help">Qty belum menjadi stock available. QC harus menyelesaikan inspection dan release terlebih dahulu.</p>
+        </div>
+      </section>
+
+      <section id="vendor-receipt-panel-audit" class="vendor-receipt-view-panel" role="tabpanel" aria-labelledby="vendor-receipt-tab-audit" data-vendor-receipt-panel="audit" hidden>
+        <div class="vendor-receipt-history-panel">
+          <div class="vendor-receipt-section-head"><div><p>AUDIT TRAIL</p><h2>Riwayat Receipt &amp; QC</h2></div><span>Trace per receipt</span></div>
+          <div id="vendor-receipt-history" class="vendor-receipt-history"><p class="ops-muted">Belum ada receipt.</p></div>
+        </div>
+      </section>
+    </section>
+
+    <%- include('../partials/document-comments', { documentComments: { recordKey, title: 'Komentar Penerimaan', variant: 'receipt' } }) %>
+  </article>
+</main>
+<script id="vendor-receipt-config" type="application/json"><%- JSON.stringify({ module: module.slug, page: page.slug, recordKey }).replace(/</g, '\u003c') %></script>
+<script src="/vendor/tabulator/js/tabulator.min.js"></script>
+<%- include('../partials/footer') %>

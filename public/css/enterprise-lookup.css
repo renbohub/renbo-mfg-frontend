@@ -1,0 +1,32 @@
+:root {
+  --lookup-ink: #13233b;
+  --lookup-border: #aebbd0;
+  --lookup-focus: #2f5bd3;
+  --lookup-error: #b42318;
+}
+
+.select2-container { min-width: 8rem; font-size: inherit; }
+.select2-container .select2-selection--single,
+.select2-container .select2-selection--multiple {
+  min-height: 2.25rem;
+  border: 0;
+  border-bottom: 1px solid var(--lookup-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--lookup-ink);
+}
+.select2-container .select2-selection--single .select2-selection__rendered { padding: .4rem 1.8rem .35rem .15rem; line-height: 1.45; color: inherit; }
+.select2-container .select2-selection--single .select2-selection__arrow { height: 2.2rem; }
+.select2-container--default.select2-container--focus .select2-selection--single,
+.select2-container--default.select2-container--focus .select2-selection--multiple,
+.select2-container--default.select2-container--open .select2-selection--single { border-color: var(--lookup-focus); box-shadow: 0 2px 0 -1px var(--lookup-focus); }
+.select2-dropdown { border-color: #cad3e1; border-radius: 2px; box-shadow: 0 12px 30px rgba(20, 39, 72, .16); }
+.select2-search--dropdown .select2-search__field { border-color: var(--lookup-border) !important; border-radius: 2px; padding: .55rem .65rem; }
+.select2-results__option { padding: .55rem .7rem; color: var(--lookup-ink); }
+.select2-results__option--highlighted.select2-results__option--selectable { background: #e9efff; color: #173a91; }
+.enterprise-lookup-option { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.enterprise-lookup-error { display: block; margin-top: .25rem; color: var(--lookup-error); font-size: .72rem; font-weight: 600; }
+select[aria-invalid="true"] + .select2 .select2-selection { border-color: var(--lookup-error); }
+.document-lines .select2-container .select2-selection--single { min-height: 1.85rem; }
+.document-lines .select2-container .select2-selection--single .select2-selection__rendered { padding-top: .2rem; padding-bottom: .2rem; }
+@media (max-width: 640px) { .select2-container { width: 100% !important; } }

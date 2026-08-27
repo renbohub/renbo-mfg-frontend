@@ -99,6 +99,9 @@
   border-radius: 10px;
   background: #fff;
 }
+.page-context-entry-avatar,
+.page-context-entry-menu { display: none; }
+.page-context-entry-body { min-width: 0; }
 .page-context-entry--error { border-left: 3px solid #ef4444; }
 .page-context-entry--comment { border-left: 3px solid #4f46e5; }
 .page-context-entry-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }

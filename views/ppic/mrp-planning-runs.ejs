@@ -1,0 +1,59 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/ppic-mrp-planning-runs.css?v=20260825-clean-1">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'mrp' }) %>
+
+<main class="mrp-page ppic-page">
+  <header class="mrp-head app-container planning-shared-header">
+    <div class="mrp-title-block">
+      <span>PLANNING PPIC</span>
+      <h1>Material Requirements Planning</h1>
+    </div>
+    <div class="mrp-head-actions">
+      <label class="mrp-search"><%- include('../partials/icon', { name: 'search' }) %><input id="mrp-search" type="search" placeholder="Cari MRP, MPS, revision…" autocomplete="off"></label>
+      <select id="mrp-status" data-searchable-disabled aria-label="Filter status"><option value="">Semua status</option></select>
+      <button id="mrp-density" class="mrp-view-button" type="button" title="Ubah kerapatan tabel" aria-pressed="false">▦</button>
+      <button id="mrp-export" class="mrp-outline-action" type="button">↓&nbsp; Export CSV</button>
+      <a id="mrp-open-mps" class="mrp-primary-action" href="/modules/planning-ppic/mps/workbench?month=<%= initialMonth %>">Buka Rolling MPS</a>
+    </div>
+  </header>
+
+  <%- include('../partials/ppic-workflow-strip', { currentStage: 'MRP', monthControl: 'mrp-month', dateControl: '' }) %>
+
+  <section class="mrp-period-bar app-container" aria-label="Periode kebutuhan">
+    <div class="mrp-period-left">
+      <strong>Periode Kebutuhan:</strong>
+      <label class="mrp-month-picker"><span aria-hidden="true">▣</span><input id="mrp-month" type="month" value="<%= initialMonth %>"></label>
+      <div class="mrp-flow-pills" aria-label="Alur planning"><span>MPS</span><i>→</i><span class="current">MRP</span><i>→</i><span>Production Plan</span></div>
+    </div>
+    <span id="mrp-doc-status" class="mrp-doc-status">Memuat</span>
+  </section>
+
+  <section id="mrp-kpis" class="mrp-kpis app-container" aria-label="Ringkasan MRP">
+    <article class="source"><span>Source MPS</span><strong id="mrp-kpi-source">0</strong><small id="mrp-kpi-source-meta">periode aktif</small></article>
+    <article class="current"><span>Approved MRP</span><strong id="mrp-kpi-current">0</strong><small>revision official aktif</small></article>
+    <article class="requirements"><span>Requirement Lines</span><strong id="mrp-kpi-requirements">0</strong><small id="mrp-kpi-requirements-meta">BOM explosion &amp; netting</small></article>
+    <article class="orders"><span>Planned Orders</span><strong id="mrp-kpi-orders">0</strong><small id="mrp-kpi-orders-meta">saran produksi dan pembelian</small></article>
+  </section>
+
+  <section class="mrp-board app-container">
+    <div id="mrp-alert" class="mrp-alert" hidden></div>
+    <div class="mrp-context">
+      <div><span>MRP RUN GOVERNANCE</span><h2>MRP Planning Runs</h2><p id="mrp-context-copy">Revision MRP resmi dan simulasi dari Rolling MPS.</p></div>
+      <button id="mrp-refresh" class="mrp-outline-action" type="button">↻ Refresh</button>
+    </div>
+    <div class="mrp-table-scroll" tabindex="0" aria-label="Daftar MRP Planning Runs, geser horizontal bila diperlukan">
+      <table class="mrp-table" data-enterprise-table="off" data-enterprise-sort="off">
+        <colgroup><col class="c-run"><col class="c-source"><col class="c-window"><col class="c-scope"><col class="c-number"><col class="c-number"><col class="c-status"><col class="c-action"></colgroup>
+        <thead><tr><th>MRP Run / Revision</th><th>Source MPS</th><th>Planning Window</th><th>Kaitan Eksekusi</th><th>Requirement Lines</th><th>Planned Orders</th><th>Status</th><th>Aksi</th></tr></thead>
+        <tbody id="mrp-tbody"><tr><td colspan="8" class="mrp-empty">Memuat MRP Planning Runs…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="mrp-action-bar"><p id="mrp-action-note">Hanya revision CURRENT yang dapat menjadi sumber Production Plan.</p><div><a id="mrp-open-run" class="mrp-primary-action" href="/modules/planning-ppic/mrp" hidden>Buka MRP current</a></div></div>
+    <footer class="mrp-pagination"><span id="mrp-range">0 data</span><div><label>Baris <select id="mrp-limit" data-searchable-disabled><option>25</option><option>50</option><option>100</option></select></label><button id="mrp-prev" type="button">Sebelumnya</button><span id="mrp-page">Halaman 1 / 1</span><button id="mrp-next" type="button">Berikutnya</button></div></footer>
+  </section>
+  <div class="app-container"><%- include('../partials/document-comments', { documentComments: { recordKey: `MRP-RUNS-${initialMonth}`, title: 'Komentar MRP', variant: 'receipt' } }) %></div>
+</main>
+
+<script id="mrp-config" type="application/json"><%- JSON.stringify({ initialMonth }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

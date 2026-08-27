@@ -289,6 +289,7 @@
         machineCode: document.getElementById("ops-filter-machine")?.value || undefined,
         lineCode: document.getElementById("ops-filter-line")?.value || undefined,
         dateScope: document.querySelector("[data-work-scope].active")?.dataset.workScope === "overdue" ? "overdue" : undefined,
+        month: document.getElementById("ops-filter-horizon-month")?.value || undefined,
       };
       $.ajax({
         url: `/modules/api/${config.module}/${config.page.slug}`,
@@ -311,6 +312,12 @@
   document.getElementById("ops-search").addEventListener("input", function () { clearTimeout(searchTimer); searchTimer = setTimeout(() => { table.search(this.value).draw(); loadWeeklyGantt(); }, 250); });
   document.getElementById("ops-refresh").addEventListener("click", () => { table.ajax.reload(null, false); loadWeeklyGantt(); });
   document.querySelectorAll("select[id^='ops-filter-']").forEach((filter) => filter.addEventListener("change", () => { table.draw(); loadWeeklyGantt(); }));
+  document.getElementById("ops-filter-horizon-month")?.addEventListener("change", (event) => {
+    const url = new URL(window.location.href);
+    if (event.target.value) url.searchParams.set("month", event.target.value); else url.searchParams.delete("month");
+    window.history.replaceState({}, "", url);
+    table.draw();
+  });
   document.getElementById("ops-filter-schedule-date")?.addEventListener("change", (event) => {
     document.querySelectorAll("[data-work-scope]").forEach((button) => button.classList.remove("active"));
     const todayButton = document.querySelector('[data-work-scope="today"]');
@@ -347,6 +354,11 @@
   });
   document.getElementById("ops-filter-reset")?.addEventListener("click", () => {
     document.querySelectorAll("select[id^='ops-filter-']").forEach((filter) => { filter.value = ""; });
+    const horizonMonth = document.getElementById("ops-filter-horizon-month");
+    if (horizonMonth) {
+      horizonMonth.value = "";
+      const url = new URL(window.location.href); url.searchParams.delete("month"); window.history.replaceState({}, "", url);
+    }
     if (isDailyWorkQueue) {
       const dateInput = document.getElementById("ops-filter-schedule-date");
       if (dateInput) dateInput.value = localDateKey();

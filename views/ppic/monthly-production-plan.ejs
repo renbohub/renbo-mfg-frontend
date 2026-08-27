@@ -1,0 +1,92 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/ppic-monthly-production-plan.css?v=20260826-allocation-health-1">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'monthly-production-plans' }) %>
+
+<main class="mpp-month-page">
+  <div class="app-container">
+    <%
+      const mppShellActions = `<div class="mpp-month-actions"><label class="mpp-month-search"><span aria-hidden="true">⌕</span><input id="mpp-month-search" type="search" placeholder="Cari work center atau part…" autocomplete="off"></label><select id="mpp-month-type" data-searchable-disabled aria-label="Filter tipe resource"><option value="">Semua resource</option><option value="INHOUSE">In-house</option><option value="OUTSOURCE">Vendor</option><option value="BLOCKER">Blocker</option></select><a class="mpp-outline-button mpp-master-link" href="/master-data/work-centers" title="Atur Work Center dan relasi mesin">⚙ Work Center</a><a class="mpp-outline-button mpp-master-link" href="/master-data/vendor-processes" title="Atur kode proses outsource dan vendor pelaksana">⚙ Proses Vendor</a><a class="mpp-outline-button" href="/modules/planning-ppic/daily-production-plans?date=${initialMonth}-01" title="Buka finite Daily Plan per mesin dan jam">Daily Release →</a><button id="mpp-month-expand" class="mpp-outline-button" type="button">Tutup semua</button><select id="mpp-editor-plan" class="mpp-editor-plan" aria-label="Production Plan yang diedit" hidden></select><select id="mpp-editor-scope" class="mpp-editor-plan" aria-label="Cakupan perubahan kapasitas" hidden><option value="PLAN">Plan-specific</option><option value="GLOBAL">Global machine calendar</option></select><button id="mpp-recommendation-generate" class="mpp-outline-button mpp-recommendation-generate" type="button" title="Generate recommendation lalu pilih cakupan allocation">✦ Auto Allocation</button><button id="mpp-editor-start" class="mpp-outline-button mpp-editor-start" type="button">✎ Mode Editor</button><button id="mpp-month-refresh" class="mpp-primary-button" type="button">↻ Refresh</button></div>`;
+    %>
+    <%- include('../partials/document-shell', { documentShell: { variant: 'planning', eyebrow: 'Planning PPIC', number: 'Monthly Production Plan', subtitle: 'Rencana harian per Work Center, termasuk proses in-house dan vendor.', actions: mppShellActions } }) %>
+  </div>
+
+  <%- include('../partials/ppic-workflow-strip', { currentStage: 'MPP', monthControl: 'mpp-month-input', dateControl: '' }) %>
+
+  <section class="mpp-month-period app-container" aria-label="Periode production plan">
+    <div><strong>Periode Produksi:</strong><label><span aria-hidden="true">▣</span><input id="mpp-month-input" type="month" value="<%= initialMonth %>"></label><div class="mpp-month-flow"><span>MRP</span><i>→</i><span class="current">Monthly Plan</span><i>→</i><span>Daily Plan</span></div></div>
+    <span id="mpp-month-state" class="mpp-month-state">Memuat</span>
+  </section>
+
+  <section id="mpp-release-rail" class="mpp-release-rail app-container" aria-label="Workflow release Monthly Production Plan">
+    <div class="mpp-release-plan">
+      <span>PLAN AKTIF</span>
+      <select id="mpp-workflow-plan" data-searchable-disabled aria-label="Pilih Monthly Production Plan"><option value="">Memuat plan…</option></select>
+      <b id="mpp-workflow-status" class="draft">DRAFT</b>
+    </div>
+    <div class="mpp-release-state"><small id="mpp-workflow-step">Memeriksa kesiapan…</small><strong id="mpp-workflow-title">Status workflow belum tersedia</strong><span id="mpp-workflow-copy"></span></div>
+    <div class="mpp-release-actions"><a id="mpp-workflow-capacity" class="mpp-outline-button" href="/modules/planning-ppic/capacity-planning">Capacity</a><a id="mpp-workflow-daily" class="mpp-outline-button" href="/modules/planning-ppic/daily-production-plans" hidden>Daily Plan</a><button id="mpp-workflow-action" class="mpp-primary-button" type="button" disabled>Memuat…</button></div>
+  </section>
+
+  <section class="mpp-month-kpis app-container" aria-label="Ringkasan Monthly Production Plan">
+    <article class="plans"><span>Plan Aktif</span><strong id="mpp-kpi-plans">0</strong><small>Draft sampai In Progress</small></article>
+    <article class="centers"><span>Work Center</span><strong id="mpp-kpi-centers">0</strong><small>In-house dan vendor</small></article>
+    <article class="load"><span>Utilisasi Bulan</span><strong id="mpp-kpi-load">0%</strong><small id="mpp-kpi-load-note">load / kapasitas tersedia</small></article>
+    <article class="blockers"><span>Capacity Overload</span><strong id="mpp-kpi-blockers">0</strong><small>Cell dengan load di atas 100%</small></article>
+  </section>
+
+  <section class="mpp-allocation-health app-container" aria-label="Status allocation">
+    <article id="mpp-health-capacity"><span>CAPACITY</span><strong id="mpp-health-capacity-value">0 overload</strong><small>Hanya jadwal tersimpan</small></article>
+    <article id="mpp-health-proposed"><span>PROPOSED</span><strong id="mpp-health-proposed-value">0 operasi</strong><small>Belum masuk allocation resmi</small></article>
+    <article id="mpp-health-material"><span>MATERIAL HOLD</span><strong id="mpp-health-material-value">0 phase</strong><small>Dari recommendation terakhir</small></article>
+    <article id="mpp-health-cross-month"><span>LINTAS BULAN</span><strong id="mpp-health-cross-month-value">0 operasi</strong><small>Mulai sebelum periode terpilih</small></article>
+  </section>
+
+  <section class="mpp-month-board app-container">
+    <div id="mpp-month-alert" class="mpp-month-alert" hidden></div>
+    <aside id="mpp-recommendation-bar" class="mpp-recommendation-bar" hidden aria-live="polite">
+      <div class="mpp-recommendation-summary" id="mpp-recommendation-summary"></div>
+      <div class="mpp-recommendation-actions">
+        <button id="mpp-recommendation-queue" class="mpp-outline-button" type="button">Material Queue</button>
+        <select id="mpp-recommendation-work-center" aria-label="Work Center recommendation"><option value="">Pilih Work Center</option></select>
+        <button id="mpp-recommendation-apply-work-center" class="mpp-outline-button" type="button">Apply Work Center</button>
+        <button id="mpp-recommendation-discard" class="mpp-outline-button danger" type="button">Discard</button>
+        <button id="mpp-recommendation-apply-selected" class="mpp-outline-button" type="button">Apply Selected</button>
+        <button id="mpp-recommendation-apply-all" class="mpp-primary-button" type="button">Auto Allocation</button>
+      </div>
+    </aside>
+    <div class="mpp-month-board-head">
+      <div><span>WORK CENTER DAILY MATRIX</span><h2 id="mpp-month-caption">Jadwal Produksi Bulanan</h2><p>Angka utama adalah planned quantity. Persentase pada baris Work Center menunjukkan load kapasitas harian.</p></div>
+      <div class="mpp-month-legend" aria-label="Legenda kapasitas"><span><i class="safe"></i>≤ 85%</span><span><i class="watch"></i>86–100%</span><span><i class="blocked"></i>&gt; 100%</span><span><i class="vendor"></i>Vendor</span></div>
+    </div>
+    <div class="mpp-month-scroll" tabindex="0" aria-label="Monthly Production Plan per tanggal, geser horizontal untuk melihat seluruh bulan">
+      <table class="mpp-month-table" data-enterprise-table="off" data-enterprise-sort="off">
+        <thead id="mpp-month-thead"><tr><th>Work Center / Part</th></tr></thead>
+        <tbody id="mpp-month-tbody"><tr><td class="mpp-month-empty">Memuat allocation Monthly Production Plan…</td></tr></tbody>
+      </table>
+    </div>
+    <footer class="mpp-month-footer"><span id="mpp-month-range">0 Work Center</span><p>Blocker tidak dipindah otomatis ke bulan berikutnya; PPIC mengalokasikan ulang secara manual.</p></footer>
+  </section>
+  <div class="app-container"><%- include('../partials/document-comments', { documentComments: { recordKey: `MONTHLY-PRODUCTION-PLAN-${initialMonth}`, title: 'Komentar Monthly Production Plan', variant: 'receipt' } }) %></div>
+</main>
+
+<dialog id="mpp-month-dialog" class="mpp-month-dialog"><div class="mpp-dialog-head"><div><span>DETAIL ALOKASI</span><h3 id="mpp-dialog-title">-</h3></div><button id="mpp-dialog-close" type="button" aria-label="Tutup">×</button></div><div id="mpp-dialog-body" class="mpp-dialog-body"></div></dialog>
+<dialog id="mpp-editor-dialog" class="mpp-month-dialog mpp-editor-dialog"><form id="mpp-editor-form" method="dialog"><div class="mpp-dialog-head"><div><span id="mpp-editor-dialog-kicker">CAPACITY EDITOR</span><h3 id="mpp-editor-dialog-title">-</h3></div><button id="mpp-editor-dialog-close" type="button" aria-label="Tutup">×</button></div><div id="mpp-editor-dialog-body" class="mpp-dialog-body"></div><footer class="mpp-dialog-actions"><button class="mpp-outline-button" value="cancel" type="button" id="mpp-editor-dialog-cancel">Batal</button><button class="mpp-primary-button" value="default" type="submit">Tambahkan Perubahan</button></footer></form></dialog>
+<dialog id="mpp-material-queue-dialog" class="mpp-month-dialog mpp-material-queue-dialog"><div class="mpp-dialog-head"><div><span>MATERIAL CONSTRAINT</span><h3>Material Queue & Carry-over</h3></div><button id="mpp-material-queue-close" type="button" aria-label="Tutup">×</button></div><div id="mpp-material-queue-body" class="mpp-material-queue-body"></div></dialog>
+<dialog id="mpp-auto-allocation-dialog" class="mpp-month-dialog mpp-auto-allocation-dialog">
+  <form id="mpp-auto-allocation-form">
+    <div class="mpp-dialog-head"><div><span>AUTO ALLOCATION</span><h3>Pilih cakupan allocation</h3></div><button id="mpp-auto-allocation-close" type="button" aria-label="Tutup">×</button></div>
+    <div class="mpp-dialog-body">
+      <p class="mpp-auto-intro">Recommendation akan masuk sebagai draft Mode Editor. Plan resmi baru berubah setelah <b>Save Changes</b>.</p>
+      <div id="mpp-auto-allocation-options" class="mpp-auto-options"></div>
+      <div class="mpp-auto-gate"><span>GATE RELEASE</span><b>FG harus ter-cover dan Remaining Allocation harus 0.</b></div>
+    </div>
+    <footer class="mpp-dialog-actions"><button id="mpp-auto-allocation-cancel" class="mpp-outline-button" type="button">Batal</button><button class="mpp-primary-button" type="submit">Terapkan ke Draft</button></footer>
+  </form>
+</dialog>
+<dialog id="mpp-workflow-dialog" class="mpp-month-dialog mpp-workflow-dialog"><form id="mpp-workflow-form"><div class="mpp-dialog-head"><div><span id="mpp-workflow-dialog-kicker">NEXT OFFICIAL ACTION</span><h3 id="mpp-workflow-dialog-title">Lanjutkan Production Plan</h3></div><button id="mpp-workflow-dialog-close" type="button" aria-label="Tutup">×</button></div><div class="mpp-dialog-body"><div id="mpp-workflow-dialog-summary" class="mpp-workflow-dialog-summary"></div><label class="mpp-workflow-confirm"><input id="mpp-workflow-confirm" type="checkbox" required><span id="mpp-workflow-confirm-copy">Saya sudah memeriksa data dan siap melanjutkan.</span></label></div><footer class="mpp-dialog-actions"><button class="mpp-outline-button" type="button" id="mpp-workflow-dialog-cancel">Batal</button><button class="mpp-primary-button" type="submit" id="mpp-workflow-dialog-submit">Lanjutkan</button></footer></form></dialog>
+<aside id="mpp-editor-queue" class="mpp-editor-queue" hidden aria-live="polite"><div><span>EDITOR DRAFT</span><strong id="mpp-editor-queue-title">Belum ada perubahan</strong><small id="mpp-editor-queue-note">Perubahan belum menyentuh plan resmi.</small></div><div class="mpp-editor-queue-actions"><button id="mpp-editor-cut-cancel" class="mpp-outline-button warning" type="button" hidden>✂ Batalkan Cut</button><button id="mpp-editor-undo" class="mpp-outline-button" type="button" disabled>↶ Undo</button><button id="mpp-editor-cancel" class="mpp-outline-button danger" type="button">Cancel</button><button id="mpp-editor-save" class="mpp-primary-button" type="button">Save Changes</button></div></aside>
+<script src="/js/ppic-monthly-capacity-editor.js?v=20260825-staged-allocation-1"></script>
+<script src="/js/ppic-monthly-recommendation.js?v=20260825-auto-allocation-1"></script>
+<script id="mpp-month-config" type="application/json"><%- JSON.stringify({ initialMonth }).replace(/</g, '\u003c') %></script>
+<%- include('../partials/footer') %>

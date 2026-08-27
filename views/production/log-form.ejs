@@ -1,15 +1,15 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
-<main class="ops-page app-container production-log-page">
+<main class="ops-page app-container production-log-page transaction-form-page">
   <nav class="module-breadcrumb"><a href="/modules/production">Production</a><span>/</span><a href="/modules/production/production-logs">Production Entries</a><span>/</span><b><%= mode === 'edit' ? 'Edit' : 'Buat' %></b></nav>
-  <section class="ops-detail-titlebar">
+  <section class="ops-detail-titlebar transaction-command-header">
     <div>
       <p class="ops-eyebrow">Production Entry</p>
       <h1><%= mode === 'edit' ? 'Edit Production Entry' : 'Buat Production Entry' %></h1>
       <p>Pilih mesin terlebih dahulu, lalu pilih Daily Production Schedule yang sudah siap diproduksi.</p>
     </div>
-    <a class="btn btn-outline-secondary" href="/modules/production/production-logs">Kembali</a>
+    <div class="ops-title-actions"><button id="production-log-submit" class="btn btn-primary brand-button" type="submit" form="production-log-form">Simpan Production Entry</button><a class="btn btn-outline-secondary" href="/modules/production/production-logs">Kembali ke daftar</a></div>
   </section>
 
   <div id="production-log-alert" class="alert d-none" role="alert"></div>
@@ -26,16 +26,17 @@
           <select id="machineCode" required>
             <option value="">Memuat mesin...</option>
           </select>
-          <small class="form-help">Pilih mesin untuk menampilkan schedule yang siap diproduksi.</small>
+          <small class="form-help">Mesin mengikuti Daily Plan aktif; status kesiapan terlihat pada setiap opsi.</small>
         </label>
         <label>
           <span>Daily Production Schedule *</span>
           <select id="scheduleNumber" required>
             <option value="">Pilih mesin terlebih dahulu</option>
           </select>
-          <small class="form-help">Draft, Released, Completed, dan Cancelled tidak ditampilkan.</small>
+          <small class="form-help">Hanya DPS berstatus In Progress yang dapat dibuat Production Entry.</small>
         </label>
       </div>
+      <aside id="production-log-schedule-gate" class="production-log-schedule-gate d-none" aria-live="polite"></aside>
       <div id="production-log-plan-summary" class="production-log-plan-summary is-empty">
         <span>Pilih mesin, lalu pilih Daily Production Schedule yang siap diproduksi.</span>
       </div>
@@ -157,10 +158,8 @@
       </div>
     </section>
 
-    <div class="module-form-actions">
-      <a class="btn btn-outline-secondary" href="/modules/production/production-logs">Batal</a>
-      <button id="production-log-submit" class="btn btn-primary brand-button" type="submit">Simpan Production Entry</button>
-    </div>
+    <div class="module-form-actions transaction-progress-slot" aria-label="Kelengkapan form"></div>
   </form>
+  <%- include('../partials/document-comments', { documentComments: { recordKey: mode === 'edit' ? recordKey : null, showPending: mode !== 'edit', title: 'Komentar Production Entry', variant: 'receipt' } }) %>
 </main>
 <%- include('../partials/footer') %>

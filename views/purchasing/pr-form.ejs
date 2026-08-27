@@ -1,10 +1,11 @@
 <%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/purchase-requisition-form-workbench.css?v=20260826-mps-style-1">
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <% const prCategory = typeof purchaseCategory !== 'undefined' ? purchaseCategory : 'purchase-part'; %>
-<main class="ops-page app-container pr-form-page">
+<main class="ops-page app-container pr-form-page pr-mps-workbench transaction-form-page">
   <nav class="module-breadcrumb"><a href="/modules/purchasing/purchase-requisitions<%= prCategory ? '?category=' + prCategory : '' %>">Purchase Requisition</a><span>/</span><b><%= mode === 'edit' ? 'Edit PR' : 'Buat PR Manual' %></b></nav>
-  <section class="ops-detail-titlebar pr-form-titlebar">
+  <section class="ops-detail-titlebar pr-form-titlebar transaction-command-header">
     <div><p class="ops-eyebrow" id="pr-category-eyebrow">Purchasing · <%= prCategory.replaceAll('-', ' ') %></p><h1><%= mode === 'edit' ? 'Edit Purchase Requisition' : 'Buat Purchase Requisition Manual' %></h1><p id="pr-category-description">PR dipisahkan menjadi Material, Purchase Part berdrawing, Universal Purchase Part tanpa drawing, dan Non Produksi. Supplier serta konversi Coil/Sheet/Pcs ditentukan di Purchasing.</p></div>
     <div class="ops-title-actions"><a id="pr-cancel" class="btn btn-outline-secondary" href="<%= mode === 'edit' ? '/modules/purchasing/purchase-requisitions/' + encodeURIComponent(recordKey) + (prCategory ? '?category=' + prCategory : '') : '/modules/purchasing/purchase-requisitions?category=' + prCategory %>">Batal</a><button id="pr-save" class="btn btn-primary brand-button" type="submit" form="pr-form">Simpan Draft</button></div>
   </section>
@@ -32,11 +33,13 @@
     </section>
     <section class="ops-detail-card pr-form-card">
       <header><div><h2>Detail Item</h2><p id="pr-detail-description">Satu header raw-material PR hanya memuat satu Material Master. Form BOM adalah rekomendasi; supplier, Coil/Sheet/Pcs, dan delivery phase aktual dapat dipecah saat Move to PO.</p></div><button id="pr-add-line" class="btn btn-outline-primary" type="button">+ Tambah Baris</button></header>
-      <div class="table-responsive pr-lines-wrap"><table class="table pr-lines-table"><thead><tr><th>Jenis</th><th>Part / Material</th><th>Part Code Internal</th><th>Part Number / Drawing</th><th>Material Type</th><th>Qty Kebutuhan</th><th>UOM</th><th>Rekomendasi / Draft C-S-P</th><th>Supplier Proposal</th><th>Harga Est.</th><th>Total</th><th></th></tr></thead><tbody id="pr-lines"></tbody></table></div>
+      <div class="pr-table-key" aria-label="Petunjuk tabel"><span><i class="pr-key-item"></i> Item kebutuhan</span><span><i class="pr-key-source"></i> Trace &amp; split supplier</span><small>Geser tabel ke kanan untuk melihat pembelian dan nilai.</small></div>
+      <div class="table-responsive pr-lines-wrap"><table class="table pr-lines-table" data-enterprise-table="off"><thead><tr><th>Jenis</th><th>Part / Material</th><th>Part Code Internal</th><th>Part Number / Drawing</th><th>Material Type</th><th>Qty Kebutuhan</th><th>UOM</th><th>Rekomendasi / Draft C-S-P</th><th>Supplier Proposal</th><th>Harga Est.</th><th>Total</th><th></th></tr></thead><tbody id="pr-lines"></tbody></table></div>
       <div class="pr-form-summary"><span>Total estimasi PR</span><strong id="pr-total">Rp0</strong></div>
     </section>
     <section class="ops-detail-card pr-form-card"><header><div><h2>Catatan</h2><p>Tambahkan kebutuhan khusus, spesifikasi, atau referensi.</p></div></header><div class="pr-notes"><textarea id="pr-notes" class="form-control" rows="4" placeholder="Catatan purchase requisition..."></textarea></div></section>
   </form>
+  <%- include('../partials/document-comments', { documentComments: { recordKey: mode === 'edit' ? recordKey : null, showPending: mode !== 'edit', title: 'Komentar Purchase Requisition', variant: 'receipt' } }) %>
 </main>
 <script id="purchasing-pr-config" type="application/json"><%- JSON.stringify({ mode, recordKey, purchaseCategory: prCategory }).replace(/</g, '\\u003c') %></script>
 <%- include('../partials/footer') %>

@@ -3,7 +3,7 @@
   const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
   const form = document.getElementById("inventory-form");
   const alertBox = document.getElementById("inventory-form-alert");
-  const state = { warehouses: [], racks: [], lots: [], parts: [], materials: [], uoms: [], materialPieceSources: [], movementLines: [], editingLineId: null };
+  const state = { warehouses: [], racks: [], lots: [], parts: [], materials: [], uoms: [], materialPieceSources: [], movementLines: [], editingLineId: null, stoPreviewSignature: null };
   const value = (id) => document.getElementById(id)?.value?.trim() || "";
   const esc = (input) => String(input ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
   const show = (message, type = "danger") => { alertBox.textContent = message; alertBox.className = `alert alert-${type}`; };
@@ -19,9 +19,11 @@
   function fillSelect(id, source, valueOf, labelOf, placeholder) {
     const select = document.getElementById(id);
     if (!select) return;
-    const current = select.value;
-    select.innerHTML = `<option value="">${esc(placeholder)}</option>${source.map((row) => `<option value="${esc(valueOf(row))}">${esc(labelOf(row))}</option>`).join("")}`;
-    if ([...select.options].some((option) => option.value === current)) select.value = current;
+    const current = select.multiple ? [...select.selectedOptions].map((option) => option.value) : select.value;
+    const placeholderOption = select.multiple ? "" : `<option value="">${esc(placeholder)}</option>`;
+    select.innerHTML = `${placeholderOption}${source.map((row) => `<option value="${esc(valueOf(row))}">${esc(labelOf(row))}</option>`).join("")}`;
+    if (select.multiple) [...select.options].forEach((option) => { option.selected = current.includes(option.value); });
+    else if ([...select.options].some((option) => option.value === current)) select.value = current;
   }
 
   function fillLocations() {
@@ -46,9 +48,10 @@
       FG: [["", "Semua finished goods scope"], ["Finished Goods", "Finished Goods"], ["FG", "FG (legacy)"]],
     }[value("stoType")] || [];
     const select = document.getElementById("stockType");
-    const current = select.value;
-    select.innerHTML = options.map(([optionValue, optionLabel]) => `<option value="${esc(optionValue)}">${esc(optionLabel)}</option>`).join("");
-    select.value = options.some(([optionValue]) => optionValue === current) ? current : "";
+    const current = [...select.selectedOptions].map((option) => option.value);
+    select.innerHTML = options.filter(([optionValue]) => optionValue).map(([optionValue, optionLabel]) => `<option value="${esc(optionValue)}">${esc(optionLabel)}</option>`).join("");
+    [...select.options].forEach((option) => { option.selected = current.includes(option.value); });
+    state.stoPreviewSignature = null;
   }
 
   function fillLots() {
@@ -376,6 +379,53 @@
     form.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  const selectedValues = (id) => {
+    const select = document.getElementById(id);
+    return select ? [...select.selectedOptions].map((option) => option.value).filter(Boolean) : [];
+  };
+  const commaValues = (id) => [...new Set(value(id).split(",").map((item) => item.trim()).filter(Boolean))];
+  function stockOpnamePayload() {
+    return {
+      countMode: value("countMode") || "FULL",
+      stoType: value("stoType"),
+      stockTypes: selectedValues("stockType"),
+      warehouseCode: value("warehouseCode"),
+      rackCodes: selectedValues("rackCode"),
+      lotNumbers: commaValues("lotNumbers"),
+      stoDate: value("stoDate"),
+      toleranceQty: Number(value("toleranceQty") || 0),
+      tolerancePercent: Number(value("tolerancePercent") || 0),
+      includeZeroBalance: document.getElementById("includeZeroBalance")?.checked !== false,
+      notes: value("notes") || null,
+    };
+  }
+  const stockOpnameSignature = () => JSON.stringify(stockOpnamePayload());
+  async function previewStockOpnameScope() {
+    if (config.page !== "stock-opname") return null;
+    if (!form.reportValidity()) return null;
+    const body = stockOpnamePayload();
+    if (body.countMode === "CYCLE" && !body.rackCodes.length && !body.lotNumbers.length) {
+      throw new Error("Cycle Count wajib memilih minimal satu rack atau lot.");
+    }
+    const response = await fetch("/modules/api/inventory/stock-opname/preview", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.message || "Preview scope gagal.");
+    state.stoPreviewSignature = stockOpnameSignature();
+    const panel = document.getElementById("sto-scope-preview");
+    if (panel) {
+      const summary = payload.summary || {};
+      panel.classList.remove("d-none");
+      panel.innerHTML = `<header><div><strong>${esc(summary.lineCount || 0)} line masuk scope</strong><small>${esc(body.countMode)} · ${esc(body.stoType)} · ${esc(body.warehouseCode)}</small></div><span class="badge text-bg-light">On Hand ${esc(Number(summary.qtyOnHand || 0).toLocaleString("id-ID"))}</span></header>
+        <div class="p-3"><div class="d-flex flex-wrap gap-3"><span>Reserved <b>${esc(Number(summary.qtyReserved || 0).toLocaleString("id-ID"))}</b></span><span>QC <b>${esc(Number(summary.qtyQC || 0).toLocaleString("id-ID"))}</b></span><span>Free <b>${esc(Number(summary.qtyAvailable || 0).toLocaleString("id-ID"))}</b></span></div>
+        ${(payload.stockTypeBreakdown || []).map((row) => `<div><small>${esc(row.stockType)}: ${esc(row.lineCount)} line · ${esc(Number(row.qtyOnHand || 0).toLocaleString("id-ID"))}</small></div>`).join("")}
+        ${(payload.warnings || []).map((warning) => `<div class="text-warning"><small>${esc(warning)}</small></div>`).join("")}</div>`;
+    }
+    return payload;
+  }
   async function loadLookups() {
     try {
       const requests = [
@@ -415,8 +465,20 @@
   }
   document.getElementById("movementType")?.addEventListener("change", syncMovementFields);
   document.getElementById("inputMode")?.addEventListener("change", syncInputMode);
-  document.getElementById("stockType")?.addEventListener("change", fillItems);
+  document.getElementById("stockType")?.addEventListener("change", () => {
+    if (config.page === "stock-opname") state.stoPreviewSignature = null;
+    else fillItems();
+  });
   document.getElementById("stoType")?.addEventListener("change", fillStoStockTypes);
+  document.getElementById("sto-preview-scope")?.addEventListener("click", async (event) => {
+    event.currentTarget.disabled = true;
+    try { await previewStockOpnameScope(); show("Preview scope berhasil dimuat.", "success"); }
+    catch (error) { show(error.message); }
+    finally { event.currentTarget.disabled = false; }
+  });
+  ["countMode", "warehouseCode", "rackCode", "lotNumbers", "toleranceQty", "tolerancePercent", "includeZeroBalance"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", () => { state.stoPreviewSignature = null; });
+  });
   document.getElementById("itemCode")?.addEventListener("change", syncItem);
   document.getElementById("materialPieceSource")?.addEventListener("change", syncMaterialPieceSource);
   document.getElementById("sourceQtyPcs")?.addEventListener("input", renderMaterialPiecePreview);
@@ -451,7 +513,14 @@
       body = { items: state.movementLines.map((line) => line.payload) };
     } else {
       if (!form.reportValidity()) return;
-      body = { stoType: value("stoType"), stockType: value("stockType"), warehouseCode: value("warehouseCode"), rackCode: value("rackCode") || null, stoDate: value("stoDate"), notes: value("notes") || null };
+      body = stockOpnamePayload();
+      if (state.stoPreviewSignature !== stockOpnameSignature()) {
+        const preview = await previewStockOpnameScope();
+        if (!preview || !Number(preview.summary?.lineCount || 0)) {
+          show("Scope tidak memiliki stock balance. Ubah filter lalu preview kembali.");
+          return;
+        }
+      }
     }
     const endpoint = config.page === "stock-movements" ? "/modules/api/inventory/stock-movements" : "/modules/api/inventory/stock-opname";
     const submitButton = document.getElementById("inventory-submit");

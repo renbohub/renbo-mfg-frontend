@@ -1,0 +1,56 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/ppic-daily-production-plan.css?v=20260826-execution-queue-3">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'daily-production-plans' }) %>
+
+<main class="dpp-page" data-role="PPIC">
+  <header class="dpp-head app-container planning-shared-header">
+    <div><span>PLANNING PPIC</span><h1>Daily Production Plan</h1><p>Finite plan per mesin dan jam. Production hanya menerima revision yang sudah Released.</p></div>
+    <div class="dpp-head-actions">
+      <a class="dpp-button ghost" id="dpp-monthly-link" href="/modules/planning-ppic/monthly-production-plans">Monthly Plan</a>
+      <a class="dpp-button ghost" id="dpp-capacity-link" href="/modules/planning-ppic/capacity-planning">Capacity Detail</a>
+      <button class="dpp-button ghost" id="dpp-refresh" type="button">↻ Refresh</button>
+      <button class="dpp-button primary" id="dpp-draft" type="button">Buat Draft</button>
+    </div>
+  </header>
+  <%- include('../partials/ppic-workflow-strip', { currentStage: 'DAILY', monthControl: '', dateControl: 'dpp-date' }) %>
+
+  <section class="dpp-context app-container">
+    <div class="dpp-date-nav"><button id="dpp-prev" type="button" aria-label="Hari sebelumnya">‹</button><input id="dpp-date" type="date" value="<%= initialDate %>"><button id="dpp-next" type="button" aria-label="Hari berikutnya">›</button></div>
+    <nav class="dpp-scope-tabs" aria-label="Konteks hari"><button data-scope="today" type="button">Hari Ini</button><button data-scope="tomorrow" type="button">Besok</button></nav>
+    <div class="dpp-operation-window"><span>OPERATION DAY</span><strong>07:00 → 07:00 <b>+1</b></strong></div>
+    <div class="dpp-context-flow"><span>Monthly Plan</span><i>→</i><strong>Daily Plan</strong><i>→</i><span>Production</span></div>
+    <span id="dpp-revision-badge" class="dpp-revision-badge draft">DRAFT</span>
+  </section>
+
+  <section class="dpp-kpis app-container" aria-label="Ringkasan Daily Plan">
+    <article><span>MESIN AKTIF</span><strong id="dpp-kpi-machines">0</strong><small>Mesin dengan alokasi</small></article>
+    <article><span>PLANNED QTY</span><strong id="dpp-kpi-qty">0</strong><small id="dpp-kpi-items">0 operation</small></article>
+    <article><span>BLOCKER</span><strong id="dpp-kpi-blockers">0</strong><small>Wajib selesai sebelum release</small></article>
+    <article><span>PLANNING SELANJUTNYA</span><strong id="dpp-kpi-exceptions">0</strong><small>Actual exception dari Production</small></article>
+  </section>
+
+  <section class="dpp-board app-container">
+    <div class="dpp-board-head">
+      <div><span>MACHINE × HOUR MATRIX</span><h2 id="dpp-caption">Rencana Produksi Harian</h2><p id="dpp-subtitle">Klik bar untuk melihat atau mengubah alokasi pada revision Draft.</p></div>
+      <div class="dpp-board-actions"><span id="dpp-direct-edit-badge" class="dpp-direct-edit-badge" hidden>DRAG / COPY AKTIF</span><a id="dpp-edit-allocation" class="dpp-button edit" href="#dpp-matrix">✎ Edit Alokasi</a><button id="dpp-validate" class="dpp-button ghost" type="button">Cek Kesiapan</button><button id="dpp-release" class="dpp-button primary" type="button">Release ke Production</button></div>
+    </div>
+    <div id="dpp-alert" class="dpp-alert" hidden></div>
+    <div id="dpp-schedule-note" class="dpp-alert" hidden></div>
+    <div class="dpp-matrix-scroll" tabindex="0">
+      <div id="dpp-matrix" class="dpp-matrix"><div class="dpp-empty">Memuat Daily Production Plan…</div></div>
+    </div>
+  </section>
+
+  <section class="dpp-lower app-container">
+    <article class="dpp-queue-card"><header><div><span>BELUM DITEMPATKAN</span><h3>Allocation Queue</h3></div><b id="dpp-unscheduled-count">0</b></header><div id="dpp-unscheduled" class="dpp-list"><p class="dpp-muted">Tidak ada allocation tanpa jam.</p></div></article>
+    <article class="dpp-queue-card"><header><div><span>ACTUAL FEEDBACK</span><h3>Planning Selanjutnya</h3></div><b id="dpp-exception-count">0</b></header><div id="dpp-exceptions" class="dpp-list"><p class="dpp-muted">Belum ada exception Production.</p></div></article>
+  </section>
+  <div class="app-container"><%- include('../partials/document-comments', { documentComments: { recordKey: `DAILY-PRODUCTION-PLAN-${initialDate}`, title: 'Komentar Daily Production Plan', variant: 'receipt' } }) %></div>
+</main>
+
+<dialog id="dpp-dialog" class="dpp-dialog"><form id="dpp-dialog-form"><header><div><span>ALOKASI HARIAN</span><h3 id="dpp-dialog-title">-</h3></div><button id="dpp-dialog-close" type="button" aria-label="Tutup">×</button></header><div id="dpp-dialog-body"></div><footer><a class="dpp-button edit" id="dpp-dialog-source-edit" href="#" hidden>Buka Monthly Plan</a><button class="dpp-button ghost" id="dpp-dialog-cancel" type="button">Batal</button><button class="dpp-button primary" id="dpp-dialog-save" type="submit">Simpan Perubahan</button></footer></form></dialog>
+<script id="dpp-config" type="application/json"><%- JSON.stringify({ initialDate, role: 'PPIC' }).replace(/</g, '\u003c') %></script>
+<script src="/js/ppic-daily-plan-model.js?v=20260825-preview-time-edit-2"></script>
+<script src="/js/ppic-daily-production-plan.js?v=20260826-execution-queue-4"></script>
+<%- include('../partials/footer') %>

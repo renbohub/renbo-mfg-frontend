@@ -1,0 +1,16 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/working-hour-profile-master.css?v=20260824-enterprise-1">
+<%- include('../partials/header-master') %>
+<main class="wh-master-page wh-detail-page app-container transaction-detail-page">
+  <%- include('../partials/document-shell', { documentShell: { variant: 'master', eyebrow: 'Master Data · Capacity Calendar', number: recordKey, title: 'Detail Working Hours', titleId: 'wh-detail-code', subtitle: 'Memuat Working Hour Profile...', subtitleId: 'wh-detail-name', status: 'MEMUAT', statusId: 'wh-detail-status', actions: '<a id="wh-detail-edit" class="btn btn-primary brand-button" href="#">Edit Working Hours</a>', backHref: '/master-data/working-hour-profiles', breadcrumbHtml: '<a href="/master-data/working-hour-profiles">Working Hours</a><span>/</span><strong>Detail</strong>' } }) %>
+  <div id="wh-detail-alert" class="wh-alert" hidden></div>
+  <section class="wh-detail-kpis"><article><span>Hari Kerja</span><strong id="wh-kpi-days">0</strong><small>hari aktif per minggu</small></article><article><span>Shift Aktif</span><strong id="wh-kpi-shifts">0</strong><small>rule aktif mingguan</small></article><article><span>Jam Efektif</span><strong id="wh-kpi-hours">0</strong><small>jam per minggu</small></article><article class="assigned"><span>Assignment</span><strong id="wh-kpi-assignment">0</strong><small>Work Center dan mesin</small></article></section>
+  <section class="wh-detail-layout">
+    <article class="wh-detail-card wh-profile-card"><header><div><span>PROFILE CONTROL</span><h2>Identitas & Masa Berlaku</h2></div><em id="wh-type-chip">REGULAR</em></header><dl id="wh-profile-fields"></dl><div class="wh-detail-note"><b>Catatan</b><p id="wh-detail-notes">–</p></div></article>
+    <article class="wh-detail-card wh-calendar-card"><header><div><span>WEEKLY CAPACITY RULE</span><h2>Jadwal per Hari & Shift</h2></div><small>Jam efektif sudah dikurangi break</small></header><div class="wh-detail-table-wrap"><table class="wh-detail-table" data-enterprise-table="off" data-enterprise-sort="off"><thead><tr><th>HARI</th><th>SHIFT AKTIF</th><th>BREAK</th><th>OVERTIME</th><th>EFEKTIF</th></tr></thead><tbody id="wh-detail-schedule"><tr><td colspan="5">Memuat jadwal...</td></tr></tbody></table></div></article>
+  </section>
+  <%- include('../partials/document-comments', { documentComments: { recordKey, title: 'Komentar Working Hour Profile', variant: 'receipt' } }) %>
+</main>
+<script id="wh-config" type="application/json"><%- JSON.stringify({ config, recordKey }).replace(/</g, '\u003c') %></script>
+<script src="/js/working-hour-profile-model.js?v=20260824-enterprise-1"></script>
+<%- include('../partials/footer') %>

@@ -156,7 +156,7 @@
     await Promise.all(activeFields.filter((field) => field.type === "lookup").map(loadLookup));
     if (config.mode !== "edit") return;
     try {
-      const record = await api(`/modules/api/production/${encodeURIComponent(page)}/${encodeURIComponent(config.recordKey)}`);
+      const record = await api(`/modules/api/${encodeURIComponent(config.module || "production")}/${encodeURIComponent(page)}/${encodeURIComponent(config.recordKey)}`);
       activeFields.forEach((field) => {
         const element = document.getElementById(`field-${field.name}`);
         const value = get(record, field.name);
@@ -188,7 +188,8 @@
       const record = Array.isArray(result) ? result[0] : (result.items?.[0] || result);
       const key = record?.[config.page.detailKey];
       show(`${config.page.label} berhasil disimpan.`, "success");
-      setTimeout(() => location.assign(key ? `/modules/production/${page}/${encodeURIComponent(key)}` : `/modules/production/${page}`), 400);
+      const ownerModule = config.module || "production";
+      setTimeout(() => location.assign(key ? `/modules/${ownerModule}/${page}/${encodeURIComponent(key)}` : `/modules/${ownerModule}/${page}`), 400);
     } catch (error) { show(error.message); submit.disabled = false; }
   });
   initialize();

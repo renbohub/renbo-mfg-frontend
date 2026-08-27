@@ -14,7 +14,11 @@
   </script>
   <title><%= title %> · PT. Mitsutoyo Indonesia</title>
   <link rel="stylesheet" href="/vendor/bootstrap/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/vendor/select2/css/select2.min.css?v=4.1.0">
   <link rel="stylesheet" href="/vendor/datatables-bs5/css/dataTables.bootstrap5.min.css">
+  <% if (typeof pageStyles !== 'undefined' && Array.isArray(pageStyles)) { pageStyles.forEach((href) => { %>
+  <link rel="stylesheet" href="<%= href %>">
+  <% }); } %>
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="/css/login.css">
   <link rel="stylesheet" href="/css/master-data.css">
@@ -34,15 +38,20 @@
   <link rel="stylesheet" href="/css/mps-monthly-summary.css">
   <link rel="stylesheet" href="/css/planning-matrix.css?v=20260811-2">
   <link rel="stylesheet" href="/css/planning-matrix-fixes.css?v=20260811-1">
-  <link rel="stylesheet" href="/css/operations.css?v=20260812-pr-friendly">
-  <link rel="stylesheet" href="/css/production-log.css">
+  <link rel="stylesheet" href="/css/operations.css?v=20260826-vendor-receipt-compact-grid-6">
+  <link rel="stylesheet" href="/css/production-log.css?v=20260826-machine-gate-1">
   <link rel="stylesheet" href="/css/fg-receipt.css">
   <link rel="stylesheet" href="/css/system-master.css">
   <link rel="stylesheet" href="/css/gallery-view.css">
   <link rel="stylesheet" href="/css/shared-ui.css?v=20260810-4">
   <link rel="stylesheet" href="/css/interaction-ux.css?v=20260817-1">
+  <link rel="stylesheet" href="/css/enterprise-lookup.css?v=20260826-1">
+  <link rel="stylesheet" href="/css/document-shell.css?v=20260827-vendor-process-2">
+  <link rel="stylesheet" href="/css/transaction-workspace.css?v=20260827-sales-remove-fix-1">
   <link rel="stylesheet" href="/css/page-context.css">
-  <link rel="stylesheet" href="/css/maintenance.css">
+  <link rel="stylesheet" href="/css/ai-assistant.css?v=20260825-1">
+  <link rel="stylesheet" href="/css/ai-model-profiles.css?v=20260825-1">
+  <link rel="stylesheet" href="/css/maintenance.css?v=20260825-source-reset-1">
   <link rel="stylesheet" href="/css/executive-dashboard.css">
   <link rel="stylesheet" href="/css/ui-preferences.css?v=20260810-3">
   <% if (typeof requiresAuth !== 'undefined' && requiresAuth) { %>

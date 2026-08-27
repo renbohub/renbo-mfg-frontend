@@ -13,9 +13,9 @@
   };
   const normalizedActivePage = modulePageAliases[requestedActivePage] || requestedActivePage;
   const ppicWorkbenchNav = module.slug === 'planning-ppic' ? {
-    'master-production-schedule': { label: 'MPS Workbench', href: '/modules/planning-ppic/mps/workbench' },
-    'material-requirements-planning': { label: 'MRP Cockpit', href: '/modules/planning-ppic/control-tower?tab=mrp' },
-    'monthly-production-plans': { label: 'MPP Workbench', href: '/modules/planning-ppic/control-tower?tab=mpp' },
+    'master-production-schedule': { label: 'Rolling MPS', href: '/modules/planning-ppic/mps/workbench' },
+    'material-requirements-planning': { label: 'MRP Planning Runs', href: '/modules/planning-ppic/mrp' },
+    'monthly-production-plans': { label: 'Production Plans', href: '/modules/planning-ppic/monthly-production-plans' },
     'control-tower': { label: 'Execution Cockpit', href: '/modules/planning-ppic/control-tower' },
     'planned-orders': { label: 'Planned Order Workbench', href: '/modules/planning-ppic/control-tower?tab=orders' }
   } : {};

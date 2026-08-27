@@ -68,3 +68,8 @@
 @media (max-width: 760px) {
   .mps-mbom-revision-row { grid-template-columns: 1fr; }
 }
+
+.recovery-checklist > article.is-requested-action {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px #fef3c7;
+}

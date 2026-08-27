@@ -1,0 +1,63 @@
+<div class="ai-assistant" id="erp-ai-assistant" aria-hidden="true">
+  <button class="ai-assistant__backdrop" type="button" aria-label="Tutup AI Assistant" data-ai-assistant-close></button>
+  <aside class="ai-assistant__panel" role="dialog" aria-modal="true" aria-labelledby="ai-assistant-title">
+    <header class="ai-assistant__header">
+      <div class="ai-assistant__identity">
+        <span class="ai-assistant__mark" aria-hidden="true">AI</span>
+        <div>
+          <p>OFFLINE OPERATIONS COPILOT</p>
+          <h2 id="ai-assistant-title">AI Assistant</h2>
+        </div>
+      </div>
+      <div class="ai-assistant__header-actions">
+        <span class="ai-assistant__runtime" data-ai-runtime-state>OFFLINE</span>
+        <button type="button" class="ai-assistant__icon-button" aria-label="Tutup AI Assistant" data-ai-assistant-close>&times;</button>
+      </div>
+    </header>
+
+    <section class="ai-assistant__context" aria-label="Konteks halaman aktif">
+      <span>Konteks</span>
+      <strong data-ai-context-label>Halaman aktif</strong>
+      <button type="button" data-ai-new-conversation>Percakapan baru</button>
+    </section>
+
+    <div class="ai-assistant__workspace">
+      <nav class="ai-assistant__history" aria-label="Riwayat percakapan">
+        <div class="ai-assistant__section-title"><span>Riwayat</span><small data-ai-conversation-count>0</small></div>
+        <div class="ai-assistant__conversation-list" data-ai-conversation-list>
+          <p class="ai-assistant__empty">Belum ada percakapan.</p>
+        </div>
+      </nav>
+
+      <main class="ai-assistant__chat">
+        <div class="ai-assistant__notice" data-ai-notice>
+          <strong>Read &amp; draft only</strong>
+          <span>AI tidak dapat approve, release, posting, atau mengubah stock.</span>
+        </div>
+        <div class="ai-assistant__messages" data-ai-messages aria-live="polite">
+          <article class="ai-message ai-message--assistant">
+            <span class="ai-message__role">AI</span>
+            <div><p>Saya dapat menjelaskan data halaman ini dan menyiapkan draft yang tetap harus Anda review.</p></div>
+          </article>
+        </div>
+        <div class="ai-assistant__queue d-none" data-ai-queue>
+          <span class="ai-assistant__queue-pulse" aria-hidden="true"></span>
+          <span data-ai-queue-text>Menunggu runtime lokal...</span>
+          <button type="button" data-ai-cancel-request>Batalkan</button>
+        </div>
+      </main>
+    </div>
+
+    <footer class="ai-assistant__composer">
+      <div class="ai-assistant__prompt-context d-none" data-ai-prompt-context></div>
+      <label for="ai-assistant-prompt">Pertanyaan atau instruksi draft</label>
+      <div class="ai-assistant__input-row">
+        <textarea id="ai-assistant-prompt" rows="2" maxlength="6000" placeholder="Contoh: jelaskan blocker capacity tanggal yang dipilih..." data-ai-prompt></textarea>
+        <button type="button" class="ai-assistant__send" data-ai-send>
+          <span>Kirim</span><span aria-hidden="true">&uarr;</span>
+        </button>
+      </div>
+      <p>Qwen lokal · Sumber ERP terotorisasi · Draft menunggu konfirmasi</p>
+    </footer>
+  </aside>
+</div>

@@ -1948,7 +1948,7 @@
         const generated = await api("/modules/api/planning-ppic/mrp/generate-number");
         const scenarioKey = `${String(scenarioName || "simulation").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${Date.now()}`;
         const cycleNumbers = currentDoc?.planningCycle?.mpsNumbers || [key];
-        const result = await api("/modules/api/planning-ppic/mrp/run", { method: "POST", body: JSON.stringify({ runNumber: generated.runNumber, mpsNumber: key, mpsNumbers: cycleNumbers, scenarioKey, scenarioName, scenarioStatus: "SIMULATION", scenarioAssumptions: { demandMultiplier: demandPercent / 100, poDelayDays } }) });
+        const result = await api("/modules/api/planning-ppic/mrp/run", { method: "POST", body: JSON.stringify({ runNumber: generated.runNumber, mpsNumber: key, mpsNumbers: cycleNumbers, scenarioKey, scenarioName, scenarioAssumptions: { demandMultiplier: demandPercent / 100, poDelayDays } }) });
         location.href = `/modules/planning-ppic/mrp/${encodeURIComponent(result.runNumber || generated.runNumber)}`;
       } else if (button.dataset.action === "make-production-plan") {
         if (!confirm(`Buat Production Plan dari ${key}? MRP harus sudah Completed.`)) return;

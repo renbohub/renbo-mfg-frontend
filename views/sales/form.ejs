@@ -1,51 +1,57 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
 <%- include('../partials/sales-subnav') %>
-<main class="entity-form-page sales-document-page">
-  <div class="form-page-heading app-container">
-    <div>
-      <a href="/modules/sales/<%= page.slug %>"><%= page.label %></a>
-      <span>/</span>
-      <strong><%= mode === 'edit' ? 'Edit' : 'Buat Baru' %></strong>
-    </div>
-    <h1><%= mode === 'edit' ? 'Edit' : 'Buat' %> <%= page.label %></h1>
-    <p id="form-subtitle"><%= page.description %></p>
-  </div>
-  <form id="sales-form" class="entity-form-card sales-document-form" novalidate>
-    <div id="sales-alert" class="alert d-none" role="alert"></div>
-    <section class="sales-card sales-form-section">
-      <div class="sales-card-head">
-        <div><h2>Informasi Dokumen</h2><p>Data utama dan referensi transaksi</p></div>
-        <span id="document-status" class="sales-badge draft">Draft</span>
-      </div>
-      <div id="header-fields" class="sales-form-grid"></div>
-    </section>
-    <section class="sales-card sales-form-section">
-      <div class="sales-card-head">
-        <div><h2 id="items-title">Item</h2><p id="items-help">Tambahkan part dan kuantitas</p></div>
-        <button id="add-line" class="btn btn-outline-primary" type="button">
-          <%- include('../partials/icon', { name: 'plus' }) %> Tambah Item
-        </button>
-      </div>
-      <div class="table-responsive">
-        <table class="table sales-items">
-          <thead id="items-head"></thead>
-          <tbody id="items-body"></tbody>
-        </table>
-      </div>
-      <div id="document-summary" class="sales-summary"></div>
-    </section>
-    <section class="sales-card sales-form-section">
-      <div class="sales-card-head">
-        <div><h2>Catatan</h2><p>Informasi tambahan untuk dokumen ini</p></div>
-      </div>
-      <textarea id="notes" class="form-control" rows="4" placeholder="Tambahkan catatan..."></textarea>
-    </section>
-    <div class="form-actions sales-form-actions">
-      <a class="btn btn-outline-secondary" href="/modules/sales/<%= page.slug %>">Batal</a>
-      <button id="save-document" class="btn btn-primary brand-button" type="submit">Simpan</button>
-    </div>
-  </form>
+<main class="app-container entity-form-page sales-document-page transaction-form-page">
+  <nav class="module-breadcrumb" aria-label="Breadcrumb"><a href="/modules/sales">Sales</a><span>/</span><a href="/modules/sales/<%= page.slug %>"><%= page.label %></a><span>/</span><b><%= mode === 'edit' ? recordKey : 'Buat Baru' %></b></nav>
+  <article class="sales-form-document">
+    <%
+      const salesFormActions = `<button id="save-document" class="btn btn-primary brand-button" type="submit" form="sales-form">Simpan</button>`;
+    %>
+    <%- include('../partials/document-shell', { documentShell: { variant: 'transaction', eyebrow: 'Sales Document', number: mode === 'edit' ? recordKey : 'NEW', title: `${mode === 'edit' ? 'Edit' : 'Buat'} ${page.label}`, subtitle: page.description, status: 'Draft', statusId: 'document-status', actions: salesFormActions, backHref: `/modules/sales/${page.slug}`, className: 'sales-form-command-header' } }) %>
+
+    <form id="sales-form" class="entity-form-card sales-document-form" novalidate data-document-form data-disable-section-nav="true">
+      <div id="sales-alert" class="alert d-none" role="alert"></div>
+      <section class="sales-form-unified-header" aria-label="Informasi dokumen">
+        <h2 class="visually-hidden">Informasi Dokumen</h2>
+        <div id="header-fields" class="sales-form-grid sales-form-unified-grid"></div>
+      </section>
+
+      <section class="sales-form-flow" aria-label="Alur penyusunan dokumen">
+        <div id="sales-flow-header" class="is-active"><span>01</span><div><b>Document Header</b><small>Customer dan periode</small></div></div>
+        <i aria-hidden="true">›</i>
+        <div id="sales-flow-items"><span>02</span><div><b>Document Items</b><small>Part, qty, dan delivery</small></div></div>
+        <i aria-hidden="true">›</i>
+        <div id="sales-flow-review"><span>03</span><div><b>Validation</b><small>Periksa kelengkapan demand</small></div></div>
+        <i aria-hidden="true">›</i>
+        <div id="sales-flow-save"><span>04</span><div><b><%= mode === 'edit' ? 'Update Document' : 'Save Document' %></b><small><%= mode === 'edit' ? 'Simpan perubahan dokumen' : 'Simpan sebagai draft' %></small></div></div>
+      </section>
+
+      <section class="sales-form-workspace" data-enterprise-table-shell aria-labelledby="items-title">
+        <nav class="sales-form-view-tabs" role="tablist" aria-label="Detail dokumen sales">
+          <button class="is-active" type="button" role="tab" aria-selected="true">Document Items</button>
+        </nav>
+        <div class="sales-card-head sales-form-section-head">
+          <div><span class="sales-form-eyebrow">Document lines</span><h2 id="items-title">Item</h2><p id="items-help">Tambahkan part dan kuantitas</p><p id="items-feedback" class="sales-items-feedback" role="status" aria-live="polite" hidden></p></div>
+          <button id="add-line" class="btn btn-outline-primary" type="button">
+            <%- include('../partials/icon', { name: 'plus' }) %> Tambah Item
+          </button>
+        </div>
+        <div class="table-responsive">
+          <table class="table sales-items" data-enterprise-links="off">
+            <thead id="items-head"></thead>
+            <tbody id="items-body"></tbody>
+          </table>
+        </div>
+        <div id="document-summary" class="sales-summary"></div>
+        <label class="sales-form-notes" for="notes">
+          <span>Document Notes</span>
+          <textarea id="notes" class="form-control" rows="2" placeholder="Tambahkan catatan..."></textarea>
+        </label>
+      </section>
+      <div class="form-actions sales-form-actions" aria-hidden="true"></div>
+    </form>
+    <%- include('../partials/document-comments', { documentComments: { recordKey: mode === 'edit' ? recordKey : null, showPending: mode !== 'edit', title: `Komentar ${page.label}`, variant: 'receipt' } }) %>
+  </article>
 </main>
 <script id="sales-page-config" type="application/json"><%- JSON.stringify({ ...page, mode, recordKey }).replace(/</g, '\\u003c') %></script>
 <%- include('../partials/footer') %>

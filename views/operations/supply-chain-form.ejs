@@ -1,34 +1,58 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
-<main class="ops-page app-container <%= module.slug === 'incoming' ? 'goods-receipt-form-page' : '' %>">
+<main class="ops-page app-container transaction-form-page <%= module.slug === 'incoming' ? 'goods-receipt-form-page gr-create-page' : '' %>">
   <nav class="module-breadcrumb"><a href="/modules/<%= module.slug %>"><%= module.label %></a><span>/</span><a href="/modules/<%= module.slug %>/<%= page.slug %>"><%= page.label %></a><span>/</span><b>Buat</b></nav>
-  <section class="ops-detail-titlebar"><div><p class="ops-eyebrow"><%= module.label %></p><h1>Buat <%= page.label %></h1><p id="supply-form-help"><%= module.slug === 'incoming' ? 'Catat qty aktual datang, lalu alokasikan setiap lot ke kebutuhan part hasil explode MRP. Excess MOQ dicatat sebagai buffer.' : 'Pilih dokumen sumber lalu tentukan kuantitas setiap baris.' %></p></div><a class="btn btn-outline-secondary" href="/modules/<%= module.slug %>/<%= page.slug %>">Kembali</a></section>
+  <% if (module.slug === 'incoming') { %>
+  <form id="supply-form" class="gr-create-form">
+    <header class="gr-create-command-header">
+      <div class="gr-create-commandbar">
+        <div><p class="ops-eyebrow">GOODS RECEIPT</p><h1>Buat Goods Receipt</h1><p id="supply-form-help">Catat barang aktual datang dan alokasikan setiap lot ke kebutuhan part.</p></div>
+        <div class="gr-create-command-actions"><button class="btn btn-primary brand-button" type="submit">Simpan Goods Receipt</button><a class="btn btn-outline-secondary" href="/modules/<%= module.slug %>/<%= page.slug %>">Kembali ke daftar</a></div>
+      </div>
+      <section class="gr-create-unified-grid" aria-label="Informasi Goods Receipt">
+        <label class="gr-create-field is-editable"><span>Purchase Order Aktif *</span><select id="sourceNumber" required><option value="">Pilih PO untuk dikonsumsi</option></select></label>
+        <label class="gr-create-field is-editable"><span>Receiving Warehouse *</span><select id="warehouseCode" required><option value="">Pilih warehouse</option></select></label>
+        <label class="gr-create-field is-editable"><span>Vendor Delivery Note</span><input id="deliveryNoteNumber" placeholder="Nomor dokumen supplier"></label>
+        <div class="gr-create-field is-readonly"><span>Posting Rule</span><b>Incoming Hold → QC Inspection</b></div>
+        <div class="gr-create-field is-readonly"><span>Inventory Status</span><b>Belum available sebelum QC release</b></div>
+        <div class="gr-create-field is-action"><span>Source Refresh</span><button id="supply-load-source" type="button" class="btn btn-outline-primary">Muat Ulang Detail PO</button></div>
+      </section>
+    </header>
+
+    <div id="supply-form-alert" class="alert d-none" role="alert"></div>
+    <section class="gr-create-flow" aria-label="Alur pembuatan Goods Receipt"><div class="is-active"><span>01</span><div><b>Pilih PO</b><small>Ambil outstanding supplier</small></div></div><i>›</i><div><span>02</span><div><b>Receipt &amp; Allocation</b><small>Qty, lot, rack, dan demand</small></div></div><i>›</i><div><span>03</span><div><b>Reconciliation</b><small>Tentukan status akhir PO</small></div></div></section>
+
+    <section class="gr-create-workspace">
+      <section id="gr-create-panel-items" class="gr-create-panel is-active" aria-label="Receipt Items dan Rekonsiliasi PO" data-gr-create-panel="items">
+        <div class="gr-create-section-head"><div><p>RECEIPT ITEMS</p><h2>Qty Aktual &amp; Alokasi Kebutuhan Part</h2></div><span>Editable worksheet</span></div>
+        <div class="table-responsive"><table class="table ops-collection-table gr-entry-table" data-enterprise-table="off"><thead><tr><th>Item / Deskripsi</th><th>PO Qty</th><th>Sudah Diterima</th><th>Outstanding</th><th>Qty Datang</th><th>Variance</th><th>Identitas Lot &amp; Lokasi</th></tr></thead><tbody id="supply-detail-body"><tr><td colspan="7" class="ops-muted">Pilih Purchase Order yang akan dikonsumsi.</td></tr></tbody></table></div>
+        <section class="gr-reconciliation">
+          <div class="module-form-section-title">Rekonsiliasi PO<span>Keputusan status PO setelah GR disimpan</span></div>
+          <div class="gr-summary-grid"><div><small>Outstanding Awal</small><b id="gr-summary-outstanding">0</b></div><div><small>Qty Datang</small><b id="gr-summary-arrival">0</b></div><div class="is-short"><small>Kurang</small><b id="gr-summary-shortage">0</b></div><div class="is-over"><small>Lebih</small><b id="gr-summary-over">0</b></div><div><small>Hasil Status PO</small><b id="gr-summary-status" class="gr-summary-status">-</b></div></div>
+          <p id="gr-variance-help" class="gr-variance-help">Isi qty datang untuk melihat rekomendasi status PO.</p>
+          <div class="gr-decision-grid"><label><span>Penanganan Kekurangan *</span><select id="shortageAction"><option value="AUTO">Otomatis — close jika kekurangan ≤ 5%</option><option value="KEEP_OPEN">Tetap Partial Receipt — supplier masih kirim sisa</option><option value="CLOSE_PO">Close PO — sisa tidak ditagih lagi</option></select></label><label><span>Alasan Close / Variance</span><input id="closeReason" placeholder="Contoh: toleransi berat supplier disetujui"></label></div>
+        </section>
+        <label class="gr-create-notes" for="notes"><span>Receipt Notes</span><textarea id="notes" rows="2" placeholder="Kondisi barang, kemasan, atau catatan penerimaan"></textarea></label>
+      </section>
+    </section>
+    <div class="module-form-actions gr-create-progress-slot" aria-label="Kelengkapan form"></div>
+  </form>
+  <% } else { %>
+  <section class="ops-detail-titlebar transaction-command-header"><div><p class="ops-eyebrow"><%= module.label %></p><h1>Buat <%= page.label %></h1><p id="supply-form-help">Pilih dokumen sumber lalu tentukan kuantitas setiap baris.</p></div><div class="ops-title-actions"><button class="btn btn-primary brand-button" type="submit" form="supply-form">Simpan Dokumen</button><a class="btn btn-outline-secondary" href="/modules/<%= module.slug %>/<%= page.slug %>">Kembali ke daftar</a></div></section>
   <div id="supply-form-alert" class="alert d-none" role="alert"></div>
-  <form id="supply-form" class="ops-detail-card <%= module.slug === 'incoming' ? 'gr-entry-form' : '' %>">
-    <div class="module-form-section-title"><%= module.slug === 'incoming' ? '1. Pilih dan Consume Purchase Order' : `Informasi ${page.label}` %><span class="form-required-note">* Field wajib</span></div>
+  <form id="supply-form" class="ops-detail-card">
+    <div class="module-form-section-title">Informasi <%= page.label %><span class="form-required-note">* Field wajib</span></div>
     <div class="ops-detail-fields">
-      <% if (module.slug === 'incoming') { %>
-        <label><span>Purchase Order Aktif *</span><select id="sourceNumber" required><option value="">Pilih PO untuk dikonsumsi</option></select><small>Bisa dipilih manual tanpa membuka halaman PO.</small></label><label><span>Warehouse Tujuan *</span><select id="warehouseCode" required><option value="">Pilih warehouse</option></select></label>
-        <label><span>Nomor Surat Jalan</span><input id="deliveryNoteNumber" placeholder="Nomor dokumen supplier"></label><label class="span-2"><span>Catatan Penerimaan</span><textarea id="notes" rows="2" placeholder="Catatan umum incoming"></textarea></label>
-      <% } else { %>
         <label><span>Sales Order *</span><input id="sourceNumber" placeholder="SO-..." required></label><label><span>Tanggal Kirim *</span><input id="plannedDate" type="date" required></label>
         <label><span>Metode Kirim</span><input id="shippingMethod" placeholder="Truck / Courier"></label><label class="span-2"><span>Alamat Kirim</span><textarea id="deliveryAddress" rows="2"></textarea></label><label class="span-2"><span>Catatan</span><textarea id="notes" rows="2"></textarea></label>
-      <% } %>
     </div>
-    <div class="d-flex gap-2 mt-3"><button id="supply-load-source" type="button" class="btn btn-outline-primary"><%= module.slug === 'incoming' ? 'Muat Ulang Detail PO' : 'Muat Detail Sumber' %></button></div>
-    <% if (module.slug === 'incoming') { %><div class="module-form-section-title gr-lines-title">2. Qty Aktual & Alokasi Kebutuhan Part<span>Total alokasi per lot wajib sama dengan qty datang</span></div><% } %>
-    <div class="table-responsive mt-3"><table class="table ops-collection-table <%= module.slug === 'incoming' ? 'gr-entry-table' : '' %>"><thead><% if (module.slug === 'incoming') { %><tr><th>Item / Deskripsi</th><th>PO Qty</th><th>Sudah Diterima</th><th>Outstanding</th><th>Qty Datang</th><th>Variance</th><th>Identitas Lot & Lokasi</th></tr><% } else { %><tr><th>Item / Deskripsi</th><th>Outstanding</th><th>Qty Transaksi</th><th>Catatan</th></tr><% } %></thead><tbody id="supply-detail-body"><tr><td colspan="<%= module.slug === 'incoming' ? 7 : 4 %>" class="ops-muted">Pilih dokumen sumber terlebih dahulu.</td></tr></tbody></table></div>
-    <% if (module.slug === 'incoming') { %>
-      <section class="gr-reconciliation">
-        <div class="module-form-section-title">3. Rekonsiliasi PO<span>Keputusan status PO setelah GR disimpan</span></div>
-        <div class="gr-summary-grid"><div><small>Outstanding Awal</small><b id="gr-summary-outstanding">0</b></div><div><small>Qty Datang</small><b id="gr-summary-arrival">0</b></div><div class="is-short"><small>Kurang</small><b id="gr-summary-shortage">0</b></div><div class="is-over"><small>Lebih</small><b id="gr-summary-over">0</b></div><div><small>Hasil Status PO</small><b id="gr-summary-status" class="gr-summary-status">-</b></div></div>
-        <p id="gr-variance-help" class="gr-variance-help">Isi qty datang untuk melihat rekomendasi status PO.</p>
-        <div class="gr-decision-grid"><label><span>Penanganan Kekurangan *</span><select id="shortageAction"><option value="AUTO">Otomatis — close jika kekurangan ≤ 5%</option><option value="KEEP_OPEN">Tetap Partial Receipt — supplier masih kirim sisa</option><option value="CLOSE_PO">Close PO — sisa tidak ditagih lagi</option></select></label><label><span>Alasan Close / Variance</span><input id="closeReason" placeholder="Contoh: toleransi berat supplier disetujui"></label></div>
-      </section>
-    <% } %>
-    <div class="module-form-actions"><a class="btn btn-outline-secondary" href="/modules/<%= module.slug %>/<%= page.slug %>">Batal</a><button class="btn btn-primary brand-button" type="submit">Simpan Dokumen</button></div>
+    <div class="d-flex gap-2 mt-3"><button id="supply-load-source" type="button" class="btn btn-outline-primary">Muat Detail Sumber</button></div>
+    <div class="table-responsive mt-3"><table class="table ops-collection-table"><thead><tr><th>Item / Deskripsi</th><th>Outstanding</th><th>Qty Transaksi</th><th>Catatan</th></tr></thead><tbody id="supply-detail-body"><tr><td colspan="4" class="ops-muted">Pilih dokumen sumber terlebih dahulu.</td></tr></tbody></table></div>
+    <div class="module-form-actions transaction-progress-slot" aria-label="Kelengkapan form"></div>
   </form>
+  <% } %>
+  <%- include('../partials/document-comments', { documentComments: { recordKey: null, showPending: true, title: `Komentar ${page.label}`, variant: 'receipt' } }) %>
 </main>
 <script id="supply-form-config" type="application/json"><%- JSON.stringify({ module: module.slug, page: page.slug }).replace(/</g, '\u003c') %></script>
 <%- include('../partials/footer') %>

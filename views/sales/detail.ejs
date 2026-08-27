@@ -1,49 +1,64 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
 <%- include('../partials/sales-subnav') %>
-<main class="entity-detail-page app-container sales-page sales-detail-page">
-  <div class="detail-heading">
-    <div>
-      <a href="/modules/sales/<%= page.slug %>"><%= page.label %></a>
-      <span>/</span>
-      <strong id="document-breadcrumb"><%= recordKey %></strong>
+<main class="entity-detail-page app-container sales-page sales-detail-page transaction-detail-page">
+  <%
+    let salesDetailActions = page.salesType === 'forecast' ? '<button id="submit-forecast" data-action="submit" class="btn btn-success d-none">Submit Forecast</button><button id="approve-forecast" data-action="approve" class="btn btn-success d-none">Approve Forecast</button><button id="forecast-planning-tool" class="btn btn-primary">Tarik Planning</button>' : '';
+    salesDetailActions += '<button id="make-to-so" class="btn btn-success d-none">Make to SO</button><button id="confirm-sales-order" class="btn btn-success d-none">Confirm SO</button>';
+    salesDetailActions += `<div class="dropdown enterprise-more-actions sales-more-actions"><button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">More Actions</button><div class="dropdown-menu dropdown-menu-end">${page.salesType === 'forecast' ? '<button id="revise-forecast" class="dropdown-item d-none" type="button">Buat Revisi</button>' : ''}${page.salesType === 'sales-order' ? '<button id="revise-sales-order" class="dropdown-item d-none" type="button">Buat Revisi</button>' : ''}<a id="edit-document" class="dropdown-item" href="/modules/sales/${page.slug}/${encodeURIComponent(recordKey)}/edit">Edit Dokumen</a><button id="delete-document" class="dropdown-item dropdown-item-danger" type="button">Hapus Dokumen</button></div></div>`;
+  %>
+  <%- include('../partials/document-shell', { documentShell: { variant: 'transaction', eyebrow: `Sales · ${page.label}`, number: recordKey, title: page.label, titleId: 'document-number', subtitle: `Memuat detail ${page.label}...`, subtitleId: 'document-caption', status: '...', statusId: 'document-status', actions: salesDetailActions, backHref: `/modules/sales/${page.slug}`, breadcrumbHtml: `<a href="/modules/sales/${page.slug}">${page.label}</a><span>/</span><strong id="document-breadcrumb">${recordKey}</strong>` } }) %>
+  <div id="sales-alert" class="alert d-none" role="alert"></div>
+  <section class="sales-record-overview" aria-labelledby="sales-record-overview-title">
+    <header class="sales-record-overview__head">
+      <p>Document overview</p>
+      <h2 id="sales-record-overview-title">Informasi Dokumen</h2>
+    </header>
+    <div id="detail-info" class="sales-info-grid"></div>
+  </section>
+
+  <section class="transaction-detail-tabs-workspace sales-detail-workspace" aria-label="Workspace detail <%= page.label %>">
+    <nav class="transaction-detail-tabs" aria-label="Bagian dokumen" role="tablist">
+      <button id="sales-tab-detail" type="button" role="tab" aria-selected="true" aria-controls="sales-panel-detail" class="is-active" data-sales-tab="detail"><%= page.salesType === 'forecast' ? 'Forecast & Actual' : 'Detail Dokumen' %></button>
+      <% if (page.salesType === 'forecast') { %><button id="sales-tab-planning" type="button" role="tab" aria-selected="false" aria-controls="sales-panel-planning" data-sales-tab="planning">Planning Chain</button><% } %>
+      <button id="sales-tab-flow" type="button" role="tab" aria-selected="false" aria-controls="sales-panel-flow" data-sales-tab="flow">Alur & Relasi</button>
+    </nav>
+
+    <div id="sales-panel-detail" class="transaction-detail-tab-panel" role="tabpanel" aria-labelledby="sales-tab-detail" data-sales-panel="detail">
+      <section class="sales-workspace-section" data-enterprise-table-shell>
+        <header class="sales-workspace-section__head"><div><p>Receipt items style</p><h2><%= page.salesType === 'forecast' ? 'Item Forecast' : 'Detail Item' %></h2></div><span id="detail-items-caption">Part dan kuantitas dokumen</span></header>
+        <div class="table-responsive"><table class="table sales-detail-table" data-enterprise-links="off"><thead id="detail-head"></thead><tbody id="detail-body"></tbody></table></div>
+        <div id="detail-summary" class="sales-summary"></div>
+      </section>
+      <% if (page.salesType === 'forecast') { %>
+        <section class="sales-workspace-section sales-workspace-section--related" data-enterprise-table-shell>
+          <header class="sales-workspace-section__head"><div><p>Demand reconciliation</p><h2>Forecast vs Actual SO</h2></div><span>Per customer, part FG, dan bulan forecast</span></header>
+          <div class="table-responsive"><table class="table sales-detail-table" data-enterprise-links="off"><thead><tr><th>Bulan</th><th>Part</th><th>Bucket</th><th>Forecast</th><th>Actual SO</th><th>Selisih</th><th>Forecast Rp</th><th>SO Rp</th></tr></thead><tbody id="forecast-demand-summary"><tr><td colspan="8" class="text-muted text-center">Memuat ringkasan demand…</td></tr></tbody></table></div>
+        </section>
+      <% } %>
+      <section class="sales-workspace-notes" aria-labelledby="sales-notes-title">
+        <label id="sales-notes-title" for="detail-notes">Catatan</label>
+        <p id="detail-notes" class="sales-notes">-</p>
+      </section>
     </div>
-    <div class="detail-actions sales-actions">
-      <% if (page.salesType === 'forecast') { %><button id="submit-forecast" data-action="submit" class="btn btn-success d-none">Submit Forecast</button><button id="approve-forecast" data-action="approve" class="btn btn-success d-none">Approve Forecast</button><button id="forecast-planning-tool" class="btn btn-primary">Tarik Planning</button><% } %>
-      <button id="make-to-so" class="btn btn-success d-none">Make to SO</button>
-      <button id="confirm-sales-order" class="btn btn-success d-none">Confirm SO</button>
-      <div class="dropdown enterprise-more-actions sales-more-actions">
-        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">More Actions</button>
-        <div class="dropdown-menu dropdown-menu-end">
-          <% if (page.salesType === 'forecast') { %><button id="revise-forecast" class="dropdown-item d-none" type="button">Buat Revisi</button><% } %>
-          <% if (page.salesType === 'sales-order') { %><button id="revise-sales-order" class="dropdown-item d-none" type="button">Buat Revisi</button><% } %>
-          <a id="edit-document" class="dropdown-item" href="/modules/sales/<%= page.slug %>/<%= encodeURIComponent(recordKey) %>/edit">Edit Dokumen</a>
-          <button id="delete-document" class="dropdown-item dropdown-item-danger" type="button">Hapus Dokumen</button>
-        </div>
+
+    <% if (page.salesType === 'forecast') { %>
+      <div id="sales-panel-planning" class="transaction-detail-tab-panel" role="tabpanel" aria-labelledby="sales-tab-planning" data-sales-panel="planning" hidden>
+        <section class="sales-workspace-section" data-enterprise-table-shell>
+          <header class="sales-workspace-section__head"><div><p>Planning traceability</p><h2>Planning Chain</h2></div><span>Forecast → MPS → MRP → Production Plan → PR</span></header>
+          <div id="forecast-planning-tool-status" class="sales-planning-status">Memuat status planning...</div>
+        </section>
+      </div>
+    <% } %>
+
+    <div id="sales-panel-flow" class="transaction-detail-tab-panel" role="tabpanel" aria-labelledby="sales-tab-flow" data-sales-panel="flow" hidden>
+      <div class="sales-flow-grid">
+        <section class="sales-flow-section"><header><p>Document status</p><h2>Alur Dokumen</h2></header><div id="workflow" class="sales-workflow"></div></section>
+        <section class="sales-flow-section"><header><p>Connected records</p><h2>Relasi Dokumen</h2></header><div id="relationships" class="sales-relationships"></div></section>
       </div>
     </div>
-  </div>
-  <section class="sales-detail-identity">
-    <div class="sales-heading-line">
-      <h1 id="document-number"><%= recordKey %></h1>
-      <span id="document-status" class="sales-badge">...</span>
-    </div>
-    <p id="document-caption">Memuat detail <%= page.label %>...</p>
   </section>
-  <div id="sales-alert" class="alert d-none" role="alert"></div>
-  <div class="sales-detail-layout">
-    <div>
-      <section class="sales-card"><div class="sales-card-head"><div><h2>Informasi Dokumen</h2><p>Ringkasan transaksi dan customer</p></div></div><div id="detail-info" class="sales-info-grid"></div></section>
-      <section class="sales-card"><div class="sales-card-head"><div><h2>Detail Item</h2><p id="detail-items-caption">Part dan kuantitas dokumen</p></div></div><div class="table-responsive"><table class="table sales-detail-table"><thead id="detail-head"></thead><tbody id="detail-body"></tbody></table></div><div id="detail-summary" class="sales-summary"></div></section>
-      <% if (page.salesType === 'forecast') { %><section class="sales-card"><div class="sales-card-head"><div><h2>Forecast vs Actual SO</h2><p>Per customer, part FG, dan bulan forecast.</p></div></div><div class="table-responsive"><table class="table sales-detail-table"><thead><tr><th>Bulan</th><th>Part</th><th>Bucket</th><th>Forecast</th><th>Actual SO</th><th>Selisih</th><th>Forecast Rp</th><th>SO Rp</th></tr></thead><tbody id="forecast-demand-summary"><tr><td colspan="8" class="text-muted text-center">Memuat ringkasan demand…</td></tr></tbody></table></div></section><% } %>
-      <section class="sales-card"><div class="sales-card-head"><h2>Catatan</h2></div><p id="detail-notes" class="sales-notes">-</p></section>
-    </div>
-    <aside>
-      <section class="sales-card"><div class="sales-card-head"><h2>Alur Dokumen</h2></div><div id="workflow" class="sales-workflow"></div></section>
-      <section class="sales-card"><div class="sales-card-head"><h2>Relasi</h2></div><div id="relationships" class="sales-relationships"></div></section>
-      <% if (page.salesType === 'forecast') { %><section class="sales-card"><div class="sales-card-head"><div><h2>Planning Chain</h2><p>Forecast → MPS → MRP → Production Plan → PR</p></div></div><div id="forecast-planning-tool-status" class="sales-notes">Memuat status planning...</div></section><% } %>
-    </aside>
-  </div>
+  <%- include('../partials/document-comments', { documentComments: { recordKey, title: `Komentar ${page.label}`, variant: 'receipt' } }) %>
 </main>
 <script id="sales-page-config" type="application/json"><%- JSON.stringify({ ...page, recordKey }).replace(/</g, '\\u003c') %></script>
 <%- include('../partials/footer') %>

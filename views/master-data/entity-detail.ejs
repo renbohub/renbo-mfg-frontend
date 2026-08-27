@@ -1,18 +1,9 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-master') %>
-<main class="entity-detail-page app-container">
-  <section class="master-detail-titlebar">
-    <div class="master-detail-heading">
-      <p>MASTER DATA · <%= config.label.toUpperCase() %></p>
-      <h1 id="master-detail-title">Detail <%= config.singular %></h1>
-      <span id="master-detail-subtitle">Memuat ringkasan data...</span>
-    </div>
-    <div class="detail-actions">
-      <a class="btn btn-light" href="/master-data/<%= config.slug %>">← Kembali</a>
-      <a id="edit-record" class="btn btn-primary brand-button" href="#">Edit Data</a>
-    </div>
-  </section>
+<main class="entity-detail-page app-container transaction-detail-page">
+  <%- include('../partials/document-shell', { documentShell: { variant: 'master', eyebrow: `Master Data · ${config.label}`, number: recordKey, title: `Detail ${config.singular}`, titleId: 'master-detail-title', subtitle: 'Memuat ringkasan data...', subtitleId: 'master-detail-subtitle', actions: '<a id="edit-record" class="btn btn-primary brand-button" href="#">Edit Data</a>', backHref: `/master-data/${config.slug}` } }) %>
   <div id="detail-content" class="detail-sections"><section class="detail-card"><div class="detail-loading">Memuat data...</div></section></div>
+  <%- include('../partials/document-comments', { documentComments: { recordKey, title: `Komentar ${config.singular}`, variant: 'receipt' } }) %>
 </main>
 <script id="entity-config" type="application/json"><%- JSON.stringify({ config, recordKey }).replace(/</g, '\\u003c') %></script>
 <%- include('../partials/footer') %>

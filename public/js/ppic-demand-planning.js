@@ -21,6 +21,11 @@
   let previewVendorProcessAdjustments = [];
   let mpsSelectedRowIds = new Set();
   let mpsSelectorBusy = false;
+  const requestedParams = new URLSearchParams(location.search);
+  const requestedDeliveryTargetId = requestedParams.get("deliveryTargetId") || "";
+  const requestedDeliveryAction = requestedParams.get("action") || "";
+  let requestedDeliveryHandled = false;
+  let pendingRequestedRecoveryAction = null;
 
   async function api(url, options = {}) {
     const response = await fetch(url, { ...options, headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json", ...(options.headers || {}) } });
@@ -78,6 +83,15 @@
     $("ppic-footer").textContent = `${num(payload.total)} delivery target phase · exact customer due date tetap dipertahankan`;
     const flow = $("planning-flowbar");
     flow?.querySelector('[data-flow-step="demand"]')?.classList.add("active");
+    openRequestedDeliveryAction();
+  }
+  function openRequestedDeliveryAction() {
+    if (requestedDeliveryHandled || !requestedDeliveryTargetId) return;
+    const row = rows.find((item) => String(item.id) === requestedDeliveryTargetId);
+    if (!row) return;
+    requestedDeliveryHandled = true;
+    pendingRequestedRecoveryAction = requestedDeliveryAction;
+    openDrawer(row, "recovery");
   }
   function legacyRenderRows(items) {
     const body = $("ppic-rows");
@@ -282,6 +296,14 @@
       ${plan?.approvedBy ? `<div class="recovery-approval-record"><b>Approved PPIC oleh ${esc(plan.approvedBy)}</b><span>${date(plan.approvedAt)} · ${esc(plan.approvalReason || "")}</span></div>` : ""}
       ${pending ? `<section class="recovery-approval-form"><h3>Approval PPIC</h3><label>Catatan keputusan<textarea id="recovery-approval-reason" rows="3" placeholder="Jelaskan mengapa kombinasi tindakan ini cukup untuk melindungi due date"></textarea></label><label class="recovery-ack"><input id="recovery-approval-ack" type="checkbox"> Saya telah memeriksa PIC, target waktu, dependency, dan kriteria keberhasilan seluruh tindakan.</label></section>` : ""}
       <footer>${!locked ? `<button class="btn btn-outline-primary" id="save-recovery-plan">Simpan Draft</button>${plan ? `<button class="btn btn-primary" id="submit-recovery-plan">Ajukan Approval PPIC</button>` : ""}` : ""}${pending ? `<button class="btn btn-outline-danger" id="reject-recovery-plan">Reject</button><button class="btn btn-primary" id="approve-recovery-plan">Approve Recovery Plan</button>` : ""}${status === "APPROVED" ? `<button class="btn btn-outline-primary" id="revise-recovery-plan">Buat Revisi</button>` : ""}</footer>`;
+    if (pendingRequestedRecoveryAction === "accept-late") {
+      const acceptLate = document.querySelector('[data-recovery-item="ACCEPT_LATE"]');
+      const checkbox = acceptLate?.querySelector("[data-recovery-selected]");
+      if (checkbox && !checkbox.disabled) checkbox.checked = true;
+      acceptLate?.classList.add("is-selected", "is-requested-action");
+      setTimeout(() => acceptLate?.scrollIntoView({ block: "center", behavior: "smooth" }), 0);
+    }
+    pendingRequestedRecoveryAction = null;
   }
   async function loadRecoveryPlan(row) {
     $("demand-drawer-body").innerHTML = `<div class="demand-loading">Menyusun tindakan dari lead time, material, dan capacity…</div>`;

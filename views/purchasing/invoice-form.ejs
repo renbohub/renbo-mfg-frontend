@@ -1,10 +1,10 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
-<main class="ops-page app-container">
+<main class="ops-page app-container transaction-form-page">
   <nav class="module-breadcrumb"><a href="/modules/purchasing/purchase-invoices">Purchase Invoice</a><span>/</span><b><%= mode === 'edit' ? 'Edit Invoice' : 'Buat Invoice' %></b></nav>
   <form id="invoice-form">
-    <section class="ops-detail-titlebar">
+    <section class="ops-detail-titlebar transaction-command-header">
       <div><p class="ops-eyebrow">Purchasing · Three-way Match</p><h1><%= mode === 'edit' ? 'Edit Purchase Invoice' : 'Buat Purchase Invoice' %></h1><p>Invoice akan dicocokkan terhadap PO, receipt quantity, dan harga.</p></div>
       <div class="ops-title-actions"><a class="btn btn-outline-secondary" href="/modules/purchasing/purchase-invoices">Batal</a><button class="btn btn-primary" type="submit">Simpan Draft</button></div>
     </section>
@@ -26,6 +26,7 @@
     </section>
     <section class="ops-detail-card pr-form-card"><header><h2>Catatan</h2></header><textarea id="invoice-notes" class="form-control" rows="3"></textarea></section>
   </form>
+  <%- include('../partials/document-comments', { documentComments: { recordKey: mode === 'edit' ? recordKey : null, showPending: mode !== 'edit', title: 'Komentar Purchase Invoice', variant: 'receipt' } }) %>
 </main>
 <script id="invoice-form-config" type="application/json"><%- JSON.stringify({ mode, recordKey }).replace(/</g, '\\u003c') %></script>
 <script src="/js/purchasing-invoice-form.js"></script>

@@ -79,6 +79,12 @@
     return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
   };
   const titleCase = (value) => String(value || "").replace(/[-_]/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+  const recordHref = (record) => {
+    if (!record) return "";
+    const encodedRecord = encodeURIComponent(record);
+    if (context.module === "master-data") return `/master-data/${encodeURIComponent(context.page)}/${encodedRecord}`;
+    return `/modules/${encodeURIComponent(context.module)}/${encodeURIComponent(context.page)}/${encodedRecord}`;
+  };
   let data = { activities: [], errors: [], comments: [], counts: {} };
   let loaded = false;
   const activityLabels = {
@@ -113,15 +119,21 @@
         : (activityLabels[item.action] || titleCase(item.action || "Log"));
     const issues = isError ? issueRows(item) : "";
     const meta = [
-      item.record ? `<span>${escapeHtml(item.record)}</span>` : "",
+      item.record ? `<a class="page-context-record-chip" href="${recordHref(item.record)}" aria-label="Buka dokumen ${escapeHtml(item.record)}">${escapeHtml(item.record)}</a>` : "",
       item.statusCode ? `<span>HTTP ${escapeHtml(item.statusCode)}</span>` : "",
       item.responseTime != null ? `<span>${escapeHtml(item.responseTime)} ms</span>` : "",
     ].filter(Boolean).join("");
+    const username = item.username || "System";
+    const initials = String(username).trim().split(/\s+/).map((part) => part.charAt(0)).join("").slice(0, 2).toUpperCase() || "SY";
     return `<article class="page-context-entry ${isError ? "page-context-entry--error" : ""} ${isComment ? "page-context-entry--comment" : ""}">
-      <div class="page-context-entry-head"><strong>${escapeHtml(item.username || "System")}</strong><time>${escapeHtml(formatTime(item.createdAt))}</time></div>
-      ${isError ? `<div class="page-context-alarm-title"><span class="page-context-alarm-kind">${escapeHtml(item.type === "ALARM" ? "BLOCKER" : "ERROR")}</span><p>${escapeHtml(message)}</p></div>` : `<p>${escapeHtml(message)}</p>`}
-      ${issues ? `<ul class="page-context-issues">${issues}</ul>` : ""}
-      ${meta ? `<div class="page-context-entry-meta">${meta}</div>` : ""}
+      <span class="page-context-entry-avatar" aria-hidden="true">${escapeHtml(initials)}</span>
+      <div class="page-context-entry-body">
+        <div class="page-context-entry-head"><strong>${escapeHtml(username)}</strong><time>${escapeHtml(formatTime(item.createdAt))}</time></div>
+        ${isError ? `<div class="page-context-alarm-title"><span class="page-context-alarm-kind">${escapeHtml(item.type === "ALARM" ? "BLOCKER" : "ERROR")}</span><p>${escapeHtml(message)}</p></div>` : `<p>${escapeHtml(message)}</p>`}
+        ${issues ? `<ul class="page-context-issues">${issues}</ul>` : ""}
+        ${meta ? `<div class="page-context-entry-meta">${meta}</div>` : ""}
+      </div>
+      <span class="page-context-entry-menu" aria-hidden="true">⋮</span>
     </article>`;
   }
 
@@ -144,8 +156,8 @@
       const root = panel.querySelector(`[data-context-list="${type}"]`);
       if (root) root.innerHTML = data[type]?.length ? data[type].map((item) => entry(item, type)).join("") : `<div class="page-context-empty">Belum ada ${type === "errors" ? "alarm atau error" : "log transaksi/workflow"} untuk halaman ini.</div>`;
     });
-    const commentRoot = panel.querySelector("[data-context-comment-list]");
-    if (commentRoot) commentRoot.innerHTML = data.comments?.length ? data.comments.map((item) => entry(item, "comments")).join("") : '<div class="page-context-empty">Belum ada komentar untuk konteks ini.</div>';
+    const commentsHtml = data.comments?.length ? data.comments.map((item) => entry(item, "comments")).join("") : '<div class="page-context-empty">Belum ada komentar untuk konteks ini.</div>';
+    document.querySelectorAll("[data-context-comment-list], [data-context-inline-comment-list]").forEach((root) => { root.innerHTML = commentsHtml; });
   }
 
   async function load(force = false) {
@@ -175,29 +187,33 @@
   panel.addEventListener("show.bs.offcanvas", () => load(true));
   panel.querySelectorAll("[data-context-tab]").forEach((button) => button.addEventListener("click", () => activateTab(button.dataset.contextTab)));
   document.querySelectorAll("[data-context-open]").forEach((button) => button.addEventListener("click", () => activateTab(button.dataset.contextOpen)));
-  panel.querySelector("[data-context-comment-form]")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const textarea = event.currentTarget.querySelector("textarea");
-    const submit = event.currentTarget.querySelector("button[type=submit]");
-    const message = textarea.value.trim();
-    if (!message) return;
-    submit.disabled = true;
-    try {
-      const response = await fetch("/page-context/api/comments", {
-        method: "POST",
-        headers: authHeaders(true),
-        body: JSON.stringify({ ...context, message }),
-      });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.message || "Komentar gagal disimpan.");
-      textarea.value = "";
-      await load(true);
-    } catch (error) {
-      alert(error.message);
-    } finally {
-      submit.disabled = false;
-    }
-  });
+  document.querySelectorAll("[data-context-comment-form]").forEach((form) => form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const textarea = event.currentTarget.querySelector("textarea");
+      const submit = event.currentTarget.querySelector("button[type=submit]");
+      const status = event.currentTarget.querySelector("[data-context-comment-status]");
+      const message = textarea.value.trim();
+      if (!message) return;
+      submit.disabled = true;
+      if (status) status.textContent = "Menyimpan komentar…";
+      try {
+        const response = await fetch("/page-context/api/comments", {
+          method: "POST",
+          headers: authHeaders(true),
+          body: JSON.stringify({ ...context, message }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.message || "Komentar gagal disimpan.");
+        textarea.value = "";
+        if (status) status.textContent = "Komentar berhasil disimpan.";
+        await load(true);
+      } catch (error) {
+        if (status) status.textContent = error.message;
+        else alert(error.message);
+      } finally {
+        submit.disabled = false;
+      }
+    }));
 
   const reported = new Set();
   function reportClientError(message, stack) {

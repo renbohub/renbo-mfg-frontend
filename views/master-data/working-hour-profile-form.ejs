@@ -1,0 +1,52 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/working-hour-profile-master.css?v=20260824-enterprise-1">
+<%- include('../partials/header-master') %>
+<main class="wh-master-page transaction-form-page">
+  <div class="app-container">
+    <%
+      const whFormActions = `<button id="wh-save" class="btn btn-primary brand-button" type="submit" form="wh-form"><span>${mode === 'create' ? 'Simpan Working Hours' : 'Simpan Perubahan'}</span><i class="spinner-border spinner-border-sm" hidden></i></button>`;
+      const whFormBreadcrumb = `<a href="/master-data/working-hour-profiles">Working Hours</a><span>/</span><strong>${mode === 'create' ? 'Tambah Baru' : 'Edit Profile'}</strong>`;
+    %>
+    <%- include('../partials/document-shell', { documentShell: { variant: 'master', eyebrow: 'Master Data · Capacity Calendar', number: mode === 'create' ? 'NEW' : (recordKey || 'EDIT'), title: mode === 'create' ? 'Buat Working Hour Profile' : 'Konfigurasi Working Hours', subtitle: 'Atur kalender kerja per hari dan shift yang menjadi dasar kapasitas mesin serta Work Center.', actions: whFormActions, backHref: '/master-data/working-hour-profiles', breadcrumbHtml: whFormBreadcrumb } }) %>
+  </div>
+
+  <form id="wh-form" class="wh-form-shell app-container" novalidate>
+    <div id="wh-form-alert" class="wh-alert" hidden></div>
+    <section class="wh-profile-layout">
+      <article class="wh-panel">
+        <header><span>01</span><div><h2>Identitas Profile</h2><p>Kode kalender yang dipilih pada Work Center atau mesin.</p></div></header>
+        <div class="wh-field-grid">
+          <label><span>Kode Profile <em>*</em></span><input name="profileCode" required maxlength="50" placeholder="REGULAR-2SHIFT"></label>
+          <label><span>Nama Profile <em>*</em></span><input name="profileName" required maxlength="120" placeholder="Regular · 2 Shift"></label>
+          <label><span>Tipe Profile <em>*</em></span><select name="profileType" required><option value="REGULAR">Regular</option><option value="RAMADAN">Ramadan</option><option value="SPECIAL">Special</option></select></label>
+          <label><span>Prioritas</span><input name="priority" type="number" min="0" step="1" value="0"><small>Nilai lebih tinggi dipakai lebih dahulu bila periode bertumpuk.</small></label>
+        </div>
+      </article>
+      <article class="wh-panel">
+        <header><span>02</span><div><h2>Masa Berlaku</h2><p>Profile regular boleh tanpa batas tanggal.</p></div></header>
+        <div class="wh-field-grid">
+          <label><span>Berlaku Mulai</span><input name="effectiveFrom" type="date"></label>
+          <label><span>Berlaku Sampai</span><input name="effectiveUntil" type="date"></label>
+        </div>
+        <label class="wh-active-switch"><input name="isActive" type="checkbox" checked><i></i><span><b>Profile Aktif</b><small>Dapat digunakan oleh capacity planning.</small></span></label>
+      </article>
+    </section>
+
+    <section class="wh-schedule-panel">
+      <header><div><span>03 · WEEKLY CAPACITY RULE</span><h2>Jadwal Mingguan</h2><p>Aktifkan shift yang bekerja, lalu isi jam mulai, selesai, break, dan overtime per hari.</p></div><div class="wh-schedule-actions"><button id="wh-copy-monday" type="button">Salin Senin → Selasa–Kamis</button><strong id="wh-week-total">0 jam / minggu</strong></div></header>
+      <div class="wh-schedule-legend"><span>AKTIF</span><span>SHIFT</span><span>MULAI</span><span>SELESAI</span><span>BREAK</span><span>OVERTIME</span><span>EFEKTIF</span></div>
+      <div id="wh-weekly-schedule" class="wh-weekly-schedule"><div class="wh-loading">Memuat master shift dan jadwal kerja...</div></div>
+    </section>
+
+    <section class="wh-panel wh-governance">
+      <header><span>04</span><div><h2>Catatan & Tata Kelola</h2><p>Gunakan untuk aturan khusus kalender, hari libur, atau periode Ramadan.</p></div></header>
+      <label><span>Catatan</span><textarea name="notes" rows="4" placeholder="Contoh: Jumat break 90 menit; Ramadan berlaku mengikuti keputusan perusahaan."></textarea></label>
+    </section>
+
+    <footer class="wh-form-actions"><div><span id="wh-save-state">Perubahan belum disimpan</span><small>Jam efektif dihitung otomatis dari durasi, break, dan overtime.</small></div><a class="btn btn-light" href="/master-data/working-hour-profiles">Batal</a></footer>
+  </form>
+  <div class="app-container"><%- include('../partials/document-comments', { documentComments: { recordKey: mode === 'create' ? null : recordKey, showPending: mode === 'create', title: 'Komentar Working Hour Profile', variant: 'receipt' } }) %></div>
+</main>
+<script id="wh-config" type="application/json"><%- JSON.stringify({ config, mode, recordId, recordKey }).replace(/</g, '\u003c') %></script>
+<script src="/js/working-hour-profile-model.js?v=20260824-enterprise-1"></script>
+<%- include('../partials/footer') %>

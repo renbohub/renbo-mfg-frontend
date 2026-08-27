@@ -2,21 +2,18 @@
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <%- include('../partials/bom-subnav', { activeBomTab: 'generator', recordKey }) %>
-<main class="bom-editor-page" data-mode="<%= mode %>">
-  <section class="bom-editor-toolbar app-container">
-    <div class="bom-editor-title"><a href="/modules/manufacturing-bom/bill-of-materials">← Kembali</a><span></span><div><small><%= mode === 'create' ? 'BOM Generator' : mode === 'draft' ? 'Draft BOM' : mode === 'edit' ? 'Edit BOM' : 'Detail BOM' %></small><h1 id="bom-page-title"><%= mode === 'create' ? 'BOM Baru' : recordKey %></h1></div></div>
-    <div class="bom-editor-actions">
-      <% if (mode === 'view') { %><a class="btn btn-primary bom-primary" href="/modules/manufacturing-bom/bill-of-materials/<%= encodeURIComponent(recordKey) %>/edit">Edit dengan Canvas</a><% } else { %>
-      <span id="bom-draft-status" class="bom-draft-status <%= mode === 'draft' ? '' : 'd-none' %>"><%= mode === 'draft' ? 'Draft tersimpan' : '' %></span>
-      <button id="bom-auto-layout" class="btn btn-outline-secondary" type="button">Auto Layout</button>
-      <% if (mode === 'create') { %><button id="bom-make-draft" class="btn btn-primary bom-primary" type="button"><span>Make Draft</span><i class="spinner-border spinner-border-sm d-none"></i></button><% } %>
-      <button id="bom-save" class="btn btn-success <%= mode === 'create' ? 'd-none' : '' %>" type="button"><span><%= mode === 'draft' ? 'Approve BOM' : 'Simpan BOM' %></span><i class="spinner-border spinner-border-sm d-none"></i></button><% } %>
-    </div>
-  </section>
+<main class="bom-editor-page transaction-form-page" data-mode="<%= mode %>">
+  <div class="app-container">
+    <%
+      const bomModeLabel = mode === 'create' ? 'BOM Generator' : mode === 'draft' ? 'Draft BOM' : mode === 'edit' ? 'Edit BOM' : 'Detail BOM';
+      let bomEditorActions = mode === 'view' ? `<a class="btn btn-primary bom-primary" href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(recordKey)}/edit">Edit dengan Canvas</a>` : `<span id="bom-draft-status" class="bom-draft-status ${mode === 'draft' ? '' : 'd-none'}">${mode === 'draft' ? 'Draft tersimpan' : ''}</span><button id="bom-auto-layout" class="btn btn-outline-secondary" type="button">Auto Layout</button>${mode === 'create' ? '<button id="bom-make-draft" class="btn btn-primary bom-primary" type="button"><span>Make Draft</span><i class="spinner-border spinner-border-sm d-none"></i></button>' : ''}<button id="bom-save" class="btn btn-success ${mode === 'create' ? 'd-none' : ''}" type="button"><span>${mode === 'draft' ? 'Approve BOM' : 'Simpan BOM'}</span><i class="spinner-border spinner-border-sm d-none"></i></button>`;
+    %>
+    <%- include('../partials/document-shell', { documentShell: { variant: 'planning', eyebrow: `Manufacturing BOM · ${bomModeLabel}`, number: mode === 'create' ? 'NEW' : recordKey, title: mode === 'create' ? 'BOM Baru' : bomModeLabel, titleId: 'bom-page-title', subtitle: 'Bangun struktur komponen dan routing tanpa mengubah kalkulasi BOM.', actions: bomEditorActions, backHref: '/modules/manufacturing-bom/bill-of-materials', breadcrumbHtml: '<a href="/modules/manufacturing-bom/bill-of-materials">BOM List</a><span>/</span><strong>Canvas</strong>' } }) %>
+  </div>
   <div id="bom-alert" class="alert alert-danger d-none mx-4 mt-3"></div>
   <section class="bom-header-form app-container">
-    <div class="bom-header-field bom-header-product"><label>Produk Utama <em>*</em></label><select id="bom-root-part" class="form-select" <%= mode === 'view' ? 'disabled' : '' %>><option value="">Memuat master part...</option></select></div>
-    <div class="bom-header-field"><label>Base UOM</label><select id="bom-root-uom" class="form-select" <%= mode === 'view' ? 'disabled' : '' %>><option value="">Pilih UOM</option></select></div>
+    <div class="bom-header-field bom-header-product"><label>Produk Utama <em>*</em></label><select id="bom-root-part" class="form-select" data-enterprise-lookup="parts" data-value-key="id" data-label-key="partName" data-lookup-placeholder="Pilih produk utama" <%= mode === 'view' ? 'disabled' : '' %>><option value="">Memuat master part...</option></select></div>
+    <div class="bom-header-field"><label>Base UOM</label><select id="bom-root-uom" class="form-select" data-enterprise-lookup="uom" data-value-key="uomCode" data-label-key="uomName" data-lookup-placeholder="Pilih UOM" <%= mode === 'view' ? 'disabled' : '' %>><option value="">Pilih UOM</option></select></div>
     <div class="bom-header-field"><label>Revisi</label><input id="bom-revision" class="form-control" type="number" min="1" value="1" <%= mode === 'view' || mode === 'edit' ? 'readonly' : '' %>></div>
     <% if (mode === 'edit') { %><div class="bom-header-field"><label>Cara Simpan</label><select id="bom-revision-mode" class="form-select"><option value="newRevision">Buat revisi baru</option><option value="correction">Koreksi revisi ini</option></select></div><div class="bom-header-field"><label>Catatan Revisi</label><input id="bom-revision-note" class="form-control" placeholder="Alasan perubahan struktur"></div><% } %>
     <div class="bom-header-field"><label>Effective Date</label><input id="bom-effective" class="form-control" type="date" <%= mode === 'view' ? 'disabled' : '' %>></div>
@@ -46,8 +43,8 @@
       <div id="bom-inspector-empty" class="bom-panel-empty">Belum ada node dipilih.</div>
       <form id="bom-inspector-form" class="d-none" onsubmit="return false">
         <% if (mode !== 'view') { %><section class="bom-inspector-add"><label>Tambah ke Canvas</label><div><button type="button" data-inspector-add="fg">＋ FG</button><button type="button" data-inspector-add="child">＋ Child Part</button><button type="button" data-inspector-add="purchase">＋ Purchase Part</button><button type="button" data-inspector-add="material">＋ Raw Material</button></div></section><% } %>
-        <label>Part</label><select id="node-part" class="form-select"></select>
-        <div class="bom-inspector-grid"><div><label>Qty</label><input id="node-qty" class="form-control" type="number" min="0.000001" step="0.000001"></div><div><label>UOM</label><select id="node-uom" class="form-select"></select></div></div>
+        <label>Part</label><select id="node-part" class="form-select" data-enterprise-lookup="parts" data-value-key="id" data-label-key="partName" data-lookup-placeholder="Pilih part"></select>
+        <div class="bom-inspector-grid"><div><label>Qty</label><input id="node-qty" class="form-control" type="number" min="0.000001" step="0.000001"></div><div><label>UOM</label><select id="node-uom" class="form-select" data-enterprise-lookup="uom" data-value-key="uomCode" data-label-key="uomName" data-lookup-placeholder="Pilih UOM"></select></div></div>
         <label>Parent</label><select id="node-parent" class="form-select"></select>
         <label>Category</label><select id="node-category" class="form-select"><option>Purchase</option><option>inHouse</option><option>Vendor</option></select>
         <label>Assembly Policy</label><select id="node-policy" class="form-select"><option>DEFAULT</option><option>INLINE</option><option>SUB_ASSEMBLY</option></select>
@@ -63,6 +60,7 @@
       </form>
     </aside>
   </section>
+  <div class="app-container"><%- include('../partials/document-comments', { documentComments: { recordKey: mode === 'create' ? null : recordKey, showPending: mode === 'create', title: 'Komentar BOM', variant: 'receipt' } }) %></div>
 </main>
 <dialog id="bom-add-kind-dialog" class="bom-add-kind-dialog">
   <div class="bom-dialog-heading"><div><small>TAMBAH KE CANVAS</small><h2>Pilih Jenis Part</h2></div><button type="button" data-close-add-menu>×</button></div>
@@ -73,16 +71,16 @@
     <div class="bom-dialog-heading"><div><small id="bom-part-kind-label">PART BARU</small><h2 id="bom-part-dialog-title">Tambah Child Part</h2></div><button type="button" data-close-dialog>×</button></div>
     <p class="bom-dialog-code-hint">Part masih ditahan di draft canvas. Part Code final dibuat dari <a href="/master-data/numbering-rules">Pengaturan Penomoran</a> saat BOM di-approve.</p>
     <p id="quick-sequence-source" class="bom-dialog-code-hint">Sequence mengikuti family Produk Utama atau FG non-component.</p>
-    <section class="bom-existing-part"><label>Ambil dari Master Part</label><div><select id="quick-existing-part" class="form-select"><option value="">Pilih part existing</option></select><button id="quick-add-existing" type="button" class="btn btn-outline-primary">Tambah Existing</button></div><small id="quick-existing-hint">Daftar difilter mengikuti tipe part dan customer parent.</small></section>
+    <section class="bom-existing-part"><label>Ambil dari Master Part</label><div><select id="quick-existing-part" class="form-select" data-enterprise-lookup="parts" data-value-key="id" data-label-key="partName" data-lookup-placeholder="Pilih part existing"><option value="">Pilih part existing</option></select><button id="quick-add-existing" type="button" class="btn btn-outline-primary">Tambah Existing</button></div><small id="quick-existing-hint">Daftar difilter mengikuti tipe part dan customer parent.</small></section>
     <div class="bom-dialog-divider"><span>atau buat part baru</span></div>
     <label>Nama Part <em>*</em></label><input id="quick-part-name" class="form-control" required>
     <label>Part Number</label><input id="quick-part-number" class="form-control">
-    <div class="bom-dialog-grid"><div><label>Customer Code</label><select id="quick-customer-code" class="form-select"><option value="">Pilih customer</option></select></div><div><label>Revisi</label><input id="quick-part-revision" class="form-control" value="00"></div></div>
+    <div class="bom-dialog-grid"><div><label>Customer Code</label><select id="quick-customer-code" class="form-select" data-enterprise-lookup="customer-codes" data-value-key="customerCode" data-label-key="customerName" data-lookup-placeholder="Pilih customer"><option value="">Pilih customer</option></select></div><div><label>Revisi</label><input id="quick-part-revision" class="form-control" value="00"></div></div>
     <div class="bom-dialog-grid"><div id="quick-part-type-wrap"><label>Tipe Part</label><select id="quick-part-type" class="form-select"><option value="STANDARD">Non Component</option><option value="COMP">Component</option></select></div><div id="quick-part-level-wrap"><label>Urutan Proses</label><input id="quick-part-level" class="form-control" type="number" min="1" value="1"><small>Pada BOM baru dihitung ulang otomatis berdasarkan seluruh level canvas saat Simpan.</small></div></div>
-    <div id="quick-material-wrap" class="d-none"><label>Link Master Material <em>*</em></label><select id="quick-material-id" class="form-select"><option value="">Pilih master material</option></select><small>Part code raw material menjadi identitas inventory; T, W, density dan harga mengambil dari material ini.</small></div>
+    <div id="quick-material-wrap" class="d-none"><label>Link Master Material <em>*</em></label><select id="quick-material-id" class="form-select" data-enterprise-lookup="materials" data-value-key="id" data-label-key="materialName" data-lookup-placeholder="Pilih master material"><option value="">Pilih master material</option></select><small>Part code raw material menjadi identitas inventory; T, W, density dan harga mengambil dari material ini.</small></div>
     <label id="quick-position-mode-wrap">Posisi Nomor Proses</label><select id="quick-position-mode" class="form-select"><option value="MAIN">Proses utama (010/020/030)</option><option value="INSERT">Sisipan setelah proses (011/015 sesuai aturan)</option></select>
     <label id="quick-has-drawing-wrap" class="bom-dialog-check"><input id="quick-has-drawing" type="checkbox"> Ada drawing / standar khusus</label>
-    <label>Base UOM</label><select id="quick-part-uom" class="form-select"><option value="">Pilih UOM</option></select>
+    <label>Base UOM</label><select id="quick-part-uom" class="form-select" data-enterprise-lookup="uom" data-value-key="uomCode" data-label-key="uomName" data-lookup-placeholder="Pilih UOM"><option value="">Pilih UOM</option></select>
     <div id="bom-part-create-error" class="alert alert-danger d-none mt-3"></div>
     <div class="bom-dialog-actions"><button type="button" class="btn btn-outline-secondary" data-close-dialog>Batal</button><button id="bom-part-create-submit" type="submit" class="btn btn-primary">Tambah ke Draft Canvas</button></div>
   </form>

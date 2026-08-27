@@ -8,6 +8,8 @@ const modulesRoutes = require("./src/routes/modules");
 const pageContextRoutes = require("./src/routes/pageContext");
 const maintenanceRoutes = require("./src/routes/maintenance");
 const tableDocumentRoutes = require("./src/routes/tableDocuments");
+const aiRoutes = require("./src/routes/ai");
+const lookupRoutes = require("./src/routes/lookups");
 const { modules } = require("./src/moduleRegistry");
 
 const app = express();
@@ -26,10 +28,13 @@ app.use(express.static(path.join(__dirname, "public")));
 const vendor = (route, folder) => app.use(route, express.static(path.join(__dirname, "node_modules", folder)));
 vendor("/vendor/bootstrap", "bootstrap/dist");
 vendor("/vendor/jquery", "jquery/dist");
+vendor("/vendor/select2", "select2/dist");
 vendor("/vendor/datatables", "datatables.net/js");
 vendor("/vendor/datatables-bs5", "datatables.net-bs5");
 vendor("/vendor/alpine", "alpinejs/dist");
 vendor("/vendor/apexcharts", "apexcharts/dist");
+vendor("/vendor/frappe-gantt", "frappe-gantt/dist");
+vendor("/vendor/tabulator", "tabulator-tables/dist");
 vendor("/vendor/socket.io-client", "socket.io-client/dist");
 vendor("/vendor/mqtt", "mqtt/dist");
 
@@ -41,6 +46,8 @@ app.use("/master-data", masterDataRoutes);
 app.use("/page-context/api", pageContextRoutes);
 app.use("/maintenance", maintenanceRoutes);
 app.use("/table-documents", tableDocumentRoutes);
+app.use("/ai/api", aiRoutes);
+app.use("/lookups/api", lookupRoutes);
 app.get("/logs", (_req, res) => res.render("logs/index", {
   title: "Log Center",
   requiresAuth: true,
@@ -55,7 +62,7 @@ app.use((req, res) => res.status(404).render("errors/404", { title: "Halaman tid
 
 app.use((err, req, res, _next) => {
   console.error(err);
-  if (req.path.startsWith("/master-data/api/") || req.path.startsWith("/modules/api/") || req.path.startsWith("/page-context/api/")) {
+  if (req.path.startsWith("/master-data/api/") || req.path.startsWith("/modules/api/") || req.path.startsWith("/page-context/api/") || req.path.startsWith("/ai/api/") || req.path.startsWith("/lookups/api/")) {
     return res.status(err.status || 500).json({ message: err.message || "Terjadi kesalahan" });
   }
   res.status(err.status || 500).render("errors/500", { title: "Terjadi kesalahan", error: err });

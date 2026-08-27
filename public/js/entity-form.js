@@ -39,7 +39,8 @@
   function applyPriceMasterDefaults(sourceName) {
     if (mode !== "create") return;
     const source = form.elements[sourceName];
-    const item = source?._lookupItems?.find((row) => String(valueAt(row, source.dataset.valueKey)) === String(source.value));
+    const item = window.EnterpriseLookup?.getSelected(source)
+      || source?._lookupItems?.find((row) => String(valueAt(row, source.dataset.valueKey)) === String(source.value));
     if (!item) return;
     const setIfEmpty = (name, value) => { const input = form.elements[name]; if (input && !input.value && value != null) input.value = value; };
     if (config.slug === "material-price-lists") {
@@ -61,6 +62,7 @@
       if (!input || field.type === "file") return;
       const value = params.get(field.name);
       if (field.type === "checkbox") input.checked = value === "true" || value === "1";
+      else if (field.type === "lookup" && window.EnterpriseLookup) window.EnterpriseLookup.setSelected(input, { id: value, text: value, active: true });
       else input.value = value;
     });
   }
@@ -71,6 +73,14 @@
       const input = form.elements[field.name]; if (!input || field.type === "file") return;
       let value = record[field.name];
       if (field.type === "checkbox") input.checked = Boolean(value);
+      else if (field.type === "lookup") {
+        const values = field.multiple ? (Array.isArray(value) ? value : []) : [value];
+        values.filter((item) => item !== undefined && item !== null && item !== "").forEach((item) => {
+          const resolved = typeof item === "object" ? item[field.sourceValueKey || field.lookup?.valueKey || "id"] : item;
+          const label = typeof item === "object" ? (item[field.lookup?.labelKey] || resolved) : resolved;
+          window.EnterpriseLookup?.setSelected(input, { id: resolved, text: label, active: true });
+        });
+      }
       else if (field.multiple) {
         const values = (Array.isArray(value) ? value : []).map((item) => typeof item === "object" ? item[field.sourceValueKey || field.lookup?.valueKey || "id"] : item).map(String);
         [...input.options].forEach((option) => option.selected = values.includes(String(option.value)));
@@ -94,7 +104,7 @@
 
   async function initialize() {
     try {
-      await Promise.all([...document.querySelectorAll(".lookup-select")].map(loadLookup));
+      await Promise.all([...document.querySelectorAll(".lookup-select:not([data-enterprise-lookup])")].map(loadLookup));
       [["material-price-lists", "materialId"], ["part-price-lists", "partId"], ["product-price-lists", "productId"]]
         .filter(([slug]) => config.slug === slug)
         .forEach(([, name]) => form.elements[name]?.addEventListener("change", () => applyPriceMasterDefaults(name)));
@@ -158,7 +168,7 @@
       const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.message || "Data gagal disimpan.");
       const returnTo = new URLSearchParams(location.search).get("returnTo");
       location.replace(returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : `/master-data/${config.slug}`);
-    } catch (error) { alertBox.textContent = error.message; alertBox.classList.remove("d-none"); window.scrollTo({ top: 0, behavior: "smooth" }); }
+    } catch (error) { alertBox.textContent = error.message; alertBox.classList.remove("d-none"); form.dispatchEvent(new CustomEvent("document-form:error", { detail: { message: error.message } })); window.scrollTo({ top: 0, behavior: "smooth" }); }
     finally { saveButton.disabled = false; saveButton.querySelector("i").classList.add("d-none"); }
   });
 

@@ -2,14 +2,15 @@
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <%- include('../partials/bom-subnav', { activeBomTab: 'processes', recordKey }) %>
-<main class="bom-record-page" data-bom-view="processes">
-  <section class="bom-record-toolbar app-container"><nav class="bom-crumb"><span>Master Data</span><i>/</i><span>BOM</span><i>/</i><span><%= recordKey %></span><i>/</i><b>Proses / Routing</b></nav></section>
+<main class="bom-record-page transaction-detail-page" data-bom-view="processes">
+  <div class="app-container"><%- include('../partials/document-shell', { documentShell: { variant: 'planning', eyebrow: 'Manufacturing BOM · Routing', number: recordKey, title: 'Proses / Routing', subtitle: 'Routing produksi, Work Center, mesin, dan lead time BOM.', backHref: `/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(recordKey)}`, breadcrumbHtml: '<a href="/modules/manufacturing-bom/bill-of-materials">BOM List</a><span>/</span><strong>Processes</strong>' } }) %></div>
   <nav class="bom-record-tabs app-container"><a href="/modules/manufacturing-bom/bill-of-materials/<%= encodeURIComponent(recordKey) %>">Overview</a><a href="/modules/manufacturing-bom/bill-of-materials/<%= encodeURIComponent(recordKey) %>">Struktur</a><a class="active" href="#">Proses</a><span>Documents</span><span>History</span></nav>
   <div id="bom-record-alert" class="alert alert-danger d-none mx-4 mt-3"></div>
   <section class="bom-record-content app-container">
     <article class="bom-info-card bom-process-card"><h2>Routing &amp; Tahapan Operasi Produksi</h2><div class="table-responsive"><table class="table"><thead><tr><th>OP NO</th><th>NAMA OPERASI</th><th>WORK CENTER</th><th>MESIN PENUNJANG</th><th>SETUP (M)</th><th>RUN (M)</th><th>MOVE (M)</th><th>QUEUE (M)</th><th>STATUS</th></tr></thead><tbody id="bom-process-rows"><tr><td colspan="9" class="text-center py-4">Memuat routing...</td></tr></tbody></table></div></article>
     <h2 class="bom-section-title">Diagram Alur Proses Berurutan (Visual Flow)</h2><div id="bom-process-flow" class="bom-process-flow"><span>Memuat alur...</span></div>
     <div class="bom-leadtime-summary"><div>♧</div><p><b>Kalkulasi Estimasi Waktu Siklus (Cycle &amp; Lead Time)</b><span id="bom-time-caption">Memuat estimasi...</span></p><strong id="bom-total-hours">0 Hours</strong></div>
+    <%- include('../partials/document-comments', { documentComments: { recordKey, title: 'Komentar Routing BOM', variant: 'receipt' } }) %>
   </section>
 </main>
 <script id="bom-record-config" type="application/json"><%- JSON.stringify({ recordKey, view: 'processes' }).replace(/</g, '\\u003c') %></script>

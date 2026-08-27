@@ -35,10 +35,16 @@
     return String(value);
   };
   const badge = (value) => `<span class="ops-badge ${esc(slug(value))}">${esc(value || "-")}</span>`;
-  const isProductionDetail = () => config.module === "production";
+  const isProductionDetail = () => ["production", "qc"].includes(config.module);
+  const isGoodsReceiptPage = () => config.module === "incoming" && config.page.slug === "goods-receipts";
+  const isStockBalancePage = () => config.module === "inventory" && config.page.slug === "stock-balances";
+  const isDailySchedulePage = () => config.module === "production" && config.page.slug === "daily-production-schedules";
+  const isNgDispositionPage = () => config.module === "qc" && config.page.slug === "ng-dispositions";
   let currentRecord = null;
   let supplierLookupRows = [];
   let supplierLookupPromise = null;
+  let goodsReceiptTableRows = [];
+  let goodsReceiptTable = null;
 
   async function api(url, options = {}) {
     const response = await fetch(url, { ...options, headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json", ...(options.headers || {}) } });
@@ -130,7 +136,7 @@
         label: String(value),
         href: incoming
           ? `/modules/incoming/incoming-inspections/${encodeURIComponent(value)}`
-          : `/modules/production/quality-inspections/${encodeURIComponent(value)}`,
+          : `/modules/qc/quality-inspections/${encodeURIComponent(value)}`,
       };
     }
     const rule = referenceRules.find((candidate) => candidate.test.test(normalizedKey));
@@ -154,6 +160,119 @@
     const fields = (rows) => rows.map(([key, value]) => `<div><small>${esc(label(key))}</small><strong>${linkedValue(value, key, record)}</strong></div>`).join("");
     $("ops-detail-fields").className = "ops-detail-fields ops-detail-summary-fields";
     $("ops-detail-fields").innerHTML = `${fields(primary) || '<div><small>Informasi</small><strong>Tidak ada field ringkas.</strong></div>'}${secondary.length ? `<details class="ops-more-fields"><summary>Informasi tambahan <span>${num(secondary.length, 0)} field</span></summary><div>${fields(secondary)}</div></details>` : ""}`;
+  }
+  function ngDispositionStatus(record) {
+    const value = slug(record.status);
+    if (value === "pending-qc") return { label: "Menunggu QC", tone: "pending" };
+    if (value === "rework") return { label: "Rework", tone: "rework" };
+    if (value === "reject") return { label: "Final Reject", tone: "reject" };
+    if (value === "mixed") return { label: "Rework + Reject", tone: "mixed" };
+    return { label: record.status || "-", tone: value || "neutral" };
+  }
+  function ngDispositionReference(value, key) {
+    const reference = resolveReference(key, value);
+    if (!reference) return esc(value || "-");
+    return `<a class="ngd-reference" href="${esc(reference.href)}"><span>${esc(reference.type)}</span><b>${esc(reference.label)}</b><i aria-hidden="true">→</i></a>`;
+  }
+  function renderNgDispositionFields(record) {
+    const total = Math.max(number(record.qtyNg), 0);
+    const rework = Math.max(number(record.qtyRework), 0);
+    const reject = Math.max(number(record.qtyReject), 0);
+    const remaining = Math.max(total - rework - reject, 0);
+    const uom = record.uomCode || "pcs";
+    const state = ngDispositionStatus(record);
+    const pending = slug(record.status) === "pending-qc";
+    const reason = String(record.reason || "").trim();
+    const hasReason = reason && reason !== "-";
+    const card = $("ops-detail-fields")?.closest(".ops-detail-card");
+    card?.classList.add("ngd-decision-card");
+    const heading = card?.querySelector("header h2");
+    if (heading) heading.textContent = "Ringkasan Judgment NG";
+    $("ops-detail-status").innerHTML = `<span class="ngd-status ${esc(state.tone)}"><i></i>${esc(state.label)}</span>`;
+    $("ops-detail-fields").className = "ngd-decision-summary";
+    $("ops-detail-fields").innerHTML = `
+      <div class="ngd-quantity-strip">
+        <article class="ngd-total"><span>Total NG</span><strong>${num(total, isDiscreteUom(uom) ? 0 : 2)} <small>${esc(uom)}</small></strong><p>Quantity yang wajib diputuskan QC</p></article>
+        <div class="ngd-equation" aria-label="Alokasi quantity NG">
+          <article class="ngd-rework"><span>Rework</span><strong>${num(rework, isDiscreteUom(uom) ? 0 : 2)}</strong><small>Dapat diperbaiki</small></article>
+          <b aria-hidden="true">+</b>
+          <article class="ngd-reject"><span>Final Reject</span><strong>${num(reject, isDiscreteUom(uom) ? 0 : 2)}</strong><small>Tidak dapat dipakai</small></article>
+          <b aria-hidden="true">=</b>
+          <article class="ngd-remaining ${remaining > 0 ? "has-balance" : "is-clear"}"><span>Belum dialokasikan</span><strong>${num(remaining, isDiscreteUom(uom) ? 0 : 2)}</strong><small>${pending ? "Harus menjadi rework atau reject" : "Seluruh quantity sudah diputuskan"}</small></article>
+        </div>
+      </div>
+      <div class="ngd-case-grid">
+        <article class="ngd-part-case">
+          <span class="ngd-section-label">Part terdampak</span>
+          <h3>${esc(record.partName || "Part produksi")}</h3>
+          <div class="ngd-part-identifiers">${ngDispositionReference(record.partCode, "partCode")}${record.partNumber ? `<b>PN ${esc(record.partNumber)}</b>` : ""}</div>
+          <small>Production entry ${ngDispositionReference(record.logNumber, "logNumber")} <span>· Phase ${esc(record.phaseNumber || "-")}</span></small>
+        </article>
+        <article class="ngd-reason-case ${hasReason ? "" : "is-empty"}">
+          <span class="ngd-section-label">Temuan NG</span>
+          <h3>${esc(hasReason ? reason : "Alasan NG belum dicatat")}</h3>
+          <p>${esc(record.subReason && record.subReason !== "-" ? record.subReason : (hasReason ? "Tidak ada sub reason" : "Lengkapi catatan saat membuat judgment QC."))}</p>
+          ${record.qcNotes ? `<small>Catatan QC: ${esc(record.qcNotes)}</small>` : ""}
+        </article>
+      </div>`;
+  }
+  function ngDispositionTraceItem(labelText, value, key = "", note = "") {
+    return `<div><span>${esc(labelText)}</span><strong>${key ? ngDispositionReference(value, key) : esc(value || "-")}</strong>${note ? `<small>${esc(note)}</small>` : ""}</div>`;
+  }
+  function renderNgDispositionCollections(record) {
+    const trace = [
+      ngDispositionTraceItem("Production Entry", record.logNumber, "logNumber", format(record.logDate, "date")),
+      ngDispositionTraceItem("MO / WO", record.moNumber, "moNumber", record.woNumber || "-"),
+      ngDispositionTraceItem("Mesin / Shift", record.machineCode, "", `Shift ${record.shift || "-"}`),
+      ngDispositionTraceItem("Proses", record.processName || record.processCode, "", record.processCode && record.processName ? record.processCode : ""),
+      ngDispositionTraceItem("Input Lot", record.inputLotNumber, "", "Material masuk"),
+      ngDispositionTraceItem("Production Lot", record.productionLotNumber, "", `Coil ${record.coilPhase?.coilNumber || "-"}`),
+    ].join("");
+    const decided = slug(record.status) !== "pending-qc";
+    $("ops-detail-collections").innerHTML = `
+      <section class="ops-detail-card ngd-trace-card">
+        <header><div><h2>Trace Produksi</h2><p>Referensi asal quantity NG untuk verifikasi QC.</p></div><span>Phase ${esc(record.phaseNumber || "-")}</span></header>
+        <div class="ngd-trace-grid">${trace}</div>
+        <div class="ngd-flow" aria-label="Alur disposition NG">
+          <div class="is-done"><i>1</i><span><b>Production Entry</b><small>${esc(record.logNumber || "-")}</small></span></div>
+          <em></em>
+          <div class="is-done"><i>2</i><span><b>NG tercatat</b><small>${num(record.qtyNg, isDiscreteUom(record.uomCode) ? 0 : 2)} ${esc(record.uomCode || "pcs")}</small></span></div>
+          <em></em>
+          <div class="${decided ? "is-done" : "is-current"}"><i>3</i><span><b>QC Judgment</b><small>${decided ? "Selesai" : "Menunggu keputusan"}</small></span></div>
+          <em></em>
+          <div class="${decided ? "is-done" : ""}"><i>4</i><span><b>Disposition</b><small>${decided ? ngDispositionStatus(record).label : "Rework / Reject"}</small></span></div>
+        </div>
+      </section>
+      <section class="ops-detail-card ngd-audit-card">
+        <details>
+          <summary><span><b>Data audit lengkap</b><small>ID sistem, waktu judgment, dan relasi database</small></span><i>Buka detail</i></summary>
+          <div class="ngd-audit-grid">
+            ${ngDispositionTraceItem("Disposition ID", record.id || config.recordKey)}
+            ${ngDispositionTraceItem("Dibuat", format(record.createdAt, "createdAt"))}
+            ${ngDispositionTraceItem("Diperbarui", format(record.updatedAt, "updatedAt"))}
+            ${ngDispositionTraceItem("Diputuskan oleh", record.judgedBy || "Belum diputuskan")}
+            ${ngDispositionTraceItem("Waktu judgment", record.judgedAt ? format(record.judgedAt, "judgedAt") : "Belum diputuskan")}
+            ${ngDispositionTraceItem("Catatan QC", record.qcNotes || "-")}
+          </div>
+        </details>
+      </section>`;
+  }
+  function prepareNgDispositionChrome(record) {
+    const pending = slug(record.status) === "pending-qc";
+    const firstAside = document.querySelector(".ops-detail-aside .ops-detail-card:first-child");
+    const metaAside = document.querySelector(".ops-detail-aside .ops-detail-card:last-child");
+    firstAside?.classList.add("ngd-action-panel");
+    metaAside?.classList.add("ngd-meta-panel");
+    const actionHeading = firstAside?.querySelector("h2");
+    const actionHelp = firstAside?.querySelector(".ops-help");
+    const metaHeading = metaAside?.querySelector("h2");
+    if (actionHeading) actionHeading.textContent = pending ? "Keputusan QC" : "Hasil Judgment";
+    if (actionHelp) actionHelp.textContent = pending
+      ? `Alokasikan seluruh ${num(record.qtyNg, isDiscreteUom(record.uomCode) ? 0 : 2)} ${record.uomCode || "pcs"} NG. Rework + Final Reject harus sama dengan Total NG.`
+      : "Judgment sudah tersimpan dan menjadi dasar alur rework atau final reject.";
+    if (metaHeading) metaHeading.textContent = "Kontrol Audit";
+    const breadcrumbKey = document.querySelector(".module-breadcrumb b");
+    if (breadcrumbKey) breadcrumbKey.textContent = `${record.logNumber || "NG"} · Phase ${record.phaseNumber || "-"}`;
   }
   const isPurchaseOrderPage = () => config.module === "purchasing" && config.page.slug === "purchase-order";
   const isPurchaseRequisitionPage = () => config.module === "purchasing" && config.page.slug === "purchase-requisitions";
@@ -488,7 +607,7 @@
       ["Supplier", "Supplier", esc(supplier.supplierName || supplier.supplierCode || record.supplierCode || "Dipilih oleh Purchasing"), esc(supplier.message || "Supplier belum ditentukan")],
       ["Planning Trace", "MRP Run", linkedValue(record.runNumber, "runNumber", record), esc(record.mrpRun?.status || "-")],
       ["Planning Trace", "MPS", linkedValue(record.mrpRun?.mpsNumber, "mpsNumber", record.mrpRun || record), "Sumber jadwal produksi"],
-      ["Planning Trace", "Monthly Production Plan", linkedValue(record.mrpRun?.planNumber, "planNumber", record.mrpRun || record), `Revision ${num(record.mrpRun?.planRevision || 0, 0)}`],
+      ["Planning Trace", "Production Plan", linkedValue(record.mrpRun?.planNumber, "planNumber", record.mrpRun || record), `Revision ${num(record.mrpRun?.planRevision || 0, 0)}`],
     ];
     const rows = fieldRows.map((row, index) => `<tr><td class="po-row-number">${index + 1}</td><td><span class="po-area ${esc(slug(row[0]))}">${esc(row[0])}</span></td><td>${esc(row[1])}</td><td>${row[2]}</td><td>${row[3]}</td></tr>`).join("");
     const documentCard = $("ops-detail-fields").closest(".ops-detail-card");
@@ -548,6 +667,10 @@
     };
     return hints[status] || "Lengkapi hasil komunikasi dengan supplier.";
   }
+  const isConfirmedSuggestionStatus = (status) => [
+    "Available", "Partially Available", "Alternative Quantity Offered",
+    "Alternative Delivery Date", "Confirmed",
+  ].includes(status);
   const dateInputValue = (value) => value ? String(value).slice(0, 10) : "";
   const optionalInputNumber = (input) => {
     const value = String(input?.value ?? "").trim();
@@ -644,10 +767,14 @@
   }
   function suggestionSplitRow(row, allocation = {}) {
     const form = allocation.purchasePackageUomCode || row.purchasePackageUomCode || row.bomDefaultPurchaseForm || row.masterMaterialForm || "";
-    return `<div class="ps-split-row" data-supplier-split>
-      <div class="ps-split-head"><b>Supplier / Delivery Split</b><button class="btn btn-sm btn-outline-danger" type="button" data-remove-supplier-split>Hapus</button></div>
+    const primarySupplier = row.alternativeSupplierCode || row.suggestedSupplierCode || "";
+    const splitMode = allocation.splitMode || (allocation.supplierCode && String(allocation.supplierCode).toUpperCase() === String(primarySupplier).toUpperCase() ? "delivery" : "supplier");
+    const splitTitle = splitMode === "delivery" ? "Split Delivery" : "Supplier Tambahan";
+    const splitHint = splitMode === "delivery" ? "Supplier sama, tanggal kedatangan berbeda" : "Alokasi qty ke supplier lain";
+    return `<div class="ps-split-row" data-supplier-split data-split-mode="${esc(splitMode)}">
+      <div class="ps-split-head"><div><span data-split-sequence>${esc(splitTitle)}</span><b>${esc(splitHint)}</b></div><button class="btn btn-sm btn-outline-danger" type="button" data-remove-supplier-split aria-label="Hapus ${esc(splitTitle)}">Hapus</button></div>
       <div class="ps-form-grid">
-        <label>Supplier${supplierLookupSelect("data-split-supplier", allocation.supplierCode || "", "form-select form-select-sm")}<small data-split-master-state>Pilih supplier untuk lookup master.</small></label>
+        <label>Supplier${supplierLookupSelect("data-split-supplier", allocation.supplierCode || "", "form-select form-select-sm")}<small data-split-master-state>${splitMode === "delivery" ? "Mengikuti supplier utama." : "Pilih supplier tambahan untuk lookup master."}</small></label>
         <label>Status<select class="form-select form-select-sm" data-split-status>${suggestionStatuses.map((value) => `<option ${value === allocation.confirmationStatus ? "selected" : ""}>${esc(value)}</option>`).join("")}</select></label>
         <label>Confirmed Qty<input class="form-control form-control-sm" data-split-qty type="number" min="0" step="0.001" value="${esc(allocation.confirmedQty ?? 0)}"></label>
         <label>Delivery Date<input class="form-control form-control-sm" data-split-date type="date" value="${esc(dateInputValue(allocation.deliveryDate))}"></label>
@@ -663,6 +790,46 @@
         <label class="ps-span-2">Supplier Remark<input class="form-control form-control-sm" data-split-remark value="${esc(allocation.supplierRemark || "")}"></label>
       </div>
     </div>`;
+  }
+
+  function refreshSupplierAllocationSummary(source) {
+    const editor = source?.closest?.("[data-suggestion-confirmation]") || source?.querySelector?.("[data-suggestion-confirmation]") || source;
+    if (!editor?.matches?.("[data-suggestion-confirmation]")) return;
+    const primaryStatus = editor.querySelector("[data-confirm-status]")?.value;
+    const primarySupplier = editor.querySelector("[data-confirm-supplier]")?.value?.trim();
+    const primaryQty = isConfirmedSuggestionStatus(primaryStatus)
+      ? roundedPurchaseQty(editor.querySelector("[data-confirm-qty]")?.value, editor.querySelector("[data-confirm-moq]")?.value, editor.dataset.orderMultiple)
+      : 0;
+    const splitRows = [...editor.querySelectorAll("[data-supplier-split]")];
+    const splitQty = splitRows.reduce((sum, split) => {
+      if (!isConfirmedSuggestionStatus(split.querySelector("[data-split-status]")?.value) || !split.querySelector("[data-split-supplier]")?.value?.trim()) return sum;
+      return sum + roundedPurchaseQty(split.querySelector("[data-split-qty]")?.value, split.querySelector("[data-split-moq]")?.value, split.querySelector("[data-split-multiple]")?.value);
+    }, 0);
+    const totalQty = primaryQty + splitQty;
+    const targetQty = number(editor.dataset.recommendedQty);
+    const variance = totalQty - targetQty;
+    const totalElement = editor.querySelector("[data-allocation-total]");
+    const primaryElement = editor.querySelector("[data-allocation-primary]");
+    const splitElement = editor.querySelector("[data-allocation-split]");
+    const stateElement = editor.querySelector("[data-allocation-state]");
+    if (primaryElement) primaryElement.textContent = `${primarySupplier || "Belum dipilih"} · ${num(primaryQty)} ${editor.dataset.uom || ""}`;
+    if (splitElement) splitElement.textContent = `${splitRows.length} baris · ${num(splitQty)} ${editor.dataset.uom || ""}`;
+    if (totalElement) totalElement.textContent = `${num(totalQty)} ${editor.dataset.uom || ""}`;
+    if (stateElement) {
+      stateElement.classList.toggle("is-short", variance < -0.000001);
+      stateElement.classList.toggle("is-excess", variance > 0.000001);
+      stateElement.classList.toggle("is-balanced", Math.abs(variance) <= 0.000001);
+      stateElement.innerHTML = variance < -0.000001
+        ? `<b>Kurang ${num(Math.abs(variance))} ${esc(editor.dataset.uom || "")}</b><span>dari recommended ${num(targetQty)}</span>`
+        : variance > 0.000001
+          ? `<b>Lebih ${num(variance)} ${esc(editor.dataset.uom || "")}</b><span>MOQ / buffer di atas recommended</span>`
+          : `<b>Allocation seimbang</b><span>sama dengan recommended ${num(targetQty)}</span>`;
+    }
+    splitRows.forEach((split, index) => {
+      const sequence = split.querySelector("[data-split-sequence]");
+      const mode = split.dataset.splitMode === "delivery" ? "Split Delivery" : "Supplier Tambahan";
+      if (sequence) sequence.textContent = `${mode} ${index + 1}`;
+    });
   }
   function suggestionMoqAllocationPlanner(row) {
     const candidates = Array.isArray(row.moqAllocationCandidates) ? row.moqAllocationCandidates : [];
@@ -769,7 +936,7 @@
         <div><i>4</i><span><b>Simpan & pilih PR</b><small>Tabel diperbarui otomatis</small></span></div>
       </div>
       <div class="ps-inline-save-state d-none" data-confirm-save-state role="status"><b>Konfirmasi tersimpan.</b><span>Data tabel dan kesiapan PR sudah diperbarui tanpa memuat ulang halaman.</span></div>
-      <div class="ps-form-grid" data-suggestion-confirmation data-item-id="${esc(row.id || "")}" data-order-multiple="${esc(row.orderMultiple || 0)}" data-uom="${esc(row.uomCode || "")}">
+      <div class="ps-form-grid" data-suggestion-confirmation data-item-id="${esc(row.id || "")}" data-order-multiple="${esc(row.orderMultiple || 0)}" data-uom="${esc(row.uomCode || "")}" data-recommended-qty="${esc(row.recommendedPurchaseQty || 0)}">
         <div class="ps-form-step ps-span-all"><i>1</i><div><b>Komitmen supplier</b><small>Isi status, supplier, qty, dan delivery aktual.</small></div></div>
         <label>Status Konfirmasi<select class="form-select" data-confirm-status>${suggestionStatuses.map((value) => `<option ${value === row.confirmationStatus ? "selected" : ""}>${esc(value)}</option>`).join("")}</select><small data-confirm-status-hint>${esc(suggestionStatusHint(row.confirmationStatus))}</small></label>
         <label>Supplier${supplierLookupSelect("data-confirm-supplier", row.alternativeSupplierCode || row.suggestedSupplierCode || "")}<small data-confirm-master-state>MOQ dan harga akan dilookup dari master supplier.</small></label>
@@ -788,8 +955,12 @@
         <label>Alternative Material<input class="form-control" data-confirm-material value="${esc(row.alternativeMaterialCode || "")}" placeholder="Opsional, jika diizinkan"></label>
         <label class="ps-span-2">Supplier Remark<input class="form-control" data-confirm-remark value="${esc(row.supplierRemark || "")}" placeholder="Catatan ketersediaan, harga, atau jadwal"></label>
         <label class="ps-span-2">Alasan Tanpa Konfirmasi<input class="form-control" data-confirm-bypass value="${esc(row.bypassConfirmationReason || "")}" placeholder="Wajib jika PR tetap dibuat tanpa konfirmasi supplier"></label>
-        <div class="ps-span-2 ps-splits" data-supplier-splits>${(row.supplierAllocations || []).map((allocation) => suggestionSplitRow(row, allocation)).join("")}</div>
-        <div class="ps-span-2 ps-panel-actions"><div class="ps-action-help"><b>Simpan tanpa menutup dialog</b><small>Status baris dan kesiapan PR akan diperbarui langsung.</small></div><button class="btn btn-outline-primary" type="button" data-add-supplier-split>+ Split Supplier / Delivery</button><button class="btn btn-light" type="button" data-close-suggestion-editor>Selesai</button><button class="btn btn-primary" type="button" data-save-suggestion-confirmation>Simpan Konfirmasi</button></div>
+        <section class="ps-span-2 ps-allocation-section">
+          <header class="ps-allocation-head"><div><span>ALLOCATION PLAN</span><b>Supplier & jadwal kedatangan</b><small>Pakai “Tambah Supplier” untuk vendor berbeda, atau “Split Delivery” untuk supplier yang sama dengan tanggal berbeda.</small></div><div class="ps-allocation-actions"><button class="btn btn-outline-primary" type="button" data-add-supplier-split>+ Tambah Supplier</button><button class="btn btn-outline-secondary" type="button" data-add-delivery-split>+ Split Delivery</button></div></header>
+          <div class="ps-allocation-summary" aria-live="polite"><div><span>Supplier utama</span><b data-allocation-primary>-</b></div><div><span>Allocation tambahan</span><b data-allocation-split>-</b></div><div class="is-total"><span>Total confirmed</span><strong data-allocation-total>0 ${esc(row.uomCode || "")}</strong></div><div data-allocation-state><b>Belum seimbang</b><span>Periksa total allocation</span></div></div>
+          <div class="ps-splits" data-supplier-splits>${(row.supplierAllocations || []).map((allocation) => suggestionSplitRow(row, allocation)).join("")}</div>
+        </section>
+        <div class="ps-span-2 ps-panel-actions"><div class="ps-action-help"><b>Simpan tanpa menutup dialog</b><small>Status baris dan kesiapan PR akan diperbarui langsung.</small></div><button class="btn btn-light" type="button" data-close-suggestion-editor>Selesai</button><button class="btn btn-primary" type="button" data-save-suggestion-confirmation>Simpan Konfirmasi</button></div>
       </div>
     </div>`;
   }
@@ -821,7 +992,9 @@
     document.body.appendChild(overlay);
     document.body.classList.add("modal-open");
     const editor = overlay.querySelector("[data-suggestion-confirmation]");
+    editor.querySelectorAll('[data-supplier-split][data-split-mode="delivery"] [data-split-supplier]').forEach((select) => { select.disabled = true; });
     refreshMoqAllocationPlanner(editor);
+    refreshSupplierAllocationSummary(editor);
     const close = () => {
       overlay.remove();
       if (!document.querySelector(".ops-modal-backdrop")) document.body.classList.remove("modal-open");
@@ -1017,17 +1190,32 @@
       const purchaseDueDate = row.calculatedPurchaseDueDate || row.recommendedOrderDate;
       const due = dueParts(purchaseDueDate);
       const confirmedAllocations = (row.supplierAllocations || []).filter((allocation) => allocation.status === "Confirmed");
-      const prSupplierCodes = [...new Set(confirmedAllocations.map((allocation) => allocation.supplierCode).filter(Boolean))];
       const confirmedMoq = number(row.confirmedMoq ?? row.moq);
       const orderMultiple = number(row.orderMultiple);
-      const supplierAvailability = confirmedAllocations.length
-        ? confirmedAllocations.reduce((sum, allocation) => sum + roundedPurchaseQty(allocation.confirmedQty, allocation.moq, allocation.orderMultiple), 0)
-        : roundedPurchaseQty(row.confirmedQty || row.recommendedPurchaseQty, confirmedMoq, orderMultiple);
-      const selectedQty = Math.min(roundedPurchaseQty(row.confirmedQty || row.recommendedPurchaseQty, confirmedMoq, orderMultiple), supplierAvailability);
+      const primarySupplierCode = row.alternativeSupplierCode || row.suggestedSupplierCode || null;
+      const primarySupplierConfirmed = ["Available", "Partially Available", "Alternative Quantity Offered", "Alternative Delivery Date", "Confirmed"].includes(row.confirmationStatus) || Boolean(row.bypassConfirmationReason);
+      const primarySupplierAllocation = primarySupplierCode && primarySupplierConfirmed
+        ? {
+            supplierCode: primarySupplierCode,
+            confirmedQty: roundedPurchaseQty(row.confirmedQty || row.recommendedPurchaseQty, confirmedMoq, orderMultiple),
+            deliveryDate: dateInputValue(row.confirmedDeliveryDate || row.materialRequiredDate),
+          }
+        : null;
+      const splitContainsPrimary = primarySupplierAllocation && confirmedAllocations.some((allocation) => (
+        String(allocation.supplierCode || "").toUpperCase() === String(primarySupplierCode).toUpperCase()
+        && Math.abs(roundedPurchaseQty(allocation.confirmedQty, allocation.moq, allocation.orderMultiple) - primarySupplierAllocation.confirmedQty) <= 0.000001
+        && dateInputValue(allocation.deliveryDate) === primarySupplierAllocation.deliveryDate
+      ));
+      const allConfirmedSupplierAllocations = [
+        ...(!primarySupplierAllocation || splitContainsPrimary ? [] : [primarySupplierAllocation]),
+        ...confirmedAllocations,
+      ];
+      const prSupplierCodes = [...new Set(allConfirmedSupplierAllocations.map((allocation) => allocation.supplierCode).filter(Boolean))];
+      const supplierAvailability = allConfirmedSupplierAllocations.reduce((sum, allocation) => sum + roundedPurchaseQty(allocation.confirmedQty, allocation.moq, allocation.orderMultiple), 0);
+      const selectedQty = supplierAvailability;
       const eligible = /ready/i.test(row.status || "") && !/converted/i.test(row.status || "");
       const materialHref = row.materialCode ? `/master-data/materials/${encodeURIComponent(row.materialCode)}` : `/master-data/parts/${encodeURIComponent(row.partCode || identity)}`;
-      const supplierCode = row.alternativeSupplierCode || row.suggestedSupplierCode;
-      if (!prSupplierCodes.length && supplierCode) prSupplierCodes.push(supplierCode);
+      const supplierCode = primarySupplierCode;
       const supplierHref = supplierCode ? `/master-data/suppliers/${encodeURIComponent(supplierCode)}` : "";
       const step = orderMultiple > 0 ? String(orderMultiple) : (isDiscreteUom(row.uomCode) ? "1" : "0.001");
       const minimumQty = Math.max(confirmedMoq, number(step));
@@ -1056,6 +1244,7 @@
   }
 
   function renderArray(key, rows, record = {}) {
+    const isGoodsReceiptRows = isGoodsReceiptPage();
     const isPrDetails = config.module === "purchasing" && config.page.slug === "purchase-requisitions" && key === "details";
     const isPurchaseSuggestionItems = config.module === "purchasing" && config.page.slug === "purchase-suggestions" && key === "items";
     const isStoDetails = config.module === "inventory" && config.page.slug === "stock-opname" && key === "details";
@@ -1066,6 +1255,10 @@
     const canCompleteIqc = isIqcDetails && String(record.status || "").toUpperCase() === "OPEN";
     if (isPurchaseSuggestionItems) return renderPurchaseSuggestionItems(rows, record);
     if (isPrDetails) return renderPurchaseRequisitionDetails(rows, record);
+    if (isGoodsReceiptRows && key === "details") {
+      goodsReceiptTableRows = rows;
+      return `<section class="ops-detail-card gr-detail-receipt-card" data-gr-tab-title="Receipt Items"><div class="ops-collection-head"><div><p>RECEIPT ITEMS</p><h2>Item yang Diterima</h2></div><span>${num(rows.length, 0)} baris</span></div><div id="gr-detail-receipt-table" class="gr-detail-tabulator" aria-label="Receipt Items Goods Receipt"></div></section>`;
+    }
     const preferredKeys = ["lineNumber", "procurementCategory", "materialCode", "materialType", "materialName", "partCode", "partNumber", "partName", "description", "qty", "orderedQty", "uomCode", "sourceCount", "sourceMrpNumbers", "sourceMpsNumbers", "sourceForecastNumbers", "sourceSONumbers", "sourceDemandMonths", "sourcingAllocationCount", "sourcingSuppliers", "sourcingForms", "sourcingWidths", "sourcingLengths", "allocatedDemandQty", "supplierAllocationVariance", "supplierAllocationStatus", "orderVariance", "orderControlStatus", "sourcingDeliveryDates", "proposedSupplierCode", "confirmedSupplierCode", "notes"];
     const discoveredKeys = [...new Set(rows.slice(0, 8).flatMap((row) => row && typeof row === "object" ? Object.keys(row).filter((name) => {
       const value = row[name]; return !isInternalKey(name) && (value == null || ["string", "number", "boolean"].includes(typeof value) || (typeof value === "object" && !Array.isArray(value)) || (isPurchaseSuggestionItems && Array.isArray(value)));
@@ -1159,7 +1352,16 @@
       </div></td>`;
     };
     const collectionAction = `<span>${num(rows.length, 0)} baris</span>`;
-    return `<section class="ops-detail-card"><div class="ops-collection-head"><h2>${esc(label(key))}</h2>${collectionAction}</div>${canCountSto ? '<p class="ops-help px-3">Daftar ini hanya menunjukkan identitas dan progres hitung. Saldo sistem serta selisih tetap disembunyikan sampai counting disubmit.</p>' : ""}<div class="table-responsive ${isProductionDetail() ? "production-excel-wrap" : ""}"><table class="table ops-collection-table ${isProductionDetail() ? "production-excel-table" : ""}"><thead><tr>${selectionHead}${columnKeys.map((name) => `<th>${esc(label(name))}</th>`).join("")}${countHead}${inspectionHead}${suggestionConfirmationHead}</tr></thead><tbody>${rows.map((row) => `<tr>${selectionCell(row)}${columnKeys.map((name) => `<td>${cell(row?.[name], name, row)}</td>`).join("")}${countCell(row)}${inspectionCell(row)}${suggestionConfirmationCell(row)}</tr>`).join("")}</tbody></table></div></section>`;
+    const collectionTitle = isGoodsReceiptRows && key === "details" ? "Receipt Items" : label(key);
+    const gripHead = isGoodsReceiptRows ? '<th class="gr-detail-grip-column" scope="col">#</th>' : "";
+    const gripCell = isGoodsReceiptRows ? '<td class="gr-detail-grip-column"><span class="gr-detail-row-grip" aria-label="Pegangan baris"><i></i><i></i><i></i><i></i><i></i><i></i></span></td>' : "";
+    const enterpriseOptOut = isGoodsReceiptRows || isStockBalancePage() ? ' data-enterprise-table="off"' : "";
+    const isStockBalanceHistory = isStockMovementHistory || isStockReservationHistory;
+    const collectionHead = isStockBalanceHistory
+      ? `<div class="ops-collection-head"><div><p>${isStockMovementHistory ? "STOCK MOVEMENTS" : "STOCK RESERVATIONS"}</p><h2>${esc(collectionTitle)}</h2></div>${collectionAction}</div>`
+      : `<div class="ops-collection-head"><h2>${esc(collectionTitle)}</h2>${collectionAction}</div>`;
+    const tabTitleAttr = isStockBalanceHistory ? ` data-gr-tab-title="${esc(collectionTitle)}"` : "";
+    return `<section class="ops-detail-card"${tabTitleAttr}>${collectionHead}${canCountSto ? '<p class="ops-help px-3">Daftar ini hanya menunjukkan identitas dan progres hitung. Saldo sistem serta selisih tetap disembunyikan sampai counting disubmit.</p>' : ""}<div class="table-responsive ${isProductionDetail() ? "production-excel-wrap" : ""}"><table class="table ops-collection-table ${isProductionDetail() ? "production-excel-table" : ""}"${enterpriseOptOut}><thead><tr>${gripHead}${selectionHead}${columnKeys.map((name) => `<th>${esc(label(name))}</th>`).join("")}${countHead}${inspectionHead}${suggestionConfirmationHead}</tr></thead><tbody>${rows.map((row) => `<tr>${gripCell}${selectionCell(row)}${columnKeys.map((name) => `<td>${cell(row?.[name], name, row)}</td>`).join("")}${countCell(row)}${inspectionCell(row)}${suggestionConfirmationCell(row)}</tr>`).join("")}</tbody></table></div></section>`;
   }
   function renderObject(key, object) {
     const entries = meaningfulScalarEntries(object);
@@ -1182,18 +1384,115 @@
     const planned = number(record.targetQty);
     const released = number(record.actualQty);
     const outstanding = Math.max(planned - released, 0);
-    const references = (record.documentReferences || []).map((reference) => referenceLink(reference, "mpp-inline-link")).join("");
+    const identity = record.planningIdentity || {};
+    const horizonStart = identity.horizonStart || record.periodStart;
+    const horizonEnd = identity.horizonEnd || record.schedulingHorizonEnd || record.periodEnd;
+    const phases = record.deliveryPhaseTimeline?.phases || [];
+    const starts = phases.map((phase) => phase.firstProcessDate || phase.recommendedStartDate).filter(Boolean).sort();
+    const allocationStarts = phases.flatMap((phase) => (phase.events || []).flatMap((event) =>
+      (event.allocations || []).map((allocation) => allocation.vendorSendDate || allocation.scheduleDate).filter(Boolean),
+    )).sort();
+    const mrpReleaseStart = starts[0] || horizonStart;
+    const allocationStart = allocationStarts[0] || null;
+    const blocking = number(record.planReadiness?.summary?.blocking);
+    const readiness = record.sourceReconciliation?.current === false ? "Replan required" : blocking ? `${num(blocking, 0)} blocker` : record.planReadiness?.releaseReady ? "Siap release" : "Perlu capacity check";
     $("ops-detail-fields").innerHTML = [
-      ["Periode Produksi", `${esc(format(record.periodStart, "date"))}<small class="mpp-field-sub">sampai ${esc(format(record.periodEnd, "date"))}</small>`],
-      ["Sumber Perencanaan", references || '<span class="ops-muted">Manual / belum terhubung</span>'],
-      ["Target Produksi", `${esc(num(planned))} <small class="mpp-uom">pcs</small>`],
-      ["Sudah Direlease", `${esc(num(released))} <small class="mpp-uom">pcs</small>`],
-      ["Outstanding Plan", `${esc(num(outstanding))} <small class="mpp-uom">pcs</small>`],
-      ["Komposisi Baris", `${esc(num(record.receiptLineCount, 0))} FG receipt · ${esc(num(record.childReceiptLineCount, 0))} child receipt · ${esc(num(record.processLineCount, 0))} process`],
-      ["Forecast", esc(num(record.forecastQty))],
-      ["Actual Sales Order", esc(num(record.actualSalesOrderQty))],
-      ["Buffer Stock", esc(num(record.bufferQty))],
+      ["Plan Qty", `${esc(num(planned))} <small class="mpp-uom">pcs</small><small class="mpp-field-sub">Outstanding ${esc(num(outstanding))} · released ${esc(num(released))}</small>`],
+      ["Delivery Phase", `${esc(num(phases.length, 0))}<small class="mpp-field-sub">${esc(format(identity.deliveryCoverageStart, "date"))} – ${esc(format(identity.deliveryCoverageEnd, "date"))}</small>`],
+      ["Allocation Start", `${allocationStart ? esc(format(allocationStart, "date")) : "Belum dialokasikan"}<small class="mpp-field-sub">MRP earliest release ${esc(format(mrpReleaseStart, "date"))}${identity.crossMonth ? " · M-1 lookback" : ""}</small>`],
+      ["Readiness", `<span class="mpp-summary-readiness ${blocking || record.sourceReconciliation?.current === false ? "blocked" : "ready"}">${esc(readiness)}</span><small class="mpp-field-sub">${esc(record.sourceMpsNumber || identity.sourceMpsNumber || "Manual")} · ${esc((record.sourceMrpRunNumbers || [])[0] || record.sourceReconciliation?.currentMrpRunNumber || "MRP belum terhubung")}</small>`],
     ].map(([name, value]) => `<div><small>${esc(name)}</small><strong>${value}</strong></div>`).join("");
+  }
+
+  function dailyScheduleReference(type, value, href) {
+    return value ? `<a class="dps-trace-link" href="${esc(href)}"><span>${esc(type)}</span><b>${esc(value)}</b><i aria-hidden="true">→</i></a>` : "";
+  }
+
+  function dailyScheduleDate(value) {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? "-" : new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeZone: "UTC" }).format(parsed);
+  }
+
+  function dailyScheduleGate(labelText, value) {
+    const normalized = String(value || "NOT CHECKED").toUpperCase();
+    const tone = /READY|ON_TIME|COMPLETED|NOT_REQUIRED/.test(normalized) ? "ready" : /LATE|BLOCK|SHORT|HOLD/.test(normalized) ? "risk" : "neutral";
+    return `<div class="dps-gate ${tone}"><span>${esc(labelText)}</span><b>${esc(normalized.replaceAll("_", " "))}</b></div>`;
+  }
+
+  function renderDailyScheduleFields(record) {
+    const planned = number(record.plannedQty);
+    const actual = number(record.actualQty);
+    const shortage = planned > 0 ? Math.max(planned - actual, 0) : 0;
+    const achievement = planned > 0 ? Math.min(actual / planned * 100, 100) : 0;
+    const card = $("ops-detail-fields")?.closest(".ops-detail-card");
+    const heading = card?.querySelector("header h2");
+    if (heading) heading.textContent = "Ringkasan Daily Production Schedule";
+    $("ops-detail-subtitle").textContent = `${record.partNumber || record.partCode || "Part"} · ${record.processName || record.processCode || "Process"} · ${record.machineCode || "Mesin belum dipilih"}`;
+    $("ops-detail-fields").className = "dps-overview";
+    $("ops-detail-fields").innerHTML = `<section class="dps-dispatch-strip">
+      <div><span>TANGGAL</span><strong>${esc(dailyScheduleDate(record.scheduleDate))}</strong></div>
+      <div><span>SHIFT</span><strong>${esc(record.shift || "-")}</strong></div>
+      <div><span>JAM</span><strong>${esc(record.plannedStartTime || "-")}–${esc(record.plannedEndTime || "-")}</strong></div>
+      <div><span>MESIN</span><strong>${esc(record.machineCode || "UNASSIGNED")}</strong><small>${esc(record.machineName || "")}</small></div>
+      <div><span>STATUS</span><strong>${badge(record.status || "Draft")}</strong></div>
+    </section>
+    <section class="dps-output-grid">
+      <article class="plan"><span>PLAN</span><strong>${esc(qty(planned, record.uomCode))}</strong><small>${esc(record.uomCode || "")}</small></article>
+      <article class="actual"><span>ACTUAL</span><strong>${esc(qty(actual, record.uomCode))}</strong><small>${esc(record.uomCode || "")}</small></article>
+      <article class="shortage"><span>SHORTAGE</span><strong>${esc(qty(shortage, record.uomCode))}</strong><small>Plan − actual</small></article>
+      <article class="achievement"><span>ACHIEVEMENT</span><strong>${esc(num(achievement, 1))}%</strong><div><i style="width:${achievement}%"></i></div></article>
+    </section>
+    <section class="dps-part-process">
+      <div class="dps-identity"><small>PART YANG DIPRODUKSI</small><a href="/master-data/parts/${encodeURIComponent(record.partCode || "")}"><strong>${esc(record.partNumber || record.partCode || "-")}</strong><span>${esc(record.partName || "-")}</span><b>${esc(record.partCode || "-")}</b></a></div>
+      <div class="dps-route"><small>OPERASI</small><strong>Seq ${esc(record.sequence ?? "-")} · ${esc(record.processName || record.processCode || "-")}</strong><span>${esc(record.processCode || "-")} · ${esc(record.baseProcessCode || "-")} · Prioritas ${esc(record.schedulePriority ?? "-")}</span></div>
+    </section>`;
+  }
+
+  function renderDailyScheduleCollections(record) {
+    const demandHref = String(record.demandSourceType || "").toUpperCase() === "SALES_ORDER"
+      ? `/modules/sales/sales-orders/${encodeURIComponent(record.demandSourceNumber || "")}`
+      : `/modules/sales/forecasts/${encodeURIComponent(record.demandSourceNumber || "")}`;
+    const trace = [
+      dailyScheduleReference(record.demandSourceType === "SALES_ORDER" ? "SO" : "FORECAST", record.demandSourceNumber, demandHref),
+      dailyScheduleReference("MPS", record.mpsNumber, `/modules/planning-ppic/mps/${encodeURIComponent(record.mpsNumber || "")}`),
+      dailyScheduleReference("MRP", record.mrpRunNumber, `/modules/planning-ppic/mrp/${encodeURIComponent(record.mrpRunNumber || "")}`),
+      dailyScheduleReference("MPP", record.mppNumber || record.monthlyProductionPlanNumber, `/modules/planning-ppic/monthly-production-plans?month=${encodeURIComponent(String(record.scheduleDate || "").slice(0, 7))}&planNumber=${encodeURIComponent(record.mppNumber || record.monthlyProductionPlanNumber || "")}`),
+      dailyScheduleReference("MO", record.moNumber, `/modules/production/manufacturing-orders/${encodeURIComponent(record.moNumber || "")}`),
+      dailyScheduleReference("WO", record.woNumber, `/modules/production/work-orders/${encodeURIComponent(record.woNumber || "")}`),
+    ].filter(Boolean).join('<i class="dps-trace-arrow" aria-hidden="true">›</i>');
+    $("ops-detail-collections").innerHTML = `<section class="ops-detail-card dps-trace-card">
+      <div class="ops-collection-head"><div><h2>Planning Trace</h2><p>Runtutan demand sampai order eksekusi.</p></div><span>Phase ${esc(record.deliveryPhaseNumber ?? "-")} · Batch ${esc(record.transferBatchNumber ?? "-")}</span></div>
+      <div class="dps-trace-flow">${trace || '<span class="ops-muted">Referensi planning belum lengkap.</span>'}</div>
+    </section>
+    <section class="ops-detail-card dps-readiness-card">
+      <div class="ops-collection-head"><div><h2>Execution Readiness</h2><p>Gate operasional sebelum produksi dimulai.</p></div><span>${esc(record.customerCode || "Customer -")}</span></div>
+      <div class="dps-gate-grid">${dailyScheduleGate("Material", record.materialReadinessStatus)}${dailyScheduleGate("Predecessor", record.predecessorStatus)}${dailyScheduleGate("Vendor", record.vendorStatus)}${dailyScheduleGate("Delivery Risk", record.lateRisk)}</div>
+      <div class="dps-date-commit"><div><span>Customer Target</span><strong>${esc(dailyScheduleDate(record.customerTargetDate))}</strong></div><div><span>FG Required</span><strong>${esc(dailyScheduleDate(record.fgRequiredDate))}</strong></div><div><span>Priority</span><strong>${esc(record.priorityClass || "-")} · ${esc(num(record.priorityScore, 0))}</strong></div></div>
+    </section>
+    ${record.notes ? `<section class="ops-detail-card dps-notes-card"><details><summary>Catatan teknis & lineage <span>Buka rincian</span></summary><p>${esc(record.notes)}</p></details></section>` : ""}`;
+  }
+  function monthlyPlanSourceIntegrityCard(record) {
+    const reconciliation = record.sourceReconciliation;
+    if (!reconciliation) return "";
+    const current = reconciliation.current === true;
+    const snapshotLabel = (reconciliation.storedMrpRunNumbers || []).join(", ") || "Tidak diketahui";
+    const currentLabel = reconciliation.currentMrpRunNumber || "Belum tersedia";
+    const currentHref = reconciliation.currentMrpRunNumber
+      ? `/modules/planning-ppic/mrp/${encodeURIComponent(reconciliation.currentMrpRunNumber)}`
+      : null;
+    return `<section class="ops-detail-card mpp-integrity-card ${current ? "is-current" : "is-stale"}">
+      <div class="ops-collection-head">
+        <div><h2>Source Snapshot & Reconciliation</h2><p>Perbandingan snapshot Production Plan dengan revision MPS/MRP current sebelum dokumen boleh dikonfirmasi atau direlease.</p></div>
+        <span class="mpp-integrity-state">${current ? "CURRENT" : "REPLAN REQUIRED"}</span>
+      </div>
+      <div class="mpp-integrity-grid">
+        <div><small>MRP Snapshot Plan</small><b>${esc(snapshotLabel)}</b><span>Revision pembentuk detail tersimpan</span></div>
+        <div><small>MRP Current</small><b>${currentHref ? `<a href="${esc(currentHref)}">${esc(currentLabel)} →</a>` : esc(currentLabel)}</b><span>${reconciliation.revisionCurrent ? "Revision sama" : "Revision sudah berubah"}</span></div>
+        <div><small>FG Receipt</small><b>${num(reconciliation.actualReceiptCount, 0)} <em>Plan</em> / ${num(reconciliation.expectedReceiptCount, 0)} <em>current</em></b><span>${num((reconciliation.missingPhaseKeys || []).length, 0)} phase hilang · ${num((reconciliation.obsoletePhaseKeys || []).length, 0)} obsolete</span></div>
+        <div><small>FG Planned Qty</small><b>${num(reconciliation.actualFgQty)} <em>Plan</em> / ${num(reconciliation.expectedFgQty)} <em>current</em></b><span>Variance ${num(reconciliation.quantityDelta)} pcs</span></div>
+      </div>
+      ${current ? "" : `<div class="mpp-integrity-action"><b>Confirm dan Release diblokir.</b><span>Buka MRP current lalu jalankan “Buat Production Plan” kembali, atau hitung ulang Capacity Recommendation untuk menyinkronkan Draft Plan.</span>${currentHref ? `<a class="btn btn-sm btn-primary" href="${esc(currentHref)}">Buka MRP Current</a>` : ""}</div>`}
+    </section>`;
   }
   function monthlyPlanReadinessCard(record) {
     const readiness = record.planReadiness || { ready: false, summary: {}, issues: [] };
@@ -1203,8 +1502,7 @@
     const stateLabel = readiness.releaseReady
       ? "Siap Release"
       : `${num(summary.blocking, 0)} blocker · ${num(summary.overridable, 0)} override`;
-    const issueRows = issues.length
-      ? issues.map((issue) => {
+    const renderIssue = (issue) => {
         const severity = String(issue.severity || "WARNING").toUpperCase();
         const references = (issue.references || []).filter((reference, index, rows) =>
           rows.findIndex((candidate) => candidate.href === reference.href && candidate.label === reference.label) === index);
@@ -1217,7 +1515,11 @@
             ${references.length ? `<div class="mpp-blocker-links">${references.map((reference) => referenceLink(reference, "mpp-fix-link")).join("")}</div>` : ""}
           </div>
         </article>`;
-      }).join("")
+      };
+    const criticalIssues = issues.filter((issue) => ["BLOCKING", "OVERRIDABLE"].includes(String(issue.severity || "").toUpperCase()));
+    const advisoryIssues = issues.filter((issue) => !["BLOCKING", "OVERRIDABLE"].includes(String(issue.severity || "").toUpperCase()));
+    const issueRows = issues.length
+      ? `${criticalIssues.map(renderIssue).join("")}${advisoryIssues.length ? `<details class="mpp-advisory-details"><summary><span><b>${num(advisoryIssues.length, 0)} warning non-blocking</b><small>Material, purchasing, dan rekomendasi untuk ditindaklanjuti</small></span><i>Lihat rincian</i></summary><div>${advisoryIssues.map(renderIssue).join("")}</div></details>` : ""}`
       : `<div class="mpp-ready-empty"><b>Tidak ada blocker aktif</b><span>Routing, kapasitas, material, supplier, dan lead time memenuhi rule release.</span></div>`;
     return `<section class="ops-detail-card mpp-readiness-card">
       <div class="ops-collection-head">
@@ -1232,39 +1534,684 @@
         <div><small>Delivery Phase</small><strong>${num(summary.deliveryBlockers, 0)}</strong></div>
         <div><small>Capacity</small><strong>${num(summary.capacityBlockers, 0)}</strong></div>
         <div><small>Material</small><strong>${num(summary.materialBlockers, 0)}</strong></div>
+        <div><small>Data Integrity</small><strong>${num(summary.dataIntegrityBlockers, 0)}</strong></div>
+        <div><small>Timing Late</small><strong>${num(summary.timingBlockers, 0)}</strong></div>
       </div>
       <div class="mpp-blocker-list">${issueRows}</div>
     </section>`;
   }
-  function monthlyPlanDetailsCard(record) {
-    const rows = Array.isArray(record.details) ? record.details : [];
-    const body = rows.map((row) => {
-      const part = row.part || {};
-      const partReference = (row.referenceLinks || []).find((reference) => reference.type === "PART");
-      const otherReferences = (row.referenceLinks || []).filter((reference) => reference.type !== "PART");
-      const outstanding = Math.max(number(row.qtyPlanned) - number(row.qtyReleased), 0);
-      const isParentFg = row.lineType === "FG Receipt";
-      return `<tr>
-        <td class="text-center"><b>${esc(row.lineNumber)}</b></td>
-        <td><span class="mpp-line-type ${esc(slug(row.lineType))}">${esc(row.lineType || "Plan Line")}</span></td>
-        <td class="mpp-part-cell">
-          ${partReference ? `<a href="${esc(partReference.href)}"><b>${esc(part.partCode || row.partCode)}</b><span>${esc(part.partName || row.displayName || "-")}</span>${part.partNumber ? `<small>Drawing: ${esc(part.partNumber)}</small>` : ""}</a>` : `<b>${esc(row.partCode)}</b><span>${esc(row.displayName || "-")}</span>`}
+  let mppGanttInstance = null;
+  const mppGanttIsoDate = (value) => {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+    }
+    const match = String(value || "").match(/^(\d{4}-\d{2}-\d{2})/);
+    return match?.[1] || null;
+  };
+  const mppGanttTaskId = (value) => `mppg_${String(value || "task").replace(/[^a-zA-Z0-9_-]+/g, "_")}`;
+
+  function monthlyPlanGanttCard(record) {
+    const timeline = record.deliveryPhaseTimeline || {};
+    const phases = Array.isArray(timeline.phases) ? timeline.phases : [];
+    const phaseOptions = phases.map((phase) => `<option value="${esc(phase.id)}">Phase ${num(phase.phaseNumber, 0)} · ${esc(phase.fgParent?.partCode || "FG")} · ${num(phase.qty)} ${esc(phase.uomCode || "PCS")}</option>`).join("");
+    return `<section class="ops-detail-card mpp-gantt-card" data-mpp-gantt-plan="${esc(record.planNumber || config.recordKey)}">
+      <div class="ops-collection-head mpp-gantt-head"><div><h2>Production Plan Gantt</h2><p>Timeline proses sampai delivery berbasis planning horizon. Geser atau resize bar allocation untuk mengusulkan perubahan tanggal; server tetap memvalidasi urutan proses, kapasitas, vendor, dan freeze fence.</p></div><span>Frappe Gantt · MIT Open Source</span></div>
+      <div class="mpp-gantt-toolbar">
+        <div class="mpp-gantt-row-switch" role="group" aria-label="Baris Gantt"><button type="button" data-mpp-gantt-row-mode="forecast">Per Forecast</button><button type="button" data-mpp-gantt-row-mode="process">Detail Proses</button></div>
+        <div class="mpp-gantt-view-switch" role="group" aria-label="Skala Gantt"><button type="button" data-mpp-gantt-view="Day">Hari</button><button type="button" data-mpp-gantt-view="Week">Minggu</button><button type="button" data-mpp-gantt-view="Month">Bulan</button></div>
+        <label><span>Delivery phase</span><select class="form-select form-select-sm" data-mpp-gantt-phase><option value="all">Semua phase</option>${phaseOptions}</select></label>
+        <button type="button" class="mpp-gantt-calendar" data-mpp-gantt-calendar aria-pressed="false"><span>Kalender kerja</span><b>Lewati hari Minggu</b></button>
+        <button type="button" class="mpp-gantt-today" data-mpp-gantt-today>Hari ini</button>
+      </div>
+      <div class="mpp-gantt-context"><div><span><i class="forecast"></i>Forecast phase</span><span><i class="process"></i>In-house</span><span><i class="vendor"></i>Vendor</span><span><i class="delivery"></i>Delivery</span><span><i class="nonwork"></i>Minggu / non-working</span></div><b data-mpp-gantt-summary>${num(phases.length, 0)} phase</b></div>
+      <div class="mpp-gantt-frame" data-mpp-gantt-frame>
+        <div class="mpp-gantt-list" aria-label="Daftar task Production Plan"><div class="mpp-gantt-list-head"><span>Task / Part</span><b>Qty & Resource</b></div><div class="mpp-gantt-list-viewport"><div class="mpp-gantt-list-body" data-mpp-gantt-list></div></div></div>
+        <div class="mpp-gantt-canvas" data-mpp-gantt-canvas><div class="mpp-gantt-loading">Menyiapkan Gantt...</div></div>
+      </div>
+      <div class="mpp-gantt-foot"><span>Kalender kerja saat ini: Senin–Sabtu; hari Minggu ditandai abu-abu.</span><span>Drag tidak langsung menyimpan—dialog konfirmasi tetap dibuka sebelum perubahan dikirim.</span></div>
+    </section>`;
+  }
+
+  function buildMppForecastGanttTasks(record, phaseFilter = "all") {
+    const timeline = record.deliveryPhaseTimeline || {};
+    return (Array.isArray(timeline.phases) ? timeline.phases : [])
+      .filter((phase) => phaseFilter === "all" || String(phase.id) === String(phaseFilter))
+      .sort((left, right) => number(left.phaseNumber) - number(right.phaseNumber))
+      .map((phase, phaseIndex) => {
+        const fg = phase.fgParent || {};
+        const sourceType = String(phase.sourceType || "").toUpperCase();
+        const sourceLabel = sourceType.includes("FORECAST") || sourceType === "FCT" ? "FCT" : sourceType.includes("SALES") || sourceType === "SO" ? "PO" : "MPS";
+        const sourceNumber = phase.sourceNumber || timeline.sourceMpsNumber || "-";
+        const processCodes = new Set();
+        const starts = [];
+        const finishes = [];
+        let allocationCount = 0;
+        (phase.events || [])
+          .filter((event) => !["DELIVERY", "VENDOR_RETURN"].includes(String(event.type || "").toUpperCase()))
+          .forEach((event) => {
+            const processCode = String(event.processCode || "PROCESS").replace(/^RETURN\s+/i, "");
+            processCodes.add(processCode);
+            const allocations = Array.isArray(event.allocations) && event.allocations.length ? event.allocations : [null];
+            allocations.forEach((allocation) => {
+              if (allocation?.id) allocationCount += 1;
+              const start = mppGanttIsoDate(allocation?.vendorSendDate || allocation?.scheduleDate || event.date);
+              const finish = mppGanttIsoDate(allocation?.vendorReturnDate || event.completionDate || allocation?.scheduleDate || event.date);
+              if (start) starts.push(start);
+              if (finish) finishes.push(finish);
+            });
+          });
+        const deliveryDate = mppGanttIsoDate(phase.deliveryDate || phase.fgRequiredDate);
+        const sortedStarts = starts.sort();
+        const sortedFinishes = finishes.sort();
+        const start = sortedStarts[0] || deliveryDate || mppGanttIsoDate(record.periodStart);
+        const endCandidate = deliveryDate || sortedFinishes.at(-1) || start;
+        const end = start && endCandidate && endCandidate < start ? start : endCandidate;
+        if (!start || !end) return null;
+        const processSummary = [...processCodes].join(" → ") || "Belum ada proses terjadwal";
+        return {
+          id: mppGanttTaskId(`forecast_${phase.id || phaseIndex}`),
+          name: `${sourceLabel} ${sourceNumber} · Phase ${num(phase.phaseNumber, 0)} · ${num(phase.qty)} ${phase.uomCode || "PCS"}`,
+          start,
+          end,
+          progress: 0,
+          dependencies: "",
+          custom_class: `mpp-gantt-forecast-locked${phase.scheduleHealth === "LATE" ? "-late" : ""}`,
+          editable: false,
+          forecastSummary: true,
+          phaseId: phase.id,
+          phaseNumber: num(phase.phaseNumber, 0),
+          sourceLabel,
+          sourceNumber,
+          processCode: "FORECAST PHASE",
+          processName: `${sourceLabel} ${sourceNumber} · Delivery phase ${num(phase.phaseNumber, 0)}`,
+          partCode: fg.partCode || "-",
+          partNumber: fg.partNumber || "-",
+          partName: fg.partName || "-",
+          qty: number(phase.qty),
+          uomCode: phase.uomCode || "PCS",
+          resource: `${num(processCodes.size, 0)} proses · ${num(allocationCount, 0)} allocation`,
+          processCount: processCodes.size,
+          allocationCount,
+          processSummary,
+          taskType: "FORECAST",
+          originalStart: start,
+          originalEnd: end,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function buildMppGanttTasks(record, phaseFilter = "all", rowMode = "forecast") {
+    if (rowMode !== "process") return buildMppForecastGanttTasks(record, phaseFilter);
+    const timeline = record.deliveryPhaseTimeline || {};
+    const phases = (Array.isArray(timeline.phases) ? timeline.phases : [])
+      .filter((phase) => phaseFilter === "all" || String(phase.id) === String(phaseFilter))
+      .sort((left, right) => number(left.phaseNumber) - number(right.phaseNumber));
+    const tasks = [];
+    phases.forEach((phase, phaseIndex) => {
+      const fg = phase.fgParent || {};
+      const phaseNumber = num(phase.phaseNumber, 0);
+      const processEvents = (phase.events || [])
+        .filter((event) => !["DELIVERY", "VENDOR_RETURN"].includes(String(event.type || "").toUpperCase()))
+        .sort((left, right) => String(left.date || "").localeCompare(String(right.date || "")) || String(left.processCode || "").localeCompare(String(right.processCode || "")));
+      let previousTaskId = null;
+      processEvents.forEach((event, eventIndex) => {
+        const allocations = Array.isArray(event.allocations) && event.allocations.length ? event.allocations : [null];
+        allocations.forEach((allocation, allocationIndex) => {
+          const part = allocation?.part || event.part || fg;
+          const routingMode = String(allocation?.routingMode || event.routingMode || "INHOUSE").toUpperCase();
+          const vendor = routingMode === "VENDOR";
+          const start = mppGanttIsoDate(allocation?.vendorSendDate || allocation?.scheduleDate || event.date);
+          const end = mppGanttIsoDate(allocation?.vendorReturnDate || event.completionDate || allocation?.scheduleDate || event.date || start);
+          if (!start || !end) return;
+          const allocationId = allocation?.id || null;
+          const editable = Boolean(timeline.editable && allocationId && allocation?.editable !== false);
+          const rawId = allocationId || `${phase.id || phaseIndex}_${event.id || eventIndex}_${allocationIndex}`;
+          const id = mppGanttTaskId(rawId);
+          const processCode = String(allocation?.processCode || event.processCode || "PROCESS").replace(/^RETURN\s+/i, "");
+          const qtyValue = number(allocation?.plannedQty ?? event.qty ?? phase.qty);
+          const uomCode = allocation?.uomCode || event.uomCode || phase.uomCode || "PCS";
+          const resource = vendor
+            ? [allocation?.vendorCode || event.vendorCode, allocation?.vendorName || event.vendorName].filter(Boolean).join(" · ") || "Vendor belum dipilih"
+            : [allocation?.machineCode || event.machineCode, allocation?.machineName || event.machineName].filter(Boolean).join(" · ") || "Resource belum dialokasikan";
+          const healthClass = phase.scheduleHealth === "LATE" ? "-late" : "";
+          tasks.push({
+            id,
+            name: `P${phaseNumber} · ${processCode} · ${part.partCode || fg.partCode || "FG"}`,
+            start,
+            end,
+            progress: 0,
+            dependencies: previousTaskId || "",
+            custom_class: `${vendor ? "mpp-gantt-vendor" : "mpp-gantt-process"}-${editable ? "editable" : "locked"}${healthClass}`,
+            allocationId,
+            editable,
+            routingMode,
+            phaseId: phase.id,
+            phaseNumber,
+            processCode,
+            processName: allocation?.processName || event.processName || processCode,
+            partCode: part.partCode || fg.partCode || "-",
+            partNumber: part.partNumber || fg.partNumber || "-",
+            partName: part.partName || fg.partName || "-",
+            qty: qtyValue,
+            uomCode,
+            resource,
+            taskType: vendor ? "VENDOR" : "PROCESS",
+            originalStart: start,
+            originalEnd: end,
+          });
+          previousTaskId = id;
+        });
+      });
+      const deliveryDate = mppGanttIsoDate(phase.deliveryDate || phase.fgRequiredDate);
+      if (deliveryDate) {
+        const sourceType = String(phase.sourceType || "").toUpperCase();
+        const sourceLabel = sourceType.includes("FORECAST") || sourceType === "FCT" ? "FCT" : sourceType.includes("SALES") || sourceType === "SO" ? "PO" : "MPS";
+        const id = mppGanttTaskId(`delivery_${phase.id || phaseIndex}`);
+        tasks.push({
+          id,
+          name: `P${phaseNumber} · DELIVERY · ${fg.partCode || "FG"}`,
+          start: deliveryDate,
+          end: deliveryDate,
+          progress: 0,
+          dependencies: previousTaskId || "",
+          custom_class: `mpp-gantt-delivery-locked${phase.scheduleHealth === "LATE" ? "-late" : ""}`,
+          editable: false,
+          phaseId: phase.id,
+          phaseNumber,
+          processCode: "DELIVERY",
+          processName: `Delivery ${sourceLabel} ${phase.sourceNumber || timeline.sourceMpsNumber || ""}`.trim(),
+          partCode: fg.partCode || "-",
+          partNumber: fg.partNumber || "-",
+          partName: fg.partName || "-",
+          qty: number(phase.qty),
+          uomCode: phase.uomCode || "PCS",
+          resource: `${phase.customerCode || "Customer"} · ${sourceLabel} ${phase.sourceNumber || timeline.sourceMpsNumber || "-"}`,
+          taskType: "DELIVERY",
+          originalStart: deliveryDate,
+          originalEnd: deliveryDate,
+        });
+      }
+    });
+    return tasks;
+  }
+
+  function renderMppGantt(record = currentRecord) {
+    const card = document.querySelector(".mpp-gantt-card");
+    const canvas = card?.querySelector("[data-mpp-gantt-canvas]");
+    if (!card || !canvas || !record) return;
+    const phaseFilter = card.querySelector("[data-mpp-gantt-phase]")?.value || "all";
+    const rowMode = localStorage.getItem(`mpp-gantt-row-mode:${record.planNumber || config.recordKey}`) === "process" ? "process" : "forecast";
+    const tasks = buildMppGanttTasks(record, phaseFilter, rowMode);
+    const list = card.querySelector("[data-mpp-gantt-list]");
+    const summary = card.querySelector("[data-mpp-gantt-summary]");
+    const phaseCount = new Set(tasks.map((task) => task.phaseId).filter(Boolean)).size;
+    if (summary) summary.textContent = rowMode === "forecast" ? `${num(tasks.length, 0)} baris Forecast` : `${num(tasks.length, 0)} task proses · ${num(phaseCount, 0)} phase`;
+    if (!tasks.length) {
+      canvas.innerHTML = '<div class="mpp-gantt-empty"><b>Belum ada task terjadwal</b><span>Jalankan Capacity Recommendation atau buat allocation manual agar bar proses muncul.</span></div>';
+      if (list) list.innerHTML = "";
+      mppGanttInstance = null;
+      return;
+    }
+    if (typeof window.Gantt !== "function") {
+      canvas.innerHTML = '<div class="mpp-gantt-empty"><b>Library Gantt belum termuat</b><span>Refresh halaman atau periksa asset Frappe Gantt lokal.</span></div>';
+      return;
+    }
+    if (list) list.innerHTML = tasks.map((task) => task.forecastSummary
+      ? `<div class="mpp-gantt-list-row forecast" data-mpp-gantt-task-row="${esc(task.id)}"><div><span>${esc(task.sourceLabel)} · ${esc(task.sourceNumber)}</span><b>Delivery phase ${esc(task.phaseNumber)}</b><small>${esc(task.partCode)} · ${esc(task.partNumber)} · ${esc(task.partName)}</small></div><div><b>${num(task.qty)} ${esc(task.uomCode)}</b><small>${esc(task.resource)}</small><em>Ringkas</em></div></div>`
+      : `<div class="mpp-gantt-list-row ${esc(task.taskType.toLowerCase())}" data-mpp-gantt-task-row="${esc(task.id)}"><div><span>Phase ${esc(task.phaseNumber)} · ${esc(task.processCode)}</span><b>${esc(task.partCode)}</b><small>${esc(task.partNumber)} · ${esc(task.partName)}</small></div><div><b>${num(task.qty)} ${esc(task.uomCode)}</b><small>${esc(task.resource)}</small>${task.editable ? `<button type="button" data-mpp-gantt-edit="${esc(task.allocationId)}">Edit</button>` : '<em>Terkunci</em>'}</div></div>`).join("");
+    const storedView = ["Day", "Week", "Month"].includes(localStorage.getItem(`mpp-gantt-view:${record.planNumber || config.recordKey}`)) ? localStorage.getItem(`mpp-gantt-view:${record.planNumber || config.recordKey}`) : "Week";
+    const workingOnly = localStorage.getItem(`mpp-gantt-working:${record.planNumber || config.recordKey}`) === "1";
+    const chartHeight = Math.min(760, 84 + tasks.length * 44);
+    card.style.setProperty("--mpp-gantt-height", `${chartHeight}px`);
+    card.querySelectorAll("[data-mpp-gantt-row-mode]").forEach((button) => button.classList.toggle("active", button.dataset.mppGanttRowMode === rowMode));
+    card.querySelectorAll("[data-mpp-gantt-view]").forEach((button) => button.classList.toggle("active", button.dataset.mppGanttView === storedView));
+    const calendarButton = card.querySelector("[data-mpp-gantt-calendar]");
+    calendarButton?.classList.toggle("active", workingOnly);
+    calendarButton?.setAttribute("aria-pressed", String(workingOnly));
+    canvas.innerHTML = "";
+    const popup = (ctx) => {
+      const task = ctx.task;
+      ctx.set_title(esc(task.forecastSummary ? `${task.sourceLabel} ${task.sourceNumber} · Delivery phase ${task.phaseNumber}` : `${task.processCode} · ${task.partCode}`));
+      ctx.set_subtitle(esc(`${task.partCode} · ${task.partNumber} · ${task.partName}`));
+      ctx.set_details(`<div class="mpp-gantt-popup"><span><small>Qty</small><b>${num(task.qty)} ${esc(task.uomCode)}</b></span><span><small>${task.forecastSummary ? "Cakupan proses" : "Resource"}</small><b>${esc(task.forecastSummary ? task.processSummary : task.resource)}</b></span><span><small>${task.forecastSummary ? "Production start – Delivery" : "Jadwal"}</small><b>${esc(mppGanttIsoDate(task._start) || task.start)} – ${esc(mppGanttIsoDate(new Date(task._end.getTime() - 1000)) || task.end)}</b></span></div>`);
+      if (task.editable && task.allocationId) ctx.add_action('<button type="button" class="mpp-gantt-popup-action">Edit posisi</button>', () => openMppPlacementEditor(task.allocationId));
+    };
+    try {
+      mppGanttInstance = new window.Gantt(canvas, tasks, {
+        view_mode: storedView,
+        language: "id",
+        bar_height: 28,
+        padding: 16,
+        upper_header_height: 36,
+        lower_header_height: 28,
+        container_height: chartHeight,
+        infinite_padding: false,
+        scroll_to: mppGanttIsoDate(record.periodStart) || "start",
+        popup_on: "click",
+        popup,
+        readonly_progress: true,
+        readonly_dates: rowMode === "forecast" || !record.deliveryPhaseTimeline?.editable,
+        move_dependencies: false,
+        snap_at: "1d",
+        lines: "both",
+        today_button: false,
+        holidays: { "rgba(148, 163, 184, .16)": "weekend" },
+        is_weekend: (date) => date.getDay() === 0,
+        ignore: workingOnly ? (date) => date.getDay() === 0 : [],
+        on_view_change: (mode) => {
+          const name = mode?.name || String(mode || "Week");
+          localStorage.setItem(`mpp-gantt-view:${record.planNumber || config.recordKey}`, name);
+          card.querySelectorAll("[data-mpp-gantt-view]").forEach((button) => button.classList.toggle("active", button.dataset.mppGanttView === name));
+        },
+        on_date_change: (task, start, end) => {
+          if (!task.editable || !task.allocationId) {
+            showAlert("Bar delivery atau task tanpa allocation tidak dapat dipindahkan. Edit tanggal melalui sumber demand atau Capacity Planning.", "warning");
+            setTimeout(() => renderMppGantt(record), 0);
+            return;
+          }
+          const proposedStart = mppGanttIsoDate(start);
+          const proposedEnd = mppGanttIsoDate(end);
+          setTimeout(() => {
+            renderMppGantt(record);
+            openMppPlacementEditor(task.allocationId, proposedStart, proposedEnd);
+          }, 0);
+        },
+      });
+      const ganttContainer = canvas.querySelector(".gantt-container");
+      const listBody = card.querySelector("[data-mpp-gantt-list]");
+      ganttContainer?.addEventListener("scroll", () => {
+        if (listBody) listBody.style.transform = `translateY(${-ganttContainer.scrollTop}px)`;
+      }, { passive: true });
+    } catch (error) {
+      mppGanttInstance = null;
+      canvas.innerHTML = `<div class="mpp-gantt-empty"><b>Gantt gagal dirender</b><span>${esc(error.message)}</span></div>`;
+    }
+  }
+
+  function monthlyPlanWeeklyMatrixCard(record) {
+    const timeline = record.deliveryPhaseTimeline || {};
+    const phases = Array.isArray(timeline.phases) ? timeline.phases : [];
+    const iso = (value) => String(value || "").slice(0, 10);
+    const dateValue = (value) => {
+      const parsed = new Date(`${iso(value)}T00:00:00`);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
+    const addDays = (value, days) => {
+      const parsed = value instanceof Date ? new Date(value.getTime()) : dateValue(value);
+      if (!parsed) return null;
+      parsed.setDate(parsed.getDate() + days);
+      return parsed;
+    };
+    const dateIso = (value) => value instanceof Date && !Number.isNaN(value.getTime())
+      ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`
+      : null;
+    const shortDate = (value) => {
+      const parsed = value instanceof Date ? value : dateValue(value);
+      return parsed ? new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" }).format(parsed) : "-";
+    };
+    const eventDates = phases.flatMap((phase) => [phase.deliveryDate, phase.fgRequiredDate, ...(phase.events || []).flatMap((event) => [event.date, event.completionDate])]).filter(Boolean);
+    const start = dateValue(record.periodStart) || dateValue(eventDates.sort()[0]);
+    const horizonDates = [record.schedulingHorizonEnd, record.periodEnd, ...eventDates].map(dateValue).filter(Boolean);
+    const end = horizonDates.length ? new Date(Math.max(...horizonDates.map((date) => date.getTime()))) : start;
+    if (!start || !end) return "";
+    const weekCount = Math.max(Math.ceil(((end.getTime() - start.getTime()) / 86400000 + 1) / 7), 1);
+    const weeks = Array.from({ length: weekCount }, (_, index) => {
+      const weekStart = addDays(start, index * 7);
+      const naturalEnd = addDays(weekStart, 6);
+      const weekEnd = naturalEnd > end ? end : naturalEnd;
+      return { index, start: dateIso(weekStart), end: dateIso(weekEnd), label: `W${index + 1}` };
+    });
+    const weekIndex = (value) => {
+      const parsed = dateValue(value);
+      if (!parsed) return -1;
+      return Math.min(Math.max(Math.floor((parsed.getTime() - start.getTime()) / 86400000 / 7), 0), weekCount - 1);
+    };
+    const sourceMeta = (phase) => {
+      const sourceType = String(phase.sourceType || "").toUpperCase();
+      const sourceLabel = sourceType.includes("SALES") || sourceType === "SO" ? "PO" : sourceType.includes("FORECAST") || sourceType === "FCT" ? "FCT" : "MPS";
+      const sourceNumber = phase.sourceNumber || timeline.sourceMpsNumber || "-";
+      const href = sourceLabel === "PO"
+        ? `/modules/sales/sales-orders/${encodeURIComponent(sourceNumber)}`
+        : sourceLabel === "FCT"
+          ? `/modules/sales/forecasts/${encodeURIComponent(sourceNumber)}`
+          : `/modules/planning-ppic/mps/${encodeURIComponent(timeline.sourceMpsNumber || sourceNumber)}`;
+      return { label: sourceLabel, number: sourceNumber, href };
+    };
+    const receiptRows = (record.details || []).filter((row) => row.lineType === "FG Receipt");
+    const stockByPart = new Map();
+    receiptRows.forEach((row) => stockByPart.set(row.partCode, Math.max(number(row.stock?.qtyAvailable), number(stockByPart.get(row.partCode)))));
+    const phaseMetrics = new Map();
+    [...phases].sort((left, right) => iso(left.fgRequiredDate || left.deliveryDate).localeCompare(iso(right.fgRequiredDate || right.deliveryDate))).forEach((phase) => {
+      if (phase.planRole === "CARRY_OVER") return;
+      const partCode = phase.fgParent?.partCode;
+      const demand = Math.max(number(phase.qty), 0);
+      const available = Math.max(number(stockByPart.get(partCode)), 0);
+      const stock = Math.min(available, demand);
+      phaseMetrics.set(String(phase.id), { demand, stock, effective: Math.max(demand - stock, 0) });
+      stockByPart.set(partCode, Math.max(available - stock, 0));
+    });
+    const partPopover = (part = {}) => `<span class="mpp-timeline-popover" role="tooltip"><small>Part Number</small><b>${esc(part.partNumber || "-")}</b><small>Part Code</small><b>${esc(part.partCode || "-")}</b><small>Part Name</small><b>${esc(part.partName || "-")}</b></span>`;
+    const placementCard = (event, phase) => {
+      const vendorReturn = event.type === "VENDOR_RETURN";
+      const vendorSend = event.routingMode === "VENDOR";
+      const allocations = Array.isArray(event.allocations) ? event.allocations : [];
+      const cardClass = vendorReturn ? "vendor-return" : vendorSend ? "vendor-send" : event.type === "DELIVERY" ? "delivery" : "process";
+      const labelValue = vendorReturn ? `RETURN ${String(event.processCode || "").replace(/^RETURN\s+/i, "")}` : vendorSend ? `SEND ${event.processCode}` : event.processCode;
+      const resource = vendorSend || vendorReturn
+        ? [event.vendorCode, event.vendorName].filter(Boolean).join(" · ")
+        : [event.machineCode, event.machineName].filter(Boolean).join(" · ");
+      return `<div class="mpp-week-event ${cardClass}">
+        <button type="button" class="mpp-week-event-info" data-mpp-popover aria-expanded="false"><span><b>${esc(labelValue || event.processName || "PROCESS")}</b><strong>${num(event.qty)} ${esc(event.uomCode || phase.uomCode || "PCS")}</strong></span><small>${esc(shortDate(event.date))}${resource ? ` · ${esc(resource)}` : ""}</small>${vendorSend && event.completionDate ? `<em>Kembali ${esc(shortDate(event.completionDate))}</em>` : ""}${partPopover(event.part || phase.fgParent)}</button>
+        ${!vendorReturn && event.type !== "DELIVERY" ? allocations.map((allocation) => `<button type="button" class="mpp-placement-edit" data-mpp-edit-placement="${esc(allocation.id)}" ${timeline.editable && allocation.editable ? "" : "disabled"}>Edit posisi</button>`).join("") : ""}
+      </div>`;
+    };
+    const phaseRows = phases.map((phase) => {
+      const source = sourceMeta(phase);
+      const fg = phase.fgParent || {};
+      const carryOver = phase.planRole === "CARRY_OVER";
+      const metrics = phaseMetrics.get(String(phase.id)) || { demand: number(phase.qty), stock: 0, effective: number(phase.qty) };
+      const deliveryWeek = weekIndex(phase.deliveryDate || phase.fgRequiredDate);
+      const phaseCells = weeks.map((week) => `<td data-mpp-week-column="${week.index}">${week.index === deliveryWeek ? (carryOver ? `<div class="mpp-week-carry"><b>DELIVERY REFERENCE</b><span>${num(phase.qty)} ${esc(phase.uomCode || "PCS")} · ${esc(shortDate(phase.deliveryDate || phase.fgRequiredDate))}</span><a href="/modules/planning-ppic/monthly-production-plans/${encodeURIComponent(phase.ownerPlanNumber || "")}">Owner ${esc(phase.ownerPlanNumber || "Production Plan")}</a><em>REQ, stock, dan EFF hanya dihitung di owner plan.</em></div>` : `<div class="mpp-week-demand"><b>DELIVERY ${num(phase.qty)} ${esc(phase.uomCode || "PCS")}</b><span><small>REQ</small><strong>${num(metrics.demand)}</strong></span><span class="stock"><small>STOCK</small><strong>${num(metrics.stock)}</strong></span><span class="effective"><small>EFF</small><strong>${num(metrics.effective)}</strong></span><em>${esc(shortDate(phase.deliveryDate || phase.fgRequiredDate))}</em></div>`) : '<span class="mpp-week-empty">–</span>'}</td>`).join("");
+      const processGroups = new Map();
+      (phase.events || []).filter((event) => event.type !== "DELIVERY").forEach((event) => {
+        const baseCode = String(event.processCode || "PROCESS").replace(/^RETURN\s+/i, "");
+        const key = [baseCode, event.part?.partCode || "", event.vendorCode || event.machineCode || ""].join("|");
+        if (!processGroups.has(key)) processGroups.set(key, { code: baseCode, name: String(event.processName || baseCode).replace(/ selesai vendor$/i, ""), part: event.part || fg, events: [] });
+        processGroups.get(key).events.push(event);
+      });
+      const processRows = [...processGroups.values()].sort((left, right) => String(left.code).localeCompare(String(right.code))).map((group) => {
+        const byWeek = new Map();
+        group.events.forEach((event) => {
+          const index = weekIndex(event.date);
+          if (!byWeek.has(index)) byWeek.set(index, []);
+          byWeek.get(index).push(event);
+        });
+        return `<tr class="mpp-week-process-row"><td><span class="mpp-week-branch">└ proses</span></td><td><button type="button" class="mpp-week-part" data-mpp-popover aria-expanded="false"><b>${esc(group.code)}</b><span>${esc(group.name)}</span><small>${esc(group.part?.partCode || "-")} · ${esc(group.part?.partNumber || "-")}</small>${partPopover(group.part)}</button></td>${weeks.map((week) => `<td data-mpp-week-column="${week.index}"><div class="mpp-week-event-stack">${(byWeek.get(week.index) || []).map((event) => placementCard(event, phase)).join("")}</div></td>`).join("")}</tr>`;
+      }).join("");
+      return `<tr class="mpp-week-phase-row ${carryOver ? "is-carry-over" : "is-owner"} mpp-phase-health-${esc(String(phase.scheduleHealth || "unknown").toLowerCase())}"><td><b>Delivery phase ${num(phase.phaseNumber, 0)}</b><a href="${esc(source.href)}">${esc(source.label)} · ${esc(source.number)}</a><small>${carryOver ? `Carry-over · owner ${esc(phase.ownerPlanNumber || "-")}` : `${esc(phase.customerCode || "Customer")} · owner plan`}</small></td><td><button type="button" class="mpp-week-part" data-mpp-popover aria-expanded="false"><b>${esc(fg.partNumber || fg.partCode || "FG Parent")}</b><span>${esc(fg.partName || "FG Parent")}</span><small>${esc(fg.partCode || "-")} · ${num(phase.qty)} ${esc(phase.uomCode || "PCS")}</small>${partPopover(fg)}</button></td>${phaseCells}</tr>${processRows}`;
+    }).join("");
+    const storageKey = `mpp-week-span:${record.planNumber || config.recordKey}`;
+    const savedSpan = ["all", "1", "2", "3"].includes(localStorage.getItem(storageKey)) ? localStorage.getItem(storageKey) : "all";
+    return `<section class="ops-detail-card mpp-weekly-card" data-mpp-week-count="${weekCount}" data-mpp-week-span="${esc(savedSpan)}">
+      <div class="ops-collection-head mpp-weekly-head"><div><h2>Matriks Production Plan Mingguan</h2><p>Tampilan utama berdasarkan planning horizon, bukan bulan. Delivery owner menampilkan REQ, stock cover, dan EFF; carry-over hanya menjadi referensi agar demand tidak dihitung dua kali.</p></div><span>${num(timeline.ownedPhaseCount ?? phases.filter((phase) => phase.planRole !== "CARRY_OVER").length, 0)} owner · ${num(timeline.carryOverPhaseCount, 0)} carry-over · ${weekCount} minggu</span></div>
+      <div class="mpp-week-toolbar"><div class="mpp-week-span-switch" role="group" aria-label="Rentang minggu"><button type="button" data-mpp-week-span="all" class="${savedSpan === "all" ? "active" : ""}">Full Horizon</button><button type="button" data-mpp-week-span="1" class="${savedSpan === "1" ? "active" : ""}">1 Minggu</button><button type="button" data-mpp-week-span="2" class="${savedSpan === "2" ? "active" : ""}">2 Minggu</button><button type="button" data-mpp-week-span="3" class="${savedSpan === "3" ? "active" : ""}">3 Minggu</button></div><div class="mpp-week-navigation"><button type="button" data-mpp-week-nav="prev" aria-label="Minggu sebelumnya">‹</button><b data-mpp-week-range>Semua minggu</b><button type="button" data-mpp-week-nav="next" aria-label="Minggu berikutnya">›</button></div></div>
+      <div class="table-responsive mpp-weekly-wrap"><table class="table mpp-weekly-table" data-enterprise-table="off"><thead><tr><th>PO / FCT</th><th>FG Parent / Proses</th>${weeks.map((week) => `<th data-mpp-week-column="${week.index}"><small>${esc(week.label)}</small><b>${esc(shortDate(week.start))} – ${esc(shortDate(week.end))}</b></th>`).join("")}</tr></thead><tbody>${phaseRows || `<tr><td colspan="${2 + weekCount}" class="text-center py-4">Delivery phase belum tersedia.</td></tr>`}</tbody></table></div>
+    </section>`;
+  }
+  function monthlyPlanPhaseTimelineCard(record) {
+    const timeline = record.deliveryPhaseTimeline || {};
+    const phases = Array.isArray(timeline.phases) ? timeline.phases : [];
+    const dates = Array.isArray(timeline.dates) ? timeline.dates : [];
+    const earlyCount = phases.filter((phase) => phase.scheduleHealth === "EARLY").length;
+    const unscheduledCount = phases.filter((phase) => phase.scheduleHealth === "UNSCHEDULED").length;
+    const dateLabel = (value) => {
+      const parsed = new Date(`${String(value || "").slice(0, 10)}T00:00:00`);
+      if (Number.isNaN(parsed.getTime())) return esc(value || "-");
+      return `<small>${esc(new Intl.DateTimeFormat("id-ID", { weekday: "short" }).format(parsed))}</small><b>${esc(new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" }).format(parsed))}</b><span>${parsed.getFullYear()}</span>`;
+    };
+    const sourceMeta = (phase) => {
+      const sourceType = String(phase.sourceType || "").toUpperCase();
+      const labelValue = sourceType.includes("SALES") || sourceType === "SO" ? "PO" : sourceType.includes("FORECAST") || sourceType === "FCT" ? "FCT" : "MPS";
+      const href = phase.sourceNumber
+        ? labelValue === "PO"
+          ? `/modules/sales/sales-orders/${encodeURIComponent(phase.sourceNumber)}`
+          : labelValue === "FCT"
+            ? `/modules/sales/forecasts/${encodeURIComponent(phase.sourceNumber)}`
+            : `/modules/planning-ppic/mps/${encodeURIComponent(timeline.sourceMpsNumber || phase.sourceNumber)}`
+        : null;
+      return { label: labelValue, href };
+    };
+    const partDetail = (part = {}, fallback = "Belum ada master part") => `<span class="mpp-timeline-popover" role="tooltip">
+      <small>Part Number</small><b>${esc(part.partNumber || "-")}</b>
+      <small>Part Code</small><b>${esc(part.partCode || "-")}</b>
+      <small>Part Name</small><b>${esc(part.partName || fallback)}</b>
+    </span>`;
+    const eventButton = (event, phase) => {
+      const part = event.part || phase.fgParent || {};
+      const vendorEvent = String(event.routingMode || "").startsWith("VENDOR");
+      const resource = vendorEvent
+        ? [event.vendorCode, event.vendorName].filter(Boolean).join(" · ")
+        : [event.machineCode, event.machineName].filter(Boolean).join(" · ");
+      const time = [event.startTime, event.endTime].filter(Boolean).join("–");
+      const detail = [event.processName, event.planNumber ? `MPP ${event.planNumber}` : null, resource, vendorEvent && event.vendorLeadTimeDays != null ? `LT vendor ${num(event.vendorLeadTimeDays)} hari` : null, time, event.completionDate && event.completionDate !== event.date ? `Kembali ${event.completionDate}` : null]
+        .filter(Boolean).join(" · ");
+      const eventClass = event.type === "DELIVERY" ? "delivery" : event.type === "VENDOR_RETURN" ? "vendor-return" : event.routingMode === "VENDOR" ? "vendor-send" : "process";
+      const eventLabel = event.routingMode === "VENDOR" ? `SEND ${event.processCode || "VENDOR"}` : event.processCode || event.type || "PROCESS";
+      return `<button type="button" class="mpp-timeline-event ${eventClass}" data-mpp-popover aria-expanded="false">
+        <span class="mpp-timeline-event-main"><b>${esc(eventLabel)}</b><strong>${num(event.qty)} ${esc(event.uomCode || phase.uomCode || "PCS")}</strong></span>
+        <span class="mpp-timeline-popover" role="tooltip">
+          <small>Aktivitas</small><b>${esc(detail || event.processName || event.processCode || "-")}</b>
+          <small>Part Number</small><b>${esc(part.partNumber || "-")}</b>
+          <small>Part Code</small><b>${esc(part.partCode || "-")}</b>
+          <small>Part Name</small><b>${esc(part.partName || "-")}</b>
+        </span>
+      </button>`;
+    };
+    const body = phases.map((phase) => {
+      const source = sourceMeta(phase);
+      const fg = phase.fgParent || {};
+      const eventsByDate = new Map();
+      (phase.events || []).forEach((event) => {
+        if (!event?.date) return;
+        if (!eventsByDate.has(event.date)) eventsByDate.set(event.date, []);
+        eventsByDate.get(event.date).push(event);
+      });
+      const processEventCount = (phase.events || []).filter((event) => event.type === "PROCESS").length;
+      const deliveryJit = timeline.schedulePolicy === "DELIVERY_JIT";
+      const healthLabel = phase.scheduleHealth === "EARLY"
+        ? `${num(phase.startVarianceDays, 0)} hari terlalu awal`
+        : phase.scheduleHealth === "LATE"
+          ? `${num(Math.abs(number(phase.startVarianceDays)), 0)} hari terlambat mulai`
+          : phase.scheduleHealth === "ON_TARGET"
+            ? deliveryJit ? "JIT · dekat kebutuhan" : "Start sesuai MRP"
+            : "Belum dijadwalkan";
+      return `<tr class="mpp-phase-health-${esc(String(phase.scheduleHealth || "unknown").toLowerCase())}">
+        <td class="mpp-phase-source">
+          <b>Delivery phase ${num(phase.phaseNumber, 0)}</b>
+          ${source.href ? `<a href="${esc(source.href)}">${esc(source.label)} · ${esc(phase.sourceNumber || timeline.sourceMpsNumber || "-")}</a>` : `<span>${esc(source.label)} · ${esc(phase.sourceNumber || timeline.sourceMpsNumber || "-")}</span>`}
+          <small>${esc(phase.customerCode || "Customer belum ditentukan")} · ${processEventCount ? `${num(processEventCount, 0)} proses terjadwal` : "belum ada alokasi proses"}</small>
+          <em class="mpp-phase-health-badge">${esc(healthLabel)}</em>
+          ${phase.unscheduledReason ? `<small class="mpp-phase-unscheduled-reason">${esc(phase.unscheduledReason)}</small>` : ""}
         </td>
-        <td><div class="mpp-qty-stack"><span>Forecast <b>${num(row.forecastQty)}</b></span><span>SO <b>${num(row.actualSalesOrderQty)}</b></span><span>Buffer <b>${num(row.bufferQty)}</b></span><span>Effective <b>${num(row.effectiveDemandQty)}</b></span></div></td>
-        <td class="ops-number"><b>${num(row.qtyPlanned)}</b><small>${esc(row.uomCode || "")}</small></td>
-        <td class="ops-number">${isParentFg ? `<b>${num(row.qtyReleased)}</b><small>released ke MO</small>` : '<span class="mpp-parent-execution">Via FG parent</span>'}</td>
-        <td class="ops-number">${isParentFg ? `<b>${num(outstanding)}</b><small>remaining MO</small>` : '<span class="mpp-parent-execution">Routing / Daily Plan</span>'}</td>
-        <td><b>${num(row.productionPercent, 1)}%</b></td>
-        <td>${esc(format(row.requiredDate, "date"))}</td>
-        <td>${badge(row.status)}</td>
-        <td>${referenceLinks(otherReferences, "Referensi mengikuti MPS")}</td>
+        <td class="mpp-phase-parent">
+          <button type="button" class="mpp-timeline-part" data-mpp-popover aria-expanded="false">
+            <b>${esc(fg.partNumber || fg.partCode || "FG Parent")}</b>
+            <span>${num(phase.qty)} ${esc(phase.uomCode || "PCS")} · ${deliveryJit ? "acuan awal MRP" : "start MRP"} ${esc(phase.recommendedStartDate || "-")}</span>
+            ${partDetail(fg, "Nama FG belum tersedia")}
+          </button>
+        </td>
+        ${dates.map((date) => {
+          const events = eventsByDate.get(date) || [];
+          return `<td class="${events.length ? "mpp-phase-has-event" : "mpp-phase-empty"}">${events.length ? `<div class="mpp-timeline-event-stack">${events.map((event) => eventButton(event, phase)).join("")}</div>` : "<span>–</span>"}</td>`;
+        }).join("")}
       </tr>`;
     }).join("");
-    return `<section class="ops-detail-card mpp-lines-card">
-      <div class="ops-collection-head"><div><h2>Detail Monthly Production Plan</h2><p>FG receipt ditampilkan sebagai milestone. Routing hanya diwajibkan untuk baris proses produksi.</p></div><span>${num(rows.length, 0)} baris</span></div>
-      <div class="table-responsive"><table class="table ops-collection-table mpp-lines-table">
-        <thead><tr><th>No.</th><th>Tipe</th><th>Part</th><th>Demand</th><th>Planned</th><th>Released</th><th>Outstanding</th><th>Produksi</th><th>Required</th><th>Status</th><th>Referensi</th></tr></thead>
-        <tbody>${body || '<tr><td colspan="11" class="text-center py-4">Belum ada detail Production Plan.</td></tr>'}</tbody>
+    return `<section class="ops-detail-card mpp-phase-timeline-card">
+      <div class="ops-collection-head"><div><h2>Timeline Delivery Phase & Proses · ${esc(timeline.planNumber || record.planNumber || "Production Plan ini")}</h2><p>Timeline mengikuti satu demand-phase horizon. Tanggal proses dan delivery boleh melintasi bulan; plan carry-over hanya menampilkan referensi ke owner agar kebutuhan tidak dihitung dua kali. ${timeline.schedulePolicy === "DELIVERY_JIT" ? `Jadwal ditarik mundur dari delivery atau proses penerus, dengan buffer dasar ${num(timeline.jitSafetyDays, 0)} hari.` : ""} Arahkan kursor atau klik FG/proses untuk melihat detail part.</p></div><span>${num(earlyCount, 0)} terlalu awal · ${num(unscheduledCount, 0)} belum terjadwal</span></div>
+      <div class="mpp-phase-legend"><span><i class="process"></i>Proses produksi</span><span><i class="vendor-send"></i>Kirim vendor</span><span><i class="vendor-return"></i>Kembali vendor</span><span><i class="delivery"></i>Delivery customer</span><em>Tanggal mengikuti jadwal kapasitas aktif, bukan tanggal contoh Excel.</em></div>
+      <div class="table-responsive mpp-phase-timeline-wrap"><table class="table mpp-phase-timeline-table" data-enterprise-table="off">
+        <thead><tr><th>PO / FCT</th><th>FG Parent</th>${dates.map((date) => `<th>${dateLabel(date)}</th>`).join("")}</tr></thead>
+        <tbody>${body || `<tr><td colspan="${2 + dates.length}" class="text-center py-4">Delivery phase belum tersedia. Bentuk phase di MPS lalu jalankan Capacity Recommendation.</td></tr>`}</tbody>
+      </table></div>
+    </section>`;
+  }
+  function monthlyPlanDetailsCard(record) {
+    const rows = Array.isArray(record.details) ? record.details : [];
+    const dateKey = (row) => String(row.fgRequiredDate || row.requiredDate || "").slice(0, 10);
+    const dates = [...new Set(rows.map(dateKey).filter(Boolean))].sort();
+    const dateValue = (value) => {
+      const key = String(value || "").slice(0, 10);
+      const parsed = new Date(`${key}T00:00:00`);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
+    const shortDate = (value) => {
+      const parsed = value instanceof Date ? value : dateValue(value);
+      return parsed ? new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" }).format(parsed) : "-";
+    };
+    const fullDate = (value) => {
+      const parsed = value instanceof Date ? value : dateValue(value);
+      return parsed ? new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" }).format(parsed) : "-";
+    };
+    const dateMeta = new Map(dates.map((key) => {
+      const dueDate = dateValue(key);
+      const matchingRows = rows.filter((row) => dateKey(row) === key);
+      const starts = matchingRows.map((row) => dateValue(row.latestStartDate || row.requiredDate || record.periodStart)).filter(Boolean);
+      const estimatedStart = starts.length ? new Date(Math.min(...starts.map((date) => date.getTime()))) : dateValue(record.periodStart);
+      const leadTimeDays = dueDate && estimatedStart
+        ? Math.max(Math.ceil((dueDate.getTime() - estimatedStart.getTime()) / 86400000), 0)
+        : null;
+      return [key, { dueDate, estimatedStart, leadTimeDays }];
+    }));
+    const estimatedStarts = [...dateMeta.values()].map((meta) => meta.estimatedStart).filter(Boolean);
+    const leadTimes = [...dateMeta.values()].map((meta) => meta.leadTimeDays).filter((value) => value != null);
+    const overallStart = estimatedStarts.length ? new Date(Math.min(...estimatedStarts.map((date) => date.getTime()))) : dateValue(record.periodStart);
+    const requiredStart = dates.length ? dateMeta.get(dates[0])?.dueDate : null;
+    const requiredEnd = dates.length ? dateMeta.get(dates[dates.length - 1])?.dueDate : null;
+    const leadTimeLabel = leadTimes.length
+      ? `${Math.min(...leadTimes)}${Math.min(...leadTimes) === Math.max(...leadTimes) ? "" : `–${Math.max(...leadTimes)}`} hari kalender`
+      : "-";
+    const groups = new Map();
+    const matrixRows = [];
+    const ensureCell = (cells, key) => {
+      if (!cells.has(key)) cells.set(key, { date: key, mpsQty: 0, stockCover: 0, effectiveQty: 0 });
+      return cells.get(key);
+    };
+    const addDemand = (target, row) => {
+      const key = dateKey(row);
+      if (!key) return;
+      const cell = ensureCell(target.cells, key);
+      cell.mpsQty += Math.max(number(row.phaseDemandQty ?? row.qtyPlanned), 0);
+      target.stockAvailable = Math.max(target.stockAvailable, number(row.stock?.qtyAvailable));
+      target.uomCode = target.uomCode || row.uomCode || "PCS";
+    };
+    rows.forEach((row) => {
+      const parentCode = row.parentFgPartCode || (row.lineType === "FG Receipt" ? row.partCode : "TANPA-FG");
+      if (!groups.has(parentCode)) {
+        groups.set(parentCode, {
+          parentCode,
+          parentName: row.parentFgPartName || parentCode,
+          parentPart: null,
+          parentCells: new Map(),
+          parentStockAvailable: 0,
+          parentUomCode: "PCS",
+          parts: new Map(),
+        });
+      }
+      const group = groups.get(parentCode);
+      const isParentReceipt = row.lineType === "FG Receipt" && row.partCode === parentCode;
+      if (isParentReceipt) {
+        group.parentPart = row.part || group.parentPart;
+        addDemand({
+          cells: group.parentCells,
+          get stockAvailable() { return group.parentStockAvailable; },
+          set stockAvailable(value) { group.parentStockAvailable = value; },
+          get uomCode() { return group.parentUomCode; },
+          set uomCode(value) { group.parentUomCode = value; },
+        }, row);
+        return;
+      }
+      const partCode = row.part?.partCode || row.partCode || "-";
+      if (!group.parts.has(partCode)) {
+        group.parts.set(partCode, {
+          partCode,
+          partNumber: row.part?.partNumber || "-",
+          partName: row.part?.partName || row.displayName || "-",
+          href: (row.referenceLinks || []).find((reference) => reference.type === "PART")?.href || null,
+          lineType: row.lineType || "Plan Line",
+          cells: new Map(),
+          stockAvailable: 0,
+          uomCode: row.uomCode || "PCS",
+        });
+      }
+      addDemand(group.parts.get(partCode), row);
+    });
+
+    for (const group of groups.values()) {
+      const parentRow = {
+        kind: "parent",
+        group,
+        partCode: group.parentCode,
+        partNumber: group.parentPart?.partNumber || "-",
+        partName: group.parentPart?.partName || group.parentName || group.parentCode,
+        cells: group.parentCells,
+        stockAvailable: group.parentStockAvailable,
+        uomCode: group.parentUomCode,
+      };
+      matrixRows.push(parentRow, ...[...group.parts.values()].sort((left, right) => {
+        const typeRank = (value) => value === "Child FG Receipt" ? 0 : value === "Production Process" ? 1 : 2;
+        return typeRank(left.lineType) - typeRank(right.lineType)
+          || String(left.partNumber).localeCompare(String(right.partNumber), "id")
+          || String(left.partCode).localeCompare(String(right.partCode), "id");
+      }).map((part) => ({ ...part, kind: "part", group })));
+    }
+
+    const rowsByPart = new Map();
+    matrixRows.forEach((row) => {
+      if (!rowsByPart.has(row.partCode)) rowsByPart.set(row.partCode, []);
+      rowsByPart.get(row.partCode).push(row);
+    });
+    for (const partRows of rowsByPart.values()) {
+      let remainingStock = Math.max(...partRows.map((row) => number(row.stockAvailable)), 0);
+      const datedCells = partRows.flatMap((row) => [...row.cells.values()].map((cell) => ({ row, cell })))
+        .sort((left, right) => left.cell.date.localeCompare(right.cell.date));
+      datedCells.forEach(({ cell }) => {
+        cell.stockCover = Math.min(remainingStock, cell.mpsQty);
+        cell.effectiveQty = Math.max(cell.mpsQty - cell.stockCover, 0);
+        remainingStock = Math.max(remainingStock - cell.stockCover, 0);
+      });
+    }
+
+    const dateHeading = (key) => {
+      const parsed = new Date(`${key}T00:00:00`);
+      if (Number.isNaN(parsed.getTime())) return esc(key);
+      const meta = dateMeta.get(key) || {};
+      return `<small>${esc(new Intl.DateTimeFormat("id-ID", { weekday: "short" }).format(parsed))}</small>
+        <b>${esc(new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" }).format(parsed))}</b>
+        <span>Start ${esc(shortDate(meta.estimatedStart))}</span>
+        <em>LT ${meta.leadTimeDays == null ? "-" : `${num(meta.leadTimeDays, 0)} hari`}</em>`;
+    };
+    const metricCell = (cell, uomCode) => cell
+      ? `<div class="mpp-matrix-cell">
+          <span><small>Qty MPS</small><b>${num(cell.mpsQty)}</b></span>
+          <span class="stock"><small>Stock</small><b>${num(cell.stockCover)}</b></span>
+          <span class="effective"><small>EFF</small><b>${num(cell.effectiveQty)}</b></span>
+          <em>${esc(uomCode || "PCS")}</em>
+        </div>`
+      : '<span class="mpp-matrix-empty">-</span>';
+    const childRowCount = matrixRows.filter((row) => row.lineType === "Child FG Receipt").length;
+    const processRowCount = matrixRows.filter((row) => row.kind !== "parent" && row.lineType !== "Child FG Receipt").length;
+    const savedMatrixLevel = ["parent", "receipts", "full"].includes(localStorage.getItem(`mpp-matrix-level:${record.planNumber || config.recordKey}`))
+      ? localStorage.getItem(`mpp-matrix-level:${record.planNumber || config.recordKey}`)
+      : "receipts";
+    const body = matrixRows.map((row) => {
+      const isParent = row.kind === "parent";
+      const rowLevel = isParent ? "parent" : row.lineType === "Child FG Receipt" ? "child" : "process";
+      const parentLabel = isParent
+        ? `<b>${esc(row.group.parentCode)}</b><span>${esc(row.partName)}</span>`
+        : '<span class="mpp-tree-branch">└</span>';
+      const codeContent = row.href
+        ? `<a href="${esc(row.href)}"><b>${esc(row.partCode)}</b><span>${esc(row.partName)}</span></a>`
+        : `<b>${esc(row.partCode)}</b><span>${esc(row.partName)}</span>`;
+      return `<tr class="${isParent ? "mpp-matrix-parent" : "mpp-matrix-part"}" data-mpp-row-level="${rowLevel}" data-mpp-parent="${esc(row.group.parentCode)}">
+        <td class="mpp-matrix-fg">${parentLabel}</td>
+        <td class="mpp-matrix-number">${isParent ? `<b>${esc(row.partNumber || "-")}</b><small><span class="mpp-parent-label">FG Parent</span></small>` : `<b>${esc(row.partNumber || "-")}</b><small>${esc(row.lineType || "Part")}</small>`}</td>
+        <td class="mpp-matrix-code">${codeContent}</td>
+        ${dates.map((key) => `<td>${metricCell(row.cells.get(key), row.uomCode)}</td>`).join("")}
+      </tr>`;
+    }).join("");
+    return `${monthlyPlanGanttCard(record)}<details class="mpp-gantt-audit"><summary><span><b>Tabel matriks mingguan</b><small>Buka tampilan tabel lama untuk audit REQ, stock, EFF, dan penempatan per minggu.</small></span><i>Lihat tabel</i></summary>${monthlyPlanWeeklyMatrixCard(record)}</details><details class="mpp-daily-detail"><summary><span><b>Detail timeline per tanggal</b><small>Buka untuk audit tanggal persis setiap proses, vendor return, dan delivery.</small></span><i>Lihat detail harian</i></summary>${monthlyPlanPhaseTimelineCard(record)}</details><section class="ops-detail-card mpp-lines-card">
+      <div class="ops-collection-head"><div><h2>Detail Kalkulasi Required FG</h2><p>Matriks pendukung per tanggal Required FG. Stock dialokasikan FIFO ke kebutuhan terawal; EFF adalah Qty MPS setelah stock cover.</p></div><span>${num(groups.size, 0)} FG · ${num(dates.length, 0)} tanggal</span></div>
+      <div class="mpp-timing-summary">
+        <div><small>Production Horizon</small><b>${esc(fullDate(record.planningIdentity?.horizonStart || record.periodStart))} – ${esc(fullDate(record.planningIdentity?.horizonEnd || record.schedulingHorizonEnd || record.periodEnd))}</b><span>Rentang aktual lintas bulan</span></div>
+        <div class="start"><small>Estimated Production Start</small><b>${esc(fullDate(overallStart))}</b><span>Start paling awal dari MRP</span></div>
+        <div class="required"><small>Rentang Required FG</small><b>${esc(shortDate(requiredStart))} – ${esc(fullDate(requiredEnd))}</b><span>Target FG siap / delivery</span></div>
+        <div class="lead"><small>Lead Time Produksi</small><b>${esc(leadTimeLabel)}</b><span>Dihitung per target Required FG</span></div>
+      </div>
+      <div class="mpp-matrix-legend"><div><span><i class="mps"></i>Qty MPS</span><span><i class="stock"></i>Stock cover</span><span><i class="effective"></i>EFF / kebutuhan bersih</span></div><div class="mpp-hierarchy-switch" role="group" aria-label="Level detail MPP"><button type="button" data-mpp-matrix-level="parent" class="${savedMatrixLevel === "parent" ? "active" : ""}">FG Parent</button><button type="button" data-mpp-matrix-level="receipts" class="${savedMatrixLevel === "receipts" ? "active" : ""}">+ ${num(childRowCount, 0)} Child FG</button><button type="button" data-mpp-matrix-level="full" class="${savedMatrixLevel === "full" ? "active" : ""}">Full + ${num(processRowCount, 0)} Process</button></div></div>
+      <div class="table-responsive mpp-matrix-wrap"><table class="table ops-collection-table mpp-lines-table mpp-matrix-table" data-enterprise-table="off" data-mpp-visible-level="${savedMatrixLevel}">
+        <thead><tr><th>FG Parent</th><th>Part No.</th><th>Part Code</th>${dates.map((key) => `<th class="mpp-matrix-date">${dateHeading(key)}</th>`).join("")}</tr></thead>
+        <tbody>${body || `<tr><td colspan="${3 + dates.length}" class="text-center py-4">Belum ada detail Production Plan.</td></tr>`}</tbody>
       </table></div>
     </section>`;
   }
@@ -1296,13 +2243,381 @@
       </table></div>
     </section>`;
   }
-  function renderMonthlyPlanCollections(record) {
-    $("ops-detail-collections").innerHTML = [
-      monthlyPlanReadinessCard(record),
-      monthlyPlanDetailsCard(record),
-      monthlyPlanMaterialCard(record),
-    ].join("");
+  function monthlyPlanRoutingTablesCard(record) {
+    const timeline = record.deliveryPhaseTimeline || {};
+    const rows = [];
+    const seen = new Set();
+    const addRow = (row) => {
+      const key = row.id || [row.routingMode, row.lineNumber, row.phaseNumber, row.partCode, row.processCode, row.start, row.finish, row.qty, row.queueState].join("|");
+      if (seen.has(key)) return;
+      seen.add(key);
+      rows.push(row);
+    };
+    for (const phase of timeline.phases || []) {
+      for (const event of phase.events || []) {
+        if (String(event.type || "").toUpperCase() !== "PROCESS") continue;
+        for (const allocation of event.allocations || []) {
+          const routingMode = String(allocation.routingMode || event.routingMode || "INHOUSE").toUpperCase() === "VENDOR" ? "VENDOR" : "INHOUSE";
+          const part = allocation.part || event.part || phase.fgParent || {};
+          addRow({
+            id: allocation.id || null,
+            routingMode,
+            phaseNumber: phase.phaseNumber,
+            sourceNumber: phase.sourceNumber || timeline.sourceMpsNumber,
+            lineNumber: allocation.lineNumber || event.lineNumber || null,
+            partCode: part.partCode || "-",
+            partNumber: part.partNumber || "-",
+            partName: part.partName || "-",
+            processCode: allocation.processCode || event.processCode || "PROCESS",
+            processName: allocation.processName || event.processName || "-",
+            resourceCode: routingMode === "VENDOR" ? allocation.vendorCode || event.vendorCode : allocation.machineCode || event.machineCode,
+            resourceName: routingMode === "VENDOR" ? allocation.vendorName || event.vendorName : allocation.machineName || event.machineName,
+            qty: number(allocation.plannedQty ?? event.qty),
+            uomCode: allocation.uomCode || event.uomCode || phase.uomCode || "PCS",
+            start: allocation.vendorSendDate || allocation.scheduleDate || event.date,
+            finish: allocation.vendorReturnDate || event.completionDate || allocation.scheduleDate || event.date,
+            capacityMode: allocation.capacityMode || "NORMAL",
+            status: allocation.status || event.status || "Draft",
+            queueState: "SCHEDULED",
+          });
+        }
+      }
+    }
+    // Vendor suggestions are part of the same Monthly Planning owner even
+    // before a vendor allocation has been manually confirmed.
+    for (const assignment of record.capacityVendorAssignments || []) {
+      const alreadyScheduled = rows.some((row) => (
+        row.routingMode === "VENDOR"
+        && row.partCode === assignment.partCode
+        && row.processCode === assignment.processCode
+        && String(row.start || "").slice(0, 10) === String(assignment.sendDate || assignment.scheduleDate || "").slice(0, 10)
+        && String(row.finish || "").slice(0, 10) === String(assignment.returnDate || assignment.requiredDate || "").slice(0, 10)
+        && Math.abs(number(row.qty) - number(assignment.qty)) < .000001
+      ));
+      if (alreadyScheduled) continue;
+      addRow({
+        routingMode: "VENDOR",
+        lineNumber: assignment.lineNumber,
+        partCode: assignment.partCode || "-",
+        partNumber: "-",
+        partName: "Vendor process",
+        processCode: assignment.processCode || "VENDOR",
+        processName: assignment.processName || "Outsource process",
+        resourceCode: assignment.vendorCode || null,
+        resourceName: assignment.vendorName || null,
+        qty: number(assignment.qty),
+        uomCode: assignment.uomCode || "PCS",
+        start: assignment.sendDate || assignment.scheduleDate,
+        finish: assignment.returnDate || assignment.requiredDate,
+        capacityMode: "VENDOR_LEAD_TIME",
+        status: assignment.status || "PROPOSED",
+        queueState: assignment.vendorId ? "SCHEDULED" : "UNRESOLVED",
+      });
+    }
+    const catalog = record.capacityManualAllocationCatalog || [];
+    for (const item of record.capacityUnscheduled || []) {
+      const route = catalog.find((candidate) => (
+        number(candidate.lineNumber) === number(item.lineNumber)
+        && (candidate.mbomProcessId === item.mbomProcessId || candidate.processCode === item.processCode)
+      ));
+      const routingMode = String(route?.routingMode || "INHOUSE").toUpperCase() === "VENDOR" ? "VENDOR" : "INHOUSE";
+      const overload = String(item.reason || "").toLowerCase().includes("kapasitas horizon");
+      addRow({
+        routingMode,
+        lineNumber: item.lineNumber,
+        partCode: item.partCode || "-",
+        partNumber: "-",
+        partName: overload ? "Sisa beban bulan ini" : "Belum dialokasikan",
+        processCode: item.processCode || route?.processCode || "PROCESS",
+        processName: route?.processName || item.reason || "Belum dialokasikan",
+        resourceCode: routingMode === "VENDOR" ? route?.vendorCode : item.machineCode,
+        resourceName: routingMode === "VENDOR" ? "Vendor belum dipilih" : "Resource bulan owner",
+        qty: number(item.qty || route?.remainingQty),
+        uomCode: item.uomCode || route?.uomCode || "PCS",
+        start: route?.recommendedSendDate || route?.requiredDate || null,
+        finish: route?.recommendedReturnDate || route?.requiredDate || null,
+        capacityMode: overload ? "OVERLOAD_STACK" : "UNRESOLVED",
+        status: overload ? "Over capacity" : item.reason || "Belum dialokasikan",
+        queueState: overload ? "OVERLOAD_QUEUED" : "UNRESOLVED",
+        minutes: number(item.minutes),
+      });
+    }
+    const ownerMonth = record.monthlyPlanningPolicy?.ownerMonth || String(record.planMonth || record.periodStart || "").slice(0, 7);
+    const table = (routingMode, title, eyebrow) => {
+      const modeRows = rows.filter((row) => row.routingMode === routingMode)
+        .sort((left, right) => Number(left.queueState !== "OVERLOAD_QUEUED") - Number(right.queueState !== "OVERLOAD_QUEUED") || String(left.start || "9999").localeCompare(String(right.start || "9999")));
+      const queued = modeRows.filter((row) => row.queueState !== "SCHEDULED").length;
+      const body = modeRows.map((row, index) => {
+        const queuedRow = row.queueState !== "SCHEDULED";
+        const timing = routingMode === "VENDOR"
+          ? `<b>${esc(format(row.start, "date"))}</b><small>Return ${esc(format(row.finish, "date"))}</small>`
+          : `<b>${esc(format(row.start, "date"))}</b><small>${row.minutes ? `${num(row.minutes / 60)} jam belum tertampung` : esc(row.capacityMode || "NORMAL")}</small>`;
+        const resourceFallback = routingMode === "VENDOR" ? "Vendor belum dipilih" : "Mesin belum dialokasikan";
+        return `<tr class="${queuedRow ? "is-queued" : ""}"><td><span class="mpp-queue-number">${queuedRow ? `Q${index + 1}` : "✓"}</span></td><td><b>Phase ${num(row.phaseNumber || 0,0)} · ${esc(row.partNumber || row.partCode)}</b><small>${esc(row.partCode)} · ${esc(row.partName)}</small></td><td><span class="mpp-process-code">${esc(row.processCode)}</span><small>${esc(row.processName)}</small></td><td><b>${esc(row.resourceCode || resourceFallback)}</b><small>${esc(row.resourceName || (routingMode === "VENDOR" ? "Outsource" : "Internal"))}</small></td><td class="ops-number"><b>${num(row.qty)}</b><small>${esc(row.uomCode)}</small></td><td>${timing}</td><td><span class="mpp-route-state ${queuedRow ? "queued" : "scheduled"}">${esc(row.queueState === "OVERLOAD_QUEUED" ? "Overload · antrean bulan ini" : row.queueState === "UNRESOLVED" ? "Perlu alokasi" : row.status)}</span>${row.capacityMode === "OVERLOAD_STACK" ? `<small>Tidak dipindah otomatis ke M+1</small>` : ""}</td><td>${row.id && timeline.editable ? `<button type="button" class="mpp-routing-edit" data-mpp-edit-placement="${esc(row.id)}" title="Edit allocation" aria-label="Edit allocation">✎</button>` : "–"}</td></tr>`;
+      }).join("");
+      return `<article class="mpp-routing-card ${routingMode.toLowerCase()}" data-mpp-routing-table="${routingMode}"><header><div><span>${esc(eyebrow)}</span><h3>${esc(title)}</h3><p>${routingMode === "INHOUSE" ? "Mesin, shift, dan beban internal." : "Vendor send, target return, dan lead time outsource."}</p></div><div><b>${num(modeRows.length,0)}</b><small>operasi</small><em>${num(queued,0)} antrean</em></div></header><div class="table-responsive"><table class="table mpp-routing-table" data-enterprise-table="off"><thead><tr><th>Queue</th><th>Phase / Output</th><th>Process</th><th>${routingMode === "VENDOR" ? "Vendor" : "Resource"}</th><th>Qty</th><th>${routingMode === "VENDOR" ? "Send / Return" : "Target / Load"}</th><th>Status</th><th></th></tr></thead><tbody>${body || `<tr><td colspan="8" class="mpp-routing-empty">Belum ada operasi ${routingMode} pada Monthly Planning ini.</td></tr>`}</tbody></table></div></article>`;
+    };
+    return `<section class="mpp-routing-tables"><header><div><span>MONTHLY OPERATION ALLOCATION</span><h2>INHOUSE & Vendor Plan</h2><p>Satu owner month, dua tabel eksekusi. Overload tetap ditumpuk sebagai antrean untuk ditangani admin.</p></div><span class="mpp-owner-month">Owner ${esc(ownerMonth || "-")} · no auto offset</span></header><div>${table("INHOUSE", "Inhouse Production", "INTERNAL")}${table("VENDOR", "Vendor Production", "OUTSOURCE")}</div></section>`;
   }
+  function monthlyPlanDeliveryBoardCard(record) {
+    const timeline = record.deliveryPhaseTimeline || {};
+    const phases = Array.isArray(timeline.phases) ? timeline.phases : [];
+    const details = Array.isArray(record.details) ? record.details : [];
+    const iso = (value) => String(value || "").slice(0, 10);
+    const phaseRows = phases.map((phase, phaseIndex) => {
+      const fg = phase.fgParent || {};
+      const dueKey = iso(phase.fgRequiredDate || phase.deliveryDate);
+      const receipt = details.find((row) => row.lineType === "FG Receipt" && row.partCode === fg.partCode && iso(row.fgRequiredDate || row.requiredDate) === dueKey)
+        || details.find((row) => row.lineType === "FG Receipt" && row.partCode === fg.partCode);
+      const netProduction = number(receipt?.qtyPlanned ?? phase.qty);
+      const stockCover = Math.max(number(phase.qty) - netProduction, 0);
+      const processEvents = (phase.events || []).filter((event) => event.type === "PROCESS");
+      const childEvents = processEvents.filter((event) => {
+        const type = String(event.part?.rawType || event.part?.itemType || "").toUpperCase();
+        return !type || type === "WIP" || type === "FG" || type === "FINISHED_GOOD" || type === "SEMI_FINISHED";
+      });
+      const events = childEvents.length ? childEvents : processEvents;
+      const statusTone = phase.scheduleHealth === "ON_TARGET" ? "ready" : phase.scheduleHealth === "UNSCHEDULED" || phase.scheduleHealth === "LATE" ? "blocked" : "warning";
+      const statusLabel = phase.scheduleHealth === "ON_TARGET" ? "On target" : phase.scheduleHealth === "UNSCHEDULED" ? "Belum dijadwalkan" : phase.scheduleHealth === "LATE" ? "Terlambat" : phase.scheduleHealth === "EARLY" ? "Terlalu awal" : phase.scheduleHealth || "Review";
+      const materialLabel = record.materialReadiness?.ready ? "Ready" : `${num(record.materialReadiness?.summary?.blocking, 0)} blocker`;
+      const eventRows = events.map((event, index) => {
+        const allocations = Array.isArray(event.allocations) && event.allocations.length ? event.allocations : [null];
+        return allocations.map((allocation, allocationIndex) => {
+          const part = allocation?.part || event.part || {};
+          const vendor = String(allocation?.routingMode || event.routingMode || "").toUpperCase() === "VENDOR";
+          const resourceCode = vendor ? allocation?.vendorCode || event.vendorCode : allocation?.machineCode || event.machineCode;
+          const resourceName = vendor ? allocation?.vendorName || event.vendorName : allocation?.machineName || event.machineName;
+          const start = allocation?.vendorSendDate || allocation?.scheduleDate || event.date;
+          const finish = allocation?.vendorReturnDate || event.completionDate || allocation?.scheduleDate || event.date;
+          const qty = number(allocation?.plannedQty ?? event.qty);
+          return `<tr><td><span class="mpp-board-tree">${index === events.length - 1 && allocationIndex === allocations.length - 1 ? "└" : "├"}</span><b>${esc(part.partNumber || part.partCode || "WIP")}</b><small>${esc(part.partCode || "-")} · ${esc(part.partName || "")}</small></td><td><span class="mpp-process-code">${esc(allocation?.processCode || event.processCode || "PROCESS")}</span><small>${esc(allocation?.processName || event.processName || "")}</small></td><td><b>${esc(resourceCode || (vendor ? "Vendor belum dipilih" : "Mesin belum dipilih"))}</b><small>${esc(resourceName || (vendor ? "Outsource" : "Internal"))}</small></td><td class="ops-number"><b>${num(qty)}</b><small>${esc(allocation?.uomCode || event.uomCode || phase.uomCode || "PCS")}</small></td><td><b>${esc(format(start, "date"))}</b><small>${esc(allocation?.shift ? `Shift ${allocation.shift}` : vendor ? "Vendor send" : "Belum ada shift")}</small></td><td><b>${esc(format(finish, "date"))}</b><small>${vendor && event.vendorLeadTimeDays != null ? `${num(event.vendorLeadTimeDays,0)} hari vendor` : esc(allocation?.plannedStartTime && allocation?.plannedEndTime ? `${allocation.plannedStartTime}–${allocation.plannedEndTime}` : "")}</small></td><td>${badge(allocation?.status || event.status || "Draft")}</td></tr>`;
+        }).join("");
+      }).join("");
+      return `<details class="mpp-phase-board-row" ${phaseIndex === 0 ? "open" : ""}>
+        <summary><span class="mpp-phase-toggle" aria-hidden="true"></span><span><small>${esc(String(phase.sourceType || "MPS").toUpperCase())} · ${esc(phase.sourceNumber || timeline.sourceMpsNumber || "-")}</small><b>Phase ${num(phase.phaseNumber,0)} · ${esc(fg.partNumber || fg.partCode || "FG")}</b><em>${esc(fg.partCode || "-")} · ${esc(phase.customerCode || "Buffer / internal")}</em></span><span><small>FG Due</small><b>${esc(format(phase.fgRequiredDate || phase.deliveryDate, "date"))}</b><em>Delivery ${esc(format(phase.deliveryDate, "date"))}</em></span><span class="ops-number"><small>Demand / Stock</small><b>${num(phase.qty)} / ${num(stockCover)}</b><em>${esc(phase.uomCode || "PCS")}</em></span><span class="ops-number mpp-board-net"><small>Net Production</small><b>${num(netProduction)}</b><em>MRP authoritative</em></span><span><small>MRP Release</small><b>${esc(format(phase.recommendedStartDate, "date"))}</b><em>${num(events.length,0)} process line · backward schedule</em></span><span><small>Material</small><b>${esc(materialLabel)}</b><em>${record.materialReadiness?.ready ? "Supply tersedia" : "Buka tab Material"}</em></span><span>${badge(statusLabel, statusTone)}</span></summary>
+        <div class="mpp-phase-board-detail"><div class="mpp-phase-trace"><span>MPP line <b>${esc(receipt?.lineNumber || "-")}</b></span><span>MRP requirement <b>${esc(receipt?.mrpRequirementId || "Legacy / belum ditautkan")}</b></span><span>Root trace <b>${esc(receipt?.mrpRootRequirementId || "-")}</b></span>${phase.unscheduledReason ? `<span class="risk">${esc(phase.unscheduledReason)}</span>` : ""}</div><div class="table-responsive"><table class="table mpp-phase-process-table" data-enterprise-table="off"><thead><tr><th>WIP / FG Output</th><th>Process</th><th>Resource / Vendor</th><th>Qty</th><th>Start</th><th>Finish</th><th>Status</th></tr></thead><tbody>${eventRows || '<tr><td colspan="7" class="text-center py-4">Belum ada capacity allocation. Jalankan Capacity Check untuk membentuk jadwal proses.</td></tr>'}</tbody></table></div></div>
+      </details>`;
+    }).join("");
+    return `<section class="mpp-delivery-board"><header><div><span>DELIVERY PHASE BOARD</span><h2>Production Plan per delivery phase</h2><p>Qty berasal dari net production MRP. Buka phase untuk melihat WIP/FG, process code, resource, dan jadwalnya.</p></div><div class="mpp-board-legend"><span class="ready">On target</span><span class="warning">Review</span><span class="blocked">Blocked</span></div></header><div class="mpp-phase-board-head"><span>Demand / FG</span><span>FG Due</span><span>Demand / Stock</span><span>Net Production</span><span>MRP Release</span><span>Material</span><span>Status</span></div><div class="mpp-phase-board-list">${phaseRows || '<div class="mpp-board-empty">Delivery phase belum tersedia. Sinkronkan kembali dari MRP current.</div>'}</div></section>`;
+  }
+  function monthlyPlanAuditCard(record) {
+    return `<details class="mpp-audit-disclosure"><summary><span><b>Matriks mingguan</b><small>Audit penempatan lintas minggu dan carry-over.</small></span><i>Buka</i></summary>${monthlyPlanWeeklyMatrixCard(record)}</details><details class="mpp-audit-disclosure"><summary><span><b>Timeline harian</b><small>Audit tanggal persis process, vendor return, dan delivery.</small></span><i>Buka</i></summary>${monthlyPlanPhaseTimelineCard(record)}</details>`;
+  }
+  function applyMppWorkbenchTab(tab) {
+    const target = ["plan", "capacity", "material", "exception", "audit"].includes(tab) ? tab : "plan";
+    document.querySelectorAll("[data-mpp-business-tab]").forEach((button) => { const active = button.dataset.mppBusinessTab === target; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); });
+    document.querySelectorAll("[data-mpp-business-panel]").forEach((panel) => { panel.hidden = panel.dataset.mppBusinessPanel !== target; });
+    localStorage.setItem(`mpp-business-tab:${currentRecord?.planNumber || config.recordKey}`, target);
+    if (target === "capacity" && currentRecord) requestAnimationFrame(() => renderMppGantt(currentRecord));
+    if (target === "audit") requestAnimationFrame(() => applyMppWeekView());
+  }
+  function renderMonthlyPlanCollections(record) {
+    const savedTab = localStorage.getItem(`mpp-business-tab:${record.planNumber || config.recordKey}`) || "plan";
+    $("ops-detail-collections").innerHTML = `<section class="mpp-business-workbench"><nav class="mpp-business-tabs" role="tablist" aria-label="Production Plan workbench"><button type="button" data-mpp-business-tab="plan">Plan</button><button type="button" data-mpp-business-tab="capacity">Capacity</button><button type="button" data-mpp-business-tab="material">Material Readiness</button><button type="button" data-mpp-business-tab="exception">Exception <span>${num(record.planReadiness?.issues?.length,0)}</span></button><button type="button" data-mpp-business-tab="audit">Audit</button></nav><div class="mpp-business-panel" data-mpp-business-panel="plan">${monthlyPlanSourceIntegrityCard(record)}${monthlyPlanRoutingTablesCard(record)}${monthlyPlanDeliveryBoardCard(record)}</div><div class="mpp-business-panel" data-mpp-business-panel="capacity">${monthlyPlanGanttCard(record)}</div><div class="mpp-business-panel" data-mpp-business-panel="material">${monthlyPlanMaterialCard(record)}</div><div class="mpp-business-panel" data-mpp-business-panel="exception">${monthlyPlanReadinessCard(record)}</div><div class="mpp-business-panel" data-mpp-business-panel="audit">${monthlyPlanAuditCard(record)}</div></section>`;
+    applyMppWorkbenchTab(savedTab);
+    document.querySelectorAll("[data-mpp-edit-placement]").forEach((button) => button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!button.disabled) openMppPlacementEditor(button.dataset.mppEditPlacement);
+    }));
+  }
+  function applyMppWeekView(spanValue, movement = 0) {
+    const card = document.querySelector(".mpp-weekly-card");
+    if (!card) return;
+    const count = Math.max(number(card.dataset.mppWeekCount), 1);
+    const span = ["all", "1", "2", "3"].includes(String(spanValue || "")) ? String(spanValue) : card.dataset.mppWeekSpan || "all";
+    const visibleCount = span === "all" ? count : Math.min(number(span), count);
+    let start = span === "all" ? 0 : Math.max(number(card.dataset.mppWeekStart), 0);
+    start = Math.min(Math.max(start + movement * visibleCount, 0), Math.max(count - visibleCount, 0));
+    card.dataset.mppWeekSpan = span;
+    card.dataset.mppWeekStart = String(start);
+    card.querySelectorAll("table [data-mpp-week-column]").forEach((cell) => {
+      const index = number(cell.dataset.mppWeekColumn);
+      cell.hidden = index < start || index >= start + visibleCount;
+    });
+    card.querySelectorAll("button[data-mpp-week-span]").forEach((button) => button.classList.toggle("active", button.dataset.mppWeekSpan === span));
+    const labelElement = card.querySelector("[data-mpp-week-range]");
+    if (labelElement) labelElement.textContent = span === "all" ? "Semua minggu" : `W${start + 1}${visibleCount > 1 ? `–W${start + visibleCount}` : ""}`;
+    card.querySelectorAll("[data-mpp-week-nav]").forEach((button) => {
+      button.disabled = span === "all" || (button.dataset.mppWeekNav === "prev" ? start === 0 : start + visibleCount >= count);
+    });
+    localStorage.setItem(`mpp-week-span:${currentRecord?.planNumber || config.recordKey}`, span);
+  }
+  let editingMppAllocation = null;
+  function findMppAllocation(allocationId) {
+    for (const phase of currentRecord?.deliveryPhaseTimeline?.phases || []) {
+      for (const event of phase.events || []) {
+        const allocation = (event.allocations || []).find((row) => String(row.id) === String(allocationId));
+        if (allocation) return { allocation, phase, event };
+      }
+    }
+    return null;
+  }
+  function ensureMppPlacementDialog() {
+    let dialog = $("mpp-placement-dialog");
+    if (dialog) return dialog;
+    dialog = document.createElement("dialog");
+    dialog.id = "mpp-placement-dialog";
+    dialog.className = "mpp-placement-dialog";
+    dialog.innerHTML = `<form data-mpp-placement-form>
+      <div class="mpp-placement-head"><div><small>Edit allocation</small><h2 data-mpp-placement-title>Edit posisi proses</h2><p data-mpp-placement-subtitle></p></div><button type="button" data-mpp-placement-close aria-label="Tutup">×</button></div>
+      <div class="mpp-placement-summary" data-mpp-placement-summary></div>
+      <div class="mpp-placement-quick"><span>Geser cepat</span><button type="button" data-mpp-shift-days="-7">−1 minggu</button><button type="button" data-mpp-shift-days="7">+1 minggu</button></div>
+      <div class="mpp-placement-fields">
+        <label><span>Tanggal proses / kirim</span><input class="form-control" type="date" name="scheduleDate" required></label>
+        <label data-mpp-inhouse-field><span>Shift</span><select class="form-select" name="shift"><option value="1">Shift 1</option><option value="2">Shift 2</option><option value="3">Shift 3</option></select></label>
+        <label data-mpp-inhouse-field><span>Jam mulai</span><input class="form-control" type="time" name="plannedStartTime"></label>
+        <label data-mpp-inhouse-field><span>Jam selesai</span><input class="form-control" type="time" name="plannedEndTime"></label>
+        <label data-mpp-vendor-field><span>Tanggal kembali vendor</span><input class="form-control" type="date" name="vendorReturnDate"></label>
+        <label class="mpp-placement-wide"><span>Alasan freeze override <em>diisi jika tanggal dekat hari ini</em></span><input class="form-control" name="freezeOverrideReason" maxlength="240" placeholder="Contoh: penyesuaian jadwal customer dan kapasitas aktual"></label>
+      </div>
+      <div class="mpp-placement-note"><b>Yang berubah hanya penempatan tanggal.</b><span>Qty, mesin/dies, vendor, dan routing tetap. Server tetap memeriksa horizon MPP, freeze fence, resource, serta urutan proses.</span></div>
+      <div class="mpp-placement-error d-none" data-mpp-placement-error></div>
+      <div class="mpp-placement-actions"><button type="button" class="btn btn-light" data-mpp-placement-close>Batal</button><button type="submit" class="btn btn-primary" data-mpp-placement-save>Simpan posisi</button></div>
+    </form>`;
+    document.body.appendChild(dialog);
+    dialog.querySelectorAll("[data-mpp-placement-close]").forEach((button) => button.addEventListener("click", () => dialog.close()));
+    dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
+    dialog.querySelectorAll("[data-mpp-shift-days]").forEach((button) => button.addEventListener("click", () => {
+      const days = number(button.dataset.mppShiftDays);
+      ["scheduleDate", "vendorReturnDate"].forEach((name) => {
+        const input = dialog.querySelector(`[name="${name}"]`);
+        if (!input?.value || input.closest("label")?.hidden) return;
+        const parsed = new Date(`${input.value}T00:00:00`);
+        parsed.setDate(parsed.getDate() + days);
+        input.value = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+      });
+    }));
+    dialog.querySelector("[data-mpp-placement-form]").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!editingMppAllocation) return;
+      const form = event.currentTarget;
+      const allocation = editingMppAllocation.allocation;
+      const vendor = allocation.routingMode === "VENDOR";
+      const scheduleDate = form.elements.scheduleDate.value;
+      const saveButton = form.querySelector("[data-mpp-placement-save]");
+      const errorBox = form.querySelector("[data-mpp-placement-error]");
+      const body = {
+        routingMode: allocation.routingMode,
+        scheduleDate,
+        plannedQty: allocation.plannedQty,
+        notes: "Posisi disesuaikan dari matriks mingguan MPP",
+        freezeOverrideReason: form.elements.freezeOverrideReason.value.trim(),
+        ...(vendor ? {
+          vendorId: allocation.vendorId,
+          vendorSendDate: scheduleDate,
+          vendorReturnDate: form.elements.vendorReturnDate.value,
+          expectedReturnQty: allocation.expectedReturnQty ?? allocation.plannedQty,
+        } : {
+          machineId: allocation.machineId,
+          diesId: allocation.diesId,
+          shift: form.elements.shift.value,
+          plannedStartTime: form.elements.plannedStartTime.value || null,
+          plannedEndTime: form.elements.plannedEndTime.value || null,
+        }),
+      };
+      saveButton.disabled = true;
+      saveButton.textContent = "Menyimpan...";
+      errorBox.classList.add("d-none");
+      try {
+        await api(`/modules/api/planning-ppic/monthly-plan/${encodeURIComponent(allocation.planNumber || currentRecord.planNumber)}/manual-allocations/${encodeURIComponent(allocation.id)}`, { method: "PATCH", body: JSON.stringify(body) });
+        dialog.close();
+        showAlert("Posisi proses berhasil diperbarui dan divalidasi.", "success");
+        await load();
+      } catch (error) {
+        errorBox.textContent = error.message;
+        errorBox.classList.remove("d-none");
+      } finally {
+        saveButton.disabled = false;
+        saveButton.textContent = "Simpan posisi";
+      }
+    });
+    return dialog;
+  }
+  function openMppPlacementEditor(allocationId, proposedStart = null, proposedEnd = null) {
+    const found = findMppAllocation(allocationId);
+    if (!found) { showAlert("Allocation proses tidak ditemukan pada matriks aktif."); return; }
+    editingMppAllocation = found;
+    const { allocation, phase, event } = found;
+    const dialog = ensureMppPlacementDialog();
+    const form = dialog.querySelector("form");
+    const vendor = allocation.routingMode === "VENDOR";
+    dialog.querySelector("[data-mpp-placement-title]").textContent = `${vendor ? "Vendor" : "In-house"} · ${allocation.processCode || event.processCode}`;
+    dialog.querySelector("[data-mpp-placement-subtitle]").textContent = `Delivery phase ${phase.phaseNumber} · ${phase.deliveryDate || phase.fgRequiredDate || "-"}`;
+    dialog.querySelector("[data-mpp-placement-summary]").innerHTML = `<div><small>Part</small><b>${esc(allocation.part?.partCode || "-")}</b><span>${esc(allocation.part?.partName || allocation.part?.partNumber || "-")}</span></div><div><small>Qty</small><b>${num(allocation.plannedQty)} ${esc(allocation.uomCode || "PCS")}</b><span>Tidak diubah</span></div><div><small>Resource</small><b>${esc(vendor ? allocation.vendorCode || "Vendor" : allocation.machineCode || "Mesin")}</b><span>${esc(vendor ? allocation.vendorName || "-" : allocation.machineName || "-")}</span></div>`;
+    form.elements.scheduleDate.value = proposedStart || allocation.vendorSendDate || allocation.scheduleDate || "";
+    form.elements.shift.value = allocation.shift || "1";
+    form.elements.plannedStartTime.value = allocation.plannedStartTime || "";
+    form.elements.plannedEndTime.value = allocation.plannedEndTime || "";
+    form.elements.vendorReturnDate.value = proposedEnd || allocation.vendorReturnDate || "";
+    form.elements.freezeOverrideReason.value = "";
+    form.querySelectorAll("[data-mpp-inhouse-field]").forEach((field) => { field.hidden = vendor; });
+    form.querySelectorAll("[data-mpp-vendor-field]").forEach((field) => { field.hidden = !vendor; });
+    form.elements.vendorReturnDate.required = vendor;
+    form.querySelector("[data-mpp-placement-error]").classList.add("d-none");
+    dialog.showModal();
+  }
+  function applyMppMatrixLevel(level) {
+    if (!["parent", "receipts", "full"].includes(level)) return;
+    const table = document.querySelector(".mpp-matrix-table");
+    if (!table) return;
+    table.dataset.mppVisibleLevel = level;
+    document.querySelectorAll("[data-mpp-matrix-level]").forEach((button) => button.classList.toggle("active", button.dataset.mppMatrixLevel === level));
+    localStorage.setItem(`mpp-matrix-level:${currentRecord?.planNumber || config.recordKey}`, level);
+  }
+  document.addEventListener("click", (event) => {
+    const businessTab = event.target.closest("[data-mpp-business-tab]");
+    if (businessTab) { applyMppWorkbenchTab(businessTab.dataset.mppBusinessTab); return; }
+    const ganttEditButton = event.target.closest("[data-mpp-gantt-edit]");
+    if (ganttEditButton) { openMppPlacementEditor(ganttEditButton.dataset.mppGanttEdit); return; }
+    const ganttRowModeButton = event.target.closest("[data-mpp-gantt-row-mode]");
+    if (ganttRowModeButton && currentRecord) {
+      localStorage.setItem(`mpp-gantt-row-mode:${currentRecord.planNumber || config.recordKey}`, ganttRowModeButton.dataset.mppGanttRowMode);
+      renderMppGantt(currentRecord);
+      return;
+    }
+    const ganttViewButton = event.target.closest("[data-mpp-gantt-view]");
+    if (ganttViewButton && mppGanttInstance) { mppGanttInstance.change_view_mode(ganttViewButton.dataset.mppGanttView, true); return; }
+    const ganttCalendarButton = event.target.closest("[data-mpp-gantt-calendar]");
+    if (ganttCalendarButton && currentRecord) {
+      const storageKey = `mpp-gantt-working:${currentRecord.planNumber || config.recordKey}`;
+      localStorage.setItem(storageKey, localStorage.getItem(storageKey) === "1" ? "0" : "1");
+      renderMppGantt(currentRecord);
+      return;
+    }
+    const ganttTodayButton = event.target.closest("[data-mpp-gantt-today]");
+    if (ganttTodayButton && mppGanttInstance) { mppGanttInstance.scroll_current(); return; }
+    const weekSpanButton = event.target.closest("button[data-mpp-week-span]");
+    if (weekSpanButton) { applyMppWeekView(weekSpanButton.dataset.mppWeekSpan); return; }
+    const weekNavigationButton = event.target.closest("[data-mpp-week-nav]");
+    if (weekNavigationButton) { applyMppWeekView(null, weekNavigationButton.dataset.mppWeekNav === "prev" ? -1 : 1); return; }
+    const placementButton = event.target.closest("[data-mpp-edit-placement]");
+    if (placementButton && !placementButton.disabled) { openMppPlacementEditor(placementButton.dataset.mppEditPlacement); return; }
+    const levelButton = event.target.closest("[data-mpp-matrix-level]");
+    if (levelButton) applyMppMatrixLevel(levelButton.dataset.mppMatrixLevel);
+    const popoverButton = event.target.closest("[data-mpp-popover]");
+    document.querySelectorAll("[data-mpp-popover].is-open").forEach((button) => {
+      if (button !== popoverButton) {
+        button.classList.remove("is-open");
+        button.setAttribute("aria-expanded", "false");
+      }
+    });
+    if (popoverButton) {
+      const open = !popoverButton.classList.contains("is-open");
+      popoverButton.classList.toggle("is-open", open);
+      popoverButton.setAttribute("aria-expanded", String(open));
+    }
+  });
+  document.addEventListener("change", (event) => {
+    if (event.target.matches("[data-mpp-gantt-phase]") && currentRecord) renderMppGantt(currentRecord);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    document.querySelectorAll("[data-mpp-popover].is-open").forEach((button) => {
+      button.classList.remove("is-open");
+      button.setAttribute("aria-expanded", "false");
+    });
+  });
   function collectDocumentReferences(record) {
     const references = [];
     const visit = (value, path = "", depth = 0) => {
@@ -1345,7 +2660,7 @@
     return `<section class="ops-detail-card ops-reference-card">
       <details class="ops-related-disclosure">
         <summary class="ops-collection-head"><div><h2>Dokumen & Master Terkait</h2><p>Klik untuk melihat seluruh link referensi.</p></div><div class="ops-related-summary-meta"><span>${num(references.length, 0)} relasi</span><b aria-hidden="true">⌄</b></div></summary>
-        <div class="table-responsive"><table class="table ops-collection-table ops-reference-table">
+        <div class="table-responsive"><table class="table ops-collection-table ops-reference-table"${isGoodsReceiptPage() || isStockBalancePage() ? ' data-enterprise-table="off"' : ""}>
           <thead><tr><th>No.</th><th>Tipe</th><th>Reference</th><th>Relasi</th><th>Aksi</th></tr></thead>
           <tbody>${body || '<tr><td colspan="5" class="text-center py-4">Belum ada dokumen terkait yang dapat dibuka.</td></tr>'}</tbody>
         </table></div>
@@ -1391,7 +2706,7 @@
       if (/ROUTING|BOM|PROCESS|PREDECESSOR|SUCCESSOR/.test(code)) references.push({ type: "Capacity", label: "Ubah capacity / routing", href: "/modules/planning-ppic/capacity-planning" });
       if (/CAPACITY|MACHINE|SHIFT|SCHEDULE|PRESET/.test(code)) references.push({ type: "Capacity", label: "Buka capacity planning", href: "/modules/planning-ppic/capacity-planning" });
       if (/MATERIAL|STOCK|INVENTORY|SHORTAGE/.test(code)) references.push({ type: "Stock", label: "Periksa stock balance", href: `/modules/inventory/stock-balances${issue.partCode ? `?q=${encodeURIComponent(issue.partCode)}` : ""}` });
-      if (/QC|QUALITY|INSPECTION/.test(code)) references.push({ type: "QC", label: "Buka quality inspection", href: "/modules/production/quality-inspections" });
+      if (/QC|QUALITY|INSPECTION/.test(code)) references.push({ type: "QC", label: "Buka quality inspection", href: "/modules/qc/quality-inspections" });
       if (/LOG|OUTPUT|PRODUCTION/.test(code)) references.push({ type: "Produksi", label: "Buka Production Entry", href: "/modules/production/production-logs" });
       if (!references.length) references.push({ type: "Produksi", label: "Buka daftar terkait", href: `/modules/production/${encodeURIComponent(config.page.slug)}` });
       return references.filter((reference, index, rows) => reference?.href && rows.findIndex((candidate) => candidate?.href === reference.href && candidate?.label === reference.label) === index);
@@ -1429,6 +2744,13 @@
       return score(leftKey, leftValue) - score(rightKey, rightValue);
     });
     const html = collections.map(([key, value]) => Array.isArray(value) ? renderArray(key, value, record) : renderObject(key, value)).join("");
+    if (isGoodsReceiptPage()) {
+      const blockers = collectBlockers(record);
+      const references = collectDocumentReferences(record);
+      $("ops-detail-collections").innerHTML = [blockers.length ? blockerCard(record) : "", html, references.length ? relatedDocumentsCard(record) : ""].join("");
+      initializeGoodsReceiptWorkspace();
+      return;
+    }
     if (config.module === "purchasing" && config.page.slug === "purchase-suggestions") {
       // Each material card already exposes its MRP, demand, SO/forecast, and supplier
       // references. Keep the primary purchasing task above the fold instead of
@@ -1664,6 +2986,338 @@
   }
   function disabledActionButton(text, note, style = "secondary") {
     return `<button type="button" class="btn btn-${style}" disabled aria-disabled="true">${esc(text)}</button>${note ? `<small>${esc(note)}</small>` : ""}`;
+  }
+
+  function goodsReceiptGripFormatter() {
+    return `<span class="gr-detail-row-grip" role="img" aria-label="Pegangan baris">${Array.from({ length: 6 }, () => "<i></i>").join("")}</span>`;
+  }
+
+  function goodsReceiptQtyFormatter(cell) {
+    const row = cell.getRow().getData();
+    return `<span class="gr-detail-quantity"><b>${esc(qty(cell.getValue(), row.uomCode))}</b><em>${esc(row.uomCode || "—")}</em></span>`;
+  }
+
+  function goodsReceiptRowData(row, index) {
+    const poDetail = row?.poDetail || row?.purchaseOrderDetail || {};
+    const part = row?.part || poDetail?.part || {};
+    const code = row?.partCode || row?.materialCode || part?.partCode || poDetail?.partCode || poDetail?.materialCode || `Line ${row?.lineNumber || index + 1}`;
+    return {
+      id: row?.id || `gr-line-${index + 1}`,
+      lineNumber: row?.lineNumber || index + 1,
+      itemCode: code,
+      partNumber: row?.partNumber || part?.partNumber || poDetail?.partNumber || "—",
+      itemName: row?.partName || row?.materialName || row?.description || part?.partName || poDetail?.partName || poDetail?.description || "—",
+      qtyOrdered: row?.qtyOrdered ?? poDetail?.qty ?? 0,
+      qtyReceived: row?.qtyReceived ?? 0,
+      qtyInspected: row?.qtyInspected ?? 0,
+      deliveryNote: row?.deliveryNoteNumber || "—",
+      lotNumber: row?.lotNumber || "—",
+      supplierLot: row?.supplierLotNumber || "—",
+      uomCode: row?.uomCode || poDetail?.uomCode || "UNIT",
+    };
+  }
+
+  function initializeGoodsReceiptTable() {
+    const mount = $("gr-detail-receipt-table");
+    const TabulatorClass = window.Tabulator || window.TabulatorFull;
+    if (!mount || !TabulatorClass) return;
+    goodsReceiptTable?.destroy?.();
+    goodsReceiptTable = new TabulatorClass(mount, {
+      index: "id",
+      data: goodsReceiptTableRows.map(goodsReceiptRowData),
+      layout: "fitDataStretch",
+      height: "auto",
+      placeholder: "Belum ada receipt item.",
+      columnDefaults: { headerSort: false, resizable: true, vertAlign: "middle" },
+      columns: [
+        { title: "", field: "handle", width: 42, minWidth: 42, maxWidth: 42, frozen: true, hozAlign: "center", formatter: goodsReceiptGripFormatter, resizable: false },
+        { title: "Line", field: "lineNumber", width: 70, minWidth: 64, frozen: true, hozAlign: "center", headerHozAlign: "center" },
+        { title: "Part / Material", field: "itemCode", width: 180, minWidth: 160, frozen: true, cssClass: "is-identity", formatter: (cell) => `<b>${esc(cell.getValue())}</b>` },
+        { title: "Part No", field: "partNumber", width: 155, minWidth: 135, cssClass: "is-identity", formatter: (cell) => `<b>${esc(cell.getValue())}</b>` },
+        { title: "Part Name", field: "itemName", width: 220, minWidth: 180, tooltip: true },
+        { title: "Ordered", field: "qtyOrdered", width: 125, minWidth: 110, hozAlign: "right", headerHozAlign: "right", formatter: goodsReceiptQtyFormatter },
+        { title: "Received", field: "qtyReceived", width: 125, minWidth: 110, hozAlign: "right", headerHozAlign: "right", formatter: goodsReceiptQtyFormatter },
+        { title: "Inspected", field: "qtyInspected", width: 125, minWidth: 110, hozAlign: "right", headerHozAlign: "right", formatter: goodsReceiptQtyFormatter },
+        { title: "Delivery Note", field: "deliveryNote", width: 145, minWidth: 125 },
+        { title: "Internal Lot", field: "lotNumber", width: 185, minWidth: 150 },
+        { title: "Supplier Lot", field: "supplierLot", width: 150, minWidth: 130 },
+      ],
+    });
+  }
+
+  function initializeGoodsReceiptWorkspace() {
+    const root = $("ops-detail-collections");
+    if (!root) return;
+    initializeGoodsReceiptTable();
+    const renderedCards = [...root.children].filter((node) => node.matches(".ops-detail-card"));
+    const preferredCard = renderedCards.find((card) => card.dataset.grTabTitle);
+    const cards = preferredCard ? [preferredCard, ...renderedCards.filter((card) => card !== preferredCard)] : renderedCards;
+    if (!cards.length) return;
+    const workspace = document.createElement("section");
+    workspace.className = "gr-detail-tabs-workspace";
+    const tabs = document.createElement("nav");
+    tabs.className = "gr-detail-tabs";
+    tabs.setAttribute("role", "tablist");
+    tabs.setAttribute("aria-label", "Goods Receipt workspace");
+    workspace.append(tabs);
+    const activate = (index, focus = false) => {
+      const buttons = [...tabs.querySelectorAll("[role=tab]")];
+      cards.forEach((card, cardIndex) => {
+        const active = cardIndex === index;
+        card.hidden = !active;
+        card.classList.toggle("is-active", active);
+        buttons[cardIndex]?.classList.toggle("is-active", active);
+        buttons[cardIndex]?.setAttribute("aria-selected", String(active));
+        buttons[cardIndex].tabIndex = active ? 0 : -1;
+      });
+      if (focus) buttons[index]?.focus();
+    };
+    const friendlyTitle = (card, index) => transactionWorkspaceTitle(card, index);
+    cards.forEach((card, index) => {
+      const panelId = `gr-detail-panel-${index + 1}`;
+      const tabId = `gr-detail-tab-${index + 1}`;
+      card.id = panelId;
+      card.classList.add("gr-detail-tab-panel");
+      card.setAttribute("role", "tabpanel");
+      card.setAttribute("aria-labelledby", tabId);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.id = tabId;
+      button.setAttribute("role", "tab");
+      button.setAttribute("aria-controls", panelId);
+      button.textContent = friendlyTitle(card, index);
+      button.addEventListener("click", () => activate(index));
+      button.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+        const offset = event.key === "ArrowRight" ? 1 : -1;
+        activate((index + offset + cards.length) % cards.length, true);
+        event.preventDefault();
+      });
+      tabs.append(button);
+      workspace.append(card);
+    });
+    root.replaceChildren(workspace);
+    activate(0);
+  }
+
+  function transactionWorkspaceTitle(card, index = 0) {
+    const raw = card?.dataset?.transactionTabTitle
+      || card?.dataset?.grTabTitle
+      || card?.querySelector("h2")?.textContent?.trim()
+      || `Detail ${index + 1}`;
+    const aliases = {
+      "Incoming Inspections": "Incoming Inspection",
+      "Dokumen & Master Terkait": "Related Documents",
+      "Document References": "Related Documents",
+      "Po": "Purchase Order",
+      "Details": "Items",
+    };
+    return aliases[raw] || raw;
+  }
+
+  function initializeTransactionWorkspace() {
+    if (isGoodsReceiptPage()) return;
+    const root = $("ops-detail-collections");
+    if (!root || root.querySelector(":scope > .transaction-detail-tabs-workspace")) return;
+    const cards = [...root.querySelectorAll(".ops-detail-card")].filter((card) => !card.parentElement?.closest(".ops-detail-card"));
+    if (cards.length < 2) return;
+
+    const titleOf = (card, index) => transactionWorkspaceTitle(card, index);
+    const secondaryPattern = /related|reference|dokumen|audit|history|riwayat|inspection|warehouse|putaway|approval|workflow|posting|attachment/i;
+    const primaryPattern = /item|detail|line|receipt|schedule|order|material|production|movement|reservation|opname|count|quality|disposition/i;
+    const companionPattern = /reconciliation|rekonsiliasi|allocation|alokasi|variance|readiness|blocker|ringkasan|summary|status po|qty aktual/i;
+    const primary = cards.find((card, index) => primaryPattern.test(titleOf(card, index)) && !secondaryPattern.test(titleOf(card, index))) || cards[0];
+    const primaryCards = [primary, ...cards.filter((card, index) => card !== primary && companionPattern.test(titleOf(card, index)))];
+    const secondaryCards = cards.filter((card) => !primaryCards.includes(card));
+    if (!secondaryCards.length) return;
+
+    const workspace = document.createElement("section");
+    workspace.className = "transaction-detail-tabs-workspace";
+    const tabs = document.createElement("nav");
+    tabs.className = "transaction-detail-tabs";
+    tabs.setAttribute("role", "tablist");
+    tabs.setAttribute("aria-label", `${config.page.label} workspace`);
+    workspace.append(tabs);
+
+    const groups = [
+      { title: titleOf(primary, cards.indexOf(primary)), cards: primaryCards },
+      ...secondaryCards.map((card) => ({ title: titleOf(card, cards.indexOf(card)), cards: [card] })),
+    ];
+    const panels = [];
+    const buttons = [];
+    const activate = (index, focus = false) => {
+      panels.forEach((panel, panelIndex) => {
+        const active = panelIndex === index;
+        panel.hidden = !active;
+        panel.classList.toggle("is-active", active);
+        buttons[panelIndex]?.classList.toggle("is-active", active);
+        buttons[panelIndex]?.setAttribute("aria-selected", String(active));
+        if (buttons[panelIndex]) buttons[panelIndex].tabIndex = active ? 0 : -1;
+      });
+      if (focus) buttons[index]?.focus();
+    };
+
+    groups.forEach((group, index) => {
+      const tabId = `transaction-detail-tab-${index + 1}`;
+      const panelId = `transaction-detail-panel-${index + 1}`;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.id = tabId;
+      button.setAttribute("role", "tab");
+      button.setAttribute("aria-controls", panelId);
+      button.textContent = group.title;
+      button.addEventListener("click", () => activate(index));
+      button.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+        activate((index + (event.key === "ArrowRight" ? 1 : -1) + groups.length) % groups.length, true);
+        event.preventDefault();
+      });
+      tabs.append(button);
+      buttons.push(button);
+
+      const panel = document.createElement("section");
+      panel.id = panelId;
+      panel.className = "transaction-detail-tab-panel";
+      panel.setAttribute("role", "tabpanel");
+      panel.setAttribute("aria-labelledby", tabId);
+      if (group.cards.length > 1) panel.classList.add("transaction-detail-primary-stack");
+      group.cards.forEach((card) => panel.append(card));
+      workspace.append(panel);
+      panels.push(panel);
+    });
+    root.replaceChildren(workspace);
+    activate(0);
+  }
+  const vendorSendDate = (value) => {
+    if (!value) return "-";
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime())
+      ? String(value)
+      : new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" }).format(parsed);
+  };
+  async function openVendorSendModal() {
+    const options = await api(`/modules/api/vendor-process-workflow/${encodeURIComponent(config.recordKey)}/send-options`);
+    const primary = options.order || {};
+    const stockOptions = Array.isArray(options.stockOptions) ? options.stockOptions : [];
+    const nextSchedules = Array.isArray(options.nextSchedules) ? options.nextSchedules : [];
+    if (!stockOptions.length) throw new Error("Belum ada stock WIP yang siap dikirim untuk part jadwal ini.");
+
+    const warehouseRows = [...new Map(stockOptions.map((row) => [row.warehouseCode, row])).values()];
+    const primaryQty = number(primary.qtyToSend);
+    const defaultWarehouse = warehouseRows.find((row) => (
+      stockOptions.filter((stock) => stock.warehouseCode === row.warehouseCode)
+        .reduce((sum, stock) => sum + number(stock.qtyAvailable), 0) >= primaryQty
+    )) || warehouseRows[0];
+    const overlay = document.createElement("div");
+    overlay.className = "ops-modal-backdrop vendor-send-backdrop";
+    overlay.innerHTML = `<form class="ops-modal vendor-send-modal" data-vendor-send-form>
+      <header>
+        <div><p class="ops-eyebrow">Vendor Dispatch</p><h2>Kirim sesuai jadwal</h2><p>${esc(primary.vendorName || primary.vendorCode || "Vendor")} · ${esc(primary.processName || primary.processCode || "Proses vendor")}</p></div>
+        <button type="button" class="btn-close" data-vendor-send-cancel aria-label="Tutup"></button>
+      </header>
+      <div class="ops-modal-body">
+        <section class="vendor-send-summary">
+          <div><span>Part yang dikirim</span><b>${esc(primary.inputPartCode || "-")}</b><small>${esc(primary.inputPartNumber || "-")} · ${esc(primary.inputPartName || "-")}</small></div>
+          <div><span>Qty jadwal utama</span><b>${esc(qty(primaryQty, primary.uomCode))} ${esc(primary.uomCode || "")}</b><small>${esc(primary.orderNumber || config.recordKey)}</small></div>
+          <div><span>Target kembali</span><b>${esc(vendorSendDate(primary.dueDate))}</b><small>Kembali dari vendor</small></div>
+        </section>
+
+        <section class="vendor-send-section">
+          <div class="vendor-send-section-title"><i>1</i><div><h3>Pilih lokasi stock WIP</h3><p>Dropdown hanya berisi lokasi yang mempunyai stock siap kirim.</p></div></div>
+          <div class="vendor-send-location-grid">
+            <label><span>Warehouse</span><select class="form-select" data-vendor-warehouse>${warehouseRows.map((row) => `<option value="${esc(row.warehouseCode)}" ${row.warehouseCode === defaultWarehouse.warehouseCode ? "selected" : ""}>${esc(row.warehouseCode)} — ${esc(row.warehouseName || row.warehouseCode)}</option>`).join("")}</select></label>
+            <label><span>Rack</span><select class="form-select" data-vendor-rack></select></label>
+            <div class="vendor-send-location-total"><span>Stock dipilih</span><b data-vendor-stock-total>0 ${esc(primary.uomCode || "")}</b><small>Dipakai berurutan per lot</small></div>
+          </div>
+          <div class="vendor-send-stock-list" data-vendor-stock-list></div>
+        </section>
+
+        <section class="vendor-send-section">
+          <div class="vendor-send-section-title"><i>2</i><div><h3>Jadwal yang ikut dikirim</h3><p>Qty dikunci mengikuti sisa qty setiap jadwal.</p></div></div>
+          <div class="table-responsive"><table class="table vendor-send-table"><thead><tr><th></th><th>Jadwal</th><th>Rencana kirim</th><th>Target kembali</th><th class="text-end">Qty kirim</th></tr></thead><tbody>
+            <tr class="is-primary"><td><input type="checkbox" checked disabled aria-label="Jadwal utama"></td><td><b>${esc(primary.orderNumber || config.recordKey)}</b><small>${esc(primary.moNumber || "-")} · Jadwal utama</small></td><td>${esc(vendorSendDate(primary.sendDate))}</td><td>${esc(vendorSendDate(primary.dueDate))}</td><td class="text-end"><b>${esc(qty(primaryQty, primary.uomCode))} ${esc(primary.uomCode || "")}</b></td></tr>
+            ${nextSchedules.map((schedule) => `<tr><td><input type="checkbox" data-vendor-schedule value="${esc(schedule.orderNumber)}" data-qty="${esc(schedule.qtyToSend)}"></td><td><b>${esc(schedule.orderNumber)}</b><small>${esc(schedule.moNumber || "-")} · ${esc(schedule.status || "Ready to Send")}</small></td><td>${esc(vendorSendDate(schedule.sendDate))}</td><td>${esc(vendorSendDate(schedule.dueDate))}</td><td class="text-end"><b>${esc(qty(schedule.qtyToSend, schedule.uomCode))} ${esc(schedule.uomCode || "")}</b></td></tr>`).join("") || `<tr><td colspan="5" class="vendor-send-empty">Tidak ada jadwal berikutnya yang sudah Ready to Send.</td></tr>`}
+          </tbody></table></div>
+        </section>
+
+        <div class="vendor-send-validation" data-vendor-send-validation></div>
+      </div>
+      <footer><div class="vendor-send-footer-total"><span>Total pengiriman</span><b data-vendor-send-total>${esc(qty(primaryQty, primary.uomCode))} ${esc(primary.uomCode || "")}</b></div><button type="button" class="btn btn-outline-secondary" data-vendor-send-cancel>Batal</button><button type="submit" class="btn btn-primary" data-vendor-send-submit>Kirim ke Vendor</button></footer>
+    </form>`;
+    document.body.appendChild(overlay);
+    document.body.classList.add("modal-open");
+
+    return new Promise((resolve) => {
+      const warehouseSelect = overlay.querySelector("[data-vendor-warehouse]");
+      const rackSelect = overlay.querySelector("[data-vendor-rack]");
+      const stockList = overlay.querySelector("[data-vendor-stock-list]");
+      const validation = overlay.querySelector("[data-vendor-send-validation]");
+      const submit = overlay.querySelector("[data-vendor-send-submit]");
+      const close = (value = null) => {
+        overlay.remove();
+        if (!document.querySelector(".ops-modal-backdrop")) document.body.classList.remove("modal-open");
+        resolve(value);
+      };
+      const rackKey = (value) => value || "__NO_RACK__";
+      const selectedScheduleRows = () => [...overlay.querySelectorAll("[data-vendor-schedule]:checked")];
+      const shipmentTotal = () => primaryQty + selectedScheduleRows().reduce((sum, row) => sum + number(row.dataset.qty), 0);
+      const selectedStockRows = () => [...overlay.querySelectorAll("[data-vendor-stock]:checked")];
+      const stockTotal = () => selectedStockRows().reduce((sum, row) => sum + number(row.dataset.qty), 0);
+      const refreshValidation = () => {
+        const required = shipmentTotal();
+        const available = stockTotal();
+        const valid = selectedStockRows().length > 0 && available + 0.005 >= required;
+        overlay.querySelector("[data-vendor-stock-total]").textContent = `${qty(available, primary.uomCode)} ${primary.uomCode || ""}`;
+        overlay.querySelector("[data-vendor-send-total]").textContent = `${qty(required, primary.uomCode)} ${primary.uomCode || ""}`;
+        validation.className = `vendor-send-validation ${valid ? "is-ready" : "is-short"}`;
+        validation.innerHTML = valid
+          ? `<b>Siap dikirim.</b><span>Stock terpilih ${esc(qty(available, primary.uomCode))}; kebutuhan ${esc(qty(required, primary.uomCode))} ${esc(primary.uomCode || "")}.</span>`
+          : `<b>Stock terpilih belum cukup.</b><span>Tersedia ${esc(qty(available, primary.uomCode))}; kebutuhan ${esc(qty(required, primary.uomCode))} ${esc(primary.uomCode || "")}.</span>`;
+        submit.disabled = !valid;
+      };
+      const renderStocks = () => {
+        const warehouseCode = warehouseSelect.value;
+        const selectedRack = rackSelect.value;
+        const rows = stockOptions.filter((row) => row.warehouseCode === warehouseCode && rackKey(row.rackCode) === selectedRack);
+        stockList.innerHTML = rows.map((row) => `<label class="vendor-send-stock-row"><input type="checkbox" data-vendor-stock value="${esc(row.stockBalanceId)}" data-qty="${esc(row.qtyAvailable)}" checked><span><b>${esc(row.lotNumber || "Tanpa lot")}</b><small>${esc(row.partCode || primary.inputPartCode || "-")} · ${esc(row.rackName || "Tanpa rack")}</small></span><strong>${esc(qty(row.qtyAvailable, row.uomCode))} ${esc(row.uomCode || "")}</strong></label>`).join("") || `<div class="vendor-send-empty">Tidak ada stock pada lokasi ini.</div>`;
+        refreshValidation();
+      };
+      const renderRacks = () => {
+        const warehouseCode = warehouseSelect.value;
+        const racks = [...new Map(stockOptions.filter((row) => row.warehouseCode === warehouseCode).map((row) => [rackKey(row.rackCode), row])).values()];
+        const enoughRack = racks.find((rack) => stockOptions
+          .filter((row) => row.warehouseCode === warehouseCode && rackKey(row.rackCode) === rackKey(rack.rackCode))
+          .reduce((sum, row) => sum + number(row.qtyAvailable), 0) >= shipmentTotal()) || racks[0];
+        rackSelect.innerHTML = racks.map((row) => `<option value="${esc(rackKey(row.rackCode))}" ${rackKey(row.rackCode) === rackKey(enoughRack?.rackCode) ? "selected" : ""}>${esc(row.rackCode || "Tanpa rack")} — ${esc(row.rackName || "Tanpa rack")}</option>`).join("");
+        renderStocks();
+      };
+
+      warehouseSelect.addEventListener("change", renderRacks);
+      rackSelect.addEventListener("change", renderStocks);
+      overlay.addEventListener("change", (event) => {
+        if (event.target.matches("[data-vendor-stock], [data-vendor-schedule]")) refreshValidation();
+      });
+      overlay.querySelector("[data-vendor-send-form]").addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (submit.disabled) return;
+        const shipments = [
+          { orderNumber: primary.orderNumber || config.recordKey, qtySent: primaryQty },
+          ...selectedScheduleRows().map((row) => ({ orderNumber: row.value, qtySent: number(row.dataset.qty) })),
+        ];
+        close({
+          sourceType: "PREVIOUS_WIP",
+          sourceWarehouseCode: warehouseSelect.value,
+          sourceRackCode: rackSelect.value === "__NO_RACK__" ? null : rackSelect.value,
+          sourceStockBalanceIds: selectedStockRows().map((row) => row.value),
+          shipments,
+        });
+      });
+      overlay.querySelectorAll("[data-vendor-send-cancel]").forEach((button) => button.addEventListener("click", () => close()));
+      overlay.addEventListener("click", (event) => { if (event.target === overlay) close(); });
+      overlay.addEventListener("keydown", (event) => { if (event.key === "Escape") close(); });
+      renderRacks();
+      warehouseSelect.focus();
+    });
   }
   async function collectPurchaseOrderLines(selected) {
     const vendorProcessPr = String(currentRecord?.procurementCategory || currentRecord?.procurementGroup || "").toUpperCase() === "VENDOR_PROCESS";
@@ -1916,20 +3570,30 @@
     const status = String(record.status || "Draft").toLowerCase();
     let html = "";
     if (config.module === "planning-ppic" && config.page.slug === "monthly-production-plans") {
-      if (status === "draft") html += actionButton("confirm-monthly-plan", "Confirm Monthly Plan", "primary");
+      if (status === "draft") {
+        const blockingCount = number(record.planReadiness?.summary?.blocking);
+        const stale = record.replanRequired || record.sourceReconciliation?.current === false;
+        if (stale) {
+          const currentMrp = record.sourceReconciliation?.currentMrpRunNumber;
+          if (currentMrp) html += `<a class="btn btn-primary" href="/modules/planning-ppic/mrp/${encodeURIComponent(currentMrp)}">Sinkronkan dari MRP Current</a>`;
+          html += '<button class="btn btn-secondary" type="button" disabled>Confirm diblokir</button><small>Draft memakai revision lama. Buka MRP current lalu jalankan Buat Production Plan.</small>';
+        } else if (blockingCount > 0) {
+          html += `<a class="btn btn-primary" href="/modules/planning-ppic/capacity-planning?planNumber=${encodeURIComponent(record.planNumber || config.recordKey)}">Jalankan Capacity Check</a><button class="btn btn-secondary" type="button" disabled>Confirm diblokir</button><small>Selesaikan blocker capacity, material, dan data integrity.</small>`;
+        } else html += actionButton("confirm-monthly-plan", "Confirm Production Plan", "primary", "Approval internal MPP; plan belum executable sebelum Release for Execution.");
+      }
       if (status === "confirmed") {
         html += `<a class="btn btn-outline-primary" href="/modules/planning-ppic/capacity-planning?planNumber=${encodeURIComponent(record.planNumber || config.recordKey)}">Buka Capacity Check</a>`;
-        html += actionButton("release-monthly-plan", "Capacity Check & Release", "primary");
+        html += actionButton("release-monthly-plan", "Release for Execution", "primary", "Membuat MPP executable setelah Capacity Check dan seluruh blocker selesai.");
       }
       if (/released|in progress/.test(status)) {
         const remainingLines = (record.details || []).filter((row) =>
           row.lineType === "FG Receipt"
           && number(row.qtyPlanned) > number(row.qtyReleased)
           && !/cancelled|converted/i.test(row.status || ""));
-        if (remainingLines.length) html += actionButton("create-mo-references", "Buat MO Reference", "outline-primary", "MO tetap direferensikan dari Monthly Plan; schedule harian dibuat PPIC.");
+        if (remainingLines.length) html += actionButton("create-mo-references", "Buat MO Reference", "outline-primary", "MO direferensikan dari Production Plan; schedule harian dibuat PPIC.");
         if ((record.manufacturingOrders || []).length) html += actionButton("convert-daily-plans", "Publish Allocation ke Daily Plan", "primary", "Publikasikan draft allocation mesin-tanggal menjadi Daily Production Plan.");
       }
-      return html || '<small>Monthly Production Plan tersedia untuk monitoring.</small>';
+      return html || '<small>Production Plan tersedia untuk monitoring.</small>';
     }
     if (config.module === "planning-ppic" && config.page.slug === "daily-production-plans") {
       return '<small>Daily Plan dibuat PPIC dari Capacity Check. Eksekusi/consume dilakukan pada modul Production.</small>';
@@ -1991,7 +3655,7 @@
       if (["SEND", "ALL"].includes(config.page.vendorProcessFlow) && !/closed|cancelled/.test(status)) html += actionButton("reprice", "Hitung Ulang Harga", "outline-primary");
       return html || '<small>Vendor Process Order ini tidak memiliki transisi aktif pada queue ini.</small>';
     }
-    if (config.module !== "production") {
+    if (!["production", "qc"].includes(config.module)) {
       if (config.module === "incoming" || (config.module === "purchasing" && ["goods-receipts", "incoming-inspections"].includes(config.page.slug))) {
         if (config.page.slug === "goods-receipts" && /received pending inspection/.test(status)) return actionButton("create-inspection", "Buat Incoming Inspection", "primary", "Buat IQC dari seluruh baris Goods Receipt.");
         if (config.page.slug === "incoming-inspections" && status === "open") return actionButton("complete-inspection", "Selesaikan IQC", "primary", "Isi accepted/rejected setiap baris terlebih dahulu.");
@@ -2015,8 +3679,9 @@
       }
       if (config.module === "inventory" && config.page.slug === "stock-opname") {
         if (status === "draft") { html += actionButton("start-counting", "Mulai Counting", "primary", "Ambil snapshot terbaru dan freeze saldo."); html += actionButton("cancel", "Batalkan STO", "outline-danger"); }
-        if (status === "counting") { html += `<a class="btn btn-primary" href="/modules/inventory/stock-opname/${encodeURIComponent(config.recordKey)}/count">Buka Form Counting</a>`; html += actionButton("submit", "Submit Counting", "outline-primary", "Ajukan hasil hitung ke approval."); html += actionButton("cancel", "Batalkan & Unfreeze", "outline-danger"); }
-        if (status === "waiting-approval") { html += actionButton("approve", "Approve Opname", "primary", "Maker/checker tidak boleh melakukan approval."); html += actionButton("request-recount", "Minta Recount", "outline-primary"); html += actionButton("cancel", "Batalkan & Unfreeze", "outline-danger"); }
+        if (status === "counting") { html += `<a class="btn btn-primary" href="/modules/inventory/stock-opname/${encodeURIComponent(config.recordKey)}/count">Buka Form Counting</a>`; html += actionButton("submit", "Submit ke Checker", "outline-primary", "Buka hasil blind count untuk pemeriksaan checker."); html += actionButton("cancel", "Batalkan & Unfreeze", "outline-danger"); }
+        if (status === "waiting-check") { html += actionButton("check", "Checker Terima Hasil", "primary", "Checker harus berbeda dari maker dan penghitung ronde aktif."); html += actionButton("request-recount", "Minta Recount", "outline-primary", "Wajib bila selisih ronde pertama melebihi toleransi."); html += actionButton("cancel", "Batalkan & Unfreeze", "outline-danger"); }
+        if (status === "waiting-approval") { html += actionButton("approve", "Approve Opname", "primary", "Maker, checker, dan penghitung ronde aktif tidak boleh melakukan approval."); html += actionButton("request-recount", "Minta Recount", "outline-primary"); html += actionButton("cancel", "Batalkan & Unfreeze", "outline-danger"); }
         if (status === "approved") { html += actionButton("adjust", "Post Adjustment", "outline-primary", "Posting selisih ke stock movement."); html += actionButton("request-recount", "Minta Recount", "outline-primary", "Gunakan jika saldo berubah atau hasil perlu dihitung ulang."); }
         if (status === "adjusted") html += actionButton("close", "Close STO", "primary");
         return html || '<small>Stock opname sudah selesai atau belum memiliki transisi yang tersedia.</small>';
@@ -2055,7 +3720,7 @@
         }
       }
     } else if (config.page.ngDispositionFlow) {
-      if (status === "pending_qc" || status === "pending qc") html += actionButton("judge", "QC Judgment NG", "primary", "Tentukan qty yang dapat dirework dan qty final reject.");
+      if (status === "pending_qc" || status === "pending qc") html += actionButton("judge", "Tentukan Rework & Reject", "primary", "Rework + Final Reject harus sama dengan seluruh Qty NG.");
       else html += `<small>Judgment selesai: ${esc(record.qtyRework || 0)} rework, ${esc(record.qtyReject || 0)} reject.</small>`;
     } else if (config.page.slug === "production-logs" && /draft|open/.test(status)) {
       html += actionButton("submit", "Submit Production Entry", "primary");
@@ -2063,14 +3728,33 @@
       const ngReasons = (Array.isArray(record.coilPhases) ? record.coilPhases : [])
         .flatMap((phase) => Array.isArray(phase.ngReasons) ? phase.ngReasons : []);
       const pendingNg = ngReasons.filter((reason) => slug(reason.status) === "pending-qc");
-      if (number(record.qtyReject) > 0 && (!ngReasons.length || pendingNg.length)) {
-        html += disabledActionButton("Menunggu Judgment QC", `${pendingNg.length || number(record.qtyReject)} reason/qty NG belum ditentukan rework atau final reject.`);
-        html += '<a class="btn btn-outline-primary" href="/modules/production/ng-dispositions">Buka QC Rework Judgment</a>';
+      const recordedNgQty = ngReasons.reduce((sum, reason) => sum + number(reason.qtyNg), 0);
+      const incompleteNgReasons = number(record.qtyReject) > 0
+        && (!ngReasons.length || Math.abs(recordedNgQty - number(record.qtyReject)) > 0.000001);
+      if (incompleteNgReasons) {
+        html += disabledActionButton("Lengkapi Reason NG", "Total reason per phase harus sama dengan Qty NG sebelum Production Entry dapat disetujui.");
       } else {
-        html += actionButton("approve", "Approve Production Entry", "primary", "Approval mengikuti Approval Master; disposition NG mengikuti judgment QC.");
+        html += actionButton(
+          "approve",
+          pendingNg.length ? "Approve Qty OK" : "Approve Production Entry",
+          "primary",
+          pendingNg.length
+            ? `Qty OK diproses ke stock WIP sekarang; ${pendingNg.length} NG tetap menunggu judgment QC.`
+            : "Approval mengikuti Approval Master; disposition NG mengikuti judgment QC.",
+        );
+        if (pendingNg.length) html += '<a class="btn btn-outline-primary" href="/modules/qc/ng-dispositions">Buka QC Rework Station</a>';
       }
-    } else if (config.page.slug === "production-logs" && status === "approved" && number(record.qcRemainingQty) > 0) {
-      html += actionButton("ensure-qc", "Buka / Buat QC Release Stock", "primary", "Buat antrean pelepasan QC Hold untuk Production Entry lama, atau buka QC yang sudah tersedia.");
+    } else if (config.page.slug === "production-logs" && status === "approved") {
+      const pendingNg = (Array.isArray(record.coilPhases) ? record.coilPhases : [])
+        .flatMap((phase) => Array.isArray(phase.ngReasons) ? phase.ngReasons : [])
+        .filter((reason) => slug(reason.status) === "pending-qc");
+      if (number(record.qcRemainingQty) > 0) {
+        html += actionButton("ensure-qc", "Buka / Buat QC Release Stock", "primary", "Buat antrean pelepasan hasil OK dari QC Hold ke stock tersedia.");
+      }
+      if (pendingNg.length) {
+        html += '<a class="btn btn-outline-primary" href="/modules/qc/ng-dispositions">Judgment Qty NG</a>';
+        html += `<small>Qty OK sudah diproses terpisah; ${pendingNg.length} reason NG masih menunggu keputusan QC.</small>`;
+      }
     }
     return html || '<small>Tidak ada transisi status yang aman pada kondisi dokumen ini. Detail tetap aktif untuk monitoring.</small>';
   }
@@ -2104,7 +3788,19 @@
     if (dailyPlanEditLink) {
       dailyPlanEditLink.classList.toggle("d-none", !["draft", "released", "in-progress"].includes(slug(record.status)));
     }
-    if (isMaterialIssuePage()) {
+    if (isNgDispositionPage()) {
+      $("ops-detail-title").textContent = `NG · ${record.logNumber || "Production Entry"} · Phase ${record.phaseNumber || "-"}`;
+      $("ops-detail-subtitle").textContent = [record.partName, record.partNumber ? `PN ${record.partNumber}` : null, record.processName || record.processCode].filter(Boolean).join(" · ");
+      prepareNgDispositionChrome(record);
+      renderNgDispositionFields(record);
+      renderNgDispositionCollections(record);
+    } else if (isDailySchedulePage()) {
+      document.querySelector(".ops-page")?.classList.add("daily-schedule-workbench");
+      renderDailyScheduleFields(record);
+      renderDailyScheduleCollections(record);
+      const backLink = $("ops-detail-back-link");
+      if (backLink && record.scheduleDate) backLink.href = `/modules/production/daily-production-schedules?date=${encodeURIComponent(String(record.scheduleDate).slice(0, 10))}`;
+    } else if (isMaterialIssuePage()) {
       $("ops-detail-subtitle").textContent = `Permintaan material operasional · ${record.workOrder?.process?.processName || record.workOrder?.process?.processCode || "Produksi"} · ${record.warehouseCode || "Warehouse"}`;
       renderMaterialIssueFields(record);
       renderMaterialIssueCollections(record);
@@ -2125,6 +3821,11 @@
       renderPlannedOrderSheet(record);
       renderPlannedOrderCollections(record);
     } else if (isMonthlyPlanPage()) {
+      document.querySelector(".ops-page")?.classList.add("mpp-workbench-page");
+      $("ops-detail-title").textContent = record.planNumber || config.recordKey;
+      $("ops-detail-subtitle").textContent = record.planningIdentity?.supersededByPlanNumber
+        ? `Production Plan arsip · owner aktif ${record.planningIdentity.supersededByPlanNumber} · tidak dihitung ulang`
+        : `Production Plan · ${record.planningIdentity?.crossMonth ? "Cross-month horizon" : "Single horizon"} · bulan hanya filter kalender`;
       monthlyPlanSummaryFields(record);
       renderMonthlyPlanCollections(record);
     } else {
@@ -2134,6 +3835,7 @@
     renderMeta(record);
     $("ops-workflow-actions").innerHTML = workflowActions(record);
     $("ops-detail-loading").classList.add("d-none"); $("ops-detail-shell").classList.remove("d-none");
+    requestAnimationFrame(() => { if (isStockBalancePage()) initializeGoodsReceiptWorkspace(); else initializeTransactionWorkspace(); });
     if (config.module === "purchasing" && config.page.slug === "purchase-suggestions") filterPurchaseSuggestionCards();
   }
   async function load() {
@@ -2232,6 +3934,7 @@
     if (event.target.matches("[data-ps-search-input]")) filterPurchaseSuggestionCards();
     if (event.target.matches("[data-ps-custom-qty]")) updatePurchaseSuggestionSelection();
     if (event.target.matches("[data-confirm-qty], [data-confirm-moq], [data-moq-coverage-qty], [data-moq-reserve-qty]")) refreshMoqAllocationPlanner(event.target);
+    if (event.target.matches("[data-confirm-qty], [data-confirm-moq], [data-split-qty], [data-split-moq], [data-split-multiple]")) refreshSupplierAllocationSummary(event.target);
   });
   document.addEventListener("change", (event) => {
     if (event.target.matches("[data-confirm-supplier], [data-split-supplier]")) {
@@ -2254,6 +3957,7 @@
       const hint = event.target.closest("[data-suggestion-confirmation]")?.querySelector("[data-confirm-status-hint]");
       if (hint) hint.textContent = suggestionStatusHint(event.target.value);
     }
+    if (event.target.matches("[data-confirm-status], [data-confirm-supplier], [data-split-status], [data-split-supplier], [data-split-date]")) refreshSupplierAllocationSummary(event.target);
     if (event.target.matches("[data-ps-select]")) {
       filterPurchaseSuggestionCards();
     }
@@ -2381,14 +4085,48 @@
     }
     const removeSupplierSplitButton = event.target.closest("[data-remove-supplier-split]");
     if (removeSupplierSplitButton) {
+      const editor = removeSupplierSplitButton.closest("[data-suggestion-confirmation]");
       removeSupplierSplitButton.closest("[data-supplier-split]")?.remove();
+      refreshSupplierAllocationSummary(editor);
       return;
     }
     const addSupplierSplitButton = event.target.closest("[data-add-supplier-split]");
     if (addSupplierSplitButton) {
       const editor = addSupplierSplitButton.closest("[data-suggestion-confirmation]");
       const item = (currentRecord?.items || []).find((candidate) => String(candidate.id) === String(editor?.dataset.itemId)) || {};
-      editor.querySelector("[data-supplier-splits]").insertAdjacentHTML("beforeend", suggestionSplitRow(item));
+      editor.querySelector("[data-supplier-splits]").insertAdjacentHTML("beforeend", suggestionSplitRow(item, { splitMode: "supplier", confirmationStatus: "Not Confirmed" }));
+      const added = editor.querySelector("[data-supplier-splits] [data-supplier-split]:last-child");
+      refreshSupplierAllocationSummary(editor);
+      added?.querySelector("[data-split-supplier]")?.focus();
+      return;
+    }
+    const addDeliverySplitButton = event.target.closest("[data-add-delivery-split]");
+    if (addDeliverySplitButton) {
+      const editor = addDeliverySplitButton.closest("[data-suggestion-confirmation]");
+      const item = (currentRecord?.items || []).find((candidate) => String(candidate.id) === String(editor?.dataset.itemId)) || {};
+      const supplierCode = editor.querySelector("[data-confirm-supplier]")?.value?.trim();
+      if (!supplierCode) { showAlert("Pilih supplier utama sebelum menambah split delivery."); return; }
+      const allocation = {
+        splitMode: "delivery",
+        supplierCode,
+        confirmationStatus: editor.querySelector("[data-confirm-status]")?.value || "Confirmed",
+        confirmedQty: 0,
+        deliveryDate: "",
+        moq: optionalInputNumber(editor.querySelector("[data-confirm-moq]")),
+        orderMultiple: optionalInputNumber(editor.querySelector("[data-confirm-multiple]")) ?? number(editor.dataset.orderMultiple),
+        leadTimeDays: optionalInputNumber(editor.querySelector("[data-confirm-lead]")),
+        unitPrice: optionalInputNumber(editor.querySelector("[data-confirm-price]")),
+        currencyCode: editor.querySelector("[data-confirm-currency]")?.value || null,
+        materialWidth: optionalInputNumber(editor.querySelector("[data-confirm-width]")),
+        materialLength: optionalInputNumber(editor.querySelector("[data-confirm-length]")),
+        purchasePackageUomCode: editor.querySelector("[data-confirm-form]")?.value || null,
+      };
+      editor.querySelector("[data-supplier-splits]").insertAdjacentHTML("beforeend", suggestionSplitRow(item, allocation));
+      const added = editor.querySelector("[data-supplier-splits] [data-supplier-split]:last-child");
+      const supplierSelect = added?.querySelector("[data-split-supplier]");
+      if (supplierSelect) supplierSelect.disabled = true;
+      refreshSupplierAllocationSummary(editor);
+      added?.querySelector("[data-split-qty]")?.focus();
       return;
     }
     const saveSuggestionButton = event.target.closest("[data-save-suggestion-confirmation]");
@@ -2403,6 +4141,7 @@
       const confirmedDeliveryDate = editor.querySelector("[data-confirm-date]").value || null;
       const bypassConfirmationReason = editor.querySelector("[data-confirm-bypass]").value.trim() || null;
       const supplierAllocations = [...editor.querySelectorAll("[data-supplier-split]")].map((split) => ({
+        splitMode: split.dataset.splitMode || "supplier",
         supplierCode: split.querySelector("[data-split-supplier]").value.trim() || null,
         confirmationStatus: split.querySelector("[data-split-status]").value,
         confirmedQty: roundedPurchaseQty(split.querySelector("[data-split-qty]").value, split.querySelector("[data-split-moq]").value, split.querySelector("[data-split-multiple]").value),
@@ -2436,6 +4175,15 @@
       const allocationCapacity = Math.max(confirmedQty - number(editor.querySelector("[data-moq-allocation-planner]")?.dataset.baseDemand), 0);
       const allocatedFutureQty = moqDemandAllocations.reduce((sum, allocation) => sum + allocation.qty, 0);
       if (!["Not Confirmed", "Waiting Supplier Confirmation", "Not Available"].includes(confirmationStatus) && confirmedQty <= 0) { showAlert("Confirmed quantity harus lebih dari 0."); return; }
+      const invalidSplit = supplierAllocations.find((allocation) => isConfirmedSuggestionStatus(allocation.confirmationStatus) && (!allocation.supplierCode || allocation.confirmedQty <= 0 || !allocation.deliveryDate));
+      if (invalidSplit) { showAlert("Setiap allocation tambahan yang confirmed wajib memiliki supplier, qty lebih dari 0, dan delivery date."); return; }
+      const invalidSupplierMode = supplierAllocations.find((allocation) => allocation.splitMode === "supplier" && String(allocation.supplierCode).toUpperCase() === supplierCode.toUpperCase());
+      if (invalidSupplierMode) { showAlert("Supplier tambahan harus berbeda dari supplier utama. Untuk supplier yang sama, gunakan tombol Split Delivery."); return; }
+      const invalidDeliveryMode = supplierAllocations.find((allocation) => allocation.splitMode === "delivery" && String(allocation.supplierCode).toUpperCase() !== supplierCode.toUpperCase());
+      if (invalidDeliveryMode) { showAlert("Split Delivery harus memakai supplier yang sama dengan supplier utama."); return; }
+      const primaryDeliveryKey = String(confirmedDeliveryDate || "").slice(0, 10);
+      const duplicateDelivery = supplierAllocations.find((allocation) => allocation.splitMode === "delivery" && String(allocation.deliveryDate || "").slice(0, 10) === primaryDeliveryKey);
+      if (duplicateDelivery) { showAlert("Tanggal Split Delivery harus berbeda dari delivery supplier utama."); return; }
       const excessiveCoverage = moqDemandAllocations.find((allocation) => allocation.demandCoveredQty > allocation.demandQty + 0.000001);
       if (excessiveCoverage) { showAlert("Coverage Demand tidak boleh melebihi demand asli. Masukkan kelebihan qty ke Custom Reserve."); return; }
       if (allocatedFutureQty > allocationCapacity + 0.000001) { showAlert(`Total alokasi tambahan melebihi kelebihan MOQ sebesar ${num(allocatedFutureQty - allocationCapacity)} ${editor.dataset.uom || ""}.`); return; }
@@ -2456,7 +4204,7 @@
           alternativeSupplierCode: supplierCode || null,
           alternativeMaterialCode: editor.querySelector("[data-confirm-material]").value.trim() || null,
           bypassConfirmationReason,
-          supplierAllocations,
+          supplierAllocations: supplierAllocations.map(({ splitMode: _splitMode, ...allocation }) => allocation),
           moqDemandAllocations,
           moqAllocationEdited: Boolean(editor.querySelector("[data-moq-allocation-planner]")),
         }) });
@@ -2541,8 +4289,19 @@
       location.assign(`/modules/production/fg-receipt?inspection=${encodeURIComponent(config.recordKey)}`);
       return;
     }
-    const isCheck = action === "availability-check";
-    const confirmationHandledByForm = action === "manual-complete";
+    if (action === "adjust" && config.module === "inventory" && config.page.slug === "stock-opname") {
+      try {
+        const preview = await api(`/modules/api/inventory/stock-opname/${encodeURIComponent(config.recordKey)}/adjust-preview`);
+        if (Array.isArray(preview.conflicts) && preview.conflicts.length) {
+          showAlert(`Adjustment belum dapat diposting: ${preview.conflicts.map((conflict) => `${conflict.item || conflict.detailId}: ${conflict.message}`).join(" | ")}`);
+          return;
+        }
+      } catch (error) {
+        showAlert(error.message);
+        return;
+      }
+    }    const isCheck = action === "availability-check";
+    const confirmationHandledByForm = action === "manual-complete" || (action === "send" && config.page.vendorProcessFlow);
     if (!isCheck && !confirmationHandledByForm && !confirm(`${button.textContent.trim()} untuk ${config.recordKey}?`)) return;
     let requestBody = {};
     if (action === "reject" || action === "revise") {
@@ -2552,7 +4311,14 @@
       requestBody = action === "revise"
         ? { revisionReason: reason.trim(), message: reason.trim() }
         : { reason: reason.trim(), rejectionReason: reason.trim() };
-    } else if (action === "request-recount" || (action === "cancel" && config.module === "inventory" && config.page.slug === "stock-opname")) {
+    } else if (action === "check" && config.module === "inventory" && config.page.slug === "stock-opname") {
+      const acceptanceReason = await window.formPrompt(
+        "Alasan penerimaan (wajib hanya jika setelah recount masih melewati toleransi):",
+        "",
+        { title: "Pemeriksaan Stock Opname" },
+      );
+      if (acceptanceReason === null || acceptanceReason === undefined) return;
+      requestBody = { acceptanceReason: String(acceptanceReason).trim() || null };    } else if (action === "request-recount" || (action === "cancel" && config.module === "inventory" && config.page.slug === "stock-opname")) {
       const reason = await window.formPrompt(
         action === "request-recount" ? "Alasan recount (wajib):" : "Alasan pembatalan STO (wajib):",
         "",
@@ -2612,7 +4378,7 @@
         row.lineType === "FG Receipt"
         && number(row.qtyPlanned) > number(row.qtyReleased)
         && !/cancelled|converted/i.test(row.status || ""));
-      if (!details.length) { showAlert("Seluruh FG parent pada Monthly Plan sudah mempunyai MO reference.", "info"); return; }
+      if (!details.length) { showAlert("Seluruh FG parent pada Production Plan sudah mempunyai MO reference.", "info"); return; }
       requestBody = {
         items: details.map((row) => ({
           referenceType: "MonthlyProductionPlan",
@@ -2655,9 +4421,13 @@
       const failureReason = await window.formPrompt("Alasan gagal kirim:", "", { title: "Shipment gagal" }); if (!failureReason || !failureReason.trim()) return;
       requestBody = { failureReason: failureReason.trim() };
     } else if (action === "send" && config.page.vendorProcessFlow) {
-      const qtySent = await window.formPrompt("Qty yang dikirim ke vendor:", "", { title: "Vendor Process" }); if (!qtySent || number(qtySent) <= 0) return;
-      const sourceWarehouseCode = await window.formPrompt("Source Warehouse:", "", { title: "Vendor Process" }); if (!sourceWarehouseCode?.trim()) return;
-      requestBody = { qtySent: number(qtySent), sourceWarehouseCode: sourceWarehouseCode.trim() };
+      try {
+        requestBody = await openVendorSendModal();
+        if (!requestBody) return;
+      } catch (error) {
+        showAlert(error.message);
+        return;
+      }
     } else if (action === "receive" && config.page.vendorProcessFlow) {
       const qty = await window.formPrompt("Qty diterima dari vendor:", "", { title: "Vendor Receipt" }); if (!qty || number(qty) <= 0) return;
       const warehouseCode = await window.formPrompt("Warehouse QC Hold:", "", { title: "Vendor Receipt" }); if (!warehouseCode?.trim()) return;
@@ -2696,7 +4466,7 @@
     }
     button.disabled = true;
     try {
-      const workflow = config.module === "purchasing" ? "purchasing-workflow" : "production-workflow";
+      const workflow = config.module === "purchasing" ? "purchasing-workflow" : config.module === "qc" ? "qc-workflow" : "production-workflow";
       let result;
       if (action === "confirm-monthly-plan") {
         result = await api(`/modules/api/planning-ppic/monthly-plan/${encodeURIComponent(config.recordKey)}/confirm`, { method: "POST", body: "{}" });
@@ -2777,7 +4547,7 @@
         await load();
       } else if (action === "ensure-qc" && config.page.slug === "production-logs") {
         showAlert(result?.message || "QC Release Stock siap diproses.", "success");
-        setTimeout(() => location.assign(result?.href || "/modules/production/quality-inspections"), 450);
+        setTimeout(() => location.assign(result?.href || "/modules/qc/quality-inspections"), 450);
       } else if (action === "approve" && config.page.slug === "production-logs" && result?.carryover) {
         const carryover = result.carryover;
         const allocationCount = Array.isArray(carryover.targetAllocations) ? carryover.targetAllocations.length : 0;

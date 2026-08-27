@@ -1,52 +1,80 @@
 <%- include('../partials/head') %>
-<link rel="stylesheet" href="/css/ppic-mrp-detail-simple.css?v=20260818-4">
+<link rel="stylesheet" href="/css/ppic-mrp-detail-simple.css?v=20260823-current-stock-17">
+<style>
+  .mrps-date-lineage{margin-bottom:16px;padding:12px;border:1px solid #cfdbee;border-radius:9px;background:#f7faff}.mrps-date-lineage>header{display:flex;justify-content:space-between;gap:10px;margin-bottom:9px}.mrps-date-lineage>header b{font-size:12px}.mrps-date-lineage>header small{color:var(--mrps-muted);font-size:9px}.mrps-date-lineage>div{display:flex;align-items:center;gap:5px;overflow-x:auto}.mrps-date-lineage span{min-width:92px;padding:8px;border-radius:7px;background:#fff}.mrps-date-lineage span small,.mrps-date-lineage span b{display:block}.mrps-date-lineage span small{color:var(--mrps-muted);font-size:8px;text-transform:uppercase}.mrps-date-lineage span b{margin-top:3px;font-size:10px}.mrps-date-lineage i{color:#7c899e;font-style:normal}
+  .mrps-date-lineage.risk{border-color:#e3a69e;background:#fff7f5}.mrps-date-lineage.risk>header b{color:#a3382d}
+  .mrps-plan-preview{padding:14px 18px!important;border-bottom:1px solid var(--mrps-line);background:#f7faff}.mrps-plan-preview>header{display:flex;justify-content:space-between;gap:10px;margin-bottom:9px}.mrps-plan-preview>header b{font-size:11px}.mrps-plan-preview>header small{color:var(--mrps-muted);font-size:9px}.mrps-preview-list{display:grid;gap:7px}.mrps-preview-item{padding:10px;border:1px solid #cfdbee;border-radius:8px;background:#fff}.mrps-preview-item>header{display:flex;justify-content:space-between;gap:8px}.mrps-preview-item>header b{font-size:12px}.mrps-preview-item>header span{font-size:9px;font-weight:800;color:var(--mrps-blue)}.mrps-preview-item>div{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:8px}.mrps-preview-item small,.mrps-preview-item strong{display:block}.mrps-preview-item small{color:var(--mrps-muted);font-size:8px;text-transform:uppercase}.mrps-preview-item strong{margin-top:2px;font-size:10px}.mrps-preview-item.risk{border-color:#e7b0a8;background:#fff8f6}.mrps-preview-error{color:#9d3428;font-size:10px}
+  .mrps-group-row td{position:sticky;left:0;z-index:2;padding:8px 12px!important;border-block:1px solid #cbd8ea!important;background:#edf4ff!important}.mrps-group-row div{display:flex;align-items:center;gap:9px;min-width:max-content;color:#64748b;font-size:9px}.mrps-group-row span b{margin-left:3px;color:#1e3a5f;font-size:10px}.mrps-group-row i{color:#7c8ba1;font-style:normal}.mrps-group-row small{margin-left:auto;color:#64748b;font-size:8px}
+</style>
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: 'mrp' }) %>
 
 <main class="mrps-page ppic-page">
-  <header class="mrps-header app-container">
-    <div>
-      <nav class="mrps-breadcrumb" aria-label="MRP breadcrumb"><a href="/modules/planning-ppic/control-tower?tab=mrp">MRP Cockpit</a><span>›</span><b><%= recordKey %></b></nav>
-      <div class="mrps-title-line"><h1 id="mrps-title"><%= recordKey %></h1><span id="mrps-status" class="mrps-badge">Memuat</span><button class="mrps-help" type="button" title="Completed berarti explosion BOM dan netting sudah selesai. MRP belum otomatis menjadi PR atau PO." data-tip="Completed berarti explosion BOM dan netting sudah selesai. MRP belum otomatis menjadi PR atau PO." aria-label="Petunjuk status MRP">?</button></div>
-      <div id="mrps-meta" class="mrps-meta">Memuat informasi MRP…</div>
+  <header class="mrps-header app-container planning-shared-header">
+    <div class="mrps-title-block">
+      <span class="mrps-eyebrow">PLANNING PPIC</span>
+      <h1>Material Requirements Planning</h1>
     </div>
-    <div id="mrps-actions" class="mrps-actions"></div>
+    <div class="mrps-head-actions">
+      <label class="mrps-search"><%- include('../partials/icon', { name: 'search' }) %><span class="sr-only">Cari data</span><input id="mrps-search" type="search" placeholder="Cari material, part, supplier…" autocomplete="off"></label>
+      <label><span class="sr-only">Filter status</span><select id="mrps-filter" data-searchable-disabled><option value="ALL">Semua status</option><option value="ACTION">Perlu ditindaklanjuti</option><option value="LATE">Terlambat – Belum Ditangani</option><option value="WARNING">Warning / Dekat Due Date</option><option value="GREEN">Due Date &gt; 1 Minggu</option><option value="ACCEPT_LATE">Accept Late</option><option value="URGENT">Urgent</option><option value="OPEN">Perlu supply</option><option value="COVERED">Covered</option></select></label>
+        <button id="mrps-view-help" class="mrps-help" type="button" title="Material Mingguan dikelompokkan berdasarkan tanggal material wajib tersedia; latest purchase hanya ditampilkan sebagai audit. Make berisi FG/WIP untuk Production Plan. Buy berisi material untuk Purchase Suggestion." data-tip="Material Mingguan dikelompokkan berdasarkan tanggal material wajib tersedia; latest purchase hanya ditampilkan sebagai audit. Make berisi FG/WIP untuk Production Plan. Buy berisi material untuk Purchase Suggestion." aria-label="Petunjuk tabel">?</button>
+      <div id="mrps-actions" class="mrps-actions"></div>
+    </div>
   </header>
+
+  <section class="mrps-period-bar app-container" aria-label="Identitas planning run">
+    <div class="mrps-period-left">
+      <nav class="mrps-breadcrumb" aria-label="MRP breadcrumb"><a href="/modules/planning-ppic/mrp">MRP Planning Runs</a><span>›</span><b id="mrps-title"><%= recordKey %></b></nav>
+      <div class="mrps-title-line"><span id="mrps-status" class="mrps-badge">Memuat</span><button class="mrps-help" type="button" title="Completed berarti explosion BOM dan netting sudah selesai. MRP belum otomatis menjadi PR atau PO." data-tip="Completed berarti explosion BOM dan netting sudah selesai. MRP belum otomatis menjadi PR atau PO." aria-label="Petunjuk status MRP">?</button></div>
+    </div>
+    <div id="mrps-meta" class="mrps-meta">Memuat planning run dan horizon…</div>
+  </section>
 
   <section id="mrps-alert" class="mrps-alert app-container" hidden></section>
 
   <section class="mrps-kpis app-container" aria-label="Ringkasan MRP">
-    <article><span>Material</span><strong id="mrps-kpi-material">0</strong><small>baris kebutuhan</small></article>
-    <article><span>Perlu Order</span><strong id="mrps-kpi-buy">0</strong><small>shortage material</small></article>
+    <article class="make"><span>FG / WIP Perlu Dibuat</span><strong id="mrps-kpi-make">0</strong><small>make requirement aktif</small></article>
+    <article class="buy"><span>Material Perlu Dibeli</span><strong id="mrps-kpi-buy">0</strong><small>buy requirement aktif</small></article>
+    <article class="covered"><span>Covered by Stock / Supply</span><strong id="mrps-kpi-covered">0</strong><small>tidak perlu supply baru</small></article>
     <article class="urgent"><span>Urgent</span><strong id="mrps-kpi-urgent">0</strong><small>perlu dipercepat</small></article>
-    <article><span>Planned Order</span><strong id="mrps-kpi-orders">0</strong><small>hasil MRP</small></article>
   </section>
 
   <section class="mrps-workbench app-container">
     <header class="mrps-workbench-head">
       <div class="mrps-tabs" role="tablist" aria-label="View MRP">
-        <button class="active" type="button" role="tab" aria-selected="true" data-mrps-view="requirements">Kebutuhan</button>
-        <button type="button" role="tab" aria-selected="false" data-mrps-view="orders">Planned Order</button>
-        <button type="button" role="tab" aria-selected="false" data-mrps-view="pegging">Customer Pegging</button>
+        <button class="active" type="button" role="tab" aria-selected="true" data-mrps-view="matrix">Material Mingguan <span id="mrps-tab-matrix">0</span></button>
+        <button type="button" role="tab" aria-selected="false" data-mrps-view="make">Kebutuhan Produksi <span id="mrps-tab-make">0</span></button>
+        <button type="button" role="tab" aria-selected="false" data-mrps-view="buy">Kebutuhan Pembelian <span id="mrps-tab-buy">0</span></button>
+        <button type="button" role="tab" aria-selected="false" data-mrps-view="exception">Exception <span id="mrps-tab-exception">0</span></button>
       </div>
       <div class="mrps-toolbar">
-        <label class="mrps-search"><span class="sr-only">Cari data</span><input id="mrps-search" type="search" placeholder="Cari material, part, supplier…" autocomplete="off"></label>
-        <label><span class="sr-only">Filter status</span><select id="mrps-filter"><option value="ACTION">Perlu ditindaklanjuti</option><option value="ALL">Semua status</option><option value="URGENT">Urgent</option><option value="BUY">Perlu order</option><option value="COVERED">Covered</option></select></label>
-        <label><span class="sr-only">Jumlah baris</span><select id="mrps-page-size"><option value="25">25 baris</option><option value="50">50 baris</option><option value="100">100 baris</option></select></label>
-        <button id="mrps-view-help" class="mrps-help" type="button" title="Kebutuhan menampilkan hasil netting. Planned Order adalah rekomendasi supply. Customer Pegging menunjukkan demand customer asal." data-tip="Kebutuhan menampilkan hasil netting. Planned Order adalah rekomendasi supply. Customer Pegging menunjukkan demand customer asal." aria-label="Petunjuk tabel">?</button>
+        <label id="mrps-mplus-display-wrap" hidden><span>Tampilan M+1</span><select id="mrps-mplus-display" data-searchable-disabled><option value="NET_CURRENT_STOCK">Net setelah stock saat ini</option><option value="FULL_EFD">Full EFD M+1</option></select></label>
+        <label id="mrps-hide-zero-wrap" class="mrps-hide-zero" hidden><input id="mrps-hide-zero" type="checkbox"><span>Sembunyikan qty 0</span></label>
+        <label id="mrps-grouping-wrap"><span class="sr-only">Hierarki kebutuhan</span><select id="mrps-grouping" data-searchable-disabled><option value="GROUPED">Delivery Phase → BOM</option><option value="FLAT">Flat part</option></select></label>
       </div>
     </header>
     <div id="mrps-loading" class="mrps-empty">Memuat MRP…</div>
     <div id="mrps-table-wrap" class="mrps-table-wrap" hidden>
       <table class="mrps-table" data-enterprise-table="off"><thead id="mrps-head"></thead><tbody id="mrps-body"></tbody></table>
     </div>
-    <footer class="mrps-pagination"><span id="mrps-range">0 data</span><div><button id="mrps-prev" type="button">Sebelumnya</button><span id="mrps-page">1 / 1</span><button id="mrps-next" type="button">Berikutnya</button></div></footer>
+    <footer class="mrps-pagination"><span id="mrps-range">0 data</span><div><label>Baris <select id="mrps-page-size" data-searchable-disabled><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label><button id="mrps-prev" type="button">Sebelumnya</button><span id="mrps-page">Halaman 1 / 1</span><button id="mrps-next" type="button">Berikutnya</button></div></footer>
   </section>
+  <div class="app-container"><%- include('../partials/document-comments', { documentComments: { recordKey, title: 'Komentar MRP Planning Run', variant: 'receipt' } }) %></div>
 </main>
 
 <aside id="mrps-drawer" class="mrps-drawer" aria-hidden="true"><div class="mrps-backdrop" data-close-mrps-drawer></div><section class="mrps-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="mrps-drawer-title"><header><div><small>DETAIL NETTING</small><h2 id="mrps-drawer-title">Rincian</h2><p id="mrps-drawer-meta"></p></div><button type="button" data-close-mrps-drawer aria-label="Tutup">×</button></header><div id="mrps-drawer-body" class="mrps-drawer-body"></div></section></aside>
 
-<aside id="mrps-modal" class="mrps-modal" aria-hidden="true"><div class="mrps-backdrop" data-close-mrps-modal></div><form id="mrps-modal-form" class="mrps-modal-panel"><header><div><small>NEXT OUTPUT</small><h2 id="mrps-modal-title">Lanjutkan MRP</h2><p id="mrps-modal-copy"></p></div><button type="button" data-close-mrps-modal aria-label="Tutup">×</button></header><div><label><input id="mrps-modal-confirm" type="checkbox" required> <span id="mrps-modal-confirm-copy"></span></label></div><footer><button type="button" class="btn btn-outline-secondary" data-close-mrps-modal>Batal</button><button id="mrps-modal-submit" class="btn btn-primary" type="submit">Lanjutkan</button></footer></form></aside>
+<aside id="mrps-stock-modal" class="mrps-modal mrps-stock-modal" aria-hidden="true"><div class="mrps-backdrop" data-close-mrps-stock></div><section class="mrps-modal-panel" role="dialog" aria-modal="true" aria-labelledby="mrps-stock-title"><header><div><small>STOCK COVERAGE</small><h2 id="mrps-stock-title">Current Stock</h2><p id="mrps-stock-meta"></p></div><button type="button" data-close-mrps-stock aria-label="Tutup">×</button></header><div id="mrps-stock-body" class="mrps-stock-body"></div><footer><button type="button" class="btn btn-primary" data-close-mrps-stock>Tutup</button></footer></section></aside>
+
+<aside id="mrps-modal" class="mrps-modal" aria-hidden="true"><div class="mrps-backdrop" data-close-mrps-modal></div><form id="mrps-modal-form" class="mrps-modal-panel"><header><div><small>NEXT OUTPUT</small><h2 id="mrps-modal-title">Lanjutkan MRP</h2><p id="mrps-modal-copy"></p></div><button type="button" data-close-mrps-modal aria-label="Tutup">×</button></header><section id="mrps-plan-preview" class="mrps-plan-preview" hidden></section><div><label><input id="mrps-modal-confirm" type="checkbox" required> <span id="mrps-modal-confirm-copy"></span></label></div><footer><button type="button" class="btn btn-outline-secondary" data-close-mrps-modal>Batal</button><button id="mrps-modal-submit" class="btn btn-primary" type="submit">Lanjutkan</button></footer></form></aside>
+
+<aside id="mrps-mplus-modal" class="mrps-modal mrps-mplus-modal" aria-hidden="true"><div class="mrps-backdrop" data-close-mrps-mplus></div><form id="mrps-mplus-form" class="mrps-modal-panel"><header><div><small>LOOK-AHEAD SCENARIO</small><h2>Opsi Perhitungan M+1</h2><p>Simulasi membuat revision/scenario baru dan tidak mengubah MRP official yang sudah Completed.</p></div><button type="button" data-close-mrps-mplus aria-label="Tutup">×</button></header><section id="mrps-mplus-content" class="mrps-mplus-content"></section><div class="mrps-mplus-mode"><label><input type="radio" name="mrps-mplus-mode" value="DEMAND_ONLY" checked> <span><b>Demand M+1 saja</b><small>EFD per delivery phase dikurangi snapshot inventory saat ini; pemakaian M tidak mengurangi snapshot ini.</small></span></label><label><input type="radio" name="mrps-mplus-mode" value="WITH_M2_BUFFER"> <span><b>Demand M+1 + buffer M+2</b><small>Tambahkan target ending buffer M+1 yang bersumber dari M+2.</small></span></label></div><div><label><input id="mrps-mplus-confirm" type="checkbox" required> Saya memahami hasil hanya simulasi; tidak membuat Production Plan, PR, atau PO.</label></div><footer><button type="button" class="btn btn-outline-secondary" data-close-mrps-mplus>Batal</button><button id="mrps-mplus-submit" class="btn btn-primary" type="submit">Jalankan Simulasi</button></footer></form></aside>
+
+<aside id="mrps-recovery-modal" class="mrps-modal mrps-recovery-modal" aria-hidden="true"><div class="mrps-backdrop" data-close-mrps-recovery></div><form id="mrps-recovery-form" class="mrps-modal-panel"><header><div><small>LATE HANDLING</small><h2>Recovery kebutuhan terlambat</h2><p id="mrps-recovery-meta">Pilih delivery phase dan tindakan recovery.</p></div><button type="button" data-close-mrps-recovery aria-label="Tutup">×</button></header><div class="mrps-recovery-content"><div id="mrps-recovery-status" class="mrps-recovery-status">Memuat recovery plan…</div><label><span>Delivery phase</span><select id="mrps-recovery-phase" required></select></label><label><span>Opsi recovery</span><select id="mrps-recovery-action" required></select></label><div class="mrps-recovery-grid"><label><span>PIC / Owner</span><input id="mrps-recovery-owner" required></label><label><span>Tanggal recovery / komitmen baru</span><input id="mrps-recovery-date" type="date" required></label></div><label><span>Alasan dan dampak</span><textarea id="mrps-recovery-reason" rows="3" minlength="10" required placeholder="Jelaskan asumsi, perubahan tanggal, dan dampak delivery phase…"></textarea></label><label><span>Bukti / referensi</span><input id="mrps-recovery-evidence" placeholder="Konfirmasi supplier, trial result, nomor plan, atau referensi approval"></label><label class="mrps-recovery-ack"><input id="mrps-recovery-ack" type="checkbox" required> <span>Saya sudah memeriksa tanggal baru, risiko, PIC, dan bukti recovery.</span></label></div><footer><button type="button" class="btn btn-outline-secondary" data-close-mrps-recovery>Batal</button><button id="mrps-recovery-submit" class="btn btn-primary" type="submit">Simpan &amp; Ajukan Approval</button></footer></form></aside>
 
 <script id="mrps-config" type="application/json"><%- JSON.stringify({ recordKey }).replace(/</g, '\\u003c') %></script>
+<script src="/js/ppic-mrp-weekly-delta-model.js?v=20260827-1"></script>
+<script src="/js/ppic-mrp-zero-filter.js?v=20260823-1"></script>
+<script src="/js/ppic-mrp-stock-summary.js?v=20260823-2"></script>
 <%- include('../partials/footer') %>

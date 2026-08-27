@@ -1,0 +1,15 @@
+<%
+  const metadata = typeof documentMetadata === 'object' && documentMetadata ? documentMetadata : {};
+  const metadataFields = Array.isArray(metadata.fields) ? metadata.fields : [];
+%>
+<section class="document-metadata <%= metadata.className || '' %>" aria-label="<%= metadata.ariaLabel || 'Informasi dokumen' %>">
+  <% metadataFields.forEach((field) => { const fieldId = field.id || `document-field-${String(field.label || 'value').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`; %>
+    <div class="document-metadata__field <%= field.editable ? 'document-metadata__field--editable' : '' %> <%= field.tone ? `is-${field.tone}` : '' %>">
+      <label class="document-metadata__label" for="<%= fieldId %>"><%= field.label %><% if (field.required) { %><span aria-hidden="true"> *</span><span class="visually-hidden"> wajib</span><% } %></label>
+      <div class="document-metadata__value" <%- field.required ? 'aria-required="true"' : '' %>>
+        <% if (field.html) { %><%- field.html %><% } else if (field.editable && field.controlHtml) { %><%- field.controlHtml %><% } else { %><span id="<%= fieldId %>"><%= field.value ?? '—' %></span><% } %>
+      </div>
+      <% if (field.help) { %><small class="document-metadata__help"><%= field.help %></small><% } %>
+    </div>
+  <% }) %>
+</section>

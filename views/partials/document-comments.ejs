@@ -1,0 +1,14 @@
+<% const comments = typeof documentComments === 'object' && documentComments ? documentComments : {}; %>
+<% const isReceiptDiscussion = comments.variant === 'receipt'; %>
+<% const isPendingDocument = !comments.recordKey && comments.showPending === true; %>
+<% if (comments.recordKey || isPendingDocument) { %>
+<section class="document-comments <%= isReceiptDiscussion ? 'vendor-receipt-discussion' : '' %> <%= isPendingDocument ? 'document-comments--pending' : '' %>" <% if (comments.recordKey) { %>data-document-comments data-record-key="<%= comments.recordKey %>"<% } %> aria-labelledby="document-comments-title">
+  <div class="document-comments__head"><div><p>PAGE DISCUSSION</p><h2 id="document-comments-title"><%= comments.title || 'Komentar Dokumen' %></h2></div><span><% if (isReceiptDiscussion) { %><%- include('./icon', { name: 'comment' }) %><% } %><b data-context-count="comments">0</b> komentar</span></div>
+  <form class="document-comments__form" data-context-comment-form data-context-inline-comment-form>
+    <label class="visually-hidden" for="document-comment-<%= comments.recordKey || 'pending' %>">Tulis komentar untuk dokumen ini</label>
+    <textarea id="document-comment-<%= comments.recordKey || 'pending' %>" rows="<%= isReceiptDiscussion ? 3 : 2 %>" maxlength="2000" placeholder="<%= isPendingDocument ? 'Komentar tersedia setelah dokumen pertama kali disimpan.' : 'Tulis catatan, pertanyaan, atau tindak lanjut…' %>" <%= isPendingDocument ? 'disabled' : 'required' %>></textarea>
+    <div><small data-context-comment-status><% if (isReceiptDiscussion) { %><span class="document-comments__info" aria-hidden="true">i</span><% } %><%= isPendingDocument ? 'Simpan dokumen untuk membuka diskusi dan audit komentar.' : 'Komentar tersimpan pada konteks dokumen ini.' %></small><button class="btn btn-primary btn-sm" type="submit" <%= isPendingDocument ? 'disabled' : '' %>><% if (isReceiptDiscussion) { %><%- include('./icon', { name: 'send' }) %><% } %>Kirim Komentar</button></div>
+  </form>
+  <div class="document-comments__list" <% if (comments.recordKey) { %>data-context-inline-comment-list<% } %>><div class="page-context-empty"><%= isPendingDocument ? 'Belum ada diskusi karena nomor dokumen belum terbentuk.' : 'Memuat komentar…' %></div></div>
+</section>
+<% } %>

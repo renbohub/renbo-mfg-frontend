@@ -1,71 +1,58 @@
 <%- include('../partials/head') %>
-<link rel="stylesheet" href="/css/ppic-yearly-demand.css?v=20260818-1">
+<link rel="stylesheet" href="/css/ppic-yearly-demand.css?v=20260822-mps-shell-1">
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: 'demand-planning' }) %>
 
 <main class="yearly-demand-page ppic-page">
-  <header class="yd-page-head app-container">
-    <div>
-      <span class="yd-eyebrow">PLANNING PPIC / DEMAND PLANNING</span>
-      <h1>Yearly Demand</h1>
-      <p>Satu sumber kebutuhan tahunan per part: Forecast Customer Commitment (FCC), customer PO firm, dan Effective Demand (EFF).</p>
+  <header class="yd-page-head app-container planning-shared-header">
+    <div class="yd-title-block">
+      <span class="yd-eyebrow">PLANNING PPIC</span>
+      <h1>Demand Planning</h1>
     </div>
     <div class="yd-head-actions">
-      <a class="btn btn-outline-primary" href="/modules/planning-ppic/demand-planning/exception-workbench">Exception Workbench</a>
-      <a class="btn btn-primary" href="/modules/planning-ppic/demand-planning/monthly-review">Monthly Review</a>
-      <button id="yd-formula-toggle" class="btn btn-outline-secondary" type="button" aria-expanded="false" aria-controls="yd-formula-panel">Lihat formula</button>
-      <button id="yd-export" class="btn btn-outline-primary" type="button">Export CSV</button>
+      <label class="yd-search">
+        <%- include('../partials/icon', { name: 'search' }) %>
+        <input id="yd-search" type="search" placeholder="Cari part, nama, customer..." autocomplete="off" aria-label="Cari part">
+      </label>
+      <label class="yd-customer-filter">
+        <select id="yd-customer" data-searchable data-search-placeholder="Cari customer…" aria-label="Filter customer">
+          <option value="">Semua customer</option>
+        </select>
+      </label>
+      <button id="yd-density-toggle" class="yd-view-button" type="button" title="Ubah kerapatan tabel" aria-pressed="false">▦</button>
+      <button id="yd-export" class="yd-outline-action" type="button">↓&nbsp; Export CSV</button>
+      <a class="yd-primary-action" href="/modules/planning-ppic/mps/workbench">＋&nbsp; Buat MPS</a>
     </div>
   </header>
 
-  <section class="yd-toolbar app-container" aria-label="Filter Yearly Demand">
-    <label class="yd-search">
-      <span>Cari part</span>
-      <div><%- include('../partials/icon', { name: 'search' }) %><input id="yd-search" type="search" placeholder="Part number, part name, customer…" autocomplete="off"></div>
-    </label>
-    <label>
-      <span>Customer</span>
-      <select id="yd-customer" data-searchable data-search-placeholder="Cari customer…">
-        <option value="">Semua customer</option>
-      </select>
-    </label>
-    <label>
-      <span>Tahun demand</span>
+  <section class="yd-period-bar app-container" aria-label="Periode Demand Planning">
+    <div class="yd-period-left">
+      <strong>Periode Demand:</strong>
+      <label class="yd-year-picker">
+        <span aria-hidden="true">▣</span>
       <select id="yd-year" data-searchable-disabled></select>
-    </label>
-    <label>
-      <span>Baris per halaman</span>
-      <select id="yd-page-size" data-searchable-disabled>
-        <option value="25">25 baris</option>
-        <option value="50">50 baris</option>
-        <option value="100">100 baris</option>
-      </select>
-    </label>
-    <div class="yd-density" role="group" aria-label="Kepadatan tabel">
-      <span>Tampilan</span>
-      <div>
-        <button type="button" class="is-active" data-density="comfortable">Nyaman</button>
-        <button type="button" data-density="compact">Ringkas</button>
-      </div>
+      </label>
+      <span class="yd-period-copy">EFD bulanan dari Forecast, Actual PO, atau override manual</span>
     </div>
+    <button id="yd-rule-open" class="yd-rule-action" type="button">Atur General Rule</button>
   </section>
 
   <section id="yd-formula-panel" class="yd-formula-panel app-container" hidden>
     <header>
-      <div><span>FORMULA & DATA LINEAGE</span><h2>Bagaimana EFF dihitung?</h2></div>
-      <code id="yd-formula-expression">EFF = (FCC - FCC consumed) + PO effective</code>
+      <div><span>GENERAL RULE & DATA LINEAGE</span><h2>Bagaimana EFD ditentukan?</h2></div>
+      <code id="yd-formula-expression">EFD = PO jika tersedia, selain itu Forecast</code>
     </header>
     <ol id="yd-formula-rules">
       <li>Memuat aturan perhitungan…</li>
     </ol>
-    <p>Klik angka EFF pada tabel untuk melihat angka pembentuk dan nomor dokumen sumbernya.</p>
+    <p>Klik angka EFD pada tabel untuk memilih sumber atau memasukkan nilai manual.</p>
   </section>
 
   <section class="yd-summary app-container" aria-label="Ringkasan Yearly Demand">
-    <article><span>Total FCC</span><strong id="yd-total-fcc">—</strong><small id="yd-part-count">0 part</small></article>
+    <article><span>Total Forecast</span><strong id="yd-total-fcc">—</strong><small id="yd-part-count">0 part</small></article>
     <article><span>PO firm</span><strong id="yd-total-po">—</strong><small id="yd-customer-count">0 customer</small></article>
-    <article class="yd-summary-eff"><span>Effective Demand</span><strong id="yd-total-eff">—</strong><small>Basis demand untuk planning berikutnya</small></article>
-    <article><span>FCC dikonsumsi PO</span><strong id="yd-consumed-fcc">—</strong><small id="yd-coverage">0% dari EFF</small></article>
+    <article class="yd-summary-eff"><span>Effective Demand (EFD)</span><strong id="yd-total-eff">—</strong><small>Basis MPS M-1 / M / M+1</small></article>
+    <article><span>Forecast dikonsumsi PO</span><strong id="yd-consumed-fcc">—</strong><small id="yd-coverage">0% dari EFD</small></article>
   </section>
 
   <section class="yd-matrix-card app-container">
@@ -76,9 +63,9 @@
         <p id="yd-result-meta">Memuat data…</p>
       </div>
       <div class="yd-legend" aria-label="Legenda">
-        <span class="fcc">FCC <small>Forecast</small></span>
+        <span class="fcc">FCT <small>Forecast</small></span>
         <span class="po">PO <small>Firm order</small></span>
-        <span class="eff">EFF <small>Net demand</small></span>
+        <span class="eff">EFD <small>Effective demand</small></span>
       </div>
     </header>
     <div id="yd-alert" class="yd-alert" hidden></div>
@@ -94,12 +81,20 @@
     <footer class="yd-pagination">
       <span id="yd-range">0 data</span>
       <div>
+        <label>Baris
+          <select id="yd-page-size" data-searchable-disabled>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </label>
         <button id="yd-prev" type="button">Sebelumnya</button>
         <span id="yd-page-label">Halaman 1 / 1</span>
         <button id="yd-next" type="button">Berikutnya</button>
       </div>
     </footer>
   </section>
+  <div class="app-container"><%- include('../partials/document-comments', { documentComments: { recordKey: `DEMAND-PLANNING-${currentYear}`, title: 'Komentar Demand Planning', variant: 'receipt' } }) %></div>
 </main>
 
 <aside id="yd-lineage" class="yd-lineage" aria-hidden="true">
@@ -113,5 +108,45 @@
   </section>
 </aside>
 
+<aside id="yd-coverage-drawer" class="yd-lineage yd-coverage-drawer" aria-hidden="true">
+  <div class="yd-lineage-backdrop" data-close-coverage></div>
+  <section class="yd-lineage-panel" role="dialog" aria-modal="true" aria-labelledby="yd-coverage-title">
+    <header>
+      <div><span>ADDITIONAL PO COVERAGE</span><h2 id="yd-coverage-title">Coverage demand tambahan</h2><p id="yd-coverage-meta"></p></div>
+      <button type="button" data-close-coverage aria-label="Tutup">×</button>
+    </header>
+    <div id="yd-coverage-body"><p class="yd-source-empty">Pilih angka ADD atau ikon lock.</p></div>
+  </section>
+</aside>
+
+<aside id="yd-efd-modal" class="yd-modal" aria-hidden="true">
+  <div class="yd-modal-backdrop" data-close-efd></div>
+  <form id="yd-efd-form" class="yd-modal-panel" aria-labelledby="yd-efd-title">
+    <header><div><h2 id="yd-efd-title">Konfirmasi Sumber EFD</h2><p>Pilih sumber data untuk menentukan nilai EFD pada item ini</p></div><button type="button" data-close-efd aria-label="Tutup">×</button></header>
+    <div class="yd-modal-body">
+      <section class="yd-item-context"><div><span>Part Number</span><strong id="yd-efd-part">-</strong></div><div><span>Bulan</span><strong id="yd-efd-month">-</strong></div><div><span>Part Name</span><strong id="yd-efd-name">-</strong></div></section>
+      <label class="yd-source-option"><input type="radio" name="efdSource" value="PO"><span><strong>Dari Actual PO (Purchase Order)</strong><small>EFD diambil dari jumlah PO yang sudah dikonfirmasi customer</small><em id="yd-po-preview">Preview: PO Qty = 0 → EFD = 0</em></span></label>
+      <label class="yd-source-option"><input type="radio" name="efdSource" value="FORECAST"><span><strong>Dari Forecast (FCT)</strong><small>EFD diambil dari forecast/perkiraan demand. Gunakan jika belum ada PO.</small><em id="yd-fct-preview">Preview: FCT Qty = 0 → EFD = 0</em></span></label>
+      <label class="yd-source-option"><input type="radio" name="efdSource" value="MANUAL"><span><strong>Input Manual</strong><small>Masukkan nilai EFD secara manual berdasarkan data eksternal</small><input id="yd-manual-qty" type="number" min="0" step="any" placeholder="Masukkan nilai EFD..."></span></label>
+      <p class="yd-info-note">ⓘ Jika PO = 0, sistem otomatis menggunakan nilai Forecast sebagai EFD.</p>
+    </div>
+    <footer><button id="yd-reset-efd" type="button" class="btn btn-outline-secondary">Gunakan General Rule</button><button type="button" class="btn btn-outline-secondary" data-close-efd>Batal</button><button id="yd-save-efd" class="btn btn-primary" type="submit">Simpan EFD</button></footer>
+  </form>
+</aside>
+
+<aside id="yd-rule-modal" class="yd-modal" aria-hidden="true">
+  <div class="yd-modal-backdrop" data-close-rule></div>
+  <form id="yd-rule-form" class="yd-modal-panel yd-rule-panel">
+    <header><div><h2>General Rule EFD</h2><p>Rule ini berlaku pada semua sel yang tidak memiliki override.</p></div><button type="button" data-close-rule aria-label="Tutup">×</button></header>
+    <div class="yd-modal-body">
+      <label class="yd-source-option"><input type="radio" name="ruleMode" value="PO_THEN_FORECAST"><span><strong>PO lalu Forecast</strong><small>Gunakan Actual PO jika ada; bila PO nol gunakan Forecast.</small></span></label>
+      <label class="yd-source-option"><input type="radio" name="ruleMode" value="MAX_FORECAST_PO"><span><strong>Nilai terbesar</strong><small>Pilih nilai paling besar antara Forecast dan Actual PO.</small></span></label>
+      <label class="yd-source-option"><input type="radio" name="ruleMode" value="FORECAST_ONLY"><span><strong>Forecast saja</strong><small>Gunakan Forecast untuk semua item kecuali dioverride satu per satu.</small></span></label>
+    </div>
+    <footer><button type="button" class="btn btn-outline-secondary" data-close-rule>Batal</button><button id="yd-save-rule" class="btn btn-primary" type="submit">Simpan Rule</button></footer>
+  </form>
+</aside>
+
 <script id="yd-page-config" type="application/json"><%- JSON.stringify({ currentYear }).replace(/</g, '\\u003c') %></script>
+<script src="/js/ppic-yearly-demand-model.js?v=20260827-lock-1"></script>
 <%- include('../partials/footer') %>

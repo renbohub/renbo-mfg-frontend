@@ -24,6 +24,7 @@
   }
 
   function addSectionNavigation(form) {
+    if (form.dataset.disableSectionNav === "true") return;
     const sections = sectionsOf(form);
     if (sections.length < 2 || form.closest(".entity-form-workspace")?.querySelector(".form-section-nav")) return;
     const nav = document.createElement("nav");

@@ -1,5 +1,6 @@
 <%- include('../partials/head') %>
 <link rel="stylesheet" href="/css/incoming-dashboard.css?v=20260807-1">
+<link rel="stylesheet" href="/css/schedule-board.css?v=20260825-1">
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <main class="incoming-dashboard app-container">
@@ -16,6 +17,8 @@
     <button id="incoming-refresh" class="btn btn-outline-primary" type="button">Refresh</button>
   </section>
   <div id="incoming-alert" class="alert alert-danger d-none" role="alert"></div>
+
+  <%- include('../partials/schedule-board', { boardKind: 'incoming' }) %>
 
   <section class="incoming-kpis" aria-label="Ringkasan incoming">
     <article><small>PLAN DUE</small><strong id="incoming-kpi-plan">0</strong><span>baris material pada periode</span></article>
@@ -46,4 +49,5 @@
     <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Receipt Date</th><th>GR / PO</th><th>Material</th><th>Qty Datang</th><th>Lot</th><th>Alokasi Part</th><th>Delivery</th><th>Status GR</th></tr></thead><tbody id="incoming-actual-body"></tbody></table></div>
   </section>
 </main>
+<script defer src="/js/schedule-board.js?v=20260825-1"></script>
 <%- include('../partials/footer') %>

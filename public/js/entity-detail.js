@@ -45,7 +45,7 @@
 
   const labelSection = (name) => name === "Informasi Utama" && config.slug === "parts" ? "Informasi Umum" : name;
   const isPermissionSection = (section) => section === "Transaction Permissions" || section === "Lot Tracking";
-  const visibleFields = () => config.fields.filter((field) => !field.hidden && field.type !== "file");
+  const visibleFields = () => config.fields.filter((field) => !field.hidden && !field.detailHidden && field.type !== "file");
 
   const summaryFields = (record) => {
     const fields = visibleFields();

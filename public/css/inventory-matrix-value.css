@@ -1,0 +1,73 @@
+.inventory-matrix-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inventory-matrix-head-actions > span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .06em;
+}
+
+.inventory-matrix-head-actions #inventory-matrix-close {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #fff;
+  color: #667085;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+#inventory-matrix-change {
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid #818cf8;
+  border-radius: 8px;
+  background: #fff;
+  color: #4338ca;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+#inventory-matrix-change:hover,
+#inventory-matrix-change:focus-visible {
+  border-color: #4338ca;
+  background: #eef2ff;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, .12);
+}
+
+.inventory-matrix-table td.is-unpriced {
+  background: #fff7ed !important;
+  color: #b45309;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.inventory-matrix-dialog footer > small {
+  max-width: 66%;
+  line-height: 1.55;
+}
+
+@media (max-width: 720px) {
+  .inventory-matrix-dialog-head { align-items: stretch; flex-direction: column; }
+  .inventory-matrix-head-actions { flex-wrap: wrap; }
+  .inventory-matrix-head-actions #inventory-matrix-close { margin-left: auto; }
+  .inventory-matrix-dialog footer > small { max-width: none; }
+}
