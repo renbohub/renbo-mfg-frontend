@@ -442,6 +442,54 @@
     });
   }
 
+  function attachCanvasPan() {
+    let pan = null;
+    let suppressCanvasClick = false;
+
+    const finishPan = () => {
+      if (!pan) return;
+      const moved = pan.moved;
+      pan = null;
+      viewport.classList.remove("is-panning");
+      if (moved) {
+        suppressCanvasClick = true;
+        setTimeout(() => { suppressCanvasClick = false; }, 0);
+      }
+    };
+
+    viewport.addEventListener("mousedown", (event) => {
+      if (event.button !== 0 || event.target.closest(".bom-node,button,a,input,select,textarea,label")) return;
+      event.preventDefault();
+      pan = {
+        startX: event.clientX,
+        startY: event.clientY,
+        scrollLeft: viewport.scrollLeft,
+        scrollTop: viewport.scrollTop,
+        moved: false,
+      };
+      viewport.classList.add("is-panning");
+    });
+
+    document.addEventListener("mousemove", (event) => {
+      if (!pan) return;
+      event.preventDefault();
+      const deltaX = event.clientX - pan.startX;
+      const deltaY = event.clientY - pan.startY;
+      if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) pan.moved = true;
+      viewport.scrollLeft = pan.scrollLeft - deltaX;
+      viewport.scrollTop = pan.scrollTop - deltaY;
+    });
+
+    document.addEventListener("mouseup", finishPan);
+    window.addEventListener("blur", finishPan);
+    viewport.addEventListener("click", (event) => {
+      if (!suppressCanvasClick) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      suppressCanvasClick = false;
+    }, true);
+  }
+
   function descendantsOf(key) {
     const result = new Set(); let changed = true;
     while (changed) { changed = false; state.nodes.forEach((node) => { const nodeId = nodeKey(node); if (!result.has(nodeId) && (node.parentDetailId === key || result.has(node.parentDetailId))) { result.add(nodeId); changed = true; } }); }
@@ -1039,6 +1087,7 @@
   rootPart.addEventListener("change", () => { renderRoot(); renderAll(); });
   document.getElementById("bom-toggle-notes").addEventListener("click", () => document.getElementById("bom-notes").classList.toggle("d-none"));
   document.getElementById("bom-part-search").addEventListener("input", renderPalette);
+  attachCanvasPan();
   canvas.addEventListener("click", (event) => { if (event.target === canvas || event.target.id === "bom-connectors") { state.selectedId = null; renderAll(); renderInspector(); } });
   document.getElementById("bom-zoom-in").addEventListener("click", () => setScale(state.scale + .1)); document.getElementById("bom-zoom-out").addEventListener("click", () => setScale(state.scale - .1));
   document.getElementById("bom-fit").addEventListener("click", fitCanvas);

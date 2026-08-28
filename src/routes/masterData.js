@@ -73,7 +73,7 @@ router.get("/", (_req, res) => {
 
 router.get("/items", (_req, res) => res.redirect("/master-data/products"));
 
-router.get("/formulas", (_req, res) => res.render("master-data/formulas", { title: "Master Formula", pageScript: "/js/master-formulas.js", ...pageData() }));
+router.get("/formulas", (_req, res) => res.render("master-data/formulas", { title: "Master Formula", pageScript: "/js/master-formulas.js?v=20260827-dropdown-1", ...pageData() }));
 router.get("/api/formulas", async (req, res) => {
   try { const url = new URL(`${backendUrl}/api/system/master-formulas`); Object.entries(req.query).forEach(([k, v]) => url.searchParams.set(k, String(v))); const response = await fetch(url, { headers: authHeader(req), signal: AbortSignal.timeout(15000) }); const payload = await readBackend(response); if (!response.ok) return sendBackendError(res, response, payload); res.json(payload); }
   catch (error) { res.status(503).json({ message: backendOffline(error) ? `Backend belum aktif di ${backendUrl}.` : "Tidak dapat mengambil formula." }); }
@@ -242,19 +242,19 @@ router.delete("/api/:entity/:id", async (req, res) => {
 router.get("/:entity/new", (req, res) => {
   const config = getEntity(req.params.entity);
   if (!config) return res.status(404).render("errors/404", { title: "Modul tidak ditemukan" });
-  res.render(config.formView || "master-data/entity-form", { title: `Tambah ${config.singular}`, config, mode: "create", recordId: "", recordKey: "", pageScript: config.formPageScript || "/js/entity-form.js?v=20260812-add-price", ...pageData(config) });
+  res.render(config.formView || "master-data/entity-form", { title: `Tambah ${config.singular}`, config, mode: "create", recordId: "", recordKey: "", pageScript: config.formPageScript || "/js/entity-form.js?v=20260827-master-lookup-1", ...pageData(config) });
 });
 
 router.get("/:entity/:id/edit", (req, res) => {
   const config = getEntity(req.params.entity);
   if (!config) return res.status(404).render("errors/404", { title: "Modul tidak ditemukan" });
-  res.render(config.formView || "master-data/entity-form", { title: `Edit ${config.singular}`, config, mode: "edit", recordId: req.params.id, recordKey: String(req.query.key || req.params.id), pageScript: config.formPageScript || "/js/entity-form.js?v=20260812-add-price", ...pageData(config) });
+  res.render(config.formView || "master-data/entity-form", { title: `Edit ${config.singular}`, config, mode: "edit", recordId: req.params.id, recordKey: String(req.query.key || req.params.id), pageScript: config.formPageScript || "/js/entity-form.js?v=20260827-master-lookup-1", ...pageData(config) });
 });
 
 router.get("/:entity/:key", (req, res) => {
   const config = getEntity(req.params.entity);
   if (!config) return res.status(404).render("errors/404", { title: "Modul tidak ditemukan" });
-  res.render(config.detailView || "master-data/entity-detail", { title: `Detail ${config.singular}`, config, recordKey: req.params.key, pageScript: config.detailPageScript || "/js/entity-detail.js?v=20260809-1", ...pageData(config) });
+  res.render(config.detailView || "master-data/entity-detail", { title: `Detail ${config.singular}`, config, recordKey: req.params.key, pageScript: config.detailPageScript || "/js/entity-detail.js?v=20260827-part-files-2", ...pageData(config) });
 });
 
 router.get("/:entity", (req, res) => {

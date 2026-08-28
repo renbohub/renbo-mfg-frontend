@@ -4,19 +4,22 @@
       <img class="customer-brand-logo customer-brand-logo--module" src="/img/mitsutoyo-indonesia-logo.png" alt="PT. Mitsutoyo Indonesia">
     </a>
     <nav class="module-nav" aria-label="Navigasi modul">
-      <a class="module-nav-home <%= !activeModule ? 'active' : '' %>" href="/modules">Workspace</a>
-      <div class="dropdown module-switcher">
-        <button class="module-switcher-trigger dropdown-toggle <%= activeModule ? 'active' : '' %>" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-          <span class="module-switcher-label"><small>Modul aktif</small><strong><%= modules.find(item => item.slug === activeModule)?.shortLabel || 'Pilih Modul' %></strong></span>
+      <a class="module-nav-home <%= !activeModule ? 'active' : '' %>" href="/modules" <%= !activeModule ? 'aria-current="page"' : '' %>>
+        <span class="module-nav-link-icon"><%- include('icon', { name: 'grid' }) %></span>
+        <span>Workspace</span>
+      </a>
+      <div class="module-switcher" data-workspace-switcher>
+        <button class="module-switcher-trigger dropdown-toggle <%= activeModule ? 'active' : '' %>" type="button" data-workspace-trigger aria-expanded="false" aria-controls="workspace-switcher-menu" aria-haspopup="menu">
+          <span class="module-switcher-label"><small>Pilih Workspace</small><strong><%= modules.find(item => item.slug === activeModule)?.shortLabel || 'Semua Modul' %></strong></span>
         </button>
-        <div class="dropdown-menu module-switcher-menu">
+        <div class="dropdown-menu module-switcher-menu" id="workspace-switcher-menu" data-workspace-menu role="menu">
           <div class="module-switcher-head">
             <div><small>BUSINESS WORKSPACE</small><strong>Semua Modul ERP</strong></div>
             <a href="/modules">Lihat workspace <span aria-hidden="true">&rarr;</span></a>
           </div>
           <div class="module-switcher-grid">
             <% modules.forEach(item => { %>
-              <a class="module-switcher-item <%= activeModule === item.slug ? 'active' : '' %>" href="/modules/<%= item.slug %>">
+              <a class="module-switcher-item <%= activeModule === item.slug ? 'active' : '' %>" href="/modules/<%= item.slug %>" role="menuitem">
                 <span class="module-switcher-icon"><%- include('icon', { name: item.icon }) %></span>
                 <span class="module-switcher-copy"><strong><%= item.shortLabel %></strong><small><%= item.description %></small></span>
               </a>
@@ -29,10 +32,13 @@
           </div>
         </div>
       </div>
-      <div class="module-quick-links" aria-label="Modul yang sering digunakan">
-        <% ['planning-ppic', 'production', 'purchasing', 'inventory'].forEach(slug => { const item = modules.find(moduleItem => moduleItem.slug === slug); if (item) { %>
-          <a class="<%= activeModule === item.slug ? 'active' : '' %>" href="/modules/<%= item.slug %>"><%= item.shortLabel %></a>
-        <% } }) %>
+      <div class="module-quick-links" aria-label="Semua modul ERP">
+        <% modules.forEach(item => { %>
+          <a class="<%= activeModule === item.slug ? 'active' : '' %>" href="/modules/<%= item.slug %>" <%= activeModule === item.slug ? 'aria-current="page"' : '' %>>
+            <span class="module-nav-link-icon"><%- include('icon', { name: item.icon }) %></span>
+            <span><%= item.shortLabel %></span>
+          </a>
+        <% }) %>
       </div>
     </nav>
     <%- include('context-navbar-actions') %>

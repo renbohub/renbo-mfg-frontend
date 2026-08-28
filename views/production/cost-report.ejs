@@ -1,0 +1,51 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<main class="production-cost-page">
+  <header class="production-cost-head app-container">
+    <div class="production-cost-title"><span>PRODUCTION · COST TRACEABILITY</span><h1>Production Cost Report</h1><p>Cost plan hasil explode BOM dibanding realisasi per Sales Order atau Forecast.</p></div>
+    <div class="production-cost-actions">
+      <label><span>PERIODE</span><input id="production-cost-month" type="month" value="<%= initialMonth %>"></label>
+      <label><span>SUMBER DEMAND</span><select id="production-cost-source"><option value="ALL">Semua</option><option value="SALES_ORDER">Sales Order</option><option value="FORECAST">Forecast</option></select></label>
+      <label class="production-cost-search"><span>CARI</span><input id="production-cost-search" type="search" placeholder="SO, Forecast, customer, part..."></label>
+      <button id="production-cost-refresh" class="btn btn-outline-primary" type="button">↻ Refresh</button>
+      <button id="production-cost-export" class="btn btn-primary" type="button">Export XLSX</button>
+    </div>
+  </header>
+
+  <div id="production-cost-alert" class="alert alert-warning app-container d-none" role="alert"></div>
+
+  <section class="production-cost-summary app-container">
+    <article><small>COST PLAN</small><strong id="cost-summary-plan">—</strong><span>Exploded mBOM × demand</span></article>
+    <article><small>ACTUAL COST</small><strong id="cost-summary-actual">—</strong><span>Runtime + actual purchased</span></article>
+    <article id="cost-summary-variance-card"><small>VARIANCE</small><strong id="cost-summary-variance">—</strong><span id="cost-summary-variance-percent">—</span></article>
+    <article><small>RUNTIME MESIN</small><strong id="cost-summary-runtime">—</strong><span>Seluruh production log</span></article>
+    <article><small>ACTUAL OUTPUT</small><strong id="cost-summary-output">—</strong><span>Good qty proses akhir</span></article>
+    <article><small>PRICE COVERAGE</small><strong id="cost-summary-coverage">—</strong><span>Invoice / GR / fallback</span></article>
+  </section>
+
+  <section class="production-cost-visual app-container">
+    <div><span>PLAN VS ACTUAL</span><h2>Komposisi biaya produksi</h2><p>Raw material, purchase part, mesin, dan vendor ditampilkan terpisah dalam IDR.</p><div id="production-cost-method" class="production-cost-method">Memuat metode kalkulasi…</div></div>
+    <div id="production-cost-chart"></div>
+  </section>
+
+  <section class="production-cost-table-card">
+    <header class="app-container"><div><h2>Cost per sumber demand</h2><p>Klik Detail untuk melihat formula runtime mesin dan valuasi item aktual.</p></div><span id="production-cost-count">Memuat…</span></header>
+    <div class="production-cost-scroll"><table><thead><tr>
+      <th>Detail</th><th>Sumber</th><th>Customer</th><th>Part</th><th>Plan Qty</th><th>Good Qty</th><th>Runtime</th>
+      <th>Plan Material</th><th>Plan Purchase</th><th>Plan Mesin</th><th>Plan Vendor</th><th>Total Plan</th>
+      <th>Actual Material</th><th>Actual Purchase</th><th>Actual Mesin</th><th>Actual Vendor</th><th>Total Actual</th><th>Variance</th><th>Cost / Good</th><th>Coverage</th>
+    </tr></thead><tbody id="production-cost-rows"><tr><td colspan="20">Memuat production cost…</td></tr></tbody></table></div>
+  </section>
+
+  <section id="production-cost-detail" class="production-cost-detail app-container d-none" aria-live="polite">
+    <header><div><span>TRACE DETAIL</span><h2 id="production-cost-detail-title">—</h2><p id="production-cost-detail-subtitle">—</p></div><button id="production-cost-detail-close" type="button" aria-label="Tutup detail">×</button></header>
+    <div class="production-cost-detail-grid">
+      <article><h3>Runtime × Machine Cost</h3><div class="production-cost-detail-scroll"><table><thead><tr><th>Mesin</th><th>Log</th><th>Runtime</th><th>Actual Cost</th></tr></thead><tbody id="production-cost-machine-detail"></tbody></table></div></article>
+      <article><h3>Material &amp; Purchase Part Actual</h3><div class="production-cost-detail-scroll"><table><thead><tr><th>Type / Item</th><th>Qty</th><th>Rate</th><th>Amount</th><th>Sumber Harga</th></tr></thead><tbody id="production-cost-material-detail"></tbody></table></div></article>
+      <article><h3>Vendor Process Actual</h3><div class="production-cost-detail-scroll"><table><thead><tr><th>Order / Proses</th><th>Vendor</th><th>Qty</th><th>Amount</th></tr></thead><tbody id="production-cost-vendor-detail"></tbody></table></div></article>
+    </div>
+  </section>
+</main>
+<script id="production-cost-config" type="application/json"><%- JSON.stringify({ module: module.slug, page: page.slug }).replace(/</g, '\u003c') %></script>
+<%- include('../partials/footer') %>

@@ -10,6 +10,7 @@ const maintenanceRoutes = require("./src/routes/maintenance");
 const tableDocumentRoutes = require("./src/routes/tableDocuments");
 const aiRoutes = require("./src/routes/ai");
 const lookupRoutes = require("./src/routes/lookups");
+const uploadRoutes = require("./src/routes/uploads");
 const { modules } = require("./src/moduleRegistry");
 
 const app = express();
@@ -24,6 +25,7 @@ app.disable("x-powered-by");
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.use(express.static(path.join(__dirname, "public")));
+app.use("/uploads", uploadRoutes);
 
 const vendor = (route, folder) => app.use(route, express.static(path.join(__dirname, "node_modules", folder)));
 vendor("/vendor/bootstrap", "bootstrap/dist");

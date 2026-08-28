@@ -7,13 +7,14 @@
       activeConfirmation.wrap.querySelector("[data-confirm-accept]")?.focus();
       return activeConfirmation.promise;
     }
+    const confirmClass = options.danger ? "btn-danger" : "btn-primary";
     const promise = new Promise((resolve) => {
       const wrap = document.createElement("div");
       wrap.className = "ops-modal-backdrop interaction-confirm-backdrop";
       wrap.innerHTML = `<section class="ops-modal interaction-confirm" role="alertdialog" aria-modal="true" aria-labelledby="interaction-confirm-title">
         <header><div><p class="ops-eyebrow">Konfirmasi tindakan</p><h2 id="interaction-confirm-title">${escapeHtml(options.title || "Pastikan tindakan")}</h2></div><button type="button" class="btn-close" data-confirm-cancel aria-label="Tutup"></button></header>
         <div class="ops-modal-body"><p>${escapeHtml(message || "Lanjutkan tindakan ini?")}</p>${options.detail ? `<small>${escapeHtml(options.detail)}</small>` : ""}</div>
-        <footer><button type="button" class="btn btn-outline-secondary" data-confirm-cancel>Batal</button><button type="button" class="btn btn-danger" data-confirm-accept>${escapeHtml(options.confirmLabel || "Ya, lanjutkan")}</button></footer>
+        <footer><button type="button" class="btn btn-outline-secondary" data-confirm-cancel>Batal</button><button type="button" class="btn ${confirmClass}" data-confirm-accept>${escapeHtml(options.confirmLabel || "Ya, lanjutkan")}</button></footer>
       </section>`;
       document.body.appendChild(wrap);
       let closed = false;
@@ -56,7 +57,7 @@
     event.stopImmediatePropagation();
     trigger.dataset.confirmPending = "true";
     try {
-      const confirmed = await window.confirmAction(trigger.dataset.confirmMessage || "Data yang dihapus mungkin sudah dipakai sebagai referensi. Yakin ingin melanjutkan?", { title: "Konfirmasi hapus", confirmLabel: "Ya, hapus data" });
+      const confirmed = await window.confirmAction(trigger.dataset.confirmMessage || "Data yang dihapus mungkin sudah dipakai sebagai referensi. Yakin ingin melanjutkan?", { title: "Konfirmasi hapus", confirmLabel: "Ya, hapus data", danger: true });
       if (!confirmed) { trigger.focus(); return; }
       trigger.dataset.confirmedOnce = "true";
       const nativeConfirm = window.confirm;

@@ -46,6 +46,11 @@
     max: { name: "Maximum", shifts: "3", hours: "8", overtime: "4", saturday: "true", sunday: "false", efficiency: "85" },
   };
   const defaultShiftWindows = [{ start: "08:00", end: "16:00" }, { start: "16:00", end: "00:00" }, { start: "00:00", end: "08:00" }];
+  const addMinutesToClock = (value, minutesToAdd) => {
+    const [hour, minute] = String(value || "00:00").split(":").map(Number);
+    const total = ((number(hour) * 60) + number(minute) + number(minutesToAdd)) % 1440;
+    return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  };
   let simulationPresets = [];
   let currentUsePresetId = null;
   const selectedPresetKey = () => $("capacity-scenario").value.startsWith("preset-") ? $("capacity-scenario").value : null;
@@ -133,7 +138,7 @@
     $("capacity-open-scenario").classList.add("d-none");
     $("capacity-adopt-simulation").classList.add("d-none");
     $("capacity-sync-dpp").classList.toggle("d-none", !selectedPlan || !["Released", "In Progress"].includes(selectedPlan.status));
-    $("capacity-recommend").classList.add("d-none");
+    $("capacity-recommend").classList.toggle("d-none", !canAdoptPlan);
     $("capacity-override").classList.add("d-none");
     const title = $("capacity-main-view-title");
     if (title) title.textContent = "Capacity Check dari Monthly Production Plan";
@@ -219,7 +224,7 @@
     return {
       version: 1, name: `Aturan Aliran ${planNumber}`, algorithmProfile: "SHIFT_CAPACITY_TRANSFER", flowMethod: "FULL_SEQUENTIAL",
       flow: { nextProcessStart: "IMMEDIATE", phaseCount: 2, phaseDistribution: "EQUAL", phasePercentages: [], transferBatchQuantity: 0, minimumReleaseBatchQuantity: 0, minimumWip: 0, maximumWip: 0 },
-      interProcessDelay: { mode: "NONE", value: 0, unit: "MINUTE" }, releaseConditions: [],
+      interProcessDelay: { mode: "FIXED", value: 120, unit: "MINUTE" }, releaseConditions: [],
       wip: { minimum: 0, maximum: 0, onMaximum: "WARNING" },
       shift: { allowCrossShift: false, allowOvernightWip: false, nextProcessStart: "IMMEDIATE" },
       machine: { placement: "FASTEST_AVAILABLE", allowSplitMachines: false, maximumMachines: 1 },
@@ -262,7 +267,7 @@
     $("capacity-flow-name").value = rule.name || ""; $("capacity-flow-profile").value = rule.algorithmProfile || "CUSTOM"; $("capacity-flow-method").value = rule.flowMethod || "FULL_SEQUENTIAL";
     $("capacity-flow-sequential-start").value = rule.flow?.nextProcessStart || "IMMEDIATE"; $("capacity-flow-phase-count").value = number(rule.flow?.phaseCount) || 2; $("capacity-flow-phase-distribution").value = rule.flow?.phaseDistribution || "EQUAL"; $("capacity-flow-phase-percentages").value = (rule.flow?.phasePercentages || []).join(", ");
     $("capacity-flow-transfer-batch").value = number(rule.flow?.transferBatchQuantity) || ""; $("capacity-flow-min-release-batch").value = number(rule.flow?.minimumReleaseBatchQuantity) || ""; $("capacity-flow-continuous-min-wip").value = number(rule.flow?.minimumWip) || ""; $("capacity-flow-continuous-max-wip").value = number(rule.flow?.maximumWip) || "";
-    $("capacity-flow-delay-mode").value = rule.interProcessDelay?.mode || "NONE"; $("capacity-flow-delay-value").value = number(rule.interProcessDelay?.value) || ""; $("capacity-flow-delay-unit").value = rule.interProcessDelay?.unit || "MINUTE";
+    $("capacity-flow-delay-mode").value = rule.interProcessDelay?.mode || "FIXED"; $("capacity-flow-delay-value").value = rule.interProcessDelay?.value == null ? 120 : number(rule.interProcessDelay.value); $("capacity-flow-delay-unit").value = rule.interProcessDelay?.unit || "MINUTE";
     document.querySelectorAll('input[name="capacity-release"]').forEach((input) => { input.checked = (rule.releaseConditions || []).includes(input.value); });
     $("capacity-flow-wip-min").value = number(rule.wip?.minimum) || ""; $("capacity-flow-wip-max").value = number(rule.wip?.maximum) || ""; $("capacity-flow-wip-maximum-action").value = rule.wip?.onMaximum || "WARNING";
     $("capacity-flow-cross-shift").checked = Boolean(rule.shift?.allowCrossShift); $("capacity-flow-overnight-wip").checked = Boolean(rule.shift?.allowOvernightWip); $("capacity-flow-shift-next-start").value = rule.shift?.nextProcessStart || "IMMEDIATE";
@@ -926,10 +931,9 @@
     $("capacity-cell-date").value = date;
     $("capacity-cell-status").value = setting.dayStatus || "WORKING";
     $("capacity-cell-shifts").value = setting.shiftsPerDay || rule.shiftsPerDay || $("capacity-shifts").value;
-    $("capacity-cell-ot-start").value = setting.overtimeStart || "";
-    $("capacity-cell-ot-end").value = setting.overtimeEnd || "";
     $("capacity-cell-reason").value = setting.reason || "";
-    const preset = activePreset(); const shifts = setting.shifts || rule.shifts || preset?.shifts || defaultShiftWindows;
+    const preset = activePreset(); const shifts = setting.shiftOverrides || setting.shifts || rule.shifts || preset?.shifts || defaultShiftWindows;
+    const activeShiftCount = number(setting.shiftsPerDay || rule.shiftsPerDay || $("capacity-shifts").value);
     defaultShiftWindows.forEach((fallback, index) => {
       const shift = shifts[index] || fallback;
       const startInput = $(`capacity-cell-shift-${index + 1}-start`);
@@ -937,7 +941,22 @@
       startInput.value = shift.startTime || shift.start || fallback.start;
       endInput.value = shift.endTime || shift.end || fallback.end;
       startInput.dataset.breakMinutes = String(number(shift.breakMinutes));
-      startInput.dataset.overtimeMinutes = String(number(shift.overtimeMinutes));
+      const hasStructuredOvertime = ["overtimeBeforeStart", "overtimeBeforeEnd", "overtimeAfterStart", "overtimeAfterEnd"].some((field) => Boolean(shift[field]));
+      let beforeStart = shift.overtimeBeforeStart || "";
+      let beforeEnd = shift.overtimeBeforeEnd || "";
+      let afterStart = shift.overtimeAfterStart || "";
+      let afterEnd = shift.overtimeAfterEnd || "";
+      if (!hasStructuredOvertime && index === activeShiftCount - 1 && setting.overtimeStart && setting.overtimeEnd) {
+        afterStart = setting.overtimeStart;
+        afterEnd = setting.overtimeEnd;
+      } else if (!hasStructuredOvertime && number(shift.overtimeMinutes) > 0) {
+        afterStart = endInput.value;
+        afterEnd = addMinutesToClock(endInput.value, shift.overtimeMinutes);
+      }
+      $(`capacity-cell-shift-${index + 1}-ot-before-start`).value = beforeStart;
+      $(`capacity-cell-shift-${index + 1}-ot-before-end`).value = beforeEnd;
+      $(`capacity-cell-shift-${index + 1}-ot-after-start`).value = afterStart;
+      $(`capacity-cell-shift-${index + 1}-ot-after-end`).value = afterEnd;
     });
     $("capacity-cell-scope-note").textContent = historical
       ? `${date} sudah lewat dan dikunci sebagai histori Production.`
@@ -1262,10 +1281,12 @@
   function toggleDailyFields() {
     const holiday = $("capacity-cell-status").value === "HOLIDAY";
     $("capacity-cell-shifts").disabled = holiday;
-    $("capacity-cell-ot-start").disabled = holiday;
-    $("capacity-cell-ot-end").disabled = holiday;
     $("capacity-cell-shift-windows").classList.toggle("d-none", holiday);
-    document.querySelectorAll("[data-daily-shift-window]").forEach((row) => row.classList.toggle("d-none", holiday || Number(row.dataset.dailyShiftWindow) > Number($("capacity-cell-shifts").value || 1)));
+    document.querySelectorAll("[data-daily-shift-window]").forEach((row) => {
+      const inactive = holiday || Number(row.dataset.dailyShiftWindow) > Number($("capacity-cell-shifts").value || 1);
+      row.classList.toggle("d-none", inactive);
+      row.querySelectorAll("input").forEach((input) => { input.disabled = inactive; });
+    });
   }
   async function load() {
     $("capacity-loading").classList.remove("d-none");
@@ -1372,6 +1393,7 @@
         : `${requirePreset ? `Preset ${preset.name} diterapkan, tetapi ` : ""}${num(result.allocationCount)} slot dibuat; ${num(result.blockers?.length)} blocker masih perlu ditangani.${scoreText}`;
       alert(message, result.ready ? "success" : "warning");
       await load();
+      await window.PpicWorkflow?.refresh?.($("capacity-month").value);
     } catch (error) { alert(error.message); }
     finally { button.disabled = false; }
   }
@@ -1492,9 +1514,12 @@
         startTime: $(`capacity-cell-shift-${index + 1}-start`).value,
         endTime: $(`capacity-cell-shift-${index + 1}-end`).value,
         breakMinutes: number($(`capacity-cell-shift-${index + 1}-start`).dataset.breakMinutes),
-        overtimeMinutes: number($(`capacity-cell-shift-${index + 1}-start`).dataset.overtimeMinutes),
+        overtimeBeforeStart: $(`capacity-cell-shift-${index + 1}-ot-before-start`).value || null,
+        overtimeBeforeEnd: $(`capacity-cell-shift-${index + 1}-ot-before-end`).value || null,
+        overtimeAfterStart: $(`capacity-cell-shift-${index + 1}-ot-after-start`).value || null,
+        overtimeAfterEnd: $(`capacity-cell-shift-${index + 1}-ot-after-end`).value || null,
       }));
-      await api(`/modules/api/planning-ppic/monthly-plan/${encodeURIComponent(planNumber)}/capacity-day`, { method: "POST", body: JSON.stringify({ machineId: $("capacity-cell-machine").value, scheduleDate: $("capacity-cell-date").value, dayStatus: $("capacity-cell-status").value, shiftsPerDay: shiftCount, shiftOverrides, overtimeStart: $("capacity-cell-ot-start").value, overtimeEnd: $("capacity-cell-ot-end").value, reason: $("capacity-cell-reason").value }) }); alert("Jam capacity mesin–tanggal tersimpan; allocation Monthly Plan tidak berubah.", "success"); await load();
+      await api(`/modules/api/planning-ppic/monthly-plan/${encodeURIComponent(planNumber)}/capacity-day`, { method: "POST", body: JSON.stringify({ machineId: $("capacity-cell-machine").value, scheduleDate: $("capacity-cell-date").value, dayStatus: $("capacity-cell-status").value, shiftsPerDay: shiftCount, shiftOverrides, overtimeStart: null, overtimeEnd: null, reason: $("capacity-cell-reason").value }) }); alert("Jam shift dan rentang lembur per shift tersimpan; allocation Monthly Plan tidak berubah.", "success"); await load();
     } catch (error) { alert(error.message); }
   });
   document.addEventListener("change", (event) => { const mode = event.target.closest("[data-routing-mode]"); if (!mode) return; const wrap = mode.closest("[data-routing-assignment]"); wrap.querySelector("[data-routing-machine]").classList.toggle("d-none", mode.value === "VENDOR"); wrap.querySelector("[data-routing-vendor]").classList.toggle("d-none", mode.value !== "VENDOR"); });

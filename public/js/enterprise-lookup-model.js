@@ -11,6 +11,10 @@
     return text(value).replace(/\s+/g, " ");
   }
 
+  function isInternalId(value) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text(value));
+  }
+
   function composeLabel(option = {}, { includeMeta = false } = {}) {
     const code = text(option.code);
     const name = text(option.name);
@@ -42,7 +46,7 @@
     const id = text(dataset.currentId);
     if (!id) return null;
     const active = String(dataset.currentActive ?? "true").toLowerCase() !== "false";
-    const suppliedText = text(dataset.currentText) || id;
+    const suppliedText = text(dataset.currentText) || (isInternalId(id) ? "Referensi tersimpan" : id);
     return {
       id,
       text: active || /tidak aktif/i.test(suppliedText) ? suppliedText : `${suppliedText} · Tidak aktif`,

@@ -1,0 +1,28 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<main class="pricing-report-page">
+  <header class="pricing-report-head app-container">
+    <div><span>PURCHASING · MASTER PRICE</span><h1>Pricing Report</h1><p>Riwayat dan perubahan harga bulanan dipisahkan berdasarkan jenis pembelian.</p></div>
+    <div class="pricing-report-actions"><label><span>Tahun</span><input id="pricing-report-year" type="number" min="2000" max="2100" value="<%= new Date().getFullYear() %>"></label><label class="pricing-report-search"><span>Cari</span><input id="pricing-report-search" type="search" placeholder="Item, supplier, vendor, proses..."></label><button id="pricing-report-refresh" class="btn btn-outline-primary" type="button">↻ Refresh</button><button id="pricing-report-export" class="btn btn-primary" type="button">Export XLSX</button></div>
+  </header>
+  <nav class="pricing-report-tabs app-container" aria-label="Jenis pricing report">
+    <button type="button" data-pricing-type="material" class="active"><b>1</b><span>Harga Material<small>Material SKU / grade × supplier</small></span></button>
+    <button type="button" data-pricing-type="purchase-part"><b>2</b><span>Harga Purchase Part<small>Purchase part × supplier</small></span></button>
+    <button type="button" data-pricing-type="vendor-process"><b>3</b><span>Harga Vendor Process<small>Proses × vendor × part</small></span></button>
+  </nav>
+  <div id="pricing-report-alert" class="alert alert-warning app-container d-none" role="alert"></div>
+  <section class="pricing-report-summary app-container">
+    <article><small>BARIS HARGA</small><strong id="pricing-summary-lines">—</strong><span>Sesuai filter aktif</span></article>
+    <article><small>LENGKAP 12 BULAN</small><strong id="pricing-summary-complete">—</strong><span>Tanpa bulan kosong</span></article>
+    <article><small>BERUBAH</small><strong id="pricing-summary-changed">—</strong><span>Ada perubahan antarbulan</span></article>
+    <article><small>AVG TERKINI · IDR</small><strong id="pricing-summary-average">—</strong><span>Konversi kurs master</span></article>
+  </section>
+  <section class="pricing-report-chart-card app-container"><div><span>PERBANDINGAN HARGA</span><h2 id="pricing-report-title">Pilih item pada tabel</h2><p id="pricing-report-description">Batang menunjukkan harga tiap supplier/vendor; garis menunjukkan rata-rata bulanan.</p><div id="pricing-report-comparison" class="pricing-report-comparison">Belum ada item dipilih</div></div><div id="pricing-report-chart"></div></section>
+  <section class="pricing-report-table-card">
+    <header class="app-container"><div><h2 id="pricing-report-detail-title">Detail Harga Material</h2><p>Harga 0 atau belum tersedia ditampilkan sebagai tanda pisah.</p></div><span id="pricing-report-count">Memuat…</span></header>
+    <div class="pricing-report-scroll"><table><thead><tr><th>Pilih Grafik</th><th>Item / Proses</th><th>Spesifikasi / Part</th><th>Supplier / Vendor</th><th>Currency</th><th>UOM</th><th>Jan</th><th>Feb</th><th>Mar</th><th>Apr</th><th>Mei</th><th>Jun</th><th>Jul</th><th>Agu</th><th>Sep</th><th>Okt</th><th>Nov</th><th>Des</th><th>Rata-rata</th><th>Gap</th></tr></thead><tbody id="pricing-report-rows"><tr><td colspan="20">Memuat pricing report…</td></tr></tbody></table></div>
+  </section>
+</main>
+<script id="pricing-report-config" type="application/json"><%- JSON.stringify({ module: module.slug, page: page.slug }).replace(/</g, '\u003c') %></script>
+<%- include('../partials/footer') %>

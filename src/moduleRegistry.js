@@ -77,7 +77,8 @@ const modules = [
         col("qtyGood", "Good", "number"), col("qtyNg", "NG", "number"), col("ngReason", "NG Reason"),
         col("actualCycleTimeSeconds", "Actual C/T (s)", "number"), col("cycleEfficiencyPercent", "C/T %", "number"),
         col("operatorName", "Operator"), col("notes", "Keterangan")
-      ] }
+      ] },
+      { ...report("production-cost-report", "Production Cost Report", "Cost plan hasil explode BOM dibanding actual runtime mesin, material, purchase part, dan vendor per Sales Order atau Forecast", "/api/production/production-reports/cost-actual"), reportMode: "production-cost-actual" }
     ]
   },
   {
@@ -118,7 +119,8 @@ const modules = [
         col("openPoCount", "Open", "number"), col("latePoCount", "Late", "number"),
         col("receiptCoveragePercent", "Coverage %", "number"), col("averageLeadTimeDays", "Avg Lead Time", "number"),
         col("performanceStatus", "Performance", "status")
-      ] }
+      ] },
+      { ...report("pricing-report", "Pricing Report", "Perbandingan harga material, purchase part, dan vendor process per bulan", "/api/reports/purchase-pricing"), reportMode: "purchase-pricing" }
     ]
   },
   {
@@ -131,7 +133,7 @@ const modules = [
       page("warehouses", "Warehouse Control", "Kontrol gudang, lokasi, kapasitas, stok, dan freeze opname", "/api/inventory/warehouses", "warehouseCode", [col("warehouseCode", "Code"), col("warehouseName", "Warehouse"), col("type", "Type"), col("location", "Location"), col("rackCount", "Locations", "number"), col("stockItemCount", "Stock Lines", "number"), col("qtyOnHand", "On Hand", "number"), col("qtyAvailable", "Available", "number"), col("activeStoCount", "Active STO", "number"), col("isActive", "Status", "active")]),
       page("racks", "Racks & Locations", "Rak dan lokasi penyimpanan", "/api/inventory/racks", "rackCode", [col("rackCode", "Rack Code"), col("rackName", "Rack Name"), col("warehouse.warehouseName", "Warehouse"), col("zone", "Zone"), col("row", "Row"), col("level", "Level"), col("capacity", "Capacity", "number"), col("isActive", "Status", "active")]),
       page("lots", "Lot Master", "Lot dan batch material", "/api/inventory/lots", "lotNumber", [col("lotNumber", "Lot Number"), col("partCode", "Part Code"), col("description", "Description"), col("supplierBatch", "Supplier Batch"), col("manufacturingDate", "Mfg Date", "date"), col("expiryDate", "Expiry", "date")]),
-      { ...page("material-issues", "Material Preparation Queue", "Inventory menyiapkan dan issue material yang diminta Daily Production Plan", "/api/production/material-issues", "issueNumber", [col("preparationStatus", "Preparation", "status"), col("requiredDate", "Required", "date"), col("issueNumber", "No. Issue"), col("requiredScheduleNumber", "Daily Plan"), col("manufacturingOrder.moNumber", "MO"), col("workOrder.woNumber", "WO"), col("manufacturingOrder.part.partCode", "FG / Part"), col("warehouseCode", "Warehouse"), col("materialLineCount", "Material Lines", "number"), col("status", "Issue Status", "status")]), createRoute: "/modules/inventory/material-issues/new", materialPreparationFlow: true },
+      { ...page("material-issues", "Material Preparation Queue", "Inventory menyiapkan dan issue material yang diminta Daily Production Plan", "/api/production/material-issues", "issueNumber", [col("preparationStatus", "Preparation", "status"), col("requiredDate", "Required", "date"), col("issueNumber", "No. Issue"), col("requiredScheduleNumber", "Daily Plan"), col("manufacturingOrder.moNumber", "MO"), col("workOrder.woNumber", "WO"), col("manufacturingOrder.part.partCode", "FG / Parent"), col("childPartCodes", "Child Part"), col("childPartNames", "Child Part Name"), col("warehouseCode", "Warehouse"), col("materialLineCount", "Material Lines", "number"), col("status", "Issue Status", "status")]), createRoute: "/modules/inventory/material-issues/new", materialPreparationFlow: true },
       { ...page("stock-movements", "Stock Movements", "Riwayat seluruh mutasi persediaan", "/api/inventory/stock-movements", "movementNumber", [col("movementNumber", "Movement"), col("movementDate", "Tanggal", "date"), col("movementType", "Type"), col("direction", "Arah"), col("materialCode", "Material Code"), col("materialName", "Material Name"), col("partCode", "Part Code"), col("partNumber", "Part Number"), col("partName", "Part Name"), col("mbomProcessName", "Proses mBOM"), col("warehouseCode", "Warehouse"), col("rackCode", "Rack"), col("lotNumber", "Lot"), col("qty", "Qty", "number"), col("uomCode", "UOM"), col("referenceNumber", "Referensi")]), createRoute: "/modules/inventory/stock-movements/new" },
       { ...page("stock-opname", "Stock Opname", "Blind count, freeze, maker-checker approval, variance, dan posting adjustment", "/api/inventory/stock-opname", "stoNo", [col("stoNo", "No. STO"), col("stoDate", "Tanggal", "date"), col("stoType", "Type"), col("warehouseCode", "Warehouse"), col("detailCount", "Lines", "number"), col("countedCount", "Counted", "number"), col("countProgressPercent", "Progress %", "number"), col("varianceCount", "Variance", "number"), col("status", "Status", "status"), col("inventoryFrozen", "Frozen", "active")]), createRoute: "/modules/inventory/stock-opname/new" },
       { ...report("inventory-report", "Inventory Report", "Pilih FG untuk melihat resume child part, WIP, material, dan purchase part sesuai BOM aktif", "/api/reports/inventory"), reportMode: "inventory-traceability", reportColumns: [
@@ -164,7 +166,7 @@ const modules = [
       { ...page("delivery-schedules", "SO Delivery Schedules", "Jadwal pengiriman dengan validasi FG Receipt dan stock", "/api/outgoing/delivery-schedules", "scheduleNumber", [col("scheduleNumber", "No. Schedule"), col("plannedDate", "Rencana", "date"), col("soNumber", "No. SO"), col("customerName", "Customer"), col("plannedQty", "Qty Plan", "number"), col("fgAvailableQty", "FG Ready", "number"), col("fgShortageQty", "FG Kurang", "number"), col("fgReadinessCode", "Readiness", "status"), col("status", "Status", "status")]), createRoute: "/modules/outgoing/delivery-schedules/new" },
       page("picking-packing", "Picking & Packing", "Picking dapat dimulai, tetapi shipment menunggu seluruh FG tersedia", "/api/outgoing/picking-packing", "scheduleNumber", [col("scheduleNumber", "Picking Ref"), col("plannedDate", "Rencana", "date"), col("soNumber", "No. SO"), col("customerName", "Customer"), col("plannedQty", "Qty Pick", "number"), col("fgAvailableQty", "FG Ready", "number"), col("fgShortageQty", "FG Kurang", "number"), col("fgReadinessCode", "Readiness", "status"), col("status", "Status", "status")]),
       page("shipments", "Shipments", "Realisasi dan tracking pengiriman", "/api/outgoing/shipments", "scheduleNumber", [col("scheduleNumber", "Shipment Ref"), col("plannedDate", "Rencana", "date"), col("actualDate", "Aktual", "date"), col("soNumber", "No. SO"), col("customerName", "Customer"), col("shippingMethod", "Method"), col("trackingNumber", "Tracking"), col("status", "Status", "status")]),
-      report("outgoing-report", "Outgoing Report", "Laporan barang keluar dan pengiriman", "/api/outgoing/delivery-schedules")
+      { ...report("outgoing-report", "Outgoing Report", "Matrix history delivery Finished Goods per client", "/api/reports/outgoing-delivery-matrix"), reportMode: "outgoing-delivery-matrix" }
     ]
   }
 ];

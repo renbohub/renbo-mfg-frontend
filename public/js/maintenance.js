@@ -40,6 +40,40 @@
     } catch (error) { show(error.message); }
   }
 
+  async function loadFlowResetStatus() {
+    try {
+      const result = await api("/maintenance/api/planning-flow/status");
+      const counts = result.counts || {};
+      $("flow-reset-status").textContent = `${num(counts.mPS)} MPS · ${num(counts.mRPRun)} MRP · ${num(counts.stockBalance)} saldo lot akan dihapus · ${num(counts.stockBalancesPreservedNoLot)} saldo tanpa lot dipertahankan`;
+    } catch (error) {
+      $("flow-reset-status").textContent = error.message;
+    }
+  }
+
+  async function resetPlanningFlow() {
+    const button = $("flow-reset-submit");
+    if (button.disabled) return;
+    const alert = $("flow-reset-alert");
+    button.disabled = true;
+    button.textContent = "Mereset…";
+    try {
+      const result = await api("/maintenance/api/planning-flow/reset", { method: "POST", body: JSON.stringify({ confirmation: $("flow-reset-confirmation").value.trim() }) });
+      const removed = result.removed || {};
+      alert.hidden = false;
+      alert.dataset.tone = "success";
+      alert.textContent = `Reset selesai: ${num(removed.mPS)} MPS, ${num(removed.mRPRun)} MRP, ${num(removed.dailyProductionSchedule)} Daily Schedule, ${num(removed.deliverySchedule)} Delivery, dan ${num(removed.stockBalance)} saldo lot dihapus. ${num(removed.stockBalancesPreservedNoLot)} saldo tanpa lot dipertahankan.`;
+      $("flow-reset-confirmation").value = "";
+      await Promise.all([loadStatus({ quiet: true }), loadFlowResetStatus(), loadSources()]);
+    } catch (error) {
+      alert.hidden = false;
+      alert.dataset.tone = "danger";
+      alert.textContent = error.message;
+    } finally {
+      button.textContent = "Reset MPS → Delivery";
+      button.disabled = $("flow-reset-confirmation").value.trim() !== "RESET_MPS_TO_DELIVERY";
+    }
+  }
+
   function selectedLayers() {
     const layers = new Set([...document.querySelectorAll("[data-reset-layer]:checked")].map((node) => node.value));
     if (layers.has("MPS")) { layers.add("MRP"); layers.add("PRODUCTION_PLAN"); }
@@ -171,6 +205,8 @@
   }
 
   $("refresh-maintenance").addEventListener("click", () => Promise.all([loadStatus(), loadSources()]));
+  $("flow-reset-confirmation").addEventListener("input", (event) => { $("flow-reset-submit").disabled = event.target.value.trim() !== "RESET_MPS_TO_DELIVERY"; });
+  $("flow-reset-submit").addEventListener("click", resetPlanningFlow);
   $("reset-preview").addEventListener("click", preview);
   $("reset-submit").addEventListener("click", submit);
   $("reset-reason").addEventListener("input", validateSubmit);
@@ -212,5 +248,6 @@
   }));
 
   loadStatus({ quiet: true });
+  loadFlowResetStatus();
   loadSources();
 })();

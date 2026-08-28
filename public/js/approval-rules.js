@@ -144,7 +144,8 @@
     $("rule-action").value = rule?.actionCode || "approve";
     $("rule-document-type").value = rule?.documentType || "";
     $("rule-priority").value = rule?.priority || 100;
-    $("rule-currency").value = rule?.currencyCode || "";
+    window.EnterpriseLookup?.clear($("rule-currency"), { emitEvent: false });
+    if (rule?.currencyCode) window.EnterpriseLookup?.setSelected($("rule-currency"), { id: rule.currencyCode, code: rule.currencyCode, text: rule.currencyCode, active: true });
     $("rule-min-amount").value = rule?.minAmount ?? "";
     $("rule-max-amount").value = rule?.maxAmount ?? "";
     $("rule-effective-from").value = localDate(rule?.effectiveFrom);

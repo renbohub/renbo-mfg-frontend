@@ -66,10 +66,12 @@
       const sourceStatus = String(row.dataset.psStatus || "").toLowerCase();
       const statusLabel = /converted/.test(sourceStatus)
         ? "Converted"
+        : /covered/.test(sourceStatus)
+          ? "Coverage"
         : /ready/.test(sourceStatus)
           ? "Ready"
           : "Wait Confirm";
-      const statusTone = /converted/.test(sourceStatus) ? "converted" : /ready/.test(sourceStatus) ? "ready" : "waiting";
+      const statusTone = /converted/.test(sourceStatus) ? "converted" : /covered/.test(sourceStatus) ? "covered" : /ready/.test(sourceStatus) ? "ready" : "waiting";
       const purchaseMaxLabel = compactDateLabel(textOf(cells[4].querySelector(".ps-due-primary b"), textOf(cells[4].querySelector("b"))));
       const dueHelp = cells[4].querySelector("[data-due-calculation]");
       const leadTime = matchText(textOf(cells[4], ""), /Supplier LT\s+([\d.,]+\s*hari)/i);

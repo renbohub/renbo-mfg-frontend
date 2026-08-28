@@ -2,18 +2,22 @@
   "use strict";
   const deliveryStatus = window.MpsDeliveryStatus;
   const recoveryActions = window.MpsRecoveryActions;
-  const baselineDeltaModel = window.PpicMpsBaselineDeltaModel;
   const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
   const config = JSON.parse(document.getElementById("mwb-page-config")?.textContent || "{}");
   const $ = (id) => document.getElementById(id);
-  const els = { month: $("mwb-month"), status: $("mwb-status"), search: $("mwb-search"), pageSize: $("mwb-page-size"), sync: $("mwb-sync"), capacityCheck: $("mwb-capacity-check"), confirmMps: $("mwb-confirm-mps"), runMrp: $("mwb-run-mrp"), export: $("mwb-export"), body: $("mwb-body"), alert: $("mwb-alert"), sourceTitle: $("mwb-source-title"), sourceMeta: $("mwb-source-meta"), title: $("mwb-title"), meta: $("mwb-result-meta"), range: $("mwb-range"), prev: $("mwb-prev"), next: $("mwb-next"), pageLabel: $("mwb-page-label"), drawer: $("mwb-drawer"), drawerTitle: $("mwb-drawer-title"), drawerMeta: $("mwb-drawer-meta"), drawerBody: $("mwb-drawer-body"), zoomOut: $("mwb-zoom-out"), zoomIn: $("mwb-zoom-in"), zoomLabel: $("mwb-zoom-label"), fullscreen: $("mwb-fullscreen"), modal: $("mwb-modal"), modalForm: $("mwb-modal-form"), modalMessage: $("mwb-modal-message"), modalSubmit: $("mwb-modal-submit"), confirm: $("mwb-confirm"), actionModal: $("mwb-action-modal"), actionForm: $("mwb-action-form"), actionTitle: $("mwb-action-title"), actionDescription: $("mwb-action-description"), actionMessage: $("mwb-action-message"), actionConfirm: $("mwb-action-confirm"), actionConfirmCopy: $("mwb-action-confirm-copy"), actionSubmit: $("mwb-action-submit"), formulaModal: $("mwb-formula-modal"), formulaTitle: $("mwb-formula-title"), formulaMeta: $("mwb-formula-meta"), formulaBody: $("mwb-formula-body"), bufferModal: $("mwb-buffer-modal"), bufferForm: $("mwb-buffer-form"), bufferPart: $("mwb-buffer-part"), bufferPercent: $("mwb-buffer-percent"), bufferMessage: $("mwb-buffer-message"), bufferSubmit: $("mwb-buffer-submit"), rccpModal: $("mwb-rccp-modal"), rccpMeta: $("mwb-rccp-meta"), rccpForm: $("mwb-rccp-form"), rccpFormQty: $("mwb-rccp-form-qty"), rccpManualWrap: $("mwb-rccp-manual-wrap"), rccpManualDate: $("mwb-rccp-manual-date"), rccpCalculate: $("mwb-rccp-calculate"), rccpResults: $("mwb-rccp-results"), rccpSummary: $("mwb-rccp-summary"), rccpOffsetWarning: $("mwb-rccp-offset-warning"), rccpWeekly: $("mwb-rccp-weekly"), rccpRecommendations: $("mwb-rccp-recommendations"), rccpTimeline: $("mwb-rccp-timeline"), rccpBody: $("mwb-rccp-body"), rccpReasonField: $("mwb-rccp-reason-field"), rccpReason: $("mwb-rccp-reason"), rccpExceptions: $("mwb-rccp-exceptions"), rccpActions: $("mwb-rccp-actions"), rowMenu: $("mwb-row-menu"), nextState: $("mwb-next-state"), flowMps: $("mwb-flow-mps"), flowGate: $("mwb-flow-gate"), flowMrp: $("mwb-flow-mrp"), nextTitle: $("mwb-next-title"), nextCopy: $("mwb-next-copy"), openMrp: $("mwb-open-mrp"), density: $("mwb-density"), board: document.querySelector(".mwb-board"), docStatus: $("mwb-doc-status"), actionNote: $("mwb-action-note") };
+  const els = { month: $("mwb-month"), status: $("mwb-status"), search: $("mwb-search"), pageSize: $("mwb-page-size"), sync: $("mwb-sync"), capacityCheck: $("mwb-capacity-check"), confirmMps: $("mwb-confirm-mps"), runMrp: $("mwb-run-mrp"), export: $("mwb-export"), body: $("mwb-body"), alert: $("mwb-alert"), sourceTitle: $("mwb-source-title"), sourceMeta: $("mwb-source-meta"), title: $("mwb-title"), meta: $("mwb-result-meta"), range: $("mwb-range"), prev: $("mwb-prev"), next: $("mwb-next"), pageLabel: $("mwb-page-label"), drawer: $("mwb-drawer"), drawerTitle: $("mwb-drawer-title"), drawerMeta: $("mwb-drawer-meta"), drawerBody: $("mwb-drawer-body"), zoomOut: $("mwb-zoom-out"), zoomIn: $("mwb-zoom-in"), zoomLabel: $("mwb-zoom-label"), fullscreen: $("mwb-fullscreen"), modal: $("mwb-modal"), modalForm: $("mwb-modal-form"), modalEyebrow: $("mwb-modal-eyebrow"), modalTitle: $("mwb-modal-title"), modalCopy: $("mwb-modal-copy"), modalMessage: $("mwb-modal-message"), modalSubmit: $("mwb-modal-submit"), confirm: $("mwb-confirm"), actionModal: $("mwb-action-modal"), actionForm: $("mwb-action-form"), actionTitle: $("mwb-action-title"), actionDescription: $("mwb-action-description"), actionMessage: $("mwb-action-message"), actionConfirm: $("mwb-action-confirm"), actionConfirmCopy: $("mwb-action-confirm-copy"), actionSubmit: $("mwb-action-submit"), formulaModal: $("mwb-formula-modal"), formulaTitle: $("mwb-formula-title"), formulaMeta: $("mwb-formula-meta"), formulaBody: $("mwb-formula-body"), bufferModal: $("mwb-buffer-modal"), bufferForm: $("mwb-buffer-form"), bufferPart: $("mwb-buffer-part"), bufferPercent: $("mwb-buffer-percent"), bufferMessage: $("mwb-buffer-message"), bufferSubmit: $("mwb-buffer-submit"), rccpModal: $("mwb-rccp-modal"), rccpMeta: $("mwb-rccp-meta"), rccpForm: $("mwb-rccp-form"), rccpFormQty: $("mwb-rccp-form-qty"), rccpManualWrap: $("mwb-rccp-manual-wrap"), rccpManualDate: $("mwb-rccp-manual-date"), rccpCalculate: $("mwb-rccp-calculate"), rccpResults: $("mwb-rccp-results"), rccpSummary: $("mwb-rccp-summary"), rccpOffsetWarning: $("mwb-rccp-offset-warning"), rccpWeekly: $("mwb-rccp-weekly"), rccpRecommendations: $("mwb-rccp-recommendations"), rccpTimeline: $("mwb-rccp-timeline"), rccpBody: $("mwb-rccp-body"), rccpReasonField: $("mwb-rccp-reason-field"), rccpReason: $("mwb-rccp-reason"), rccpExceptions: $("mwb-rccp-exceptions"), rccpActions: $("mwb-rccp-actions"), rowMenu: $("mwb-row-menu"), nextState: $("mwb-next-state"), flowMps: $("mwb-flow-mps"), flowGate: $("mwb-flow-gate"), flowMrp: $("mwb-flow-mrp"), nextTitle: $("mwb-next-title"), nextCopy: $("mwb-next-copy"), openMrp: $("mwb-open-mrp"), density: $("mwb-density"), board: document.querySelector(".mwb-board"), docStatus: $("mwb-doc-status"), actionNote: $("mwb-action-note") };
   Object.assign(els, { checkDelivery: $("mwb-check-delivery"), deliveryGateBadge: $("mwb-delivery-gate-badge"), deliveryGateReason: $("mwb-delivery-gate-reason"), deliveryGateDetails: $("mwb-delivery-gate-details"), gateDrawer: $("mwb-gate-drawer"), gateDrawerMeta: $("mwb-gate-drawer-meta"), gateDrawerBody: $("mwb-gate-drawer-body"), recoveryDrawer: $("mwb-recovery-drawer"), recoveryTitle: $("mwb-recovery-title"), recoveryMeta: $("mwb-recovery-meta"), recoveryMessage: $("mwb-recovery-message"), recoveryBody: $("mwb-recovery-body") });
-  Object.assign(els, { baselineStatus: $("mwb-baseline-status"), baselineMeta: $("mwb-baseline-meta"), previewBaseline: $("mwb-preview-baseline"), generateBaseline: $("mwb-generate-baseline"), previewDelta: $("mwb-preview-delta"), generateDelta: $("mwb-generate-delta"), runDeltaMrp: $("mwb-run-delta-mrp"), planningModal: $("mwb-planning-modal"), planningTitle: $("mwb-planning-title"), planningMeta: $("mwb-planning-meta"), planningBody: $("mwb-planning-body"), planningConfirm: $("mwb-planning-confirm") });
-  const state = { page: 1, pageSize: 25, data: null, loading: false, action: null, rowItem: null, phaseAction: null, recoveryAction: null, recoveryPayload: null, recoverySourcePayload: null, recoveryBusy: false, bufferItem: null, rccpRun: null, planningPreview: null, planningMode: null, planningBusy: false, zoom: 1, drawerFullscreen: false, detailRequestId: 0, expanded: new Set(), expandedBatches: new Set() };
+  Object.assign(els, { baselineStatus: $("mwb-baseline-status"), baselineMeta: $("mwb-baseline-meta"), lockMps: $("mwb-lock-mps"), recalculate: $("mwb-recalculate"), planningModal: $("mwb-planning-modal"), planningTitle: $("mwb-planning-title"), planningMeta: $("mwb-planning-meta"), planningBody: $("mwb-planning-body"), planningConfirm: $("mwb-planning-confirm") });
+  const state = { page: 1, pageSize: 25, data: null, loading: false, action: null, rowItem: null, phaseAction: null, recoveryAction: null, recoveryPayload: null, recoverySourcePayload: null, recoveryBusy: false, bufferItem: null, rccpRun: null, planningPreview: null, planningMode: null, planningBusy: false, modalMode: "sync", zoom: 1, drawerFullscreen: false, detailRequestId: 0, expanded: new Set(), expandedBatches: new Set() };
   const apiBase = "/modules/api/planning-ppic/mps";
   const esc = (value) => String(value ?? "").replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
   const number = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
   const num = (value) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 }).format(Number(value) || 0);
+  const signedNum = (value) => {
+    const qty = number(value);
+    if (Math.abs(qty) <= 0.000001) return "0";
+    return `${qty > 0 ? "+" : "−"}${num(Math.abs(qty))}`;
+  };
   const date = (value) => value ? new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value)) : "—";
   const isoDate = (value) => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toISOString().slice(0, 10) : "";
   const dateRange = (start, end) => `${date(start)} – ${date(end)}`;
@@ -23,10 +27,12 @@
   const capacityBadge = (capacity = {}) => `<button class="mwb-capacity-link ${capacityTone(capacity.status)}" type="button" data-view-rccp="${esc(capacity.rccpRunId || "")}" ${capacity.rccpRunId ? "" : "disabled"}>${esc(label(capacity.status || "NOT_CHECKED"))}</button>`;
   const formulaButton = (kind, itemId, phaseId = "", partCode = "") => `<button class="mwb-formula-help" type="button" data-formula-kind="${esc(kind)}" data-item-id="${esc(itemId)}" data-phase-id="${esc(phaseId)}" data-part-code="${esc(partCode)}" aria-label="Lihat formula MPS Qty" title="Lihat formula MPS Qty">?</button>`;
   const mpsNumberCell = (value, kind, itemId, phaseId = "", partCode = "") => `<div class="mwb-mps-cell"><b>${num(value)}</b>${formulaButton(kind, itemId, phaseId, partCode)}</div>`;
-  const planNumberCell = (item) => {
-    const plan = item.planMetrics || { baselineMpsQty: item.metrics?.plannedProductionQty, deltaMpsQty: 0, approvedCutQty: 0 };
-    const total = baselineDeltaModel?.totalPlanQty(plan) ?? number(plan.totalPlanQty ?? plan.baselineMpsQty);
-    return `<div class="mwb-plan-cell"><b>${num(total)}</b><small><span title="Baseline MPS">B ${num(plan.baselineMpsQty)}</span><span class="delta" title="Delta MPS">Δ ${num(plan.deltaMpsQty)}</span><span class="cut" title="Approved Production Cut">− ${num(plan.approvedCutQty)}</span></small>${formulaButton("root", item.id)}</div>`;
+  const planNumberCell = (item) => mpsNumberCell(item.planMetrics?.totalPlanQty ?? item.metrics?.plannedProductionQty, "root", item.id);
+  const poDeltaCell = (item, locked) => {
+    if (!locked) return '<td class="mwb-po-delta is-unlocked" title="Lock MPS untuk mulai memantau perubahan PO">—</td>';
+    const qty = number(item.planMetrics?.poDeltaQty);
+    const tone = qty > 0.000001 ? "is-positive" : qty < -0.000001 ? "is-negative" : "is-zero";
+    return `<td class="mwb-po-delta ${tone}" title="PO aktif ${num(item.planMetrics?.currentPoQty)} − PO saat lock ${num(item.planMetrics?.lockedPoQty)}"><b>${signedNum(qty)}</b></td>`;
   };
   const actionButtonContent = (kind) => { const action = recoveryActions.actionButton(kind); return `<span aria-hidden="true">${esc(action.icon)}</span>${action.compact ? "" : `<b>${esc(action.label)}</b>`}`; };
   async function request(url, options = {}) { const response = await fetch(url, { ...options, headers: { Authorization: `Bearer ${token()}`, "content-type": "application/json", ...(options.headers || {}) } }); const payload = await response.json().catch(() => ({})); if (!response.ok) { const error = new Error(payload.message || `Request gagal (${response.status}).`); error.payload = payload; error.code = payload.code; throw error; } return payload; }
@@ -34,13 +40,13 @@
   function query() { const params = new URLSearchParams({ month: els.month.value || config.initialMonth, page: state.page, pageSize: state.pageSize }); if (els.status.value) params.set("status", els.status.value); if (els.search.value.trim()) params.set("q", els.search.value.trim()); return params; }
   function stack(m) { return `<div class="mwb-stack"><div><span>Free FG</span><b>${num(m.freeOpeningQty)}</b></div><div><span>Pegged SO</span><b>${num(m.peggedReservationQty)}</b></div><div class="total"><span>Nettable</span><b>${num(m.openingNettableQty)}</b></div>${Math.abs(m.openingVarianceQty) > .000001 ? `<div><span>vs resmi</span><b>${num(m.openingVarianceQty)}</b></div>` : ""}</div>`; }
   function renderRows(data) {
-    if (!data.items.length) { const blocked = data.blockedForecasts || []; els.body.innerHTML = `<tr><td colspan="19" class="mwb-empty"><b>${data.mps ? "Tidak ada FG pada filter ini." : "Draft MPS periode ini belum ada."}</b><br><small>${data.mps ? "Ubah filter pencarian." : blocked.length ? `${blocked.length} Forecast masih ${blocked.map((row) => row.status).join("/")}; konfirmasi demand terlebih dahulu.` : "Klik Buat MPS Production Plan untuk menarik EFD, stock, dan delivery aktual."}</small></td></tr>`; return; }
+    if (!data.items.length) { const excluded = data.blockedForecasts || []; els.body.innerHTML = `<tr><td colspan="20" class="mwb-empty"><b>${data.mps ? "Tidak ada FG pada filter ini." : "Draft MPS periode ini belum ada."}</b><br><small>${data.mps ? "Ubah filter pencarian." : excluded.length ? `${excluded.length} Forecast ${excluded.map((row) => row.status).join("/")} dikecualikan dari EFD. Klik Buat MPS Production Plan untuk memproses demand Confirmed/SO aktif.` : "Klik Buat MPS Production Plan untuk menarik EFD, stock, dan delivery aktual."}</small></td></tr>`; return; }
     const rows = data.items.map((item) => {
       const m = item.metrics; const open = state.expanded.has(item.id); const customerPhases = deliveryStatus.decoratePhases(item.phases || [], data.deliveryGate?.snapshots || []); const phases = [...customerPhases, ...(item.bufferPhase ? [item.bufferPhase] : [])]; const components = item.components || [];
       const delivery = item.delivery || {};
       const rootFeasibility = deliveryStatus.summarizePhases(customerPhases);
       const capacity = item.capacity || { status: "NOT_CHECKED", maxLoadPercentage: 0, rccpRunId: null };
-      const main = `<tr class="mwb-fg-row ${open ? "is-expanded" : ""}"><td class="mwb-toggle-col"><button type="button" data-toggle-row="${esc(item.id)}" aria-expanded="${open}">${open ? "▼" : "▶"}</button></td><td class="mwb-part"><b>${esc(item.partNumber || item.partCode)}</b><small>${esc(item.partCode)}</small></td><td class="mwb-part-name">${esc(item.partName || item.partCode)}</td><td class="mwb-type">FG</td><td class="mwb-num">${num(item.efdM1)}</td><td class="mwb-num mwb-delivered">${num(item.deliveredM1)}</td><td class="mwb-num mwb-shortage">${num(item.shortageM1)}</td><td class="mwb-num mwb-current-efd">${num(item.efdM)}</td><td class="mwb-num mwb-lookahead-efd" title="Demand EFD M+1 · look-ahead, belum menjadi MPS Qty resmi">${num(item.efdMPlus1)}</td><td class="mwb-num mwb-buffer-value">${num(item.bufferPercent)}%</td><td class="mwb-num mwb-buffer-value"><b>${num(item.bufferQty)}</b></td><td class="mwb-dash">—</td><td class="mwb-stock-value" title="Available ${num(item.availableStockQty)} · Reserved ${num(item.stockReservedQty)} · QC ${num(item.stockQcQty)}">${num(item.currentStockQty)}</td><td class="mwb-mps-value ${number(item.planMetrics?.totalPlanQty ?? m.plannedProductionQty) > 0 ? "has-mps" : ""}">${planNumberCell(item)}</td><td class="mwb-lead-time">${leadTime(item.leadTimeDays)}</td><td class="mwb-capacity-cell">${capacityBadge(capacity)}</td><td class="mwb-capacity-load">${capacity.rccpRunId ? `${num(capacity.maxLoadPercentage)}%` : "—"}</td><td><button class="mwb-row-action" type="button" data-row-menu="${esc(item.id)}" aria-haspopup="menu" aria-label="Atur MPS ${esc(item.partNumber || item.partCode)}" title="Atur MPS">${actionButtonContent("root")}</button></td><td><span class="mwb-delivery-status ${esc(rootFeasibility.tone)}" title="${esc(rootFeasibility.label)} · Schedule: ${esc(delivery.statusLabel || "Not Scheduled")}">${esc(rootFeasibility.label)}</span></td></tr>`;
+      const main = `<tr class="mwb-fg-row ${open ? "is-expanded" : ""}"><td class="mwb-toggle-col"><button type="button" data-toggle-row="${esc(item.id)}" aria-expanded="${open}">${open ? "▼" : "▶"}</button></td><td class="mwb-part"><b>${esc(item.partNumber || item.partCode)}</b><small>${esc(item.partCode)}</small></td><td class="mwb-part-name">${esc(item.partName || item.partCode)}</td><td class="mwb-type">FG</td><td class="mwb-num">${num(item.efdM1)}</td><td class="mwb-num mwb-delivered">${num(item.deliveredM1)}</td><td class="mwb-num mwb-shortage">${num(item.shortageM1)}</td><td class="mwb-num mwb-current-efd">${num(item.efdM)}</td>${poDeltaCell(item, data.planningLock?.locked)}<td class="mwb-num mwb-lookahead-efd" title="Demand EFD M+1 · look-ahead, belum menjadi MPS Qty resmi">${num(item.efdMPlus1)}</td><td class="mwb-num mwb-buffer-value">${num(item.bufferPercent)}%</td><td class="mwb-num mwb-buffer-value"><b>${num(item.bufferQty)}</b></td><td class="mwb-dash">—</td><td class="mwb-stock-value" title="Available ${num(item.availableStockQty)} · Reserved ${num(item.stockReservedQty)} · QC ${num(item.stockQcQty)}">${num(item.currentStockQty)}</td><td class="mwb-mps-value ${number(item.planMetrics?.totalPlanQty ?? m.plannedProductionQty) > 0 ? "has-mps" : ""}">${planNumberCell(item)}</td><td class="mwb-lead-time">${leadTime(item.leadTimeDays)}</td><td class="mwb-capacity-cell">${capacityBadge(capacity)}</td><td class="mwb-capacity-load">${capacity.rccpRunId ? `${num(capacity.maxLoadPercentage)}%` : "—"}</td><td><button class="mwb-row-action" type="button" data-row-menu="${esc(item.id)}" aria-haspopup="menu" aria-label="Atur MPS ${esc(item.partNumber || item.partCode)}" title="Atur MPS">${actionButtonContent("root")}</button></td><td><span class="mwb-delivery-status ${esc(rootFeasibility.tone)}" title="${esc(rootFeasibility.label)} · Schedule: ${esc(delivery.statusLabel || "Not Scheduled")}">${esc(rootFeasibility.label)}</span></td></tr>`;
       if (!open) return main;
       const children = phases.length ? phases.map((phase, phaseIndex) => {
         const phaseQty = number(phase.plannedProductionQty || phase.qty);
@@ -56,7 +62,7 @@
             : phaseDecision.mode === "recheck"
               ? `<button class="mwb-batch-action is-recheck" type="button" data-phase-recheck="${esc(phase.deliveryTargetId || "")}" aria-label="${esc(phaseDecision.label)}" title="${esc(phaseDecision.label)}"><span aria-hidden="true">${esc(phaseDecision.icon)}</span></button>`
               : `<button class="mwb-batch-action is-safe" type="button" data-phase-detail-direct="${esc(phase.deliveryTargetId || "")}" aria-label="${esc(phaseDecision.label)}" title="${esc(phaseDecision.label)}"><span aria-hidden="true">${esc(phaseDecision.icon)}</span></button>`;
-        const phaseRow = `<tr class="mwb-batch-row ${isBufferBatch ? "is-buffer" : ""} ${batchOpen ? "is-expanded" : ""}"><td class="mwb-toggle-col"><button class="mwb-batch-toggle" type="button" data-toggle-batch="${esc(batchKey)}" aria-expanded="${batchOpen}" aria-label="${batchOpen ? "Tutup" : "Buka"} child part batch ${phaseIndex + 1}">${batchOpen ? "▼" : "▶"}</button></td><td></td><td class="mwb-batch-name"><b>${isBufferBatch ? "Batch Buffer Akhir Bulan" : `Batch ${phaseIndex + 1}`} — ${date(phase.fgRequiredDate)}</b><small>${esc(phase.sourceNumber || "Demand phase")} · ${components.length} child part${number(phase.bufferAllocatedQty) > 0 ? ` · buffer ${num(phase.bufferAllocatedQty)}` : ""}</small></td><td class="mwb-type">${isBufferBatch ? "BUFFER" : "—"}</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-mps-value ${phaseQty > 0 ? "has-mps" : ""}">${mpsNumberCell(phaseQty, "phase", item.id, phase.id || String(phaseIndex))}</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td>${phaseAction}</td><td><span class="mwb-delivery-status ${esc(phaseStatus.tone || "muted")}" title="${esc(phaseStatus.label)}">${esc(phaseStatus.label)}</span></td></tr>`;
+        const phaseRow = `<tr class="mwb-batch-row ${isBufferBatch ? "is-buffer" : ""} ${batchOpen ? "is-expanded" : ""}"><td class="mwb-toggle-col"><button class="mwb-batch-toggle" type="button" data-toggle-batch="${esc(batchKey)}" aria-expanded="${batchOpen}" aria-label="${batchOpen ? "Tutup" : "Buka"} child part batch ${phaseIndex + 1}">${batchOpen ? "▼" : "▶"}</button></td><td></td><td class="mwb-batch-name"><b>${isBufferBatch ? "Batch Buffer Akhir Bulan" : `Batch ${phaseIndex + 1}`} — ${date(phase.fgRequiredDate)}</b><small>${esc(phase.sourceNumber || "Demand phase")} · ${components.length} child part${number(phase.bufferAllocatedQty) > 0 ? ` · buffer ${num(phase.bufferAllocatedQty)}` : ""}</small></td><td class="mwb-type">${isBufferBatch ? "BUFFER" : "—"}</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-mps-value ${phaseQty > 0 ? "has-mps" : ""}">${mpsNumberCell(phaseQty, "phase", item.id, phase.id || String(phaseIndex))}</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td>${phaseAction}</td><td><span class="mwb-delivery-status ${esc(phaseStatus.tone || "muted")}" title="${esc(phaseStatus.label)}">${esc(phaseStatus.label)}</span></td></tr>`;
         const componentRows = batchOpen ? components.map((component) => {
           const itemType = String(component.itemType || "").toUpperCase();
           const isFgChild = itemType === "FG";
@@ -73,10 +79,10 @@
           const leadTimeTitle = plannedQty <= 0
             ? "MPS Qty 0, lead time 0"
             : `LT kumulatif = ${num(cumulativeLeadTime.ownCycleLoadHours)} jam cycle sendiri + ${num(cumulativeLeadTime.parentHours)} jam level atas + ${num(cumulativeLeadTime.ownVendorLeadTimeDays)} hari vendor sendiri + ${num(cumulativeLeadTime.minimumLeadTimeAdjustmentHours)} jam minimum = ${num(cumulativeLeadTime.totalDays)} hari (2 shift × 7 jam)`;
-          return `<tr class="mwb-component-row" data-batch-child="${esc(batchKey)}"><td></td><td class="mwb-part mwb-child-part"><b>${esc(component.partNumber || component.partCode || "-")}</b><small>L${num(component.level)} · ${esc(component.partCode || "Part Code —")}</small></td><td class="mwb-component-name"><b>${esc(component.partName)}</b><small title="${esc(processTitle)}">${esc(processLabel)}</small></td><td class="mwb-type ${isFgChild ? "fg-child" : "wip"}">${componentType}</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-num" title="Kebutuhan per FG dari struktur MBOM">${num(component.qtyPerFg)}</td><td class="mwb-stock-value" title="Stock awal phase ${num(netting.openingStockQty)} · Dipakai ${num(netting.stockUsedQty)} · Sisa ${num(netting.endingStockQty)} · Firm receipt dipakai ${num(netting.firmReceiptUsedQty)}">${num(netting.openingStockQty)}</td><td class="mwb-mps-value ${plannedQty > 0 ? "has-mps" : ""}" title="Gross ${num(grossQty)} - stock ${num(netting.stockUsedQty)} - firm receipt ${num(netting.firmReceiptUsedQty)} = net ${num(netQty)}">${mpsNumberCell(plannedQty, "component", item.id, phase.id || String(phaseIndex), component.partCode)}</td><td class="mwb-lead-time" title="${esc(leadTimeTitle)}">${number(cumulativeLeadTime.totalDays) > 0 ? `${num(cumulativeLeadTime.totalDays)}d` : "—"}</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td><span class="mwb-delivery-status ${nettingTone}" title="${esc(nettingLabel)} · Netting berantai antar-phase">${esc(nettingLabel)}</span></td></tr>`;
+          return `<tr class="mwb-component-row" data-batch-child="${esc(batchKey)}"><td></td><td class="mwb-part mwb-child-part"><b>${esc(component.partNumber || component.partCode || "-")}</b><small>L${num(component.level)} · ${esc(component.partCode || "Part Code —")}</small></td><td class="mwb-component-name"><b>${esc(component.partName)}</b><small title="${esc(processTitle)}">${esc(processLabel)}</small></td><td class="mwb-type ${isFgChild ? "fg-child" : "wip"}">${componentType}</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-num" title="Kebutuhan per FG dari struktur MBOM">${num(component.qtyPerFg)}</td><td class="mwb-stock-value" title="Stock awal phase ${num(netting.openingStockQty)} · Dipakai ${num(netting.stockUsedQty)} · Sisa ${num(netting.endingStockQty)} · Firm receipt dipakai ${num(netting.firmReceiptUsedQty)}">${num(netting.openingStockQty)}</td><td class="mwb-mps-value ${plannedQty > 0 ? "has-mps" : ""}" title="Gross ${num(grossQty)} - stock ${num(netting.stockUsedQty)} - firm receipt ${num(netting.firmReceiptUsedQty)} = net ${num(netQty)}">${mpsNumberCell(plannedQty, "component", item.id, phase.id || String(phaseIndex), component.partCode)}</td><td class="mwb-lead-time" title="${esc(leadTimeTitle)}">${number(cumulativeLeadTime.totalDays) > 0 ? `${num(cumulativeLeadTime.totalDays)}d` : "—"}</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td><span class="mwb-delivery-status ${nettingTone}" title="${esc(nettingLabel)} · Netting berantai antar-phase">${esc(nettingLabel)}</span></td></tr>`;
         }).join("") : "";
         return phaseRow + componentRows;
-      }).join("") : `<tr class="mwb-batch-row"><td></td><td colspan="18">Belum ada delivery batch untuk item ini.</td></tr>`;
+      }).join("") : `<tr class="mwb-batch-row"><td></td><td colspan="19">Belum ada delivery batch untuk item ini.</td></tr>`;
       return main + children;
     }).join("");
     const total = (key) => data.items.reduce((sum, item) => sum + number(key.split(".").reduce((value, part) => value?.[part], item)), 0);
@@ -84,7 +90,9 @@
     const totalMps = data.items.reduce((sum, item) => sum + number(item.planMetrics?.totalPlanQty ?? item.metrics?.plannedProductionQty), 0);
     const totalCapacity = { status: data.mps?.capacityStatus || "NOT_CHECKED", rccpRunId: data.rccp?.id || null };
     const totalFeasibility = deliveryStatus.phaseStatus({ feasibilityStatus: data.deliveryGate?.feasibilityStatus, dispositionStatus: data.deliveryGate?.dispositionStatus, sourceCurrent: data.deliveryGate?.feasibilityStatus !== "STALE" });
-    const totalRow = `<tr class="mwb-total-row"><td></td><td><b>Total</b></td><td>—</td><td>—</td><td>${num(total("efdM1"))}</td><td class="mwb-delivered">${num(total("deliveredM1"))}</td><td class="mwb-shortage">${num(total("shortageM1"))}</td><td>${num(total("efdM"))}</td><td class="mwb-lookahead-efd" title="Total demand EFD M+1 · look-ahead">${num(total("efdMPlus1"))}</td><td>${percents.length === 1 ? `${num(percents[0])}%` : "—"}</td><td>${num(total("bufferQty"))}</td><td>—</td><td class="mwb-stock-value">${num(total("currentStockQty"))}</td><td class="mwb-mps-value ${totalMps > 0 ? "has-mps" : ""}">${num(totalMps)}</td><td>—</td><td>${capacityBadge(totalCapacity)}</td><td>${data.rccp ? `${num(data.rccp.maxLoadPercentage)}%` : "—"}</td><td>—</td><td><span class="mwb-delivery-status ${esc(totalFeasibility.tone)}">${esc(totalFeasibility.label)}</span></td></tr>`;
+    const totalPoDelta = data.items.reduce((sum, item) => sum + number(item.planMetrics?.poDeltaQty), 0);
+    const totalPoTone = totalPoDelta > 0.000001 ? "is-positive" : totalPoDelta < -0.000001 ? "is-negative" : "is-zero";
+    const totalRow = `<tr class="mwb-total-row"><td></td><td><b>Total</b></td><td>—</td><td>—</td><td>${num(total("efdM1"))}</td><td class="mwb-delivered">${num(total("deliveredM1"))}</td><td class="mwb-shortage">${num(total("shortageM1"))}</td><td>${num(total("efdM"))}</td><td class="mwb-po-delta ${data.planningLock?.locked ? totalPoTone : "is-unlocked"}"><b>${data.planningLock?.locked ? signedNum(totalPoDelta) : "—"}</b></td><td class="mwb-lookahead-efd" title="Total demand EFD M+1 · look-ahead">${num(total("efdMPlus1"))}</td><td>${percents.length === 1 ? `${num(percents[0])}%` : "—"}</td><td>${num(total("bufferQty"))}</td><td>—</td><td class="mwb-stock-value">${num(total("currentStockQty"))}</td><td class="mwb-mps-value ${totalMps > 0 ? "has-mps" : ""}">${num(totalMps)}</td><td>—</td><td>${capacityBadge(totalCapacity)}</td><td>${data.rccp ? `${num(data.rccp.maxLoadPercentage)}%` : "—"}</td><td>—</td><td><span class="mwb-delivery-status ${esc(totalFeasibility.tone)}">${esc(totalFeasibility.label)}</span></td></tr>`;
     els.body.innerHTML = rows + totalRow;
   }
   function gateTone(gate = {}) {
@@ -233,9 +241,9 @@
     const mpsApproved = mps?.lifecycleStatus === "APPROVED" && mps?.status === "Confirmed";
     const mrpRunning = mrp?.status === "Running";
     els.nextState.classList.remove("ready", "warning", "failed");
-    els.flowMps.textContent = mps ? `${mps.mpsNumber} · ${label(mps.lifecycleStatus)}` : "Belum ada";
-    els.flowGate.textContent = !mps ? "Bentuk MPS" : mps.replanRequired ? "Replan required" : `RCCP ${label(mps.capacityStatus)} · Delivery ${label(deliveryGate.feasibilityStatus)}`;
-    els.flowMrp.textContent = mrp ? `${mrp.runNumber} · ${mrp.isCurrentPlan === false ? "STALE / perlu rerun" : mrp.status}` : "Belum ada run";
+    els.flowMps.textContent = mps ? `${mps.mpsNumber} · ${mps.status}` : "Belum ada Draft";
+    els.flowGate.textContent = !mps ? "Menunggu Draft MPS" : mps.replanRequired ? "Replan required" : `RCCP ${label(mps.capacityStatus)} · Delivery Gate ${label(deliveryGate.officialGateStatus || deliveryGate.feasibilityStatus || "UNKNOWN")}`;
+    els.flowMrp.textContent = mrp ? `${mrp.runNumber} · ${mrp.isCurrentPlan === false ? "STALE / perlu rerun" : label(mrp.scenarioStatus || mrp.status)}` : "Belum ada run";
     // Calculation/reassessment remains available for Confirmed/Approved MPS;
     // only immutable released/completed history is protected.
     els.sync.disabled = Boolean(mps && ["Released", "Completed"].includes(mps.status));
@@ -337,23 +345,24 @@
   }
   function renderPlanningControls(data) {
     const lock = data.planningLock || { locked: false, lockIds: [] };
-    const pendingDeltaQty = (data.items || []).reduce((sum, item) => sum + number(item.planMetrics?.pendingDeltaQty), 0);
-    const baseline = baselineDeltaModel?.baselineActions({ locked: lock.locked, hasDraftMps: Boolean(data.mps) }) || {};
-    const delta = baselineDeltaModel?.deltaActionState({ pendingDeltaQty, locked: lock.locked }) || {};
-    els.baselineStatus.textContent = lock.locked ? `EFD Locked · ${data.mps?.mpsNumber || "Baseline"}` : "Baseline belum dikunci";
+    const changedParts = number(lock.changedPartCount ?? (data.items || []).filter((item) => Math.abs(number(item.planMetrics?.poDeltaQty)) > 0.000001).length);
+    const poDeltaQty = number(lock.poDeltaQty ?? (data.items || []).reduce((sum, item) => sum + number(item.planMetrics?.poDeltaQty), 0));
+    els.baselineStatus.textContent = lock.locked
+      ? `Baseline PO Locked · status MPS tetap ${data.mps?.status || "-"}`
+      : `Baseline PO belum dikunci · MPS ${data.mps?.status || "belum ada"}`;
     els.baselineMeta.textContent = lock.locked
-      ? `${num(lock.lockIds?.length)} scope terkunci${lock.lockedBy ? ` oleh ${lock.lockedBy}` : ""} · ADD pending ${num(pendingDeltaQty)} ${data.items?.[0]?.uomCode || ""}`
-      : "Preview memastikan FCT, PO, dan EFD yang akan menjadi baseline tetap.";
-    els.previewBaseline.disabled = !baseline.canPreview;
-    els.generateBaseline.disabled = !baseline.canGenerate;
-    els.generateBaseline.textContent = baseline.label || "Generate Baseline";
-    els.previewDelta.disabled = !delta.canPreview;
-    els.generateDelta.disabled = !delta.canGenerate;
-    const deltaDocuments = [...new Set((data.items || []).flatMap((item) => item.planningDocuments?.deltaMpsNumbers || []))];
-    const baselineMrpReady = data.mrp?.isCurrentPlan && String(data.mrp?.scenarioStatus || "").toUpperCase() === "APPROVED";
-    els.runDeltaMrp.disabled = !deltaDocuments.length || !baselineMrpReady;
-    els.runDeltaMrp.dataset.deltaMpsNumber = deltaDocuments[0] || "";
-    els.runDeltaMrp.title = !deltaDocuments.length ? "Generate Delta MPS terlebih dahulu." : !baselineMrpReady ? "Approve Baseline MRP terlebih dahulu." : `Hitung material tambahan dari ${deltaDocuments[0]}`;
+      ? changedParts
+        ? `${changedParts} part berubah · total perubahan PO ${signedNum(poDeltaQty)} · gunakan Generate Delta MPS untuk PO tambahan dan Production Cut untuk pengurangan.`
+        : `Baseline PO aktif${lock.lockedBy ? ` · dikunci oleh ${lock.lockedBy}` : ""}. Belum ada perubahan PO.`
+      : "Klik Lock MPS (PO Baseline) untuk menyimpan PO saat ini sebagai pembanding PO+. Ini tidak meng-approve MPS.";
+    els.lockMps.disabled = !data.mps || lock.locked;
+    els.lockMps.textContent = lock.locked ? "🔒 Baseline PO Locked" : "🔒 Lock MPS (PO Baseline)";
+    els.sync.disabled = lock.locked;
+    els.sync.title = lock.locked ? "MPS sudah dikunci. Gunakan Delta MPS atau Production Cut saat PO berubah." : "Hitung atau perbarui Draft MPS sebelum dikunci.";
+    const pendingDeltaQty = (data.items || []).reduce((sum, item) => sum + number(item.planMetrics?.pendingDeltaQty), 0);
+    els.recalculate.disabled = !lock.locked || pendingDeltaQty <= 0;
+    els.recalculate.textContent = "＋ Generate Delta MPS";
+    els.recalculate.title = !lock.locked ? "Lock MPS terlebih dahulu." : pendingDeltaQty <= 0 ? "Tidak ada PO tambahan yang belum tercover." : `Preview dan generate Delta MPS ${num(pendingDeltaQty)} qty tanpa mengubah baseline.`;
   }
   function closePlanningModal() {
     if (state.planningBusy) return;
@@ -361,80 +370,89 @@
     state.planningPreview = null;
     state.planningMode = null;
   }
-  function planningTable(preview, mode) {
-    if (mode === "baseline") {
-      const rows = preview.rows || [];
-      return `<div class="mwb-planning-summary"><article><span>Scope terkunci</span><b>${num(rows.length)}</b></article><article><span>Total EFD</span><b>${num(rows.reduce((sum, row) => sum + number(row.efdQtyLocked), 0))}</b></article></div>${miniTable(["Customer", "Part", "FCT", "PO", "EFD Locked"], rows.map((row) => `<tr><td>${esc(row.customerCode)}</td><td>${esc(row.partCode)}</td><td>${num(row.forecastQtyLocked)}</td><td>${num(row.poQtyLocked)}</td><td><b>${num(row.efdQtyLocked)}</b></td></tr>`))}`;
-    }
-    const summary = preview.summary || {};
-    return `<div class="mwb-planning-summary"><article><span>Additional PO</span><b>${num(summary.additionalQty)}</b></article><article><span>Free FG</span><b>${num(summary.stockQty)}</b></article><article><span>Firm receipt</span><b>${num(summary.firmReceiptQty)}</b></article><article><span>Delta MPS</span><b>${num(summary.deltaMpsQty)}</b></article></div>${miniTable(["Customer", "Part", "Due", "Pending", "Delta MPS"], (preview.demands || []).map((row) => { const delta = (preview.deltaLines || []).filter((line) => line.baselineLockId === row.baselineLockId).reduce((sum, line) => sum + number(line.qty), 0); return `<tr><td>${esc(row.customerCode)}</td><td>${esc(row.partCode)}</td><td>${date(row.requiredDate)}</td><td>${num(row.pendingDeltaQty)}</td><td><b>${num(delta)}</b></td></tr>`; }))}`;
+  function planningTable(preview) {
+    const rows = preview.rows || [];
+    return `<div class="mwb-planning-summary"><article><span>Scope terkunci</span><b>${num(rows.length)}</b></article><article><span>Total PO baseline</span><b>${num(rows.reduce((sum, row) => sum + number(row.poQtyLocked), 0))}</b></article><article><span>Total EFD</span><b>${num(rows.reduce((sum, row) => sum + number(row.efdQtyLocked), 0))}</b></article></div>${miniTable(["Customer", "Part", "FCT", "PO baseline", "EFD"], rows.map((row) => `<tr><td>${esc(row.customerCode)}</td><td>${esc(row.partCode)}</td><td>${num(row.forecastQtyLocked)}</td><td><b>${num(row.poQtyLocked)}</b></td><td>${num(row.efdQtyLocked)}</td></tr>`))}`;
   }
-  async function previewPlanning(mode) {
+  async function previewPlanning() {
     if (!state.data?.mps || state.planningBusy) return;
     state.planningBusy = true;
-    state.planningMode = mode;
-    els.planningTitle.textContent = mode === "baseline" ? "Preview Baseline EFD" : "Preview Additional PO Coverage";
-    els.planningMeta.textContent = mode === "baseline" ? "Belum ada data yang dikunci sebelum tombol Generate ditekan." : "Waterfall: Free FG → Firm Receipt → Delta MPS.";
+    state.planningMode = "baseline";
+    els.planningTitle.textContent = "Lock MPS untuk baseline PO+";
+    els.planningMeta.textContent = "Tindakan ini hanya menyimpan pembanding PO+. Status dokumen MPS tetap Draft sampai tombol Approve MPS dijalankan.";
     els.planningBody.innerHTML = `<p>Memeriksa data planning terbaru…</p>`;
     els.planningConfirm.hidden = true;
     els.planningModal.setAttribute("aria-hidden", "false");
     try {
-      const body = mode === "baseline" ? { mpsNumbers: [state.data.mps.mpsNumber] } : { lockIds: state.data.planningLock?.lockIds || [] };
-      const preview = await request(`${apiBase}/${mode}/preview`, { method: "POST", body: JSON.stringify(body) });
+      const body = { mpsNumbers: [state.data.mps.mpsNumber] };
+      const preview = await request(`${apiBase}/baseline/preview`, { method: "POST", body: JSON.stringify(body) });
       state.planningPreview = preview;
-      els.planningBody.innerHTML = planningTable(preview, mode);
-      const canGenerate = mode === "baseline" ? !state.data.planningLock?.locked : number(preview.summary?.deltaMpsQty) > 0 || (preview.allocations || []).length > 0;
+      els.planningBody.innerHTML = planningTable(preview);
+      const canGenerate = !state.data.planningLock?.locked;
       els.planningConfirm.hidden = !canGenerate;
-      els.planningConfirm.textContent = mode === "baseline" ? "Generate & Lock Baseline" : "Generate Delta MPS";
+      els.planningConfirm.textContent = "Lock MPS (PO Baseline)";
+    } catch (error) {
+      els.planningBody.innerHTML = `<p class="mwb-planning-error">${esc(error.message)}</p>`;
+    } finally { state.planningBusy = false; }
+  }
+  async function previewDeltaPlanning() {
+    if (!state.data?.planningLock?.locked || state.planningBusy) return;
+    state.planningBusy = true;
+    state.planningMode = "delta";
+    els.planningTitle.textContent = "Preview Delta MPS untuk PO tambahan";
+    els.planningMeta.textContent = "Coverage dijalankan berurutan dari free FG stock, firm FG receipt, lalu Delta MPS. Baseline MPS tidak diubah.";
+    els.planningBody.innerHTML = `<p>Memeriksa coverage PO tambahan terbaru…</p>`;
+    els.planningConfirm.hidden = true;
+    els.planningModal.setAttribute("aria-hidden", "false");
+    try {
+      const lockIds = state.data.planningLock.lockIds || [];
+      const preview = await request(`${apiBase}/delta/preview`, { method: "POST", body: JSON.stringify({ lockIds }) });
+      state.planningPreview = preview;
+      const summary = preview.summary || {};
+      els.planningBody.innerHTML = `<div class="mwb-planning-summary"><article><span>PO tambahan</span><b>${num(summary.additionalQty)}</b></article><article><span>Free FG stock</span><b>${num(summary.stockQty)}</b></article><article><span>Firm FG receipt</span><b>${num(summary.firmReceiptQty)}</b></article><article><span>Delta MPS</span><b>${num(summary.deltaMpsQty)}</b></article></div>${miniTable(["Customer", "Part", "Required date", "Pending", "Delta MPS"], (preview.demands || []).map((row) => `<tr><td>${esc(row.customerCode)}</td><td>${esc(row.partCode)}</td><td>${date(row.requiredDate)}</td><td>${num(row.pendingDeltaQty)}</td><td>${num((preview.deltaLines || []).filter((line) => line.baselineLockId === row.baselineLockId).reduce((sum, line) => sum + number(line.qty), 0))}</td></tr>`))}`;
+      els.planningConfirm.hidden = false;
+      els.planningConfirm.textContent = number(summary.deltaMpsQty) > 0 ? "Generate Delta MPS" : "Simpan Coverage PO Tambahan";
     } catch (error) {
       els.planningBody.innerHTML = `<p class="mwb-planning-error">${esc(error.message)}</p>`;
     } finally { state.planningBusy = false; }
   }
   async function generatePlanning() {
-    const mode = state.planningMode;
     const preview = state.planningPreview;
-    if (!mode || !preview || state.planningBusy) return;
+    if (!preview || state.planningBusy) return;
     state.planningBusy = true;
     els.planningConfirm.disabled = true;
     const original = els.planningConfirm.textContent;
     els.planningConfirm.textContent = "Generating…";
     try {
-      const body = mode === "baseline"
-        ? { mpsNumbers: [state.data.mps.mpsNumber], expectedFingerprint: preview.fingerprint }
-        : { lockIds: state.data.planningLock?.lockIds || [], expectedFingerprint: preview.fingerprint, idempotencyKey: globalThis.crypto?.randomUUID?.() || `delta-${Date.now()}` };
-      const result = await request(`${apiBase}/${mode}/generate`, { method: "POST", body: JSON.stringify(body) });
+      const isDelta = state.planningMode === "delta";
+      const body = isDelta
+        ? { lockIds: state.data.planningLock.lockIds || [], expectedFingerprint: preview.fingerprint, idempotencyKey: `delta-${els.month.value}-${Date.now()}` }
+        : { mpsNumbers: [state.data.mps.mpsNumber], expectedFingerprint: preview.fingerprint };
+      const result = await request(`${apiBase}/${isDelta ? "delta/generate" : "baseline/generate"}`, { method: "POST", body: JSON.stringify(body) });
       state.planningBusy = false;
       closePlanningModal();
-      showAlert(mode === "baseline" ? "Baseline EFD berhasil dikunci." : `${result.createdDocuments?.length || 0} Delta MPS berhasil dibuat.`, true);
+      showAlert(result.message || (isDelta ? "Delta MPS berhasil dibuat tanpa mengubah baseline." : "Baseline PO berhasil dikunci. Status dokumen MPS tidak berubah dan masih perlu Approve MPS."), true);
       await load({ resetPage: true, quiet: true });
     } catch (error) { els.planningBody.insertAdjacentHTML("afterbegin", `<p class="mwb-planning-error">${esc(error.message)}</p>`); }
     finally { state.planningBusy = false; els.planningConfirm.disabled = false; els.planningConfirm.textContent = original; }
-  }
-  async function runDeltaMrp() {
-    const deltaMpsNumber = els.runDeltaMrp.dataset.deltaMpsNumber;
-    const baselineRunNumber = state.data?.mrp?.runNumber;
-    if (!deltaMpsNumber || !baselineRunNumber || els.runDeltaMrp.disabled) return;
-    const original = els.runDeltaMrp.textContent;
-    els.runDeltaMrp.disabled = true;
-    els.runDeltaMrp.textContent = "Running Delta MRP…";
-    try {
-      const result = await request("/modules/api/planning-ppic/mrp/delta/run", { method: "POST", body: JSON.stringify({ mpsNumber: deltaMpsNumber, baselineRunNumber }) });
-      location.href = `/modules/planning-ppic/mrp/${encodeURIComponent(result.runNumber)}`;
-    } catch (error) { showAlert(error.message); els.runDeltaMrp.disabled = false; els.runDeltaMrp.textContent = original; }
   }
   function render(data) {
     state.data = data; renderRows(data); renderDeliveryGate(data); renderFlow(data); renderEfdWindow(data); renderPlanningControls(data); const s = data.summary;
     $("mwb-kpi-demand").textContent = num(s.grossDemandQty); $("mwb-kpi-buffer").textContent = num(s.bufferQty); $("mwb-kpi-free").textContent = num(s.freeOpeningQty); $("mwb-kpi-pegged").textContent = num(s.peggedReservationQty); $("mwb-kpi-receipt").textContent = num(s.firmReceiptQty); $("mwb-kpi-production").textContent = num(s.plannedProductionQty); $("mwb-kpi-risk").textContent = num(s.uncoveredQty); $("mwb-kpi-risk-meta").textContent = `${num((s.varianceCount || 0) + (s.shortageCount || 0))} line perlu review`;
     const selected = els.status.value; els.status.innerHTML = `<option value="">Semua status</option>${data.statuses.map((row) => `<option value="${esc(row)}">${esc(label(row))}</option>`).join("")}`; els.status.value = data.statuses.includes(selected) ? selected : "";
     els.sourceTitle.textContent = data.mps ? `${data.mps.mpsNumber} · ${data.mps.status} · ${label(data.mps.lifecycleStatus)}` : `Belum ada revision MPS untuk delivery filter ${data.period}`;
-    const blocked = data.blockedForecasts || [];
-    els.sourceMeta.textContent = data.mps ? `Demand horizon ${date(data.mps.periodStart)} – ${date(data.mps.periodEnd)} · dihitung ${date(data.mps.updatedAt)}${data.mps.replanRequired ? ` · REPLAN: ${data.mps.replanReason || "source berubah"}` : ""}` : blocked.length ? `${blocked.map((row) => `${row.forecastNumber} ${row.status} (${num(row.qty)})`).join(" · ")} — konfirmasi Forecast sebelum dihitung ke MPS.` : "Hitung Draft MPS untuk membentuk revision resmi dari demand aktif.";
+    const excluded = data.blockedForecasts || [];
+    els.sourceMeta.textContent = data.mps ? `Demand horizon ${date(data.mps.periodStart)} – ${date(data.mps.periodEnd)} · dihitung ${date(data.mps.updatedAt)}${data.mps.replanRequired ? ` · REPLAN: ${data.mps.replanReason || "source berubah"}` : ""}` : excluded.length ? `${excluded.map((row) => `${row.forecastNumber} ${row.status} (${num(row.qty)})`).join(" · ")} — dikecualikan; Draft MPS hanya menarik Forecast Confirmed dan SO aktif.` : "Hitung Draft MPS untuk membentuk revision resmi dari demand aktif.";
     els.title.textContent = "Master Production Schedule"; els.meta.textContent = `${num(data.pagination.filtered)} FG · EFD window ${data.efdWindow?.months?.join(" / ") || data.period}`;
-    els.docStatus.textContent = data.mps ? `${label(data.mps.lifecycleStatus)} · RCCP ${label(data.mps.capacityStatus)}` : "No Draft"; els.docStatus.className = `mwb-doc-status ${String(data.mps?.lifecycleStatus || "empty").toLowerCase()}`;
+    const documentStatus = String(data.mps?.status || "");
+    const documentHint = documentStatus === "Draft" ? "Belum Approved" : documentStatus === "Confirmed" ? "Approved" : documentStatus || "Belum ada";
+    els.docStatus.textContent = data.mps ? `${data.mps.mpsNumber} · ${documentStatus} · ${documentHint}` : "Belum ada Draft MPS";
+    els.docStatus.className = `mwb-doc-status ${String(documentStatus || "empty").toLowerCase()}`;
+    els.docStatus.title = data.mps ? `Status dokumen: ${documentStatus}. Lifecycle kalkulasi: ${label(data.mps.lifecycleStatus)}. RCCP: ${label(data.mps.capacityStatus)}.` : "Belum ada dokumen MPS untuk periode ini.";
     els.actionNote.textContent = `Flow aktif: MPS Qty → RCCP → Approve MPS. RCCP tidak membuat Production Order.`;
     const start = data.pagination.filtered ? (data.pagination.page - 1) * data.pagination.pageSize + 1 : 0, end = Math.min(data.pagination.filtered, data.pagination.page * data.pagination.pageSize); els.range.textContent = `${start}–${end} dari ${num(data.pagination.filtered)}`; els.pageLabel.textContent = `Halaman ${data.pagination.page} / ${data.pagination.pages}`; els.prev.disabled = data.pagination.page <= 1; els.next.disabled = data.pagination.page >= data.pagination.pages;
   }
-  async function load({ resetPage = false, quiet = false } = {}) { if (state.loading) return; if (resetPage) state.page = 1; state.loading = true; if (!quiet) els.body.innerHTML = '<tr><td colspan="19" class="mwb-empty">Menghitung MPS dari EFD, stock, delivery, dan RCCP…</td></tr>'; try { const data = await request(`${apiBase}/workbench?${query()}`); render(data); showAlert(data.mps?.replanRequired ? data.mps.replanReason || "EFD berubah; hitung ulang Draft MPS." : ""); } catch (error) { showAlert(error.message); els.body.innerHTML = `<tr><td colspan="19" class="mwb-empty">${esc(error.message)}</td></tr>`; } finally { state.loading = false; } }
+  async function load({ resetPage = false, quiet = false } = {}) { if (state.loading) return; if (resetPage) state.page = 1; state.loading = true; if (!quiet) els.body.innerHTML = '<tr><td colspan="20" class="mwb-empty">Menghitung MPS dari EFD, stock, delivery, dan RCCP…</td></tr>'; try { const data = await request(`${apiBase}/workbench?${query()}`); render(data); showAlert(data.mps?.replanRequired ? data.mps.replanReason || "EFD berubah; hitung ulang Draft MPS." : ""); } catch (error) { showAlert(error.message); els.body.innerHTML = `<tr><td colspan="20" class="mwb-empty">${esc(error.message)}</td></tr>`; } finally { state.loading = false; } }
   const miniTable = (headers, rows) => `<div style="overflow:auto"><table class="mwb-mini-table"><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.length ? rows.join("") : `<tr><td colspan="${headers.length}">Tidak ada data.</td></tr>`}</tbody></table></div>`;
   const matrixNumber = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
   const matrixBaseCode = (value) => String(value || "").replace(/-\d{3}$/, "-000");
@@ -648,7 +666,26 @@
     }
   }
   function closeDrawer() { state.detailRequestId += 1; els.drawer.setAttribute("aria-hidden", "true"); toggleDrawerFullscreen(false); }
-  function openModal() { els.confirm.checked = false; els.modalMessage.textContent = `Periode ${els.month.value}: sistem akan menarik semua Forecast/SO aktif, memakai delivery/FG finish phase, lalu menghitung ulang Draft MPS kanonis.`; els.modal.setAttribute("aria-hidden", "false"); }
+  function openModal(mode = "sync") {
+    state.modalMode = mode;
+    els.confirm.checked = false;
+    if (mode === "recalculate") {
+      const poDeltaQty = number(state.data?.planningLock?.poDeltaQty);
+      const changedParts = number(state.data?.planningLock?.changedPartCount ?? (state.data?.items || []).filter((item) => Math.abs(number(item.planMetrics?.poDeltaQty)) > 0.000001).length);
+      els.modalEyebrow.textContent = "APPLY PO+ TO PRODUCTION";
+      els.modalTitle.textContent = "Recalculate MPS";
+      els.modalCopy.textContent = "Perubahan PO setelah Lock MPS akan diterapkan ke demand dan production plan.";
+      els.modalMessage.textContent = `Periode ${els.month.value}: terapkan total PO+ ${signedNum(poDeltaQty)} pada ${changedParts} part, lalu perbarui baseline setelah perhitungan berhasil.`;
+      els.modalSubmit.textContent = "Terapkan PO+ & Recalculate";
+    } else {
+      els.modalEyebrow.textContent = "CALCULATE OFFICIAL DRAFT";
+      els.modalTitle.textContent = "Buat Draft MPS";
+      els.modalCopy.textContent = "Demand aktif, stock FG, reservasi SO, dan open MO akan dihitung ke production plan.";
+      els.modalMessage.textContent = `Periode ${els.month.value}: sistem akan menarik seluruh Forecast/SO aktif dan menghitung Draft MPS kanonis.`;
+      els.modalSubmit.textContent = "Hitung & simpan Draft";
+    }
+    els.modal.setAttribute("aria-hidden", "false");
+  }
   function closeModal() { els.modal.setAttribute("aria-hidden", "true"); }
   function closeFormulaModal() { els.formulaModal.setAttribute("aria-hidden", "true"); }
   function openFormulaModal(button) {
@@ -961,7 +998,21 @@
     } catch (error) { els.bufferMessage.textContent = error.message; }
     finally { els.bufferSubmit.disabled = false; els.bufferSubmit.textContent = "Simpan Buffer"; }
   });
-  els.modalForm.addEventListener("submit", async (event) => { event.preventDefault(); if (!els.confirm.checked) return; els.modalSubmit.disabled = true; els.modalSubmit.textContent = "Menghitung…"; try { const result = await request(`${apiBase}/monthly-sync`, { method: "POST", body: JSON.stringify({ months: [els.month.value], planningAnchorMonth: els.month.value }) }); closeModal(); showAlert(result.message || "Draft MPS berhasil dihitung.", true); await load({ resetPage: true, quiet: true }); } catch (error) { showAlert(error.message); } finally { els.modalSubmit.disabled = false; els.modalSubmit.textContent = "Hitung & simpan Draft"; } });
+  els.modalForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!els.confirm.checked) return;
+    const isRecalculate = state.modalMode === "recalculate";
+    els.modalSubmit.disabled = true;
+    els.modalSubmit.textContent = isRecalculate ? "Menerapkan PO+…" : "Menghitung…";
+    try {
+      const endpoint = isRecalculate ? "recalculate" : "monthly-sync";
+      const result = await request(`${apiBase}/${endpoint}`, { method: "POST", body: JSON.stringify({ months: [els.month.value], planningAnchorMonth: els.month.value }) });
+      closeModal();
+      showAlert(result.message || (isRecalculate ? "PO+ berhasil diterapkan ke MPS." : "Draft MPS berhasil dihitung."), true);
+      await load({ resetPage: true, quiet: true });
+    } catch (error) { showAlert(error.message); }
+    finally { els.modalSubmit.disabled = false; els.modalSubmit.textContent = isRecalculate ? "Terapkan PO+ & Recalculate" : "Hitung & simpan Draft"; }
+  });
   els.actionForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!els.actionConfirm.checked || !state.action || !state.data?.mps) return;
@@ -1056,12 +1107,9 @@
   els.zoomLabel.addEventListener("click", () => setDrawerZoom(1));
   els.fullscreen.addEventListener("click", () => toggleDrawerFullscreen());
   setDrawerZoom(1);
-  els.sync.addEventListener("click", openModal); els.checkDelivery.addEventListener("click", () => inspectDelivery()); els.capacityCheck.addEventListener("click", () => openRccp({ configure: true })); els.confirmMps.addEventListener("click", () => openActionModal("confirm")); els.runMrp.addEventListener("click", () => openActionModal("mrp")); if (els.deliveryGateDetails) els.deliveryGateDetails.addEventListener("click", () => openGateDrawer()); document.querySelectorAll("[data-close-modal]").forEach((node) => node.addEventListener("click", closeModal)); document.querySelectorAll("[data-close-action-modal]").forEach((node) => node.addEventListener("click", closeActionModal)); document.querySelectorAll("[data-close-planning-modal]").forEach((node) => node.addEventListener("click", closePlanningModal)); document.querySelectorAll("[data-close-formula-modal]").forEach((node) => node.addEventListener("click", closeFormulaModal)); document.querySelectorAll("[data-close-buffer-modal]").forEach((node) => node.addEventListener("click", closeBufferModal)); document.querySelectorAll("[data-close-rccp-modal]").forEach((node) => node.addEventListener("click", closeRccpModal)); document.querySelectorAll("[data-close-drawer]").forEach((node) => node.addEventListener("click", closeDrawer)); document.querySelectorAll("[data-close-gate-drawer]").forEach((node) => node.addEventListener("click", closeGateDrawer)); document.querySelectorAll("[data-close-recovery-drawer]").forEach((node) => node.addEventListener("click", closeRecoveryDrawer));
-  els.previewBaseline.addEventListener("click", () => previewPlanning("baseline"));
-  els.generateBaseline.addEventListener("click", () => previewPlanning("baseline"));
-  els.previewDelta.addEventListener("click", () => previewPlanning("delta"));
-  els.generateDelta.addEventListener("click", () => previewPlanning("delta"));
-  els.runDeltaMrp.addEventListener("click", runDeltaMrp);
+  els.sync.addEventListener("click", () => openModal("sync")); els.checkDelivery.addEventListener("click", () => inspectDelivery()); els.capacityCheck.addEventListener("click", () => openRccp({ configure: true })); els.confirmMps.addEventListener("click", () => openActionModal("confirm")); els.runMrp.addEventListener("click", () => openActionModal("mrp")); if (els.deliveryGateDetails) els.deliveryGateDetails.addEventListener("click", () => openGateDrawer()); document.querySelectorAll("[data-close-modal]").forEach((node) => node.addEventListener("click", closeModal)); document.querySelectorAll("[data-close-action-modal]").forEach((node) => node.addEventListener("click", closeActionModal)); document.querySelectorAll("[data-close-planning-modal]").forEach((node) => node.addEventListener("click", closePlanningModal)); document.querySelectorAll("[data-close-formula-modal]").forEach((node) => node.addEventListener("click", closeFormulaModal)); document.querySelectorAll("[data-close-buffer-modal]").forEach((node) => node.addEventListener("click", closeBufferModal)); document.querySelectorAll("[data-close-rccp-modal]").forEach((node) => node.addEventListener("click", closeRccpModal)); document.querySelectorAll("[data-close-drawer]").forEach((node) => node.addEventListener("click", closeDrawer)); document.querySelectorAll("[data-close-gate-drawer]").forEach((node) => node.addEventListener("click", closeGateDrawer)); document.querySelectorAll("[data-close-recovery-drawer]").forEach((node) => node.addEventListener("click", closeRecoveryDrawer));
+  els.lockMps.addEventListener("click", previewPlanning);
+  els.recalculate.addEventListener("click", previewDeltaPlanning);
   els.planningConfirm.addEventListener("click", generatePlanning);
   els.recoveryBody.addEventListener("click", (event) => {
     if (event.target.closest("[data-close-recovery-simple]")) { closeRecoveryDrawer(); return; }
@@ -1073,6 +1121,6 @@
   document.addEventListener("click", (event) => { if (!els.rowMenu.hidden && !event.target.closest("#mwb-row-menu") && !event.target.closest("[data-row-menu]") && !event.target.closest("[data-phase-menu]")) closeRowMenu(); });
   els.month.addEventListener("change", () => { $("mwb-review-link").href = `/modules/planning-ppic/demand-planning/monthly-review?month=${encodeURIComponent(els.month.value)}`; $("mwb-exception-link").href = `/modules/planning-ppic/demand-planning/exception-workbench?month=${encodeURIComponent(els.month.value)}`; load({ resetPage: true }); }); els.status.addEventListener("change", () => load({ resetPage: true })); els.pageSize.addEventListener("change", () => { state.pageSize = Number(els.pageSize.value) || 25; load({ resetPage: true }); }); let timer; els.search.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => load({ resetPage: true }), 320); });
   els.prev.addEventListener("click", () => { if (state.page > 1) { state.page -= 1; load(); } }); els.next.addEventListener("click", () => { if (state.data && state.page < state.data.pagination.pages) { state.page += 1; load(); } }); els.density.addEventListener("click", () => { const comfortable = els.board.classList.toggle("comfortable"); els.density.textContent = comfortable ? "Compact view" : "Comfortable view"; });
-  els.export.addEventListener("click", () => { const rows = state.data?.items || []; if (!rows.length) return showAlert("Tidak ada data pada halaman ini untuk diexport."); const columns = ["MPS","Part Code","Part Number","Part Name","EFD M-1","DLV M-1","Shortage M-1","EFD M","EFD M+1","Buffer Percent","Buffer Qty","Current Stock","Available Stock","MPS Qty","Lead Time (day)","Capacity Status","Capacity Load (%)","Delivery Status","Netting Status","UOM"]; const csv = [columns, ...rows.map((r) => [r.mpsNumber,r.partCode,r.partNumber,r.partName,r.efdM1,r.deliveredM1,r.shortageM1,r.efdM,r.efdMPlus1,r.bufferPercent,r.bufferQty,r.currentStockQty,r.availableStockQty,r.metrics.plannedProductionQty,r.leadTimeDays,r.capacity?.status,r.capacity?.maxLoadPercentage,r.delivery?.statusLabel,r.status,r.uomCode])].map((row) => row.map((cell) => `"${String(cell ?? "").replaceAll('"','""')}"`).join(",")).join("\r\n"); const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" })); link.download = `mps-production-matrix-${els.month.value}.csv`; link.click(); URL.revokeObjectURL(link.href); });
+  els.export.addEventListener("click", () => { const rows = state.data?.items || []; if (!rows.length) return showAlert("Tidak ada data pada halaman ini untuk diexport."); const columns = ["MPS","Part Code","Part Number","Part Name","EFD M-1","DLV M-1","Shortage M-1","EFD M","PO+","EFD M+1","Buffer Percent","Buffer Qty","Current Stock","Available Stock","MPS Qty","Lead Time (day)","Capacity Status","Capacity Load (%)","Delivery Status","Netting Status","UOM"]; const csv = [columns, ...rows.map((r) => [r.mpsNumber,r.partCode,r.partNumber,r.partName,r.efdM1,r.deliveredM1,r.shortageM1,r.efdM,r.planMetrics?.poDeltaQty,r.efdMPlus1,r.bufferPercent,r.bufferQty,r.currentStockQty,r.availableStockQty,r.metrics.plannedProductionQty,r.leadTimeDays,r.capacity?.status,r.capacity?.maxLoadPercentage,r.delivery?.statusLabel,r.status,r.uomCode])].map((row) => row.map((cell) => `"${String(cell ?? "").replaceAll('"','""')}"`).join(",")).join("\r\n"); const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" })); link.download = `mps-production-matrix-${els.month.value}.csv`; link.click(); URL.revokeObjectURL(link.href); });
   document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeDrawer(); closeModal(); closeActionModal(); closePlanningModal(); closeFormulaModal(); closeBufferModal(); closeRccpModal(); closeRecoveryDrawer(); closeRowMenu(); } }); load();
 })();

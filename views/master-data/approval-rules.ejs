@@ -34,7 +34,7 @@
           <label>Action<select id="rule-action"><option value="approve">Approve / Confirm</option><option value="create">Create</option><option value="update">Update</option><option value="delete">Delete</option><option value="release">Release</option><option value="submit">Submit</option></select></label>
           <label>Document Type<input id="rule-document-type" type="text" placeholder="PurchaseOrder"></label>
           <label>Prioritas<input id="rule-priority" type="number" min="1" value="100"></label>
-          <label>Currency<input id="rule-currency" type="text" placeholder="IDR"></label>
+          <label>Currency<select id="rule-currency" data-enterprise-lookup="currencies" data-value-key="currencyCode" data-label-key="currencyName" data-lookup-placeholder="Pilih currency"><option value=""></option></select></label>
           <label>Minimum Amount<input id="rule-min-amount" type="number" step="0.01" placeholder="0"></label>
           <label>Maximum Amount<input id="rule-max-amount" type="number" step="0.01" placeholder="Tanpa batas"></label>
           <label>Efektif Mulai<input id="rule-effective-from" type="datetime-local"></label>

@@ -1,5 +1,5 @@
 <%- include('../partials/head') %>
-<link rel="stylesheet" href="/css/ppic-daily-production-plan.css?v=20260826-execution-queue-3">
+<link rel="stylesheet" href="/css/ppic-daily-production-plan.css?v=20260827-auto-correct-2">
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: 'daily-production-schedules' }) %>
 
@@ -25,6 +25,6 @@
 </main>
 <dialog id="dpp-dialog" class="dpp-dialog"><form id="dpp-dialog-form"><header><div><span>EXECUTION OPERATION</span><h3 id="dpp-dialog-title">-</h3></div><button id="dpp-dialog-close" type="button">×</button></header><div id="dpp-dialog-body"></div><footer><button class="dpp-button ghost" id="dpp-breakdown" type="button">⚠ Mesin Rusak</button><button class="dpp-button ghost" id="dpp-prepare" type="button">Siapkan Material</button><button class="dpp-button primary" id="dpp-start" type="button">Mulai Produksi</button><button class="dpp-button ghost" id="dpp-dialog-cancel" type="button">Tutup</button><a class="dpp-button primary" id="dpp-production-log" href="#">Buka Production Entry</a></footer></form></dialog>
 <script id="dpp-config" type="application/json"><%- JSON.stringify({ initialDate, role: 'PRODUCTION' }).replace(/</g, '\u003c') %></script>
-<script src="/js/ppic-daily-plan-model.js?v=20260825-preview-time-edit-2"></script>
-<script src="/js/ppic-daily-production-plan.js?v=20260826-execution-queue-4"></script>
+<script src="/js/ppic-daily-plan-model.js?v=20260827-auto-correct-2"></script>
+<script src="/js/ppic-daily-production-plan.js?v=20260828-breakdown-focus-2"></script>
 <%- include('../partials/footer') %>

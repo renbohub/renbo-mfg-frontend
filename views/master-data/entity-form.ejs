@@ -34,12 +34,16 @@
           <h2><span></span><b><%= section %></b><small><%= sectionCount %> field</small></h2>
           <div class="form-grid">
       <% lastSection = section; } %>
-        <div class="form-field <%= ['textarea','json','file'].includes(item.type) ? 'field-wide' : '' %>">
+        <div class="form-field <%= ['textarea','json','file','vendor-price-details'].includes(item.type) ? 'field-wide' : '' %>">
           <% if (item.type === 'checkbox') { %>
             <label class="check-field"><input class="form-check-input" type="checkbox" name="<%= item.name %>" <%= item.defaultChecked || item.name === 'isActive' || item.name === 'isPrimary' ? 'checked' : '' %>><span><%= item.label %></span></label>
           <% } else { %>
             <label class="form-label" for="field-<%= item.name %>"><%= item.label %><% if (item.required || (mode === 'create' && item.requiredOnCreate)) { %><em>*</em><% } %></label>
-            <% if (item.type === 'textarea' || item.type === 'json') { %>
+            <% if (item.type === 'vendor-price-details') { %>
+              <div id="vendor-price-details-editor" class="master-detail-editor"><div class="master-detail-editor-empty">Memuat pilihan proses dan UOM…</div></div>
+              <input id="field-<%= item.name %>" name="<%= item.name %>" type="hidden" value="[]">
+              <button id="vendor-price-detail-add" class="btn btn-outline-primary btn-sm mt-2" type="button">+ Tambah Proses</button>
+            <% } else if (item.type === 'textarea' || item.type === 'json') { %>
               <textarea class="form-control" id="field-<%= item.name %>" name="<%= item.name %>" rows="<%= item.type === 'json' ? 5 : 3 %>" placeholder="Masukkan <%= item.label.toLowerCase() %>" <%= item.required ? 'required' : '' %> <%= item.readOnly ? 'readonly' : '' %>></textarea>
             <% } else if (item.type === 'select') { %>
               <select class="form-select" id="field-<%= item.name %>" name="<%= item.name %>" <%= item.multiple ? 'multiple' : '' %> <%= item.required ? 'required' : '' %>><% if (!item.multiple) { %><option value="">Pilih <%= item.label.toLowerCase() %></option><% } %><% (item.options || []).forEach(opt => { %><option value="<%= opt.value %>"><%= opt.label %></option><% }) %></select>

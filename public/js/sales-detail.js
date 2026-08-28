@@ -6,6 +6,7 @@
   const $id = (id) => document.getElementById(id);
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
   const date = (value) => value ? new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date(value)) : "-";
+  const month = (value) => value ? new Intl.DateTimeFormat("id-ID", { month: "long", timeZone: "UTC" }).format(new Date(value)) : "-";
   const money = (value) => new Intl.NumberFormat("id-ID", { style: "currency", currency: doc?.currencyCode || "IDR", maximumFractionDigits: 0 }).format(Number(value || 0));
   const num = (value) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(value || 0));
   const qty = (value, uomCode = "") => window.SharedDataTable.formatQuantity(value, uomCode, { maximumFractionDigits: 2 });
@@ -73,9 +74,17 @@
   }
   function renderItems() {
     if (type === "forecast") {
-      $id("detail-head").innerHTML = "<tr><th>Part</th><th>UOM</th><th>Bulan Forecast</th><th>Qty Forecast</th></tr>";
+      $id("detail-head").innerHTML = "<tr><th>Part</th><th>UOM</th><th>Bulan Forecast</th><th>Delivery Schedule</th><th>Qty Forecast</th></tr>";
       let total = 0;
-      $id("detail-body").innerHTML = (doc.details || []).map((row) => { const quantity = Number(row.forecastQty ?? row.M1Qty ?? 0); total += quantity; return `<tr><td><b>${esc(row.partCode)}</b><br><small>${esc(row.part?.partName || "")}</small></td><td>${esc(row.uomCode)}</td><td>${date(row.forecastMonth || row.M1Forecast)}</td><td><b>${qty(quantity, row.uomCode)}</b></td></tr>`; }).join("");
+      $id("detail-body").innerHTML = (doc.details || []).map((row) => {
+        const quantity = Number(row.forecastQty ?? row.M1Qty ?? 0);
+        const schedules = Array.isArray(row.deliveryTargets) ? row.deliveryTargets : [];
+        const scheduleMarkup = schedules.length
+          ? `<div class="sales-delivery-dates">${schedules.map((target) => `<time datetime="${esc(target.targetDate)}">${date(target.targetDate)}</time>`).join("")}</div>`
+          : '<span class="text-muted">Belum dijadwalkan</span>';
+        total += quantity;
+        return `<tr><td><b>${esc(row.partCode)}</b><br><small>${esc(row.part?.partName || "")}</small></td><td>${esc(row.uomCode)}</td><td>${month(row.forecastMonth || row.M1Forecast)}</td><td>${scheduleMarkup}</td><td><b>${qty(quantity, row.uomCode)}</b></td></tr>`;
+      }).join("");
       $id("detail-summary").innerHTML = `<span>Total forecast</span><strong>${qty(total, doc.details?.[0]?.uomCode)}</strong>`;
     } else {
       const salesOrder = type === "sales-order";
@@ -132,7 +141,7 @@
     if (!body) return;
     try {
       const result = await api(`/modules/api/sales/forecasts/demand-summary?forecastNumber=${encodeURIComponent(cfg.recordKey)}`);
-      body.innerHTML = (result.items || []).map((row) => `<tr><td>${date(row.month)}</td><td><b>${esc(row.partCode)}</b><br><small>${esc(row.partName || row.partNumber || "")}</small></td><td>${esc((row.buckets || []).join(", "))}</td><td>${esc(row.forecastQty)}</td><td>${esc(row.actualSalesOrderQty)}</td><td class="${Number(row.qtyVariance) < 0 ? "text-danger" : "text-success"}">${esc(row.qtyVariance)}</td><td>${money(row.forecastRevenue)}</td><td>${money(row.actualRevenue)}</td></tr>`).join("") || '<tr><td colspan="8" class="text-muted text-center">Belum ada demand forecast.</td></tr>';
+      body.innerHTML = (result.items || []).map((row) => `<tr><td>${date(row.month)}</td><td><b>${esc(row.partCode)}</b><br><small>${esc(row.partName || row.partNumber || "")}</small></td><td>${esc((row.buckets || []).join(", "))}</td><td>${qty(row.forecastQty,row.uomCode)}</td><td>${qty(row.actualSalesOrderQty,row.uomCode)}</td><td class="${Number(row.qtyVariance) < 0 ? "text-danger" : "text-success"}">${qty(row.qtyVariance,row.uomCode)}</td><td>${money(row.forecastRevenue)}</td><td>${money(row.actualRevenue)}</td></tr>`).join("") || '<tr><td colspan="8" class="text-muted text-center">Belum ada demand forecast.</td></tr>';
     } catch (error) { body.innerHTML = `<tr><td colspan="8" class="text-danger text-center">${esc(error.message)}</td></tr>`; }
   }
   async function load() { doc = await api(`/modules/api/sales/${cfg.slug}/${encodeURIComponent(cfg.recordKey)}`); const key = doc[cfg.detailKey]; $id("document-number").textContent = key; $id("document-breadcrumb").textContent = key; $id("document-caption").textContent = type === "forecast" ? `${doc.forecastName || ""} • ${doc.customerCode || "-"}` : `${doc.customerName || "-"} • ${date(doc[type === "quotation" ? "quotationDate" : "soDate"])}`; renderStatus(); renderInfo(); renderItems(); renderWorkflow(); renderRelationships(); $id("detail-notes").textContent = doc.notes || "-"; if (type === "quotation" && !doc.convertedToSO && ["Approved", "Accepted"].includes(doc.status)) $id("make-to-so").classList.remove("d-none"); if (type === "sales-order" && doc.status === "Draft") $id("confirm-sales-order")?.classList.remove("d-none"); await loadPlanning(); }

@@ -8,7 +8,9 @@
     const monthControl = root.dataset.monthControl && document.getElementById(root.dataset.monthControl);
     const dateControl = root.dataset.dateControl && document.getElementById(root.dataset.dateControl);
     const query = new URLSearchParams(location.search);
-    const candidate = monthControl?.value || dateControl?.value?.slice(0, 7) || query.get("month") || query.get("date")?.slice(0, 7);
+    // URL is the navigation contract. Page controls may still contain their
+    // server-rendered default when this deferred strip initializes.
+    const candidate = query.get("month") || query.get("date")?.slice(0, 7) || monthControl?.value || dateControl?.value?.slice(0, 7);
     return /^\d{4}-(0[1-9]|1[0-2])$/.test(String(candidate || "")) ? candidate : new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
   };
   const stageState = (ready, exists = true) => ready ? "ready" : exists ? "action" : "blocked";

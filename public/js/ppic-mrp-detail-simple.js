@@ -243,6 +243,16 @@
       && String(plan?.acceptLateReason || "").trim().length >= 10
       && Boolean(plan?.approvedBy && plan?.approvedAt);
   }
+  function bulkLateTargets() {
+    const plans = recoveryPlanByTarget();
+    const targets = new Map();
+    for (const row of weeklyMatrixRows()) {
+      for (const phase of recoveryTargetOptions(row)) {
+        if (phase.deliveryTargetId && !planAcceptsLate(plans.get(phase.deliveryTargetId))) targets.set(phase.deliveryTargetId, phase);
+      }
+    }
+    return [...targets.values()];
+  }
   function weeklyBuckets() {
     return weeklyDeltaModel.buildWeeklyBuckets(validDate(state.doc?.planningMonth) ? state.doc.planningMonth : new Date());
   }
@@ -411,6 +421,8 @@
     if (doc.mPlusOneOption?.available) actions.push(`<button class="btn btn-outline-primary" type="button" data-mrps-mplus>Opsi M+1${doc.mPlusOnePreview?.requirements?.length ? ` · ${num(doc.mPlusOnePreview.requirements.length, 0)} material` : ""}</button>`);
     if (lifecycle === "APPROVED") actions.push('<button class="btn btn-outline-primary" type="button" data-mrps-rerun>Hitung Revision MRP</button>');
     if (lifecycle === "SIMULATED" && doc.approvalEligibility?.allowed !== false && String(doc.scenarioAssumptions?.planningMode || "OFFICIAL").toUpperCase() !== "M_PLUS_ONE_PREVIEW") actions.push('<button class="btn btn-primary" type="button" data-mrps-approve>Approve MRP</button>');
+    const lateTargets = bulkLateTargets();
+    if (lateTargets.length) actions.push(`<button class="btn btn-danger" type="button" data-mrps-auto-accept-late>Accept Late Semua · ${num(lateTargets.length, 0)}</button>`);
     if (doc.purchaseSuggestion?.suggestionNumber) actions.push(`<a class="btn btn-outline-primary" href="/modules/purchasing/purchase-suggestions/${encodeURIComponent(doc.purchaseSuggestion.suggestionNumber)}">Buka ${esc(doc.purchaseSuggestion.suggestionNumber)}</a>`);
     else if (lifecycle === "APPROVED") actions.push('<button class="btn btn-outline-primary" type="button" data-mrps-action="suggestion">Buat Purchase Suggestion</button>');
     if (lifecycle === "APPROVED") actions.push('<button class="btn btn-primary" type="button" data-mrps-action="production">Buat Monthly Planning</button>');
@@ -833,6 +845,36 @@
       if (trigger) { trigger.disabled = false; trigger.textContent = "Approve MRP"; }
     }
   }
+  async function autoAcceptLate() {
+    const targets = bulkLateTargets();
+    if (!targets.length) return alert("Tidak ada delivery phase terlambat yang belum ditangani.");
+    const defaultReason = `Accept late massal sesuai earliest feasible delivery ${state.doc?.runNumber || "MRP"}.`;
+    const reason = window.prompt("Catatan audit Auto Accept Late (minimal 10 karakter):", defaultReason);
+    if (reason == null) return;
+    if (reason.trim().length < 10) return alert("Catatan audit minimal 10 karakter.");
+    if (!window.confirm(`Accept Late ${targets.length} delivery phase? Tanggal baru akan memakai earliest feasible delivery dan langsung berstatus Approved.`)) return;
+    const button = document.querySelector("[data-mrps-auto-accept-late]");
+    if (button) { button.disabled = true; button.textContent = `Memproses ${targets.length} phase…`; }
+    try {
+      const result = await api("/modules/api/planning-ppic/demand-planning/recovery-plans/bulk-accept-late", {
+        method: "POST",
+        body: JSON.stringify({
+          runNumber: state.doc.runNumber,
+          deliveryTargetIds: targets.map((target) => target.deliveryTargetId),
+          reason: reason.trim(),
+          acknowledgedRisk: true,
+        }),
+      });
+      const processed = result.processed?.length || 0;
+      const skipped = result.skipped?.length || 0;
+      const failed = result.failed?.length || 0;
+      await load();
+      alert(`Auto Accept Late selesai: ${processed} approved, ${skipped} dilewati, ${failed} gagal.${failed ? " Buka recovery per baris untuk item yang perlu tindakan manual." : ""}`, failed === 0);
+    } catch (error) {
+      alert(error.message);
+      if (button) { button.disabled = false; button.textContent = `Accept Late Semua · ${targets.length}`; }
+    }
+  }
   async function load() {
     try {
       state.doc = await api(`/modules/api/planning-ppic/material-requirements-planning/${encodeURIComponent(key)}`);
@@ -893,6 +935,7 @@
     if (event.target.closest("[data-mrps-mplus]")) return openMPlusOne();
     if (event.target.closest("[data-mrps-rerun]")) return void rerunOfficial();
     if (event.target.closest("[data-mrps-approve]")) return void approveMrp();
+    if (event.target.closest("[data-mrps-auto-accept-late]")) return void autoAcceptLate();
     const action = event.target.closest("[data-mrps-action]"); if (action) return openModal(action.dataset.mrpsAction);
     if (event.target.closest("[data-close-mrps-drawer]")) return closeDrawer();
     if (event.target.closest("[data-close-mrps-modal]")) return closeModal();

@@ -12,6 +12,26 @@
     'monthly-plan': 'monthly-production-plans'
   };
   const normalizedActivePage = modulePageAliases[requestedActivePage] || requestedActivePage;
+  const navigationIconRules = [
+    { match: /dashboard|control-tower/, icon: 'grid' },
+    { match: /tutorial/, icon: 'book' },
+    { match: /report|trend|costing/, icon: 'chart' },
+    { match: /schedule|plan|planning|forecast|capacity/, icon: 'calendar' },
+    { match: /purchase|requisition|suggestion/, icon: 'cart' },
+    { match: /shipment|delivery|supplier/, icon: 'truck' },
+    { match: /receipt|incoming|putaway/, icon: 'inbox' },
+    { match: /warehouse|inventory|stock|wip/, icon: 'warehouse' },
+    { match: /quality|inspection|disposition|qc/, icon: 'check-circle' },
+    { match: /material|bom/, icon: 'layers' },
+    { match: /routing|process|work-center/, icon: 'route' },
+    { match: /production|manufacturing|work-order/, icon: 'factory' },
+    { match: /quotation|sales-order|invoice/, icon: 'file' },
+    { match: /picking|packing/, icon: 'box' },
+    { match: /movement|transfer|issue/, icon: 'activity' }
+  ];
+  const navigationIcon = item => item.icon
+    || navigationIconRules.find(rule => rule.match.test(item.slug))?.icon
+    || (item.kind === 'report' ? 'chart' : item.kind === 'dashboard' ? 'grid' : 'file');
   const ppicWorkbenchNav = module.slug === 'planning-ppic' ? {
     'master-production-schedule': { label: 'Rolling MPS', href: '/modules/planning-ppic/mps/workbench' },
     'material-requirements-planning': { label: 'MRP Planning Runs', href: '/modules/planning-ppic/mrp' },
@@ -23,9 +43,10 @@
     slug: item.slug,
     label: ppicWorkbenchNav[item.slug]?.label || item.label,
     href: ppicWorkbenchNav[item.slug]?.href || '/modules/' + module.slug + '/' + item.slug,
-    apiReady: item.apiReady !== false
+    apiReady: item.apiReady !== false,
+    icon: navigationIcon(item)
   }));
-  if (module.slug === 'planning-ppic') moduleNavigationItems.push({ slug: 'tutorial', label: 'Tutorial', href: '/modules/planning-ppic/tutorial', apiReady: true });
+  if (module.slug === 'planning-ppic') moduleNavigationItems.push({ slug: 'tutorial', label: 'Tutorial', href: '/modules/planning-ppic/tutorial', apiReady: true, icon: 'book' });
 %>
 <nav class="module-subnav module-subnav--<%= module.color %>" aria-label="Menu <%= module.label %>">
   <div class="app-container module-subnav-inner">
@@ -34,7 +55,7 @@
         class="<%= normalizedActivePage === item.slug ? 'active' : '' %> <%= !item.apiReady ? 'disabled' : '' %>"
         href="<%= item.apiReady ? item.href : '#' %>"
         <%= !item.apiReady ? 'aria-disabled="true" title="Endpoint belum tersedia"' : '' %>
-      ><%= item.label %></a>
+      ><span class="module-subnav-icon"><%- include('icon', { name: item.icon }) %></span><span><%= item.label %></span></a>
     <% }) %>
   </div>
 </nav>

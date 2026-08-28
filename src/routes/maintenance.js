@@ -28,7 +28,7 @@ router.get("/", (_req, res) => res.render("maintenance/index", {
   activeModule: "maintenance",
   socketUrl: process.env.SOCKET_URL || "http://localhost:5017",
   mqttUrl: process.env.MQTT_URL || "",
-  pageScript: "/js/maintenance.js?v=20260825-source-reset-1",
+  pageScript: "/js/maintenance.js?v=20260828-flow-reset-1",
 }));
 
 router.get("/api/demand-flow/status", async (req, res) => {

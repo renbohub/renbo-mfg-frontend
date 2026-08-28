@@ -42,7 +42,7 @@ const registry = {
       field("canPurchase", "Can Purchase", "checkbox", { section: "Transaction Permissions", defaultChecked: true }), field("canManufacture", "Can Manufacture", "checkbox", { section: "Transaction Permissions", defaultChecked: true }), field("canSell", "Can Sell", "checkbox", { section: "Transaction Permissions", defaultChecked: true }), field("canStore", "Can Store", "checkbox", { section: "Transaction Permissions", defaultChecked: true }),
       field("canUseInBom", "Can Use in BOM", "checkbox", { section: "Transaction Permissions", defaultChecked: true }), field("canSubcontract", "Can Subcontract", "checkbox", { section: "Transaction Permissions", defaultChecked: true }), field("canTrackLot", "Can Track Lot", "checkbox", { section: "Transaction Permissions", defaultChecked: true }), field("canTrackSerial", "Can Track Serial", "checkbox", { section: "Transaction Permissions", defaultChecked: true }),
       field("pcsPerBox", "Pcs/Box", "number", { step: "0.01", section: "Packing" }), field("kgPerBox", "Kg/Box", "number", { step: "0.01", section: "Packing" }), field("packingPlastic", "Packing Plastic", "text", { section: "Packing" }), field("pcsPerPlastic", "Pcs/Plastic", "number", { step: "0.01", section: "Packing" }), field("kgPerPlastic", "Kg/Plastic", "number", { step: "0.01", section: "Packing" }), field("qtyPlasticPerBox", "Qty Plastic/Box", "number", { step: "0.01", section: "Packing" }),
-      field("photos", "Foto", "file", { multiple: true, accept: "image/*", section: "Lampiran" }), field("files", "Dokumen", "file", { multiple: true, section: "Lampiran" }), field("partBases", "Part Bases", "json", { section: "Data Lanjutan" }), field("attachments", "Metadata Lampiran", "json", { section: "Data Lanjutan" }), field("notes", "Catatan", "textarea")
+      field("photos", "Photo Part", "file", { multiple: true, accept: "image/*", section: "Drawing & Photo", sourcePath: "photos" }), field("files", "Drawing / Dokumen Teknik", "file", { multiple: true, accept: ".pdf,.dwg,.dxf,.step,.stp,.igs,.iges,image/*", section: "Drawing & Photo", sourcePath: "attachments", help: "Upload drawing PDF/CAD atau gambar teknik. File lama tetap tersimpan saat menambah file baru." }), field("notes", "Catatan", "textarea")
     ]
   }),
   "material-substances": entity({
@@ -80,7 +80,7 @@ const registry = {
   customers: entity({
     slug: "customers", label: "Data Pelanggan", singular: "Pelanggan", group: "Data Umum", icon: "users", endpoint: "/api/master-data/customers", detailKey: "customerCode", generateCode: "customerCode",
     columns: [column("customerCode", "Kode"), column("customerName", "Nama Pelanggan"), column("contact", "Kontak"), column("phone", "Telepon"), column("email", "Email"), column("status", "Status", { type: "statusText" })],
-    fields: [field("customerCode", "Kode Pelanggan", "text", { required: true, generated: true }), field("customerName", "Nama Pelanggan", "text", { required: true }), field("contact", "Contact Person"), field("phone", "Telepon", "tel"), field("email", "Email", "email"), field("billingAddress", "Alamat Penagihan", "textarea"), field("shippingAddress", "Alamat Pengiriman", "textarea"), lookup("currencyCode", "Mata Uang", "currencies", "currencyCode", "currencyName"), field("paymentTerms", "Syarat Pembayaran"), field("taxId", "NPWP/Tax ID"), field("customerClassification", "Klasifikasi", "select", { options: option("Regular", "Dies Only", "Job Order"), multiple: true }), field("status", "Status", "select", { options: option("Active", "Inactive") }), field("notes", "Catatan", "textarea")]
+    fields: [field("customerCode", "Kode Pelanggan", "text", { required: true, generated: true }), field("customerName", "Nama Pelanggan", "text", { required: true }), field("contact", "Contact Person"), field("phone", "Telepon", "tel"), field("email", "Email", "email"), field("billingAddress", "Alamat Penagihan", "textarea"), field("shippingAddress", "Alamat Pengiriman", "textarea"), lookup("currencyCode", "Mata Uang", "currencies", "currencyCode", "currencyName"), lookup("paymentTerms", "Syarat Pembayaran", "payment-terms", "termCode", "description", { showValue: true }), field("taxId", "NPWP/Tax ID"), field("customerClassification", "Klasifikasi", "select", { options: option("Regular", "Dies Only", "Job Order"), multiple: true }), field("status", "Status", "select", { options: option("Active", "Inactive") }), field("notes", "Catatan", "textarea")]
   }),
   suppliers: entity({
     slug: "suppliers", label: "Data Supplier", singular: "Supplier", group: "Data Umum", icon: "truck", endpoint: "/api/master-data/suppliers", detailKey: "supplierCode", generateCode: "supplierCode",
@@ -95,7 +95,7 @@ const registry = {
   uom: entity({
     slug: "uom", label: "Data Satuan", singular: "Satuan", group: "Data Umum", icon: "hash", endpoint: "/api/master-data/uom", detailKey: "uomCode",
     columns: [column("uomCode", "Kode"), column("uomName", "Nama Satuan"), column("category", "Kategori"), column("notes", "Catatan")],
-    fields: [field("uomCode", "Kode Satuan", "text", { required: true }), field("uomName", "Nama Satuan", "text", { required: true }), field("category", "Kategori UOM"), field("notes", "Catatan", "textarea")]
+    fields: [field("uomCode", "Kode Satuan", "text", { required: true }), field("uomName", "Nama Satuan", "text", { required: true }), field("category", "Kategori UOM", "select", { options: option("COUNT", "WEIGHT", "LENGTH", "AREA", "VOLUME", "TIME", "PACKAGING", "OTHER") }), field("notes", "Catatan", "textarea")]
   }),
   warehouses: entity({
     slug: "warehouses", label: "Data Gudang", singular: "Gudang", group: "Data Umum", icon: "warehouse", endpoint: "/api/inventory/warehouses", detailKey: "warehouseCode", mutationKey: "warehouseCode", generateCode: "warehouseCode",
@@ -105,7 +105,7 @@ const registry = {
   racks: entity({
     slug: "racks", label: "Rack Warehouse", singular: "Rack Warehouse", group: "Data Umum", icon: "layers", endpoint: "/api/inventory/racks", detailKey: "rackCode", mutationKey: "rackCode", generateCode: "rackCode",
     columns: [column("rackCode", "Kode Rack"), column("rackName", "Nama Rack"), column("warehouse.warehouseName", "Warehouse"), column("zone", "Zona"), column("row", "Baris"), column("level", "Level"), column("position", "Posisi"), column("capacity", "Kapasitas", { type: "number" }), column("isActive", "Status", { type: "active" })],
-    fields: [field("rackCode", "Kode Rack", "text", { required: true, generated: true }), field("rackName", "Nama Rack", "text", { required: true }), lookup("warehouseCode", "Warehouse", "warehouses", "warehouseCode", "warehouseName", { required: true, showValue: true }), field("zone", "Zona"), field("row", "Baris"), field("level", "Level"), field("position", "Posisi"), field("capacity", "Kapasitas", "number", { step: "0.01" }), field("capacityUnit", "Satuan Kapasitas"), field("isActive", "Aktif", "checkbox", { defaultChecked: true }), field("notes", "Catatan", "textarea")]
+    fields: [field("rackCode", "Kode Rack", "text", { required: true, generated: true }), field("rackName", "Nama Rack", "text", { required: true }), lookup("warehouseCode", "Warehouse", "warehouses", "warehouseCode", "warehouseName", { required: true, showValue: true }), field("zone", "Zona"), field("row", "Baris"), field("level", "Level"), field("position", "Posisi"), field("capacity", "Kapasitas", "number", { step: "0.01" }), lookup("capacityUnit", "Satuan Kapasitas", "uom", "uomCode", "uomName"), field("isActive", "Aktif", "checkbox", { defaultChecked: true }), field("notes", "Catatan", "textarea")]
   }),
   currencies: entity({
     slug: "currencies", label: "Data Mata Uang", singular: "Mata Uang", group: "Data Keuangan", icon: "currency", endpoint: "/api/master-data/currencies", detailKey: "currencyCode",
@@ -257,7 +257,7 @@ const registry = {
   "part-attachments": entity({
     slug: "part-attachments", label: "Dokumen Part", singular: "Dokumen Part", group: "Data Engineering", icon: "file", endpoint: "/api/master-data/part-attachments", multipart: true, updateMethod: "PUT", removeMethod: "DELETE", removeSuffix: "", bulkMethod: "POST",
     columns: [column("part.partCode", "Part"), column("title", "Judul"), column("description", "Deskripsi"), column("uploadedBy", "Diupload Oleh"), column("createdAt", "Tanggal", { type: "date" })],
-    fields: [lookup("partId", "Part", "parts", "id", "partCode", { required: true }), field("title", "Judul", "text", { required: true }), field("files", "File", "file", { multiple: true, requiredOnCreate: true }), field("description", "Deskripsi", "textarea"), field("uploadedBy", "Diupload Oleh")]
+    fields: [lookup("partId", "Part", "parts", "id", "partCode", { required: true, labelKeys: ["partCode", "partName"] }), field("title", "Judul", "text", { required: true }), field("files", "File", "file", { multiple: true, requiredOnCreate: true }), field("description", "Deskripsi", "textarea"), lookup("uploadedBy", "Diupload Oleh", "employee-names", "fullName", "fullName")]
   }),
   "roles-permissions": entity({
     slug: "roles-permissions", label: "Role & Permission", singular: "Role", group: "Data Sistem", icon: "users",
@@ -266,7 +266,7 @@ const registry = {
   }),
   "approval-rules": entity({
     slug: "approval-rules", label: "Approval Rules", singular: "Approval Rule", group: "Data Sistem", icon: "file",
-    endpoint: "/api/system/approval-rules", customView: "master-data/approval-rules", pageScript: "/js/approval-rules.js?v=20260812-lifecycle",
+    endpoint: "/api/system/approval-rules", customView: "master-data/approval-rules", pageScript: "/js/approval-rules.js?v=20260827-dropdown-1",
     columns: [], fields: []
   }),
   "ai-model-profiles": entity({
@@ -276,7 +276,7 @@ const registry = {
   }),
   formulas: entity({
     slug: "formulas", label: "Master Formula", singular: "Formula", group: "Data Sistem", icon: "file",
-    endpoint: "/api/system/master-formulas", customView: "master-data/formulas", pageScript: "/js/master-formulas.js",
+    endpoint: "/api/system/master-formulas", customView: "master-data/formulas", pageScript: "/js/master-formulas.js?v=20260827-dropdown-1",
     columns: [], fields: []
   }),
   "excel-imports": entity({
@@ -354,6 +354,12 @@ replaceRegistryField("dies", "warehouseCode", lookup("warehouseCode", "Gudang", 
 replaceRegistryField("dies-maintenance", "vendorCode", lookup("vendorCode", "Vendor Maintenance", "vendor-codes", "vendorCode", "vendorName", { showValue: true }));
 replaceRegistryField("dies-usage", "machineCode", lookup("machineCode", "Mesin", "machine-codes", "machineCode", "machineName", { showValue: true }));
 replaceRegistryField("employees", "divisionIds", lookup("divisionIds", "Semua Divisi", "divisions", "id", "divisionName", { multiple: true, sourceValueKey: "id", help: "Pilih satu atau beberapa divisi pegawai." }));
+replaceRegistryField("material-price-lists", "CSP", field("CSP", "C/S/P (opsional)", "select", { options: option("C", "S", "P") }));
+replaceRegistryField("dies-maintenance", "performedBy", lookup("performedBy", "Dilakukan Oleh", "employee-names", "fullName", "fullName"));
+replaceRegistryField("dies-maintenance", "statusBefore", field("statusBefore", "Status Sebelum", "select", { options: option("Active", "Maintenance", "Retired", "Scrapped", "Reserved") }));
+replaceRegistryField("dies-maintenance", "statusAfter", field("statusAfter", "Status Sesudah", "select", { options: option("Active", "Maintenance", "Retired", "Scrapped", "Reserved") }));
+replaceRegistryField("dies-usage", "operatorName", lookup("operatorName", "Operator", "employee-names", "fullName", "fullName"));
+replaceRegistryField("dies-usage", "shift", lookup("shift", "Shift", "shifts", "shiftCode", "shiftName", { showValue: true }));
 
 registry["vendor-price-lists"].columns = [
   column("vendor.vendorName", "Vendor"), column("part.partCode", "Part"), column("category", "Kategori"),
@@ -364,13 +370,13 @@ registry["vendor-price-lists"].fields = [
   lookup("vendorId", "Vendor", "vendors", "id", "vendorName", { required: true }),
   lookup("partId", "Part", "parts", "id", "partCode", { required: true }),
   lookup("customerId", "Customer", "customers", "id", "customerName"),
-  field("category", "Kategori", "text", { required: true }),
+  field("category", "Kategori", "select", { required: true, options: option("COATING", "PLATING", "HEAT_TREATMENT", "MACHINING", "WELDING", "ASSEMBLY", "INSPECTION", "OTHER") }),
   lookup("currencyCode", "Mata Uang", "currencies", "currencyCode", "currencyName", { required: true }),
   field("effectiveFrom", "Berlaku Mulai", "date", { required: true, defaultValue: "today", help: "Harga vendor sebelumnya ditutup otomatis." }),
   field("effectiveUntil", "Berlaku Sampai", "date", { help: "Boleh kosong; diisi otomatis saat periode berikutnya dibuat." }),
   field("isActive", "Aktif", "checkbox", { defaultChecked: true }),
   field("quotationFiles", "File Quotation", "file", { multiple: true }),
-  field("details", "Detail Proses, Harga & MOQ", "json", { help: "Array contoh: [{\"vendorProcessId\":\"...\",\"unitPrice\":1500,\"uomCode\":\"PCS\",\"minimumOrderQty\":50,\"orderMultipleQty\":25,\"minimumCharge\":100000}]. MOQ berlaku per vendor + part + proses + periode harga." }),
+  field("details", "Detail Proses, Harga & MOQ", "vendor-price-details", { section: "Harga Proses", help: "Pilih proses dan UOM dari master; tidak perlu menulis ID atau JSON." }),
   field("notes", "Catatan", "textarea")
 ];
 

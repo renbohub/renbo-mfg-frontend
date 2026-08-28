@@ -833,9 +833,16 @@ textarea {
 }
 
 .module-nav {
+  min-width: 0;
   align-items: center;
   gap: 5px;
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.module-nav::-webkit-scrollbar {
+  display: none;
 }
 
 .module-nav > a,
@@ -852,6 +859,28 @@ textarea {
   text-decoration: none;
 }
 
+.module-nav-link-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  margin-right: 6px;
+  color: #98a2b3;
+}
+
+.module-nav-link-icon .ui-icon {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.8;
+}
+
+.module-nav > a:hover .module-nav-link-icon,
+.module-nav > a.active .module-nav-link-icon,
+.module-quick-links > a:hover .module-nav-link-icon,
+.module-quick-links > a.active .module-nav-link-icon {
+  color: currentColor;
+}
+
 .module-nav > a:hover,
 .module-nav > a.active,
 .module-quick-links > a:hover,
@@ -862,8 +891,15 @@ textarea {
 
 .module-quick-links {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 2px;
+}
+
+.module-switcher {
+  position: relative;
+  z-index: 30;
+  flex: 0 0 auto;
 }
 
 .module-switcher-trigger {
@@ -909,6 +945,10 @@ textarea {
 }
 
 .module-switcher-menu {
+  position: fixed !important;
+  right: auto !important;
+  bottom: auto !important;
+  z-index: 1090;
   width: min(780px, calc(100vw - 32px));
   margin-top: 8px !important;
   padding: 0;
@@ -916,6 +956,7 @@ textarea {
   border: 1px solid #d8dee8;
   border-radius: 12px;
   box-shadow: 0 18px 45px rgb(16 24 40 / 16%);
+  transform: none !important;
 }
 
 .module-switcher-head,
@@ -1111,7 +1152,10 @@ textarea {
 
 .module-subnav a {
   min-width: auto;
+  gap: 7px;
   padding: 0 13px;
+  border-left: 1px solid var(--ui-line);
+  border-right: 0;
   border-bottom: 2px solid transparent;
   background: transparent !important;
   color: #667085;
@@ -1119,10 +1163,35 @@ textarea {
   font-weight: 650;
 }
 
+.module-subnav a:last-child {
+  border-right: 1px solid var(--ui-line);
+}
+
+.module-subnav-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: #98a2b3;
+}
+
+.module-subnav-icon .ui-icon {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.8;
+}
+
+.module-subnav a:hover .module-subnav-icon,
+.module-subnav a.active .module-subnav-icon {
+  color: currentColor;
+}
+
 .module-subnav a.active {
   border-bottom-color: var(--ui-brand);
+  background: var(--ui-brand-soft) !important;
   color: var(--ui-brand-dark);
   font-weight: 750;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 55%);
 }
 
 /* Clear title -> context -> action -> filters hierarchy. */
@@ -2261,10 +2330,6 @@ form.ops-detail-card > .module-form-actions,
 }
 
 @media (max-width: 1180px) {
-  .module-quick-links > a:nth-last-child(-n+2) {
-    display: none;
-  }
-
   .module-user-copy {
     display: none;
   }
@@ -2316,10 +2381,6 @@ form.ops-detail-card > .module-form-actions,
   .module-subnav {
     top: var(--ui-header-height);
     margin-top: 0;
-  }
-
-  .module-quick-links {
-    display: none;
   }
 
   .module-master-toolbar,
@@ -2541,3 +2602,7 @@ html[data-theme="dark"] :is(.module-table-shell, .ops-table-card, .sales-card, .
   .erp-form-dock-actions .btn{flex:1}
   .erp-form-progress{width:100%}
 }
+.master-file-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:4px}.master-file-list article{display:grid;grid-template-rows:138px auto;overflow:hidden;border:1px solid #d9e2ec;border-radius:10px;background:#fff;color:#16335a;min-width:0;box-shadow:0 2px 8px rgb(20 48 78 / 5%)}.master-file-preview{display:grid;place-items:center;overflow:hidden;background:#edf3f8;color:#52677d;text-decoration:none}.master-file-preview img{width:100%;height:100%;object-fit:contain;background:#f5f8fb}.master-file-icon{font-size:36px}.master-file-copy{display:grid;gap:3px;padding:10px 12px;min-width:0}.master-file-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.master-file-copy small{color:#6c7d90;font-size:10px}.master-file-actions{display:flex;gap:7px;margin-top:7px}.master-file-actions a{padding:4px 9px;border:1px solid #bdd0e0;border-radius:6px;color:#145da0;font-size:11px;font-weight:750;text-decoration:none}.master-file-actions a:last-child{border-color:#1e78c7;background:#1e78c7;color:#fff}.master-file-actions a:hover{filter:brightness(.96)}
+.master-file-empty{display:flex;gap:10px;align-items:center;padding:13px;border:1px dashed #b9c9d8;border-radius:9px;background:#f8fbfd;color:#53687c}.master-file-empty>span{display:grid;place-items:center;flex:0 0 28px;width:28px;height:28px;border-radius:50%;background:#dce9f3;color:#1c639a;font-size:17px;font-weight:800}.master-file-empty>div{display:grid;gap:2px}.master-file-empty strong{font-size:12px}.master-file-empty small{font-size:10px;color:#718397}.master-file-empty.is-warning{border-color:#e5ae58;background:#fff9ed;color:#8a5500}.master-file-empty.is-warning>span{background:#f9dca9;color:#8a5500}
+.master-detail-editor{display:grid;gap:10px}.master-detail-editor-row{display:grid;grid-template-columns:minmax(190px,1.5fr) repeat(5,minmax(115px,1fr)) minmax(160px,1.25fr) auto;gap:9px;align-items:end;padding:12px;border:1px solid #d9e2ec;border-radius:9px;background:#f8fbfe}.master-detail-editor-row label{display:grid;gap:5px}.master-detail-editor-row label>span{font-size:10px;font-weight:800;color:#50657a;text-transform:uppercase}.master-detail-editor-empty{padding:18px;color:#6c7d90;text-align:center}@media(max-width:1200px){.master-detail-editor-row{grid-template-columns:repeat(2,minmax(0,1fr))}.master-detail-editor-row .detail-note{grid-column:1/-1}}
+.master-nested-price-list{display:grid;gap:8px}.master-nested-price-list article{display:grid;grid-template-columns:minmax(180px,1fr) auto;gap:3px 16px;padding:10px;border:1px solid #dce5ed;border-radius:7px;background:#f8fbfd}.master-nested-price-list article>div{display:grid}.master-nested-price-list small,.master-nested-price-list span{font-size:10px;color:#708294}.master-nested-price-list article>span{grid-column:1/-1}.master-nested-price-list article>b{color:#087647}

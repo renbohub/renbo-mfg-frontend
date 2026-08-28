@@ -16,6 +16,7 @@ const checks = [
   [compactJs.includes("data-ps-kind=\"material\""), "material rows expose their automatic type"],
   [compactJs.includes("data-ps-kind=\"purchase-part\""), "purchase-part rows expose their automatic type"],
   [compactJs.includes("Wait Confirm"), "pending rows use the short Wait Confirm status"],
+  [compactJs.includes('"Coverage"') && compactJs.includes('"covered"'), "Covered by MOQ rows use the Coverage status instead of Wait Confirm"],
   [compactJs.includes("ps-supplier-name"), "supplier column renders a single supplier name"],
   [!compactJs.includes("ps-readiness-hint"), "readiness explanation is omitted from compact rows"],
   [baseJs.includes("data-due-calculation") && compactJs.includes("ps-due-primary"), "purchase-max formula help remains available"],
@@ -23,6 +24,7 @@ const checks = [
   [css.includes(".ps-compact-table"), "compact table styling exists"],
   [css.includes("color: #334155 !important"), "compact table header has an explicit high-contrast text color"],
   [css.includes(".ps-simple-status"), "short status styling exists"],
+  [css.includes(".ps-simple-status.covered"), "coverage status styling exists"],
   [css.includes(".ps-supplier-name"), "supplier-name-only styling exists"],
 ];
 

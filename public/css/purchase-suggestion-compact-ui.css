@@ -97,6 +97,12 @@
   color: #42526a;
 }
 
+.ps-simple-status.covered {
+  border-color: #a5b4fc;
+  background: #eef2ff;
+  color: #3730a3;
+}
+
 .ps-supplier-name {
   display: block;
   max-width: 210px;
@@ -575,6 +581,13 @@
 .purchase-suggestion-page .ps-toolbar .form-select {
   min-height: 34px;
   padding-block: 5px;
+}
+
+.purchase-suggestion-page .ps-toolbar .ps-auto-confirm-button {
+  min-height: 34px;
+  padding-inline: 12px;
+  align-self: end;
+  white-space: nowrap;
 }
 
 .purchase-suggestion-page .ps-table-shell {

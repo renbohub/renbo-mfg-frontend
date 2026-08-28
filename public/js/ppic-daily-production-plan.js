@@ -64,9 +64,66 @@
     return { ...item, plannedStartTime: `${String(Math.floor(start / 60)).padStart(2, "0")}:${String(start % 60).padStart(2, "0")}`, plannedEndTime: `${String(Math.floor((start + 50) / 60)).padStart(2, "0")}:${String((start + 50) % 60).padStart(2, "0")}`, displayOnlyPlacement: true };
   }
 
+  function displayMergeKey(item = {}) {
+    return [
+      String(item.scheduleDate || "").slice(0, 10),
+      item.machineId || "UNASSIGNED",
+      item.partCode || item.partId || "PART",
+      item.processId || item.mbomProcessId || "PROCESS",
+      item.moId || item.moNumber || "MO",
+      item.woId || item.woNumber || "WO",
+      item.uomCode || "UOM",
+      item.status || "Draft",
+    ].map(String).join("|");
+  }
+
+  function mergeDisplaySchedules(schedules = []) {
+    // Production execution keeps every DPS record individually actionable.
+    // The aggregation is a PPIC planning view only; release/audit lineage is
+    // never hidden from the operator who records actual output.
+    if (productionMode) return schedules;
+    const byMachine = new Map();
+    schedules.forEach((item) => {
+      const key = String(item.machineId || item.machineCode || "UNASSIGNED");
+      const rows = byMachine.get(key) || [];
+      rows.push(item);
+      byMachine.set(key, rows);
+    });
+    const result = [];
+    byMachine.forEach((rows) => {
+      const ordered = [...rows].sort((left, right) =>
+        String(left.scheduleDate || "").localeCompare(String(right.scheduleDate || ""))
+        || Number(model.toMinute(left.plannedStartTime) || 0) - Number(model.toMinute(right.plannedStartTime) || 0)
+        || Number(left.sequence || 0) - Number(right.sequence || 0));
+      ordered.forEach((item) => {
+        const previous = result[result.length - 1];
+        const previousEnd = model.toMinute(previous?.plannedEndTime);
+        const currentStart = model.toMinute(item.plannedStartTime);
+        const mergeable = previous
+          && displayMergeKey(previous) === displayMergeKey(item)
+          && previousEnd != null && currentStart != null
+          && currentStart >= previousEnd && currentStart - previousEnd <= 15;
+        if (!mergeable) {
+          result.push({ ...item, _sourceItems: [item], _sourceIds: [item.id] });
+          return;
+        }
+        const sourceItems = [...(previous._sourceItems || [previous]), item];
+        previous._displayMerged = true;
+        previous._sourceItems = sourceItems;
+        previous._sourceIds = sourceItems.map((row) => row.id);
+        previous.plannedQty = sourceItems.reduce((sum, row) => sum + Number(row.plannedQty || 0), 0);
+        previous.actualQty = sourceItems.reduce((sum, row) => sum + Number(row.actualQty || 0), 0);
+        previous.productionLogs = sourceItems.flatMap((row) => row.productionLogs || []);
+        previous.plannedEndTime = item.plannedEndTime;
+        previous.scheduleNumber = `${sourceItems[0].scheduleNumber} + ${sourceItems.length - 1}`;
+      });
+    });
+    return result;
+  }
+
   function renderMatrix() {
     const workspace = state.workspace || {};
-    const schedules = workspace.schedules || [];
+    const schedules = mergeDisplaySchedules(workspace.schedules || []);
     const groups = model.groupByMachine(schedules);
     const timeline = model.timelineWindow(schedules, { dayStart: "07:00", dayEnd: "07:00" });
     const { startTime, endTime, hourCount } = timeline;
@@ -81,7 +138,8 @@
         const progress = Math.min(100, Number(item.plannedQty) > 0 ? actual.good / Number(item.plannedQty) * 100 : 0);
         const risk = actual.ng > 0 || actual.downtime > 0 || item.lateRisk === "LATE";
         const css = item.status === "Completed" ? "completed" : item.status === "In Progress" ? "running" : risk ? "risk" : "";
-        return `<button class="dpp-block ${css}" data-schedule-id="${esc(item.id)}" style="left:${placement.leftPercent}%;width:${placement.widthPercent}%" title="${esc(item.scheduleNumber)} · ${esc(item.plannedStartTime)}–${esc(item.plannedEndTime)}"><strong>${esc(item.partCode || item.partNumber || "Part")}</strong><span>${fmt(item.plannedQty)} ${esc(item.uomCode || "")}</span><small>${esc(item.processCode || item.processName || "Process")} · ${esc(item.plannedStartTime)}–${esc(item.plannedEndTime)}${item.displayOnlyPlacement ? " · waktu belum disimpan" : ""}</small><i class="dpp-progress" style="width:${progress}%"></i></button>`;
+        const displayRange = model.formatOperationalRange(item);
+        return `<button class="dpp-block ${css}" data-schedule-id="${esc(item.id)}" style="left:${placement.leftPercent}%;width:${placement.widthPercent}%" title="${esc(item.scheduleNumber)} · ${esc(displayRange)}"><strong>${esc(item.partCode || item.partNumber || "Part")}</strong><span>${fmt(item.plannedQty)} ${esc(item.uomCode || "")}</span><small>${esc(item.processCode || item.processName || "Process")} · ${esc(displayRange)}${item.displayOnlyPlacement ? " · waktu belum disimpan" : ""}</small><i class="dpp-progress" style="width:${progress}%"></i></button>`;
       }).join("");
       const event = (workspace.machineEvents || []).find((row) => row.machineId === group.machineId && row.status === "OPEN");
       return `<div class="dpp-machine-row"><div class="dpp-machine-label"><strong>${esc(group.machineCode)}</strong><span>${esc(group.machineName)} · ${esc(group.lineCode)}</span><small>${event ? "● DOWN / EVENT" : "● AVAILABLE"}</small></div><div class="dpp-track">${blocks}</div></div>`;
@@ -107,10 +165,12 @@
   }
 
   function canDirectEdit(item) {
+    if (item?._displayMerged) return false;
     const revisionEditable = !productionMode
       && model.canEditRevision(state.workspace?.revision?.status)
       && Boolean(state.workspace?.revision?.id)
-      && !state.workspace?.revision?.allocationPreview;
+      && !state.workspace?.revision?.allocationPreview
+      && String(item?.status || "Draft") === "Draft";
     return revisionEditable || canEditPreviewAllocation(item);
   }
 
@@ -133,11 +193,16 @@
     const number = item.partNumber || item.partCode || "Part belum tersedia";
     const name = item.partName || "-";
     const code = item.partCode || "-";
-    const content = `<strong>${esc(number)}</strong><span>${esc(name)}</span><small>${esc(code)} · ${esc(item.processCode || item.processName || "Process")}${productionMode ? ` · ${esc(item.status || "Draft")}` : ""}</small>`;
+    const exactTime = model.formatOperationalRange(item);
+    const meta = [exactTime, code, item.processCode || item.processName || "Process", item._displayMerged ? `${item._sourceItems.length} alokasi · digabung` : null, productionMode ? item.status || "Draft" : null].filter(Boolean).join(" · ");
+    const content = `<strong>${esc(number)}</strong><span>${esc(name)}</span><small title="${esc(meta)}">${esc(meta)}</small>`;
     const identity = productionMode
       ? `<a class="dpp-part-link" href="/modules/production/daily-production-schedules/${encodeURIComponent(item.scheduleNumber || item.id)}">${content}</a>`
       : `<button type="button" class="dpp-part-link" data-open-schedule="${esc(item.id)}">${content}</button>`;
-    return `<div class="dpp-part-actions">${identity}${editable ? `<button type="button" class="dpp-copy-schedule" data-copy-schedule="${esc(item.id)}" title="Salin jadwal untuk dipindahkan">COPY</button>` : ""}</div>`;
+    const releaseAction = !productionMode && ["Released", "In Progress", "Completed"].includes(item.status)
+      ? `<span class="dpp-item-release-status">${esc(item.status)}</span>`
+      : "";
+    return `<div class="dpp-part-actions">${identity}${editable ? `<button type="button" class="dpp-copy-schedule" data-copy-schedule="${esc(item.id)}" title="Salin jadwal untuk dipindahkan">COPY</button>` : ""}${releaseAction}</div>`;
   }
 
   function parentIdentity(item) {
@@ -161,8 +226,9 @@
     const dropAttrs = (hour) => editable ? ` data-drop-minute="${hour.minute}" data-drop-machine="${esc(targetMachineId || item.machineId || "")}"` : "";
     const hourCells = window.hours.map((hour) => {
       if (!scheduled) return `<td class="dpp-hour-cell${editable ? " drop-ready" : ""}"${dropAttrs(hour)}></td>`;
-      if (hour.minute === scheduled.start) return `<td class="dpp-hour-cell start${editable ? " drop-ready" : ""}"${dropAttrs(hour)}>${qtyStack(item, editable)}</td>`;
-      if (hour.minute > scheduled.start && hour.minute <= scheduled.end) return `<td class="dpp-hour-cell occupied${editable ? " drop-ready" : ""}"${dropAttrs(hour)} title="Mesin teralokasi ${esc(item.plannedStartTime)}–${esc(item.plannedEndTime)}"><span></span></td>`;
+      const hourState = model.scheduleHourState(item, hour.minute, window.start, window.end);
+      if (hourState === "start") return `<td class="dpp-hour-cell start${editable ? " drop-ready" : ""}"${dropAttrs(hour)}>${qtyStack(item, editable)}</td>`;
+      if (hourState === "occupied") return `<td class="dpp-hour-cell occupied${editable ? " drop-ready" : ""}"${dropAttrs(hour)} title="Mesin teralokasi ${esc(model.formatOperationalRange(item))}"><span></span></td>`;
       return `<td class="dpp-hour-cell${editable ? " drop-ready" : ""}"${dropAttrs(hour)}></td>`;
     }).join("");
     const riskClass = Number(item.plannedQty || 0) > 0 && Math.max(Number(item.actualQty || 0), actualSummary(item).good) < Number(item.plannedQty || 0) ? " has-shortage" : "";
@@ -175,6 +241,29 @@
     state.scheduleClipboard = item;
     document.querySelectorAll(".dpp-schedule-row").forEach((row) => row.classList.toggle("is-copied", row.dataset.rowSchedule === item.id));
     notify(`${item.scheduleNumber} disalin. Klik cell jam tujuan atau drag qty ke jam baru; planned qty tidak diduplikasi.`, "success");
+  }
+
+  async function releaseAll() {
+    const revision = state.workspace?.revision;
+    const draftSchedules = (state.workspace?.schedules || []).filter((item) => String(item.status || "Draft") === "Draft");
+    if (productionMode || state.moving || !revision?.id || !["Ready", "Partially Released"].includes(String(revision.status || "")) || !draftSchedules.length) return;
+    if (!await window.confirmAction(`Release ${draftSchedules.length} operation Draft pada ${state.date} ke Production sekaligus?`, { title: "Release Semua Daily Plan", confirmLabel: `Release ${draftSchedules.length} Operation` })) return;
+    const warnings = state.workspace?.validation?.warnings || [];
+    const warningReason = warnings.length
+      ? await window.formPrompt(`Daily Plan memiliki ${warnings.length} warning. Isi satu acknowledgement untuk seluruh operation yang akan direlease:`, "PPIC menyetujui release; kesiapan material akan divalidasi sebelum material issue dan produksi.", { title: "Acknowledgement Warning" })
+      : "";
+    if (warnings.length && !String(warningReason || "").trim()) return;
+    state.moving = true;
+    try {
+      const result = await request(model.apiPath(`planning-ppic/daily-plan/revisions/${encodeURIComponent(revision.id)}/release`), {
+        method: "POST",
+        body: JSON.stringify({ expectedVersion: revision.version, warningReason }),
+      });
+      await load();
+      notify(`${Number(result.releasedCount || draftSchedules.length)} operation sudah Released ke Production dalam satu proses.`, "success");
+      window.PpicWorkflow?.refresh(state.date.slice(0, 7));
+    } catch (error) { notify(error.message, "error"); }
+    finally { state.moving = false; }
   }
 
   async function rescheduleItem(item, targetMinute, targetMachineId) {
@@ -194,7 +283,7 @@
         await request(model.apiPath(`planning-ppic/daily-plan/revisions/${encodeURIComponent(state.workspace.revision.id)}/items/${encodeURIComponent(item.id)}`), { method: "PATCH", body: JSON.stringify({ expectedVersion: state.workspace.revision.version, changes }) });
       }
       state.scheduleClipboard = null;
-      notify(`${item.scheduleNumber} digeser ke ${shifted.plannedStartTime}–${shifted.plannedEndTime}.`, "success");
+      notify(`${item.scheduleNumber} digeser ke ${model.formatOperationalRange(shifted)}.`, "success");
       await load();
     } catch (error) { notify(error.message, "error"); }
     finally { state.moving = false; }
@@ -217,7 +306,7 @@
 
   function renderMachineMatrix() {
     const workspace = state.workspace || {};
-    const schedules = workspace.schedules || [];
+    const schedules = mergeDisplaySchedules(workspace.schedules || []);
     const groups = model.groupByMachine(schedules);
     state.machines = groups;
     renderMachineTabs(groups);
@@ -261,20 +350,25 @@
     }, { good: 0, shortage: 0 });
     $("dpp-kpi-machines").textContent = String(groups.length);
     $("dpp-kpi-qty").textContent = fmt(schedules.reduce((sum, item) => sum + Number(item.plannedQty || 0), 0));
-    $("dpp-kpi-items").textContent = `${schedules.length} operation`;
+    $("dpp-kpi-items").textContent = `${schedules.length} operation · ${Number(workspace.revision?.releasedCount || 0)} released`;
     if ($("dpp-kpi-blockers")) $("dpp-kpi-blockers").textContent = String(workspace.validation?.blockers?.length || 0);
     if ($("dpp-kpi-exceptions")) $("dpp-kpi-exceptions").textContent = String(workspace.exceptions?.length || 0);
     if ($("dpp-kpi-good")) $("dpp-kpi-good").textContent = fmt(actual.good);
     if ($("dpp-kpi-ng")) $("dpp-kpi-ng").textContent = fmt(actual.shortage);
     const badge = $("dpp-revision-badge");
     const mode = model.workspaceMode({ date: state.date, today: todayKey(), status: workspace.revision?.status });
-    badge.textContent = productionMode ? `${mode.scope} · EXECUTION QUEUE` : `${workspace.revision?.revisionNumber || "LEGACY PLAN"} · ${String(workspace.revision?.status || "Draft").toUpperCase()}`;
-    badge.className = `dpp-revision-badge ${String(workspace.revision?.status || "draft").toLowerCase()}`;
+    const allocationPreview = Boolean(workspace.revision?.allocationPreview);
+    const previewPlan = schedules.find((item) => item.monthlyProductionPlanNumber)?.monthlyProductionPlanNumber || null;
+    const previewPlanStatus = schedules.find((item) => item.monthlyProductionPlanStatus)?.monthlyProductionPlanStatus || null;
+    badge.textContent = productionMode
+      ? `${mode.scope} · EXECUTION QUEUE`
+      : allocationPreview
+        ? `${previewPlan || "MONTHLY PLAN"} · ${String(previewPlanStatus || "Draft").toUpperCase()} · PREVIEW`
+        : `${workspace.revision?.revisionNumber || "DAILY PLAN"} · ${String(workspace.revision?.status || "Draft").toUpperCase()} · ${Number(workspace.revision?.releasedCount || 0)}/${Number(workspace.revision?.itemCount || schedules.length)} RELEASED`;
+    badge.className = `dpp-revision-badge ${String(allocationPreview ? (previewPlanStatus === "Confirmed" ? "ready" : previewPlanStatus || "draft") : workspace.revision?.status || "draft").toLowerCase()}`;
     $("dpp-caption").textContent = `${new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(new Date(`${state.date}T00:00:00`))} · ${mode.label}`;
     if ($("dpp-day-label")) $("dpp-day-label").textContent = new Intl.DateTimeFormat("id-ID", { weekday: "long" }).format(new Date(`${state.date}T00:00:00`));
     const editable = !productionMode && model.canEditRevision(workspace.revision?.status) && Boolean(workspace.revision?.id);
-    const releasable = !productionMode && ["Draft", "Ready"].includes(workspace.revision?.status) && Boolean(workspace.revision?.id);
-    const allocationPreview = Boolean(workspace.revision?.allocationPreview);
     const sourcePlanNumber = schedules.find((item) => item.monthlyProductionPlanNumber)?.monthlyProductionPlanNumber || null;
     const editorUrl = model.monthlyEditorUrl({ date: state.date, planNumber: sourcePlanNumber });
     const timeline = model.timelineWindow(schedules, { dayStart: "07:00", dayEnd: "23:00" });
@@ -284,8 +378,17 @@
       scheduleNote.hidden = !timeline.startsAfterFirstShift;
       scheduleNote.textContent = timeline.startsAfterFirstShift ? `Alokasi aktual baru mulai ${firstTimedItem?.plannedStartTime || "malam"} karena rekomendasi Monthly Plan memakai Delivery JIT. Untuk allocation Draft, copy lalu klik jam tujuan, drag jadwal di matrix, atau ubah jam melalui popup.` : "";
     }
-    if (allocationPreview) $("dpp-subtitle").textContent = schedules.some(canEditPreviewAllocation) ? "Preview Monthly Plan Draft · drag qty ke jam baru, atau tekan COPY lalu klik cell jam tujuan. Perubahan jam langsung disimpan ke allocation sumber." : "Preview dari Monthly Plan sudah terkunci. Buka Monthly Plan untuk melihat sumber alokasinya.";
+    if (allocationPreview) {
+      const nextAction = previewPlanStatus === "Confirmed"
+        ? "Release Monthly Plan, buat MO reference, bentuk Daily Plan, lalu Cek Kesiapan dan Release ke Production."
+        : previewPlanStatus === "Released"
+          ? "Pastikan MO reference sudah dibuat, bentuk Daily Plan, lalu Cek Kesiapan dan Release ke Production."
+          : "Confirm dan Release Monthly Plan sebelum membentuk Daily Plan.";
+      $("dpp-subtitle").textContent = schedules.some(canEditPreviewAllocation) ? "Preview Monthly Plan Draft · jam ditampilkan sesuai menit aktual dan dapat digeser dari matrix." : "Preview allocation sumber; belum menjadi Daily Production Schedule.";
+      notify(`Status saat ini: ${previewPlan || "Monthly Plan"} ${String(previewPlanStatus || "Draft").toUpperCase()} · allocation DRAFT · Daily Plan BELUM DIBUAT. ${nextAction}`);
+    }
     else if (productionMode) $("dpp-subtitle").textContent = "Draft tampil untuk persiapan; eksekusi hanya dapat dimulai setelah Released. Klik part untuk membuka detail DPS.";
+    else if (!workspace.revision?.id && schedules.length) $("dpp-subtitle").textContent = "Schedule Draft legacy · rapikan placement bila perlu, lalu klik Buat Draft untuk membentuk revision PPIC.";
     else $("dpp-subtitle").textContent = editable ? "Draft aktif · drag qty ke jam baru, atau tekan COPY lalu klik cell jam tujuan. Rentang hari 07:00 sampai 07:00 besok." : "Klik alokasi untuk melihat detail. Revision Released tetap read-only.";
     const editAction = $("dpp-edit-allocation");
     if (editAction) {
@@ -294,16 +397,26 @@
       editAction.textContent = allocationPreview && schedules.some(canEditPreviewAllocation) ? "↔ Geser Jam Alokasi" : allocationPreview ? "✎ Buka Monthly Plan" : editable ? "↔ Drag / Copy Jadwal" : "Lihat Alokasi";
     }
     if ($("dpp-direct-edit-badge")) $("dpp-direct-edit-badge").hidden = !(editable || schedules.some(canEditPreviewAllocation));
-    if ($("dpp-validate")) $("dpp-validate").disabled = !editable;
-    if ($("dpp-release")) $("dpp-release").disabled = !releasable;
-    if ($("dpp-draft")) { $("dpp-draft").hidden = allocationPreview || releasable; $("dpp-draft").textContent = workspace.revision?.status === "Released" ? "Buat Revisi" : "Buat Draft"; }
+    if ($("dpp-auto-correct")) $("dpp-auto-correct").disabled = productionMode || !schedules.length || !(allocationPreview || ["Draft", "Ready", "Partially Released"].includes(workspace.revision?.status));
+    if ($("dpp-validate")) {
+      $("dpp-validate").disabled = !editable;
+      $("dpp-validate").textContent = ["Ready", "Partially Released"].includes(workspace.revision?.status) ? "↻ Cek Ulang Kesiapan" : "Cek Kesiapan";
+    }
+    if ($("dpp-release-all")) {
+      const draftCount = schedules.filter((item) => String(item.status || "Draft") === "Draft").length;
+      const releaseReady = !productionMode && Boolean(workspace.revision?.id) && ["Ready", "Partially Released"].includes(workspace.revision?.status) && draftCount > 0;
+      $("dpp-release-all").hidden = allocationPreview || !workspace.revision?.id || workspace.revision?.status === "Released";
+      $("dpp-release-all").disabled = !releaseReady || state.moving;
+      $("dpp-release-all").textContent = draftCount ? `Release Semua (${draftCount})` : "Release Semua";
+    }
+    if ($("dpp-draft")) { $("dpp-draft").hidden = allocationPreview || (Boolean(workspace.revision?.id) && ["Draft", "Ready", "Partially Released"].includes(workspace.revision?.status)); $("dpp-draft").textContent = workspace.revision?.status === "Released" ? "Buat Revisi" : "Buat Draft"; }
     document.querySelectorAll("[data-scope]").forEach((node) => node.classList.toggle("active", node.dataset.scope === mode.scope.toLowerCase()));
   }
 
   function openItem(item) {
     if (!item) return;
     state.selected = item;
-    const editable = !productionMode && model.canEditRevision(state.workspace?.revision?.status) && Boolean(state.workspace?.revision?.id);
+    const editable = !item._displayMerged && !productionMode && model.canEditRevision(state.workspace?.revision?.status) && Boolean(state.workspace?.revision?.id) && String(item.status || "Draft") === "Draft";
     $("dpp-dialog-title").textContent = `${item.partCode || item.partNumber || "Part"} · ${item.scheduleNumber}`;
     const actual = actualSummary(item);
     const preview = Boolean(state.workspace?.revision?.allocationPreview || item.sourceAllocationPreview);
@@ -313,7 +426,7 @@
       sourceEdit.href = model.monthlyEditorUrl({ date: state.date, planNumber: item.monthlyProductionPlanNumber });
     }
     if (productionMode) {
-      $("dpp-dialog-body").innerHTML = `<label>Mesin<input value="${esc(item.machineCode || "-")}" readonly></label><label>Waktu Plan<input value="${esc(item.plannedStartTime || "-")}–${esc(item.plannedEndTime || "-")}" readonly></label><label>Target<input value="${fmt(item.plannedQty)} ${esc(item.uomCode || "")}" readonly></label><label>Good / NG<input value="${fmt(actual.good)} / ${fmt(actual.ng)}" readonly></label><label class="span-2">Process<input value="${esc(item.processCode || "-")} · ${esc(item.processName || "-")}" readonly></label>`;
+      $("dpp-dialog-body").innerHTML = `<label>Mesin<input value="${esc(item.machineCode || "-")}" readonly></label><label>Waktu Plan<input value="${esc(model.formatOperationalRange(item))}" readonly></label><label>Target<input value="${fmt(item.plannedQty)} ${esc(item.uomCode || "")}" readonly></label><label>Good / NG<input value="${fmt(actual.good)} / ${fmt(actual.ng)}" readonly></label><label class="span-2">Process<input value="${esc(item.processCode || "-")} · ${esc(item.processName || "-")}" readonly></label>`;
       const logLink = $("dpp-production-log");
       if (logLink) {
         const productionEntryReady = ["In Progress", "Completed"].includes(item.status) && state.date === todayKey();
@@ -327,12 +440,15 @@
       if ($("dpp-start")) $("dpp-start").hidden = item.status !== "Released" || state.date !== todayKey();
       if ($("dpp-breakdown")) $("dpp-breakdown").hidden = state.date !== todayKey();
     } else {
-      const previewEditable = preview && canEditPreviewAllocation(item);
+      const previewEditable = !item._displayMerged && preview && canEditPreviewAllocation(item);
       const timeEditable = editable || previewEditable;
+      const mergedMessage = item._displayMerged
+        ? `<div class="span-2 dpp-alert dpp-alert-editable"><b>${item._sourceItems.length} alokasi identik digabung untuk operator</b><span>Total ${fmt(item.plannedQty)} ${esc(item.uomCode || "")} · ${esc(model.formatOperationalRange(item))}. Lineage allocation asli tetap tersimpan untuk audit.</span></div>`
+        : "";
       const previewMessage = previewEditable
         ? '<div class="span-2 dpp-alert dpp-alert-editable"><b>Allocation Monthly Plan Draft</b><span>Ubah jam di sini lalu Simpan. Qty, sequence, mesin, dan catatan tetap mengikuti allocation sumber.</span></div>'
         : preview ? '<div class="span-2 dpp-alert">Allocation Monthly Plan ini sudah terkunci. Buka Monthly Plan untuk melihat sumbernya.</div>' : "";
-      $("dpp-dialog-body").innerHTML = `${previewMessage}<label>Jam mulai<input id="dpp-edit-start" type="time" value="${esc(item.plannedStartTime || "07:00")}" ${timeEditable ? "" : "disabled"}></label><label>Jam selesai<input id="dpp-edit-end" type="time" value="${esc(item.plannedEndTime || "08:00")}" ${timeEditable ? "" : "disabled"}></label><label>Planned Qty<input id="dpp-edit-qty" type="number" min="0.01" step="0.01" value="${esc(item.plannedQty)}" ${editable ? "" : "disabled"}></label><label>Sequence<input id="dpp-edit-sequence" type="number" min="0" step="1" value="${esc(item.sequence || 0)}" ${editable ? "" : "disabled"}></label><label class="span-2">Catatan<textarea id="dpp-edit-notes" rows="3" ${editable ? "" : "disabled"}>${esc(item.notes || "")}</textarea></label>`;
+      $("dpp-dialog-body").innerHTML = `${mergedMessage}${previewMessage}<label>Jam mulai<input id="dpp-edit-start" type="time" value="${esc(model.toTime(model.toMinute(item.plannedStartTime || "07:00")))}" ${timeEditable ? "" : "disabled"}></label><label>Jam selesai<input id="dpp-edit-end" type="time" value="${esc(model.toTime(model.toMinute(item.plannedEndTime || "08:00")))}" ${timeEditable ? "" : "disabled"}></label><label>Planned Qty<input id="dpp-edit-qty" type="number" min="0.01" step="0.01" value="${esc(item.plannedQty)}" ${editable ? "" : "disabled"}></label><label>Sequence<input id="dpp-edit-sequence" type="number" min="0" step="1" value="${esc(item.sequence || 0)}" ${editable ? "" : "disabled"}></label><label class="span-2">Catatan<textarea id="dpp-edit-notes" rows="3" ${editable ? "" : "disabled"}>${esc(item.notes || "")}</textarea></label>`;
       $("dpp-dialog-save").hidden = !timeEditable;
       $("dpp-dialog-save").textContent = previewEditable ? "Simpan Jam Alokasi" : "Simpan Perubahan";
     }
@@ -387,14 +503,19 @@
   document.querySelectorAll("[data-scope]").forEach((node) => node.addEventListener("click", () => { state.date = node.dataset.scope === "tomorrow" ? addDays(todayKey(), 1) : todayKey(); load(); }));
   $("dpp-dialog-close")?.addEventListener("click", () => $("dpp-dialog").close());
   $("dpp-dialog-cancel")?.addEventListener("click", () => $("dpp-dialog").close());
+  $("dpp-release-all")?.addEventListener("click", releaseAll);
   $("dpp-breakdown")?.addEventListener("click", async () => {
     if (!productionMode || !state.selected?.machineId) return;
     if (state.date !== todayKey()) { notify("Event mesin hanya dapat dicatat pada eksekusi hari ini.", "error"); return; }
-    const reason = window.prompt(`Alasan ${state.selected.machineCode || "mesin"} berhenti:`);
+    // The execution detail itself is a native dialog. Close it before opening
+    // formPrompt so its focus trap cannot steal keyboard input from the
+    // breakdown reason field.
+    $("dpp-dialog").close();
+    const reason = await window.formPrompt(`Alasan ${state.selected.machineCode || "mesin"} berhenti:`, "", { title: "Catat Machine Breakdown" });
     if (!String(reason || "").trim()) return;
     try {
       await request(model.apiPath("production/machine-availability-events"), { method: "POST", body: JSON.stringify({ machineId: state.selected.machineId, eventType: "BREAKDOWN", startedAt: new Date().toISOString(), reason }) });
-      $("dpp-dialog").close(); notify("Breakdown tercatat dan dikirim ke PPIC Planning Selanjutnya.", "success"); await load();
+      notify("Breakdown tercatat dan dikirim ke PPIC Planning Selanjutnya.", "success"); await load();
     } catch (error) { notify(error.message, "error"); }
   });
   $("dpp-prepare")?.addEventListener("click", async () => {
@@ -427,8 +548,25 @@
     } catch (error) { notify(error.message, "error"); }
   });
   $("dpp-draft")?.addEventListener("click", async () => { try { await request(model.apiPath("planning-ppic/daily-plan/revisions"), { method: "POST", body: JSON.stringify({ date: state.date }) }); notify("Revision Draft siap diedit.", "success"); await load(); window.PpicWorkflow?.refresh(state.date.slice(0, 7)); } catch (error) { notify(error.message, "error"); } });
-  $("dpp-validate")?.addEventListener("click", async () => { try { const result = await request(model.apiPath(`planning-ppic/daily-plan/revisions/${encodeURIComponent(state.workspace.revision.id)}/validate`), { method: "POST", body: "{}" }); notify(result.blockers?.length ? `${result.blockers.length} blocker masih harus ditangani.` : `Validasi selesai${result.warnings?.length ? ` dengan ${result.warnings.length} warning` : " tanpa blocker"}.`, result.blockers?.length ? "error" : "success"); await load(); } catch (error) { notify(error.message, "error"); } });
-  $("dpp-release")?.addEventListener("click", async () => { const warnings = state.workspace.validation?.warnings?.length || 0; const warningReason = warnings ? window.prompt("Ada warning. Isi alasan acknowledgement sebelum release:") : ""; if (warnings && !warningReason) return; try { await request(model.apiPath(`planning-ppic/daily-plan/revisions/${encodeURIComponent(state.workspace.revision.id)}/release`), { method: "POST", body: JSON.stringify({ expectedVersion: state.workspace.revision.version, warningReason }) }); notify("Daily Plan Released dan siap dikonsumsi Production.", "success"); await load(); window.PpicWorkflow?.refresh(state.date.slice(0, 7)); } catch (error) { notify(error.message, "error"); } });
+  $("dpp-auto-correct")?.addEventListener("click", async () => {
+    if (productionMode || state.moving || !state.workspace?.schedules?.length) return;
+    if (!await window.confirmAction("Auto Correct akan merapikan jam kerja dan antrean per mesin. Part, proses, dan mesin yang sama pada hari yang sama akan ditempatkan berurutan dan ditampilkan sebagai satu total quantity.", { title: "Auto Correct Placement", confirmLabel: "Rapikan & Gabungkan" })) return;
+    state.moving = true;
+    try {
+      const result = await request(model.apiPath("planning-ppic/daily-plan/auto-correct"), { method: "POST", body: JSON.stringify({ date: state.date, revisionId: state.workspace.revision?.allocationPreview ? null : state.workspace.revision?.id || null, expectedVersion: state.workspace.revision?.allocationPreview ? null : state.workspace.revision?.version }) });
+      const warningCopy = result.warnings?.length ? ` · ${result.warnings.length} operation masih perlu review: ${result.warnings[0].message}` : "";
+      await load();
+      notify(result.changedCount ? `${result.changedCount} placement berhasil dikoreksi${warningCopy}.` : `Placement sudah sesuai jam kerja; tidak ada perubahan${warningCopy}.`, result.warnings?.length ? "warning" : "success");
+    } catch (error) { notify(error.message, "error"); }
+    finally { state.moving = false; }
+  });
+  $("dpp-validate")?.addEventListener("click", async () => {
+    try {
+      const result = await request(model.apiPath(`planning-ppic/daily-plan/revisions/${encodeURIComponent(state.workspace.revision.id)}/validate`), { method: "POST", body: "{}" });
+      await load();
+      notify(result.blockers?.length ? `${result.blockers.length} blocker masih harus ditangani.` : `Validasi selesai${result.warnings?.length ? ` dengan ${result.warnings.length} warning` : " tanpa blocker"}.`, result.blockers?.length ? "error" : "success");
+    } catch (error) { notify(error.message, "error"); }
+  });
 
   load();
 }());

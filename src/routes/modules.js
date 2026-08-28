@@ -82,7 +82,13 @@ async function proxyBomMutation(req, res, method, suffix = "") {
 
 async function proxyPageMutation(req, res, endpoint, method, suffix = "", timeoutMs = 30000) {
   try {
-    const response = await fetch(`${backendUrl}${endpoint}${suffix}`, {
+    const url = new URL(`${backendUrl}${endpoint}${suffix}`);
+    if (method === "GET") {
+      Object.entries(req.query || {}).forEach(([key, value]) => {
+        if (value !== undefined && value !== "" && !url.searchParams.has(key)) url.searchParams.set(key, String(value));
+      });
+    }
+    const response = await fetch(url, {
       method,
       headers: { ...authHeader(req), "content-type": "application/json" },
       body: ["GET", "DELETE"].includes(method) ? undefined : JSON.stringify(req.body || {}),
@@ -133,6 +139,7 @@ router.post("/api/planning-ppic/demand-planning/exception-workbench/:exceptionId
 router.post("/api/planning-ppic/demand-planning/feasibility", (req, res) => proxyPageMutation(req, res, "/api/planning/demand-planning", "POST", "/feasibility"));
 router.get("/api/planning-ppic/demand-planning/:deliveryTargetId/recovery-plan", (req, res) => proxyReadWithQuery(req, res, `/api/planning/demand-planning/${encodeURIComponent(req.params.deliveryTargetId)}/recovery-plan`, "Recovery Plan gagal dimuat."));
 router.put("/api/planning-ppic/demand-planning/:deliveryTargetId/recovery-plan", (req, res) => proxyPageMutation(req, res, "/api/planning/demand-planning", "PUT", `/${encodeURIComponent(req.params.deliveryTargetId)}/recovery-plan`));
+router.post("/api/planning-ppic/demand-planning/recovery-plans/bulk-accept-late", (req, res) => proxyPageMutation(req, res, "/api/planning/demand-planning", "POST", "/recovery-plans/bulk-accept-late"));
 router.post("/api/planning-ppic/demand-planning/recovery-plans/:planId/submit", (req, res) => proxyPageMutation(req, res, "/api/planning/demand-planning", "POST", `/recovery-plans/${encodeURIComponent(req.params.planId)}/submit`));
 router.patch("/api/planning-ppic/demand-planning/recovery-plans/:planId/:decision", (req, res) => {
   const decision = ["approve", "reject"].includes(req.params.decision) ? req.params.decision : null;
@@ -218,8 +225,10 @@ router.get("/api/production/daily-production-schedules/gantt", (req, res) => pro
 router.post("/api/production/machine-availability-events", (req, res) => proxyPageMutation(req, res, "/api/production/machine-availability-events", "POST"));
 router.patch("/api/production/machine-availability-events/:id/resolve", (req, res) => proxyPageMutation(req, res, "/api/production/machine-availability-events", "PATCH", `/${encodeURIComponent(req.params.id)}/resolve`));
 router.get("/api/planning-ppic/daily-plan/workspace", (req, res) => proxyReadWithQuery(req, res, "/api/planning/daily-plan-revisions/workspace", "Workspace Daily Plan gagal dimuat."));
+router.post("/api/planning-ppic/daily-plan/auto-correct", (req, res) => proxyPageMutation(req, res, "/api/planning/daily-plan-revisions", "POST", "/auto-correct"));
 router.post("/api/planning-ppic/daily-plan/revisions", (req, res) => proxyPageMutation(req, res, "/api/planning/daily-plan-revisions", "POST"));
 router.patch("/api/planning-ppic/daily-plan/revisions/:revisionId/items/:scheduleId", (req, res) => proxyPageMutation(req, res, "/api/planning/daily-plan-revisions", "PATCH", `/${encodeURIComponent(req.params.revisionId)}/items/${encodeURIComponent(req.params.scheduleId)}`));
+router.post("/api/planning-ppic/daily-plan/revisions/:revisionId/items/:scheduleId/release", (req, res) => proxyPageMutation(req, res, "/api/planning/daily-plan-revisions", "POST", `/${encodeURIComponent(req.params.revisionId)}/items/${encodeURIComponent(req.params.scheduleId)}/release`));
 router.post("/api/planning-ppic/daily-plan/revisions/:revisionId/validate", (req, res) => proxyPageMutation(req, res, "/api/planning/daily-plan-revisions", "POST", `/${encodeURIComponent(req.params.revisionId)}/validate`));
 router.post("/api/planning-ppic/daily-plan/revisions/:revisionId/release", (req, res) => proxyPageMutation(req, res, "/api/planning/daily-plan-revisions", "POST", `/${encodeURIComponent(req.params.revisionId)}/release`));
 router.get("/api/production/production-logs/hmi-reasons", (req, res) => proxyReadWithQuery(req, res, "/api/production/production-logs/hmi-reasons", "Master reason HMI gagal dimuat."));
@@ -281,7 +290,7 @@ router.get("/api/:module/:page", async (req, res) => {
     url.searchParams.set("limit", String(fetchLength));
     const search = String(req.query["search[value]"] || req.query.q || "").trim();
     if (search) { url.searchParams.set("q", search); url.searchParams.set("search", search); }
-    ["partId", "partCode", "isDeleted", "isActive", "includeDetails", "status", "type", "referenceType", "warehouseCode", "stockType", "lowStock", "poType", "category", "prCategory", "sourceModule", "startDate", "endDate", "month", "machineCode", "lineCode", "dateScope", "scheduleDate", "shift"].forEach((key) => {
+    ["partId", "partCode", "customerCode", "fgPartCode", "historyMonths", "isDeleted", "isActive", "includeDetails", "status", "type", "sourceType", "referenceType", "warehouseCode", "stockType", "lowStock", "poType", "category", "prCategory", "sourceModule", "startDate", "endDate", "month", "year", "machineCode", "lineCode", "dateScope", "scheduleDate", "shift"].forEach((key) => {
       if (req.query[key] !== undefined && req.query[key] !== "") url.searchParams.set(key, String(req.query[key]));
     });
     Object.entries(pageConfig.fixedQuery || {}).forEach(([key, value]) => {
@@ -441,7 +450,7 @@ const productionWorkflowActions = {
   "work-orders": { start: "PATCH", complete: "PATCH", cancel: "PATCH" },
   "daily-production-schedules": { consume: "POST", release: "POST", start: "POST", complete: "POST", cancel: "POST" },
   "vendor-process-orders": { send: "PATCH", receive: "PATCH", reprice: "PATCH" },
-  "material-issues": { issue: "PATCH", close: "PATCH" },
+  "material-issues": { prepare: "PATCH", issue: "PATCH", close: "PATCH" },
   "quality-inspections": { complete: "PATCH", "receive-fg": "PATCH" },
   "production-logs": { submit: "PATCH", approve: "PATCH", "ensure-qc": "PATCH" },
   "ng-dispositions": { judge: "PATCH" }
@@ -487,6 +496,7 @@ router.post("/api/purchasing-pr/consolidate-to-po", (req, res) => proxyPageMutat
 router.post("/api/purchasing-pr", (req, res) => proxyPageMutation(req, res, "/api/purchasing/purchase-requisitions", "POST"));
 router.patch("/api/purchasing-pr/:key", (req, res) => proxyPageMutation(req, res, "/api/purchasing/purchase-requisitions", "PATCH", `/${encodeURIComponent(req.params.key)}`));
 router.patch("/api/purchasing-suggestions/:key/items/:itemId", (req, res) => proxyPageMutation(req, res, "/api/purchasing/purchase-suggestions", "PATCH", `/${encodeURIComponent(req.params.key)}/items/${encodeURIComponent(req.params.itemId)}`));
+router.post("/api/purchasing-suggestions/:key/auto-confirm-suppliers", (req, res) => proxyPageMutation(req, res, "/api/purchasing/purchase-suggestions", "POST", `/${encodeURIComponent(req.params.key)}/auto-confirm-suppliers`));
 router.get("/api/purchasing-suggestions/:key/items/:itemId/supplier-master", (req, res) => {
   const query = new URLSearchParams();
   if (req.query.supplierCode) query.set("supplierCode", String(req.query.supplierCode));
@@ -502,6 +512,7 @@ router.post("/api/purchasing-invoice", (req, res) => proxyPageMutation(req, res,
 router.patch("/api/purchasing-invoice/:key", (req, res) => proxyPageMutation(req, res, "/api/purchasing/purchase-invoices", "PATCH", `/${encodeURIComponent(req.params.key)}`));
 router.get("/api/inventory/stock-movements/material-piece-sources", (req, res) => proxyPageMutation(req, res, "/api/inventory/stock-movements", "GET", `/material-piece-sources${req.query.q ? `?q=${encodeURIComponent(req.query.q)}` : ""}`));
 router.post("/api/inventory/stock-movements", (req, res) => proxyPageMutation(req, res, "/api/inventory/stock-movements", "POST"));
+router.patch("/api/inventory/material-issues/:key", (req, res) => proxyPageMutation(req, res, "/api/production/material-issues", "PATCH", `/${encodeURIComponent(req.params.key)}`));
 router.post("/api/inventory/stock-opname/preview", (req, res) => proxyPageMutation(req, res, "/api/inventory/stock-opname", "POST", "/preview"));
 router.post("/api/inventory/stock-opname", (req, res) => proxyPageMutation(req, res, "/api/inventory/stock-opname", "POST"));
 router.get("/api/inventory/stock-opname/:stoNo/adjust-preview", (req, res) => proxyPageMutation(req, res, "/api/inventory/stock-opname", "GET", `/${encodeURIComponent(req.params.stoNo)}/adjust-preview`));
@@ -531,6 +542,7 @@ router.patch("/api/production-documents/:page/:key", (req, res) => {
   return proxyPageMutation(req, res, page.endpoint, "PATCH", `/${encodeURIComponent(req.params.key)}`);
 });
 router.post("/api/incoming/goods-receipts/:key/create-inspection", (req, res) => proxyPageMutation(req, res, "/api/incoming/incoming-inspections", "POST"));
+router.post("/api/incoming/goods-receipts/:key/release-without-qc", (req, res) => proxyPageMutation(req, res, "/api/incoming/goods-receipts", "POST", `/${encodeURIComponent(req.params.key)}/release-without-qc`));
 router.get("/api/incoming/goods-receipts/allocation-plan/:poNumber", (req, res) => proxyPageMutation(req, res, "/api/incoming/goods-receipts", "GET", `/allocation-plan/${encodeURIComponent(req.params.poNumber)}`));
 router.post("/api/incoming/goods-receipts", (req, res) => proxyPageMutation(req, res, "/api/incoming/goods-receipts", "POST"));
 router.post("/api/incoming/incoming-inspections/:key/complete", (req, res) => proxyPageMutation(req, res, "/api/incoming/incoming-inspections", "POST", `/${encodeURIComponent(req.params.key)}/complete`));
@@ -563,7 +575,7 @@ function renderPpic(res, tab = "mrp", req = null) {
   const ppicTabs = { mrp: "MRP Planning Run", mps: "Rolling MPS", "demand-planning": "Demand Planning", "capacity-planning": "Capacity Planning", "daily-production-plans": "Daily Production Plan", "control-tower": "Control Tower", "planned-orders": "Planned Orders", "monthly-production-plans": "Production Plans" };
   if (!ppicTabs[tab]) return res.status(404).render("errors/404", { title: "Menu PPIC tidak ditemukan" });
   if (tab === "demand-planning") return res.render("ppic/yearly-demand", { title: "Demand Planning", module, activePpicTab: tab, currentYear: new Date().getFullYear(), pageScript: "/js/ppic-yearly-demand.js?v=20260821-efd-1", ...common(module.slug) });
-  if (tab === "capacity-planning") return res.render("ppic/capacity", { title: ppicTabs[tab], module, activePpicTab: tab, pageScript: "/js/ppic-capacity.js?v=20260826-unscheduled-warning-1", ...common(module.slug) });
+  if (tab === "capacity-planning") return res.render("ppic/capacity", { title: ppicTabs[tab], module, activePpicTab: tab, pageScript: "/js/ppic-capacity.js?v=20260827-shift-overtime-1", ...common(module.slug) });
   if (["control-tower", "planned-orders", "monthly-production-plans", "daily-production-plans"].includes(tab)) return renderOperationsDashboard(res, { params: { page: tab }, query: req?.query || {} }, "planning-ppic", tab);
   return res.render("ppic/dashboard", { title: ppicTabs[tab], module, activePpicTab: tab, pageScript: tab === "demand-planning" ? "/js/ppic-demand-planning.js?v=20260812-1" : "/js/ppic-dashboard.js?v=20260812-1", ...common(module.slug) });
 }
@@ -573,7 +585,7 @@ function renderPpicDetail(res, req) {
   const ppicTabs = { mrp: "MRP Planning Run", mps: "Rolling MPS", "demand-planning": "Demand Planning", "daily-production-plans": "Daily Production Plan", "control-tower": "Control Tower", "planned-orders": "Planned Orders", "monthly-production-plans": "Production Plans" };
   if (!ppicTabs[tab]) return res.status(404).render("errors/404", { title: "Menu PPIC tidak ditemukan" });
   if (["control-tower", "planned-orders", "monthly-production-plans", "daily-production-plans"].includes(tab)) return renderOperationsDetail(res, { params: { ...req.params, page: tab }, query: req.query || {} }, "planning-ppic");
-  if (tab === "mrp") return res.render("ppic/mrp-detail-simple", { title: "MRP Planning Run", module, activePpicTab: tab, recordKey: req.params.key, pageScript: "/js/ppic-mrp-detail-simple.js?v=20260823-current-stock-17", ...common(module.slug) });
+  if (tab === "mrp") return res.render("ppic/mrp-detail-simple", { title: "MRP Planning Run", module, activePpicTab: tab, recordKey: req.params.key, pageScript: "/js/ppic-mrp-detail-simple.js?v=20260827-auto-accept-late-1", ...common(module.slug) });
   return res.render("ppic/detail", { title: `${ppicTabs[tab]} Detail`, module, activePpicTab: tab, recordKey: req.params.key, pageScript: "/js/ppic-detail.js?v=20260813-management-matrix-2", ...common(module.slug) });
 }
 router.get("/planning-ppic", (_req, res) => res.redirect(308, "/modules/planning-ppic/demand-planning"));
@@ -608,7 +620,7 @@ router.get("/planning-ppic/mps/workbench", (req, res) => {
   const module = getModule("planning-ppic");
   const nextMonth = addMonthKey(jakartaMonthKey(), 1);
   const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : nextMonth;
-  return res.render("ppic/mps-workbench", { title: "Master Production Schedule", module, activePpicTab: "mps", initialMonth, pageScript: "/js/ppic-mps-workbench.js?v=20260826-workflow-1", ...common(module.slug) });
+  return res.render("ppic/mps-workbench", { title: "Master Production Schedule", module, activePpicTab: "mps", initialMonth, pageScript: "/js/ppic-mps-workbench.js?v=20260828-delta-mps-1", ...common(module.slug) });
 });
 router.get("/planning-ppic/tutorial", (_req, res) => {
   const module = getModule("planning-ppic");
@@ -650,17 +662,17 @@ router.get("/planning-ppic/:tab", (req, res) => renderPpic(res, req.params.tab, 
 
 router.get("/manufacturing-bom/bill-of-materials/new", (_req, res) => {
   const module = getModule("manufacturing-bom"); const page = getPage("manufacturing-bom", "bill-of-materials");
-  res.render("bom/editor", { title: "BOM Generator", module, page, mode: "create", recordKey: "", pageScript: "/js/bom-editor.js", ...common(module.slug) });
+  res.render("bom/editor", { title: "BOM Generator", module, page, mode: "create", recordKey: "", pageScript: "/js/bom-editor.js?v=20260828-pan-5", ...common(module.slug) });
 });
 
 router.get("/manufacturing-bom/bill-of-materials/drafts/:id/edit", (req, res) => {
   const module = getModule("manufacturing-bom"); const page = getPage("manufacturing-bom", "bill-of-materials");
-  res.render("bom/editor", { title: "Draft BOM Canvas", module, page, mode: "draft", recordKey: req.params.id, pageScript: "/js/bom-editor.js", ...common(module.slug) });
+  res.render("bom/editor", { title: "Draft BOM Canvas", module, page, mode: "draft", recordKey: req.params.id, pageScript: "/js/bom-editor.js?v=20260828-pan-5", ...common(module.slug) });
 });
 
 router.get("/manufacturing-bom/bill-of-materials/:key/edit", (req, res) => {
   const module = getModule("manufacturing-bom"); const page = getPage("manufacturing-bom", "bill-of-materials");
-  res.render("bom/editor", { title: "Edit BOM Canvas", module, page, mode: "edit", recordKey: req.params.key, pageScript: "/js/bom-editor.js", ...common(module.slug) });
+  res.render("bom/editor", { title: "Edit BOM Canvas", module, page, mode: "edit", recordKey: req.params.key, pageScript: "/js/bom-editor.js?v=20260828-pan-5", ...common(module.slug) });
 });
 
 router.get("/manufacturing-bom/bill-of-materials/:key/edit-table", (req, res) => {
@@ -687,9 +699,12 @@ function renderOperationsDashboard(res, req, moduleSlug, defaultPage) {
   const module = getModule(moduleSlug);
   const page = getPage(moduleSlug, req.params.page || defaultPage);
   if (!module || !page) return res.status(404).render("errors/404", { title: `Menu ${module?.label || "operasional"} tidak ditemukan` });
-  if (page.kind === "dashboard" && moduleSlug === "incoming") return res.render("incoming/dashboard", { title: page.label, module, page, pageScript: "/js/incoming-dashboard.js?v=20260807-2", ...common(module.slug) });
+  if (page.kind === "dashboard" && moduleSlug === "incoming") return res.render("incoming/dashboard", { title: page.label, module, page, pageScript: "/js/incoming-dashboard.js?v=20260828-lot-link-2", ...common(module.slug) });
   if (page.kind === "dashboard" && moduleSlug === "outgoing") return res.render("outgoing/dashboard", { title: page.label, module, page, pageScript: "/js/schedule-board.js?v=20260825-1", ...common(module.slug) });
   if (page.kind === "dashboard") return res.render("modules/executive-dashboard", { title: page.label, module, page, ...common(module.slug) });
+  if (page.reportMode === "outgoing-delivery-matrix") return res.render("outgoing/report", { title: page.label, module, page, pageStyles: ["/css/outgoing-report.css?v=20260827-1"], pageScript: "/js/outgoing-report.js?v=20260827-1", ...common(module.slug) });
+  if (page.reportMode === "purchase-pricing") return res.render("purchasing/pricing-report", { title: page.label, module, page, pageStyles: ["/css/purchasing-pricing-report.css?v=20260828-supplier-chart-1"], pageScript: "/js/purchasing-pricing-report.js?v=20260828-supplier-chart-1", ...common(module.slug) });
+  if (page.reportMode === "production-cost-actual") return res.render("production/cost-report", { title: page.label, module, page, initialMonth: /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : jakartaMonthKey(), pageStyles: ["/css/production-cost-report.css?v=20260828-1"], pageScript: "/js/production-cost-report.js?v=20260828-1", ...common(module.slug) });
   if (page.kind === "report") return res.render("modules/report", { title: page.label, module, page, pageScript: "/js/module-report.js?v=20260818-inventory-matrix-8", ...common(module.slug) });
   if (moduleSlug === "production" && page.slug === "fg-receipt") {
     return res.render("production/fg-receipt", { title: page.label, module, page, pageScript: "/js/production-fg-receipt.js?v=20260806-1", ...common(module.slug) });
@@ -711,7 +726,7 @@ function renderOperationsDetail(res, req, moduleSlug) {
   const isPurchaseRequisition = moduleSlug === "purchasing" && page.slug === "purchase-requisitions";
   const supportedPurchaseCategories = new Set(["material", "purchase-part", "universal-purchase-part", "vendor-process", "non-production"]);
   const purchaseCategory = isPurchaseRequisition ? (supportedPurchaseCategories.has(requestedCategory) ? requestedCategory : "purchase-part") : null;
-  return res.render("operations/detail", { title: `Detail ${page.label}`, module, page, recordKey: req.params.key, purchaseCategory, pageScript: "/js/operations-detail.js?v=20260827-stock-balance-style-1", ...common(module.slug) });
+  return res.render("operations/detail", { title: `Detail ${page.label}`, module, page, recordKey: req.params.key, purchaseCategory, pageScript: "/js/operations-detail.js?v=20260828-mi-reserved-1", ...common(module.slug) });
 }
 
 router.get("/inventory", (req, res) => renderOperationsDashboard(res, req, "inventory", "stock-balances"));

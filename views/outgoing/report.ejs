@@ -1,0 +1,76 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+
+<main class="outgoing-report-page">
+  <section class="outgoing-report-hero app-container">
+    <div class="enterprise-page-heading">
+      <span><%= module.label %></span>
+      <h1><%= page.label %></h1>
+      <p>History delivery Finished Goods per client, dilengkapi posisi material, WIP, FG, dan rencana delivery berikutnya.</p>
+    </div>
+    <div class="outgoing-report-actions">
+      <button id="outgoing-report-refresh" class="btn btn-outline-secondary" type="button">Refresh</button>
+      <button id="outgoing-report-export" class="btn btn-outline-success" type="button" disabled>Export CSV</button>
+      <button class="btn btn-primary brand-button" type="button" onclick="window.print()">Cetak</button>
+    </div>
+  </section>
+
+  <section class="outgoing-report-filter app-container" aria-label="Filter Outgoing Report">
+    <label class="outgoing-filter-field outgoing-filter-field--client">
+      <span>Client</span>
+      <select id="outgoing-client-select"><option value="">Pilih client...</option></select>
+    </label>
+    <label class="outgoing-filter-field outgoing-filter-field--fg">
+      <span>Finished Goods (FG)</span>
+      <select id="outgoing-fg-select" disabled><option value="">Semua FG client</option></select>
+    </label>
+    <label class="outgoing-filter-field">
+      <span>History</span>
+      <select id="outgoing-history-months">
+        <option value="3">3 bulan</option>
+        <option value="6" selected>6 bulan</option>
+        <option value="12">12 bulan</option>
+      </select>
+    </label>
+    <label class="outgoing-filter-field outgoing-filter-field--search">
+      <span>Cari FG</span>
+      <input id="outgoing-report-search" type="search" placeholder="Part number, part code, atau nama...">
+    </label>
+  </section>
+
+  <div id="outgoing-report-alert" class="alert alert-warning app-container d-none" role="alert"></div>
+
+  <section class="outgoing-summary-grid app-container" aria-label="Ringkasan delivery">
+    <article><small>FG DITAMPILKAN</small><strong id="outgoing-summary-fg">—</strong><span>Finished Goods saja</span></article>
+    <article><small>DELIVERED PERIODE</small><strong id="outgoing-summary-delivered">—</strong><span>Qty aktual terkirim</span></article>
+    <article><small>FG FREE</small><strong id="outgoing-summary-free">—</strong><span>Available stock FG (PCS)</span></article>
+    <article><small>NEXT PLANNED</small><strong id="outgoing-summary-next">—</strong><span>Qty rencana terdekat</span></article>
+  </section>
+
+  <section class="outgoing-matrix-card">
+    <header class="outgoing-matrix-head app-container">
+      <div>
+        <small>DELIVERY CONTROL MATRIX</small>
+        <h2 id="outgoing-matrix-title">Pilih client untuk menampilkan matrix</h2>
+        <p>Baris hanya Finished Goods. Purchase Part dan RAW tidak ditampilkan; Material dan WIP di sisi kanan adalah konteks kesiapan stock.</p>
+      </div>
+      <span id="outgoing-report-count" class="ops-live-label"><i></i> Menunggu client</span>
+    </header>
+    <div class="outgoing-matrix-wrap">
+      <table id="outgoing-matrix-table" class="outgoing-matrix-table" data-enterprise-export="off">
+        <thead id="outgoing-matrix-thead"></thead>
+        <tbody id="outgoing-matrix-tbody">
+          <tr><td class="outgoing-matrix-empty">Pilih client terlebih dahulu.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <footer class="outgoing-matrix-note app-container">
+      <span><b>History Delivery</b> memakai qty aktual pada schedule berstatus Delivered.</span>
+      <span><b>Planning Delivery Selanjutnya</b> adalah schedule aktif terdekat mulai hari ini.</span>
+    </footer>
+  </section>
+</main>
+
+<script id="outgoing-report-config" type="application/json"><%- JSON.stringify({ module: module.slug, slug: page.slug }).replace(/</g, '\\u003c') %></script>
+<%- include('../partials/footer') %>

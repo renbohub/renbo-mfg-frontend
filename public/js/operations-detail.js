@@ -40,6 +40,7 @@
   const isStockBalancePage = () => config.module === "inventory" && config.page.slug === "stock-balances";
   const isDailySchedulePage = () => config.module === "production" && config.page.slug === "daily-production-schedules";
   const isNgDispositionPage = () => config.module === "qc" && config.page.slug === "ng-dispositions";
+  const isQualityInspectionPage = () => config.module === "qc" && config.page.slug === "quality-inspections";
   let currentRecord = null;
   let supplierLookupRows = [];
   let supplierLookupPromise = null;
@@ -243,7 +244,7 @@
           <div class="${decided ? "is-done" : ""}"><i>4</i><span><b>Disposition</b><small>${decided ? ngDispositionStatus(record).label : "Rework / Reject"}</small></span></div>
         </div>
       </section>
-      <section class="ops-detail-card ngd-audit-card">
+      <section class="ops-detail-card ngd-audit-card" data-transaction-tab-title="Data Audit">
         <details>
           <summary><span><b>Data audit lengkap</b><small>ID sistem, waktu judgment, dan relasi database</small></span><i>Buka detail</i></summary>
           <div class="ngd-audit-grid">
@@ -273,6 +274,121 @@
     if (metaHeading) metaHeading.textContent = "Kontrol Audit";
     const breadcrumbKey = document.querySelector(".module-breadcrumb b");
     if (breadcrumbKey) breadcrumbKey.textContent = `${record.logNumber || "NG"} · Phase ${record.phaseNumber || "-"}`;
+  }
+
+  function qualityInspectionState(record) {
+    const documentStatus = slug(record.status);
+    const decision = slug(record.decision);
+    const releaseStatus = slug(record.outputReleaseStatus);
+    if (documentStatus === "completed" && /accepted|conditional-accept/.test(decision)) return { label: "QC Accepted", tone: "accepted" };
+    if (documentStatus === "completed" && /reject/.test(decision)) return { label: "QC Rejected", tone: "rejected" };
+    if (documentStatus === "completed") return { label: "QC Selesai", tone: "completed" };
+    if (/released|received/.test(releaseStatus)) return { label: "Stock Released", tone: "accepted" };
+    return { label: "Menunggu QC", tone: "pending" };
+  }
+
+  function qualityInspectionReference(type, value, href, note = "") {
+    const labelValue = value || "-";
+    const content = href
+      ? `<a href="${esc(href)}"><b>${esc(labelValue)}</b><i aria-hidden="true">→</i></a>`
+      : `<b>${esc(labelValue)}</b>`;
+    return `<div class="qci-reference"><span>${esc(type)}</span>${content}${note ? `<small>${esc(note)}</small>` : ""}</div>`;
+  }
+
+  function prepareQualityInspectionChrome(record) {
+    document.querySelector(".ops-page")?.classList.add("qc-inspection-workbench");
+    const state = qualityInspectionState(record);
+    const firstAside = document.querySelector(".ops-detail-aside .ops-detail-card:first-child");
+    const metaAside = document.querySelector(".ops-detail-aside .ops-detail-card:last-child");
+    firstAside?.classList.add("qci-action-panel");
+    metaAside?.classList.add("qci-meta-panel");
+    const actionHeading = firstAside?.querySelector("h2");
+    const actionHelp = firstAside?.querySelector(".ops-help");
+    if (actionHeading) actionHeading.textContent = slug(record.status) === "draft" ? "Keputusan QC" : "Hasil Release";
+    if (actionHelp) actionHelp.textContent = slug(record.status) === "draft"
+      ? "Periksa hasil quantity dan trace produksi sebelum melepas stock dari QC Hold."
+      : `Dokumen selesai dengan keputusan ${record.decision || state.label}. Status stock: ${record.outputReleaseStatus || "-"}.`;
+    metaAside?.querySelector("h2")?.replaceChildren(document.createTextNode("Kontrol Audit"));
+    const breadcrumbKey = document.querySelector(".module-breadcrumb b");
+    if (breadcrumbKey) breadcrumbKey.textContent = record.inspectionNumber || config.recordKey;
+  }
+
+  function renderQualityInspectionFields(record) {
+    const part = record.part || {};
+    const workOrder = record.workOrder || {};
+    const uom = workOrder.uomCode || record.manufacturingOrder?.uomCode || record.uomCode || "pcs";
+    const digits = isDiscreteUom(uom) ? 0 : 2;
+    const inspected = Math.max(number(record.qtyInspected), 0);
+    const passed = Math.max(number(record.qtyPassed), 0);
+    const failed = Math.max(number(record.qtyFailed), 0);
+    const rework = Math.max(number(record.qtyRework), 0);
+    const passRate = inspected > 0 ? Math.min(100, passed / inspected * 100) : 0;
+    const state = qualityInspectionState(record);
+    const releaseLabel = String(record.outputReleaseStatus || "WAITING_QC").replace(/_/g, " ");
+    const card = $("ops-detail-fields")?.closest(".ops-detail-card");
+    card?.classList.add("qci-summary-card");
+    const heading = card?.querySelector("header h2");
+    if (heading) heading.textContent = "Ringkasan Quality Inspection";
+    $("ops-detail-status").innerHTML = `<span class="qci-status is-${esc(state.tone)}"><i></i>${esc(state.label)}</span>`;
+    $("ops-detail-fields").className = "qci-overview";
+    const partCode = part.partCode || record.partCode || "-";
+    const partName = part.partName || record.partName || "Part produksi";
+    const partNumber = part.partNumber || record.partNumber || "-";
+    const inspectedBy = record.inspectedBy || "Belum ditentukan";
+    const approval = record.approvedBy ? `${record.approvedBy} · ${format(record.approvedAt, "approvedAt")}` : "Belum disetujui";
+    $("ops-detail-fields").innerHTML = `
+      <div class="qci-kpi-grid">
+        <article class="is-total"><span>Qty Check</span><strong>${num(inspected, digits)}</strong><small>${esc(uom)} diperiksa</small></article>
+        <article class="is-pass"><span>Qty OK</span><strong>${num(passed, digits)}</strong><small>Lolos pemeriksaan</small></article>
+        <article class="is-fail"><span>Qty NG</span><strong>${num(failed, digits)}</strong><small>Tidak lolos</small></article>
+        <article class="is-rework"><span>Qty Rework</span><strong>${num(rework, digits)}</strong><small>Perlu proses ulang</small></article>
+      </div>
+      <div class="qci-progress-panel">
+        <div class="qci-progress-copy"><span>Pass rate</span><strong>${num(passRate, 1)}%</strong><small>Sample ${num(record.sampleSize || 0, 0)} ${esc(uom)} · Decision ${esc(record.decision || "Pending")}</small></div>
+        <div class="qci-progress-track" role="progressbar" aria-label="Pass rate" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${passRate.toFixed(1)}"><i style="width:${passRate}%"></i></div>
+        <div class="qci-release-state"><span>Output release</span><b>${esc(releaseLabel)}</b><small>${record.fgReceiptEligible ? `${num(record.fgReceiptPendingQty || 0, digits)} ${esc(uom)} menunggu FG Receipt` : "WIP mengikuti alur stock proses berikutnya"}</small></div>
+      </div>
+      <div class="qci-context-grid">
+        <article><span>Part</span><a href="/master-data/parts/${encodeURIComponent(partCode)}"><b>${esc(partCode)}</b><i aria-hidden="true">→</i></a><small>${esc(partName)} · PN ${esc(partNumber)}</small></article>
+        <article><span>Batch / Lot</span><a href="/modules/inventory/lots/${encodeURIComponent(record.batchNumber || "")}"><b>${esc(record.batchNumber || "-")}</b><i aria-hidden="true">→</i></a><small>${esc(record.sourceStockType || "Stock produksi")}</small></article>
+        <article><span>Inspection</span><b>${esc(format(record.inspectionDate, "inspectionDate"))}</b><small>${esc(inspectedBy)}</small></article>
+        <article><span>Approval</span><b>${esc(approval)}</b><small>${esc(state.label)}</small></article>
+      </div>
+      ${record.notes ? `<div class="qci-notes"><span>Catatan QC</span><p>${esc(record.notes)}</p></div>` : ""}`;
+  }
+
+  function renderQualityInspectionCollections(record) {
+    const mo = record.manufacturingOrder || {};
+    const wo = record.workOrder || {};
+    const log = record.productionLog || {};
+    const part = record.part || {};
+    const source = record.qcSourceLocation || {};
+    const reject = record.qcRejectSourceLocation || {};
+    const completed = slug(record.status) === "completed";
+    const released = /released|received/.test(slug(record.outputReleaseStatus));
+    const finalOutput = record.fgReceiptEligible === true;
+    const stockStepLabel = finalOutput ? "FG Receipt" : "Stock WIP";
+    const stockStepNote = released ? "Stock sudah tersedia" : finalOutput ? "Menunggu penerimaan FG" : "Menunggu release QC";
+    const logNumber = log.logNumber || record.logNumber;
+    const moNumber = mo.moNumber || record.moNumber;
+    const woNumber = wo.woNumber || record.woNumber;
+    const partCode = part.partCode || record.partCode;
+    const lotNumber = record.batchNumber || source.lotNumber || reject.lotNumber;
+    $("ops-detail-collections").innerHTML = `
+      <section class="ops-detail-card qci-trace-card">
+        <header><div><h2>Trace & Alur Release</h2><p>Satu jalur dari perintah produksi sampai stock keluar dari QC Hold.</p></div><span>${esc(record.sourceStockType || "Production QC")}</span></header>
+        <div class="qci-flow" aria-label="Alur quality inspection">
+          <div class="is-done"><i>1</i><span><b>Production Entry</b><small>${esc(logNumber || "-")}</small></span></div><em></em>
+          <div class="is-done"><i>2</i><span><b>QC Hold</b><small>${esc(lotNumber || "-")}</small></span></div><em></em>
+          <div class="${completed ? "is-done" : "is-current"}"><i>3</i><span><b>Inspection</b><small>${esc(completed ? record.decision || "Selesai" : "Menunggu keputusan")}</small></span></div><em></em>
+          <div class="${released ? "is-done" : completed ? "is-current" : ""}"><i>4</i><span><b>${esc(stockStepLabel)}</b><small>${esc(stockStepNote)}</small></span></div>
+        </div>
+        <div class="qci-reference-grid">
+          <article><h3>Sumber produksi</h3>${qualityInspectionReference("Manufacturing Order", moNumber, moNumber ? `/modules/production/manufacturing-orders/${encodeURIComponent(moNumber)}` : "", mo.status || "")}${qualityInspectionReference("Work Order", woNumber, woNumber ? `/modules/production/work-orders/${encodeURIComponent(woNumber)}` : "", wo.sequence ? `Sequence ${wo.sequence}` : "")}${qualityInspectionReference("Production Entry", logNumber, logNumber ? `/modules/production/production-logs/${encodeURIComponent(logNumber)}` : "", log.machineCode || log.operatorName || "")}</article>
+          <article><h3>Identitas output</h3>${qualityInspectionReference("Part", partCode, partCode ? `/master-data/parts/${encodeURIComponent(partCode)}` : "", part.partName || record.partName || "")}${qualityInspectionReference("Batch / Lot", lotNumber, lotNumber ? `/modules/inventory/lots/${encodeURIComponent(lotNumber)}` : "", part.partNumber ? `PN ${part.partNumber}` : "")}${qualityInspectionReference("Stock type", record.sourceStockType || "-", "", finalOutput ? "Final output" : "WIP proses")}</article>
+          <article><h3>Lokasi QC</h3>${qualityInspectionReference("QC Hold", source.warehouseCode || "-", "", source.lotNumber || lotNumber || "")}${qualityInspectionReference("Reject rack", reject.rackCode || reject.warehouseCode || "-", "", reject.lotNumber || lotNumber || "")}${qualityInspectionReference("Release status", String(record.outputReleaseStatus || "WAITING_QC").replace(/_/g, " "), "", released ? "Sudah diposting" : "Belum diposting")}</article>
+        </div>
+      </section>`;
   }
   const isPurchaseOrderPage = () => config.module === "purchasing" && config.page.slug === "purchase-order";
   const isPurchaseRequisitionPage = () => config.module === "purchasing" && config.page.slug === "purchase-requisitions";
@@ -1165,7 +1281,7 @@
     const totals = rows.reduce((result, row) => ({ net: result.net + number(row.netRequirement), recommended: result.recommended + number(row.recommendedPurchaseQty), excess: result.excess + number(row.excessQty), ready: result.ready + (/ready|converted/i.test(row.status || "") ? 1 : 0) }), { net: 0, recommended: 0, excess: 0, ready: 0 });
     const statusOptions = [...new Set(rows.map((row) => row.status).filter(Boolean))];
     const confirmationOptions = [...new Set(rows.map((row) => row.confirmationStatus).filter(Boolean))];
-    const pendingConfirmationCount = rows.filter((row) => !/ready|converted/i.test(row.status || "")).length;
+    const pendingConfirmationCount = rows.filter((row) => !/ready|converted|covered/i.test(row.status || "")).length;
     const convertedCount = rows.filter((row) => /converted/i.test(row.status || "")).length;
     const categories = [...new Set(rows.map((row) => row.materialCode ? "Material" : "Purchase Part"))];
     const dueParts = (value) => {
@@ -1220,8 +1336,14 @@
       const step = orderMultiple > 0 ? String(orderMultiple) : (isDiscreteUom(row.uomCode) ? "1" : "0.001");
       const minimumQty = Math.max(confirmedMoq, number(step));
       const pulledFutureQty = (row.sourceRequirements || []).filter((source) => source.allocationType === "MOQ_PULL_FORWARD").reduce((sum, source) => sum + number(source.qty), 0);
-      const confirmationAction = /converted/i.test(row.status || "") ? "Lihat Detail" : /ready/i.test(row.status || "") ? "Lihat / Ubah" : "Lengkapi Konfirmasi";
-      const readinessHint = /converted/i.test(row.status || "") ? "Sudah dibuat menjadi PR" : /ready/i.test(row.status || "") ? "Siap dipilih untuk PR" : "Supplier, qty, dan delivery belum lengkap";
+      const confirmationAction = /converted|covered/i.test(row.status || "") ? "Lihat Detail" : /ready/i.test(row.status || "") ? "Lihat / Ubah" : "Lengkapi Konfirmasi";
+      const readinessHint = /converted/i.test(row.status || "")
+        ? "Sudah dibuat menjadi PR"
+        : /covered/i.test(row.status || "")
+          ? "Kebutuhan sudah dicakup kelebihan MOQ item sebelumnya"
+          : /ready/i.test(row.status || "")
+            ? "Siap dipilih untuk PR"
+            : "Supplier, qty, dan delivery belum lengkap";
       return `<tr class="ps-data-row" data-ps-row data-item-id="${esc(row.id || "")}" data-ps-status="${esc(row.status || "Draft")}" data-ps-confirmation="${esc(row.confirmationStatus || "Not Confirmed")}" data-ps-category="${esc(category)}" data-pr-category="${esc(prCategory)}" data-pr-suppliers="${esc(prSupplierCodes.join("|"))}" data-ps-search="${esc(search)}" data-due-day="${esc(due.day)}" data-due-week="${esc(due.week)}" data-due-month="${esc(due.month)}">
         <td class="ps-freeze-select"><input class="form-check-input" type="checkbox" data-ps-select ${eligible ? "" : "disabled"} aria-label="Pilih ${esc(identity)} untuk PR" title="${eligible ? "Pilih untuk satu Draft PR" : "Konfirmasi supplier lebih dahulu"}"></td>
         <td class="ps-freeze-item"><a class="ps-item-link" href="${esc(materialHref)}"><b>${esc(identity)}</b><span>${esc(description)}</span><small>${row.partNumber ? `PN ${esc(row.partNumber)} · ` : ""}${esc(row.uomCode || "-")}</small></a></td>
@@ -1238,7 +1360,7 @@
     }).join("");
     const replanBanner = record.status === "Replan Required" ? `<div class="alert alert-warning mb-0"><b>Demand berubah.</b> Purchase Suggestion ini tidak dapat dibuat menjadi PR. Hitung ulang MPS lalu jalankan MRP kembali untuk memperoleh rekomendasi terbaru.</div>` : "";
     return `<section class="ps-workspace">${replanBanner}<div class="ps-review-flow"><header><div><span>ALUR KERJA PURCHASING</span><b>Dari suggestion sampai Draft PR</b></div><small>Mulai dari item yang perlu konfirmasi. Item baru dapat dipilih setelah komitmen supplier lengkap.</small></header><ol><li class="is-current"><i>1</i><div><b>Review kebutuhan</b><small>${num(pendingConfirmationCount, 0)} item perlu tindakan</small></div></li><li><i>2</i><div><b>Konfirmasi supplier</b><small>Qty, delivery, MOQ, harga</small></div></li><li class="${totals.ready ? "is-ready" : ""}"><i>3</i><div><b>Pilih item siap</b><small>${num(totals.ready, 0)} item siap PR</small></div></li><li class="${convertedCount ? "is-ready" : ""}"><i>4</i><div><b>Buat Draft PR</b><small>${num(convertedCount, 0)} item sudah diproses</small></div></li></ol></div><div class="ps-summary-grid"><div><small>Total Item</small><b>${num(rows.length, 0)}</b></div><div><small>Net Requirement</small><b>${num(totals.net)}</b></div><div><small>Recommended Qty</small><b>${num(totals.recommended)}</b></div><div><small>Excess Qty</small><b>${num(totals.excess)}</b></div><div><small>Siap PR</small><b>${num(totals.ready, 0)} / ${num(rows.length, 0)}</b></div></div>
-      <div class="ps-toolbar"><label class="ps-search-field"><span>Cari item</span><input class="form-control" data-ps-search-input placeholder="Material, part, supplier, SO, forecast..."></label><label><span>Jenis item</span><select class="form-select" data-ps-category-filter><option value="">Semua jenis</option>${categories.map((category) => `<option>${esc(category)}</option>`).join("")}</select></label><label><span>Kesiapan PR</span><select class="form-select" data-ps-status-filter><option value="">Semua kesiapan</option>${statusOptions.map((status) => `<option>${esc(status)}</option>`).join("")}</select></label><label><span>Konfirmasi supplier</span><select class="form-select" data-ps-confirmation-filter><option value="">Semua konfirmasi</option>${confirmationOptions.map((status) => `<option>${esc(status)}</option>`).join("")}</select></label><label><span>Kelompok due date</span><select class="form-select" data-ps-due-group><option value="day">Per tanggal</option><option value="week">Per minggu</option><option value="month">Per bulan</option><option value="">Tanpa grouping</option></select></label><b data-ps-result>${num(rows.length, 0)} item</b></div>
+      <div class="ps-toolbar"><label class="ps-search-field"><span>Cari item</span><input class="form-control" data-ps-search-input placeholder="Material, part, supplier, SO, forecast..."></label><label><span>Jenis item</span><select class="form-select" data-ps-category-filter><option value="">Semua jenis</option>${categories.map((category) => `<option>${esc(category)}</option>`).join("")}</select></label><label><span>Kesiapan PR</span><select class="form-select" data-ps-status-filter><option value="">Semua kesiapan</option>${statusOptions.map((status) => `<option>${esc(status)}</option>`).join("")}</select></label><label><span>Konfirmasi supplier</span><select class="form-select" data-ps-confirmation-filter><option value="">Semua konfirmasi</option>${confirmationOptions.map((status) => `<option>${esc(status)}</option>`).join("")}</select></label><label><span>Kelompok due date</span><select class="form-select" data-ps-due-group><option value="day">Per tanggal</option><option value="week">Per minggu</option><option value="month">Per bulan</option><option value="">Tanpa grouping</option></select></label><b data-ps-result>${num(rows.length, 0)} item</b><button class="btn btn-primary btn-sm ps-auto-confirm-button" type="button" data-auto-confirm-suppliers title="Cari supplier terkait yang mempunyai harga aktif, gunakan qty suggestion, dan isi lead time aktual 2 hari" ${record.status === "Replan Required" || pendingConfirmationCount === 0 ? "disabled" : ""}>Auto Konfirmasi Supplier</button></div>
       <div class="ps-table-shell"><table class="table ps-suggestion-table"><thead><tr><th class="ps-freeze-select"><label title="Pilih semua item siap PR yang terlihat"><input class="form-check-input" type="checkbox" data-ps-select-all aria-label="Pilih semua item yang siap"><span>Select All</span></label></th><th class="ps-freeze-item">Material / Part</th><th>PR Category</th><th>Due Date Delivery</th><th>Due Date Pembelian <span class="ps-head-help" title="Klik ikon ? pada setiap baris untuk melihat perhitungannya">?</span></th><th>Full Reference</th><th>Demand</th><th>Stock Supply</th><th>Supplier & Availability</th><th>Qty untuk PR</th><th>Status / Action</th></tr></thead><tbody>${tableRows || '<tr><td colspan="11" class="text-center text-muted p-4">Tidak ada item suggestion.</td></tr>'}</tbody></table></div>
       <div class="ps-selection-bar"><div><b data-ps-selected-count>0 item dipilih</b><span data-ps-selected-qty>Total qty 0</span></div><small>Draft PR otomatis dipisah berdasarkan <b>PR Category × Supplier</b>. Qty tetap dapat disesuaikan sampai batas supplier.</small><button class="btn btn-primary" type="button" data-workflow-action="convert-suggestion-to-pr" disabled data-ps-create-pr>Buat Draft PR</button></div></section>`;
   }
@@ -2787,6 +2909,7 @@
     const isPosted = String(record.status || "").toUpperCase() !== "DRAFT";
     const requested = totals.map((row) => `${num(row.requestedQty, isDiscreteUom(row.uomCode) ? 0 : 3)} ${esc(row.uomCode)}`).join(" + ") || "0";
     const available = totals.map((row) => `${num(row.availableQty, isDiscreteUom(row.uomCode) ? 0 : 3)} ${esc(row.uomCode)}`).join(" + ") || "0";
+    const reserved = totals.map((row) => `${num(row.reservedQty, isDiscreteUom(row.uomCode) ? 0 : 3)} ${esc(row.uomCode)}`).join(" + ") || "0";
     const shortageCount = number(summary.shortageRequirementCount ?? summary.shortageLineCount);
     const readyCount = number(summary.readyRequirementCount ?? summary.readyLineCount);
     const readinessClass = isPosted ? "posted" : shortageCount ? "shortage" : "ready";
@@ -2800,6 +2923,7 @@
       <div class="mi-kpi-strip">
         <article class="primary"><span>QUANTITY DIMINTA</span><strong>${requested}</strong><small>${num(summary.requirementCount ?? summary.lineCount, 0)} kebutuhan · ${num(summary.sourceLineCount ?? summary.lineCount, 0)} sumber stock</small></article>
         <article class="stock"><span>STOCK AVAILABLE</span><strong>${available}</strong><small>Saldo siap issue di ${esc(record.warehouseCode || "warehouse")}</small></article>
+        <article class="reserved"><span>STOCK RESERVED</span><strong>${reserved}</strong><small>Reservation khusus MO / Material Issue ini</small></article>
         <article class="material"><span>ITEM UNIK</span><strong>${num(summary.requirementCount ?? summary.lineCount, 0)}</strong><small>Part dan material unik yang perlu disiapkan</small></article>
         <article class="${readinessClass}"><span>${readinessTitle}</span><strong>${readinessLabel}</strong><small>${readinessHelp}</small></article>
       </div>
@@ -2813,11 +2937,11 @@
   function materialIssueLocations(row, editable = false) {
     const locations = row.stockAvailability?.locations || [];
     if (!locations.length) return '<span class="mi-no-stock">Belum ada stock balance</span>';
-    if (editable) return `<div class="mi-lot-editor"><select class="form-select form-select-sm" data-mi-stock-source>${locations.map((location) => `<option value="${esc(location.stockBalanceId)}" ${location.stockBalanceId === row.stockBalanceId ? "selected" : ""}>${esc(location.lotNumber || "Tanpa lot")} · ${esc(location.rackCode || "Tanpa rack")} · ${num(location.qtyAvailable, isDiscreteUom(location.uomCode) ? 0 : 3)} ${esc(location.uomCode || row.uomCode || "")}</option>`).join("")}</select><button type="button" class="btn btn-sm btn-outline-primary" data-mi-add-lot>+ Lot</button></div>`;
+    if (editable) return `<div class="mi-lot-editor"><select class="form-select form-select-sm" data-mi-stock-source>${locations.map((location) => `<option value="${esc(location.stockBalanceId)}" ${location.stockBalanceId === row.stockBalanceId ? "selected" : ""}>${esc(location.lotNumber || "Tanpa lot")} · ${esc(location.rackCode || "Tanpa rack")} · siap ${num(location.qtyAvailable, isDiscreteUom(location.uomCode) ? 0 : 3)}${number(location.qtyReservedForIssue) > 0 ? ` · reserved MI ${num(location.qtyReservedForIssue, isDiscreteUom(location.uomCode) ? 0 : 3)}` : ""} ${esc(location.uomCode || row.uomCode || "")}</option>`).join("")}</select><button type="button" class="btn btn-sm btn-outline-primary" data-mi-add-lot>+ Lot</button></div>`;
     return `<details class="mi-locations"><summary>${num(locations.length, 0)} lokasi stock</summary><div>${locations.map((location) => `
       <a href="/modules/inventory/stock-balances/${encodeURIComponent(location.stockBalanceId)}">
         <span><b>${esc(location.rackCode || "Tanpa rack")}</b><small>${esc(location.lotNumber || "Tanpa lot")}</small></span>
-        <strong>${num(location.qtyAvailable, isDiscreteUom(location.uomCode) ? 0 : 3)} ${esc(location.uomCode || row.uomCode || "")}</strong>
+        <strong>${num(location.qtyAvailable, isDiscreteUom(location.uomCode) ? 0 : 3)} ${esc(location.uomCode || row.uomCode || "")}${number(location.qtyReservedForIssue) > 0 ? `<small>Reserved MI ${num(location.qtyReservedForIssue, isDiscreteUom(location.uomCode) ? 0 : 3)}</small>` : ""}</strong>
       </a>`).join("")}</div></details>`;
   }
   function materialIssueTraceLink(type, value, href) {
@@ -2880,7 +3004,8 @@
   }
   function renderMaterialIssueCollections(record) {
     const rows = record.details || [];
-    const isDraft = String(record.status || "").toUpperCase() === "DRAFT";
+    const issueStatus = String(record.status || "").toUpperCase();
+    const isEditable = ["DRAFT", "PREPARING"].includes(issueStatus);
     const renderedRequirements = new Set();
     const body = rows.map((row) => {
       const stock = row.stockAvailability || {};
@@ -2889,8 +3014,8 @@
       const isPrimaryRequirementRow = !renderedRequirements.has(requirementKey);
       renderedRequirements.add(requirementKey);
       const requestedQty = requirementStock.requestedQty ?? row.calculationTrace?.totalRequestedQty ?? row.requestedQty ?? row.qtyRequired;
-      const shouldReallocate = isDraft && stock.status !== "READY" && requirementStock.status === "READY";
-      const state = isDraft ? shouldReallocate ? "REALLOCATE" : stock.status || "OUT_OF_STOCK" : "POSTED";
+      const shouldReallocate = isEditable && stock.status !== "READY" && requirementStock.status === "READY";
+      const state = isEditable ? shouldReallocate ? "REALLOCATE" : stock.status || "OUT_OF_STOCK" : "POSTED";
       const code = row.partCode || row.partNumber || row.product?.productCode || `Line ${row.lineNumber || "-"}`;
       const description = row.partName || row.description || row.product?.productName || "Material produksi";
       const spec = [row.spec, row.thickness != null ? `T ${num(row.thickness)}` : null, row.width != null ? `W ${num(row.width)}` : null, row.CSP].filter(Boolean).join(" · ");
@@ -2898,15 +3023,15 @@
         <td><span class="mi-line">${num(row.lineNumber, 0)}</span></td>
         <td><div class="mi-item"><div><span class="mi-kind ${slug(row.itemCategory)}">${esc(row.itemCategory || "PART")}</span><b>${esc(code)}</b><button type="button" class="mi-trace-button" data-mi-calculation title="Lihat asal dan rumus permintaan" aria-label="Lihat asal dan rumus permintaan ${esc(code)}">ƒx</button></div><strong>${esc(description)}</strong><small>${esc(spec || row.requirementSource || "-")}</small></div></td>
         <td class="mi-qty requested">${isPrimaryRequirementRow ? `<span>DIMINTA</span><strong>${materialIssueQty(requestedQty, row.uomCode)}</strong><small>${esc(row.requirementSource || "Kebutuhan produksi")}</small>` : '<span>LOT / COIL TAMBAHAN</span><strong>↳</strong><small>Quantity diminta tetap di line utama</small>'}</td>
-        <td class="mi-qty"><span>${isDraft ? "AKAN DI-ISSUE" : "SUDAH DI-ISSUE"}</span>${isDraft ? `<input class="form-control form-control-sm" data-mi-qty-issued type="number" min="0" step="any" value="${esc(row.qtyIssued)}"><small>Qty dapat disesuaikan PPIC</small>` : `<strong>${materialIssueQty(row.qtyIssued, row.uomCode)}</strong><small>Return ${num(row.qtyReturned, isDiscreteUom(row.uomCode) ? 0 : 3)}</small>`}</td>
+        <td class="mi-qty"><span>${isEditable ? "AKAN DI-ISSUE" : "SUDAH DI-ISSUE"}</span>${isEditable ? `<input class="form-control form-control-sm" data-mi-qty-issued type="number" min="0" step="any" value="${esc(row.qtyIssued)}"><small>Qty dapat disesuaikan selama persiapan</small>` : `<strong>${materialIssueQty(row.qtyIssued, row.uomCode)}</strong><small>Return ${num(row.qtyReturned, isDiscreteUom(row.uomCode) ? 0 : 3)}</small>`}</td>
         <td class="mi-qty available"><span>SUMBER LINE INI</span><strong>${materialIssueQty(stock.qtyAvailable, row.uomCode)}</strong><small>${shouldReallocate ? `Total material ${num(requirementStock.qtyAvailable, isDiscreteUom(row.uomCode) ? 0 : 3)} ${esc(row.uomCode || "")}` : `${num(stock.coveragePercent, 1)}% coverage`}</small></td>
-        <td><div class="mi-stock-breakdown"><span>On hand <b>${num(stock.qtyOnHand, isDiscreteUom(row.uomCode) ? 0 : 3)}</b></span><span>Reserved <b>${num(stock.qtyReserved, isDiscreteUom(row.uomCode) ? 0 : 3)}</b></span><span>QC <b>${num(stock.qtyQC, isDiscreteUom(row.uomCode) ? 0 : 3)}</b></span></div></td>
-        <td><span class="mi-stock-state ${slug(state)}">${state === "READY" ? "STOCK CUKUP" : state === "REALLOCATE" ? "PINDAH SUMBER" : state === "PARTIAL" ? "STOCK KURANG" : state === "POSTED" ? "SUDAH ISSUE" : "STOCK KOSONG"}</span>${shouldReallocate ? '<small class="mi-reallocate-note">Otomatis ambil dari saldo material lain saat issue</small>' : isDraft && number(stock.shortageQty) > 0 ? `<small class="mi-shortage">Kurang ${num(stock.shortageQty, isDiscreteUom(row.uomCode) ? 0 : 3)} ${esc(row.uomCode || "")}</small>` : ""}</td>
-        <td>${materialIssueLocations(row, isDraft)}</td>
+        <td><div class="mi-stock-breakdown"><span>On hand <b>${num(stock.qtyOnHand, isDiscreteUom(row.uomCode) ? 0 : 3)}</b></span><span>Reserved total <b>${num(stock.qtyReserved, isDiscreteUom(row.uomCode) ? 0 : 3)}</b></span><span class="is-reserved-mi">Reserved MI ini <b>${num(stock.qtyReservedForIssue, isDiscreteUom(row.uomCode) ? 0 : 3)}</b></span><span>QC <b>${num(stock.qtyQC, isDiscreteUom(row.uomCode) ? 0 : 3)}</b></span></div></td>
+        <td><span class="mi-stock-state ${slug(state)}">${state === "READY" ? "STOCK CUKUP" : state === "REALLOCATE" ? "PINDAH SUMBER" : state === "PARTIAL" ? "STOCK KURANG" : state === "POSTED" ? "SUDAH ISSUE" : "STOCK KOSONG"}</span>${shouldReallocate ? '<small class="mi-reallocate-note">Otomatis ambil dari saldo material lain saat issue</small>' : isEditable && number(stock.shortageQty) > 0 ? `<small class="mi-shortage">Kurang ${num(stock.shortageQty, isDiscreteUom(row.uomCode) ? 0 : 3)} ${esc(row.uomCode || "")}</small>` : ""}</td>
+        <td>${materialIssueLocations(row, isEditable)}</td>
       </tr>`;
     }).join("");
     $("ops-detail-collections").innerHTML = `<section class="ops-detail-card mi-stock-card">
-      <div class="ops-collection-head"><div><h2>Permintaan Material & Ketersediaan Stock</h2><p>Siapkan quantity sesuai kolom Diminta. Satu material dapat memiliki beberapa line karena sumber stock/lot berbeda.</p></div>${isDraft ? '<button type="button" class="btn btn-primary btn-sm" data-mi-save-lots>Simpan Qty & Alokasi Lot</button>' : `<span>${num(rows.length, 0)} line sumber</span>`}</div>
+      <div class="ops-collection-head"><div><h2>Permintaan Material & Ketersediaan Stock</h2><p>Siapkan quantity sesuai kolom Diminta. Satu material dapat memiliki beberapa line karena sumber stock/lot berbeda.</p></div>${isEditable ? '<button type="button" class="btn btn-primary btn-sm" data-mi-save-lots>Simpan Qty & Alokasi Lot</button>' : `<span>${num(rows.length, 0)} line sumber</span>`}</div>
       <div class="mi-table-wrap"><table class="table ops-collection-table mi-stock-table"><thead><tr><th>#</th><th>Material / Item</th><th>Quantity Diminta</th><th>Issue</th><th>Stock Available</th><th>Komposisi Stock</th><th>Status</th><th>Rack & Lot</th></tr></thead><tbody>${body || '<tr><td colspan="8"><div class="mi-empty">Belum ada detail material yang diminta.</div></td></tr>'}</tbody></table></div>
     </section>`;
   }
@@ -2975,7 +3100,8 @@
         }),
       });
       await load();
-    } catch (error) { saveLots.disabled = false; window.alert(error.message); }
+      showAlert("Qty dan alokasi lot Material Issue berhasil disimpan.", "success");
+    } catch (error) { saveLots.disabled = false; showAlert(error.message); }
   });
   function renderMeta(record) {
     const keys = ["createdAt", "createdBy", "updatedAt", "updatedBy", "approvedAt", "approvedBy", "releasedAt", "releasedBy"].filter((key) => record[key] != null);
@@ -3116,7 +3242,7 @@
   }
 
   function initializeTransactionWorkspace() {
-    if (isGoodsReceiptPage()) return;
+    if (isGoodsReceiptPage() || isNgDispositionPage() || isQualityInspectionPage()) return;
     const root = $("ops-detail-collections");
     if (!root || root.querySelector(":scope > .transaction-detail-tabs-workspace")) return;
     const cards = [...root.querySelectorAll(".ops-detail-card")].filter((card) => !card.parentElement?.closest(".ops-detail-card"));
@@ -3566,6 +3692,150 @@
       });
     });
   }
+  async function collectQcReleaseLocation() {
+    const sourceLocation = currentRecord?.qcSourceLocation || {};
+    const [warehouseRows, rackRows] = await Promise.all([
+      api("/modules/api/inventory/warehouses?limit=500&isActive=true"),
+      api("/modules/api/inventory/racks?limit=1000&isActive=true"),
+    ]);
+    const warehouses = (Array.isArray(warehouseRows) ? warehouseRows : [])
+      .filter((row) => row.warehouseCode && row.isActive !== false)
+      .sort((left, right) => String(left.warehouseCode).localeCompare(String(right.warehouseCode)));
+    const racks = (Array.isArray(rackRows) ? rackRows : [])
+      .filter((row) => row.rackCode && row.isActive !== false)
+      .sort((left, right) => String(left.rackCode).localeCompare(String(right.rackCode)));
+    const preferredWarehouse = warehouses.some((row) => row.warehouseCode === sourceLocation.warehouseCode)
+      ? sourceLocation.warehouseCode
+      : warehouses.find((row) => row.warehouseCode === "WH-001")?.warehouseCode || warehouses[0]?.warehouseCode || "";
+    const overlay = document.createElement("div");
+    overlay.className = "ops-modal-backdrop";
+    overlay.innerHTML = `
+      <form class="ops-modal qci-release-modal" data-qci-release-form>
+        <header>
+          <div>
+            <p class="ops-eyebrow">QC Release Stock</p>
+            <h2>Konfirmasi Lokasi Stok OK</h2>
+            <p>Pilih lokasi aktif dari master Warehouse dan Rack. Rack hanya menampilkan pilihan milik warehouse terpilih.</p>
+          </div>
+          <button type="button" class="btn-close" data-modal-cancel aria-label="Tutup"></button>
+        </header>
+        <div class="ops-modal-body">
+          <div class="ops-modal-grid">
+            <label>
+              <span>Warehouse tujuan *</span>
+              <select class="form-select" data-qci-warehouse required>
+                <option value="">${warehouses.length ? "Pilih warehouse" : "Warehouse aktif belum tersedia"}</option>
+                ${warehouses.map((row) => `<option value="${esc(row.warehouseCode)}" ${row.warehouseCode === preferredWarehouse ? "selected" : ""}>${esc(row.warehouseCode)} — ${esc(row.warehouseName || "Tanpa nama")}</option>`).join("")}
+              </select>
+            </label>
+            <label>
+              <span>Rack tujuan</span>
+              <select class="form-select" data-qci-rack></select>
+              <small>Rack bersifat opsional jika warehouse mengizinkan stok tanpa rack.</small>
+            </label>
+            <label>
+              <span>Lot / Batch</span>
+              <input class="form-control" value="${esc(sourceLocation.lotNumber || currentRecord?.batchNumber || "-")}" readonly>
+            </label>
+            <label>
+              <span>Qty Release</span>
+              <input class="form-control" value="${esc(num(currentRecord?.qtyPassed, isDiscreteUom(currentRecord?.uomCode) ? 0 : 2))} ${esc(currentRecord?.uomCode || "PCS")}" readonly>
+            </label>
+          </div>
+          <div class="alert ${warehouses.length ? "alert-info" : "alert-warning"}">${warehouses.length ? "Lokasi dipilih dari master aktif dan akan menjadi tujuan stock movement hasil QC." : "Warehouse aktif belum tersedia. Tambahkan dahulu melalui Master Data → Gudang."}</div>
+        </div>
+        <footer>
+          <button type="button" class="btn btn-outline-secondary" data-modal-cancel>Batal</button>
+          <button type="submit" class="btn btn-primary" ${warehouses.length ? "" : "disabled"}>QC OK & Release Stock</button>
+        </footer>
+      </form>`;
+    document.body.appendChild(overlay);
+    document.body.classList.add("modal-open");
+    const warehouseSelect = overlay.querySelector("[data-qci-warehouse]");
+    const rackSelect = overlay.querySelector("[data-qci-rack]");
+    const refreshRacks = () => {
+      const warehouseCode = warehouseSelect.value;
+      const matchingRacks = racks.filter((row) => row.warehouseCode === warehouseCode);
+      const selectedRack = matchingRacks.some((row) => row.rackCode === sourceLocation.rackCode) ? sourceLocation.rackCode : "";
+      rackSelect.innerHTML = `<option value="">${warehouseCode ? "Tanpa rack" : "Pilih warehouse terlebih dahulu"}</option>${matchingRacks.map((row) => `<option value="${esc(row.rackCode)}" ${row.rackCode === selectedRack ? "selected" : ""}>${esc(row.rackCode)} — ${esc(row.rackName || row.zone || "Tanpa nama")}</option>`).join("")}`;
+      rackSelect.disabled = !warehouseCode;
+    };
+    warehouseSelect.addEventListener("change", refreshRacks);
+    refreshRacks();
+    return new Promise((resolve) => {
+      const close = (result) => {
+        overlay.remove();
+        if (!document.querySelector(".ops-modal-backdrop")) document.body.classList.remove("modal-open");
+        resolve(result);
+      };
+      overlay.querySelectorAll("[data-modal-cancel]").forEach((button) => button.addEventListener("click", () => close(null)));
+      overlay.querySelector("form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (!warehouseSelect.value) return;
+        close({ warehouseCode: warehouseSelect.value, rackCode: rackSelect.value || null });
+      });
+    });
+  }
+  function collectNgJudgment() {
+    const totalNg = number(currentRecord?.qtyNg);
+    const overlay = document.createElement("div");
+    overlay.className = "ops-modal-backdrop";
+    overlay.innerHTML = `
+      <form class="ops-modal ngd-judgment-modal" data-ngd-judgment-form>
+        <header>
+          <div>
+            <p class="ops-eyebrow">QC Judgment NG</p>
+            <h2>Tentukan Rework & Final Reject</h2>
+            <p>Seluruh Qty NG harus dialokasikan. Total Rework + Final Reject wajib sama dengan ${esc(num(totalNg, isDiscreteUom(currentRecord?.uomCode) ? 0 : 2))} ${esc(currentRecord?.uomCode || "PCS")}.</p>
+          </div>
+          <button type="button" class="btn-close" data-modal-cancel aria-label="Tutup"></button>
+        </header>
+        <div class="ops-modal-body">
+          <div class="ops-modal-grid">
+            <label><span>Qty Rework *</span><input class="form-control" data-ngd-rework type="number" min="0" max="${esc(totalNg)}" step="${isDiscreteUom(currentRecord?.uomCode) ? "1" : "0.001"}" value="${esc(totalNg)}" required></label>
+            <label><span>Qty Final Reject *</span><input class="form-control" data-ngd-reject type="number" min="0" max="${esc(totalNg)}" step="${isDiscreteUom(currentRecord?.uomCode) ? "1" : "0.001"}" value="0" required></label>
+            <label style="grid-column:1/-1"><span>Catatan QC</span><textarea class="form-control" data-ngd-notes rows="3" placeholder="Temuan, alasan keputusan, atau instruksi rework"></textarea></label>
+          </div>
+          <div class="alert alert-info" data-ngd-balance></div>
+        </div>
+        <footer>
+          <button type="button" class="btn btn-outline-secondary" data-modal-cancel>Batal</button>
+          <button type="submit" class="btn btn-primary" data-ngd-submit>Simpan Judgment</button>
+        </footer>
+      </form>`;
+    document.body.appendChild(overlay);
+    document.body.classList.add("modal-open");
+    const reworkInput = overlay.querySelector("[data-ngd-rework]");
+    const rejectInput = overlay.querySelector("[data-ngd-reject]");
+    const balance = overlay.querySelector("[data-ngd-balance]");
+    const submit = overlay.querySelector("[data-ngd-submit]");
+    const refreshBalance = () => {
+      const allocated = number(reworkInput.value) + number(rejectInput.value);
+      const remaining = totalNg - allocated;
+      const valid = Math.abs(remaining) <= 0.000001 && number(reworkInput.value) >= 0 && number(rejectInput.value) >= 0;
+      balance.className = `alert ${valid ? "alert-success" : "alert-warning"}`;
+      balance.textContent = valid ? `Alokasi sesuai: ${num(allocated)} dari ${num(totalNg)}.` : `Sisa yang belum sesuai: ${num(remaining)}. Sesuaikan Rework atau Final Reject.`;
+      submit.disabled = !valid;
+    };
+    reworkInput.addEventListener("input", refreshBalance);
+    rejectInput.addEventListener("input", refreshBalance);
+    refreshBalance();
+    return new Promise((resolve) => {
+      const close = (result) => {
+        overlay.remove();
+        if (!document.querySelector(".ops-modal-backdrop")) document.body.classList.remove("modal-open");
+        resolve(result);
+      };
+      overlay.querySelectorAll("[data-modal-cancel]").forEach((button) => button.addEventListener("click", () => close(null)));
+      overlay.querySelector("form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const qtyRework = number(reworkInput.value);
+        const qtyReject = number(rejectInput.value);
+        if (Math.abs(qtyRework + qtyReject - totalNg) > 0.000001) return;
+        close({ qtyRework, qtyReject, qcNotes: overlay.querySelector("[data-ngd-notes]").value.trim() || null });
+      });
+    });
+  }
   function workflowActions(record) {
     const status = String(record.status || "Draft").toLowerCase();
     let html = "";
@@ -3657,7 +3927,11 @@
     }
     if (!["production", "qc"].includes(config.module)) {
       if (config.module === "incoming" || (config.module === "purchasing" && ["goods-receipts", "incoming-inspections"].includes(config.page.slug))) {
-        if (config.page.slug === "goods-receipts" && /received pending inspection/.test(status)) return actionButton("create-inspection", "Buat Incoming Inspection", "primary", "Buat IQC dari seluruh baris Goods Receipt.");
+        if (config.page.slug === "goods-receipts" && /received pending inspection/.test(status)) {
+          html += actionButton("create-inspection", "Proses dengan QC", "primary", "Buat IQC dari seluruh baris Goods Receipt.");
+          html += actionButton("direct-release", "Release Tanpa QC", "outline-primary", "Posting seluruh qty diterima langsung ke stock Available dengan audit alasan bypass.");
+          return html;
+        }
         if (config.page.slug === "incoming-inspections" && status === "open") return actionButton("complete-inspection", "Selesaikan IQC", "primary", "Isi accepted/rejected setiap baris terlebih dahulu.");
         if (config.page.slug === "incoming-inspections" && status === "completed") {
           const details = Array.isArray(record.details) ? record.details : [];
@@ -3687,7 +3961,8 @@
         return html || '<small>Stock opname sudah selesai atau belum memiliki transisi yang tersedia.</small>';
       }
       if (config.module === "inventory" && config.page.slug === "material-issues") {
-        if (status === "draft") html += actionButton("issue", "Consume / Issue Material", "primary", "Warehouse memvalidasi rack, lot, dan qty sebelum posting stock movement.");
+        if (status === "draft") html += actionButton("prepare", "Mulai Persiapan", "primary", "Warehouse memilih rack, lot, dan quantity yang akan disiapkan.");
+        if (status === "preparing") html += actionButton("issue", "Selesai Persiapan & Issue", "primary", "Konfirmasi persiapan selesai untuk memotong stok dan menyerahkan material ke Production.");
         if (/issued|partially-returned/.test(slug(status))) html += actionButton("close", "Close Material Issue", "outline-primary");
         return html || '<small>Material Issue sudah selesai atau belum memiliki transisi aktif.</small>';
       }
@@ -3794,6 +4069,13 @@
       prepareNgDispositionChrome(record);
       renderNgDispositionFields(record);
       renderNgDispositionCollections(record);
+    } else if (isQualityInspectionPage()) {
+      const part = record.part || {};
+      $("ops-detail-title").textContent = record.inspectionNumber || config.recordKey;
+      $("ops-detail-subtitle").textContent = [part.partName || record.partName, part.partCode || record.partCode, record.batchNumber].filter(Boolean).join(" · ");
+      prepareQualityInspectionChrome(record);
+      renderQualityInspectionFields(record);
+      renderQualityInspectionCollections(record);
     } else if (isDailySchedulePage()) {
       document.querySelector(".ops-page")?.classList.add("daily-schedule-workbench");
       renderDailyScheduleFields(record);
@@ -3968,6 +4250,33 @@
     if (event.target.matches("[data-moq-candidate-check]")) refreshMoqAllocationPlanner(event.target);
   });
   document.addEventListener("click", async (event) => {
+    const autoConfirmSuppliersButton = event.target.closest("[data-auto-confirm-suppliers]");
+    if (autoConfirmSuppliersButton) {
+      const pendingCount = (currentRecord?.items || []).filter((item) => !/ready|converted|covered/i.test(item.status || "")).length;
+      if (!confirm(`Auto konfirmasi ${pendingCount} item? Sistem mencari supplier dengan harga aktif, memakai qty Purchase Suggestion, dan mengisi lead time aktual 2 hari. Item tanpa harga tetap Not Confirmed.`)) return;
+      const originalLabel = autoConfirmSuppliersButton.textContent;
+      autoConfirmSuppliersButton.disabled = true;
+      autoConfirmSuppliersButton.textContent = "Memproses...";
+      try {
+        const result = await api(`/modules/api/purchasing-suggestions/${encodeURIComponent(config.recordKey)}/auto-confirm-suppliers`, {
+          method: "POST",
+          body: JSON.stringify({}),
+        });
+        await refreshPurchaseSuggestionAfterConfirmation();
+        const otherSkipped = (result.results || []).filter((row) => row.status === "SKIPPED" && row.reasonCode !== "PRICE_NOT_FOUND");
+        const details = [
+          `${num(result.confirmedCount, 0)} item berhasil dikonfirmasi otomatis`,
+          result.skippedWithoutPriceCount ? `${num(result.skippedWithoutPriceCount, 0)} item tanpa harga dilewati` : null,
+          otherSkipped.length ? `${num(otherSkipped.length, 0)} item lain perlu dilengkapi manual` : null,
+        ].filter(Boolean).join(". ");
+        showAlert(`${details}.`, result.confirmedCount > 0 ? "success" : "warning");
+      } catch (error) {
+        showAlert(error.message);
+        autoConfirmSuppliersButton.disabled = false;
+        autoConfirmSuppliersButton.textContent = originalLabel;
+      }
+      return;
+    }
     const autoMoqAllocationButton = event.target.closest("[data-moq-auto-allocation]");
     if (autoMoqAllocationButton) {
       const editor = autoMoqAllocationButton.closest("[data-suggestion-confirmation]");
@@ -4301,7 +4610,10 @@
         return;
       }
     }    const isCheck = action === "availability-check";
-    const confirmationHandledByForm = action === "manual-complete" || (action === "send" && config.page.vendorProcessFlow);
+    const confirmationHandledByForm = action === "manual-complete"
+      || (action === "send" && config.page.vendorProcessFlow)
+      || (action === "complete" && config.page.slug === "quality-inspections")
+      || (action === "judge" && config.page.ngDispositionFlow);
     if (!isCheck && !confirmationHandledByForm && !confirm(`${button.textContent.trim()} untuk ${config.recordKey}?`)) return;
     let requestBody = {};
     if (action === "reject" || action === "revise") {
@@ -4392,6 +4704,10 @@
       };
     } else if (action === "convert-daily-plans") {
       requestBody = { allowPartial: Boolean(currentRecord?.capacityOverrideApproved) };
+    } else if (action === "direct-release") {
+      const bypassReason = await window.formPrompt("Alasan release langsung tanpa QC:", "Item tidak memerlukan inspeksi QC", { title: "Release Tanpa QC" });
+      if (!bypassReason?.trim()) return;
+      requestBody = { bypassReason: bypassReason.trim() };
     } else if (action === "complete-inspection") {
       const rows = [...document.querySelectorAll("[data-iqc-detail]")];
       if (!rows.length) { showAlert("Detail IQC belum tersedia."); return; }
@@ -4438,26 +4754,27 @@
       requestBody = vendorRate.trim() ? { vendorRate: number(vendorRate) } : {};
     } else if (action === "complete" && config.page.slug === "quality-inspections") {
       const sourceLocation = currentRecord?.qcSourceLocation || {};
-      const warehouseCode = await window.formPrompt("Warehouse tujuan stok OK:", sourceLocation.warehouseCode || "WH-001", { title: "QC OK & Release Stock" });
-      if (!warehouseCode?.trim()) return;
-      const rackCode = await window.formPrompt("Rack tujuan (boleh kosong):", sourceLocation.rackCode || "", { title: "QC OK & Release Stock" });
-      if (rackCode === null) return;
+      let locationDecision;
+      try {
+        locationDecision = await collectQcReleaseLocation();
+        if (!locationDecision) return;
+      } catch (error) {
+        showAlert(error.message);
+        return;
+      }
       requestBody = {
         decision: "Accepted",
         passedDestination: {
-          warehouseCode: warehouseCode.trim(),
-          rackCode: rackCode.trim() || null,
+          warehouseCode: locationDecision.warehouseCode,
+          rackCode: locationDecision.rackCode,
           lotNumber: sourceLocation.lotNumber || currentRecord?.batchNumber || null,
           qty: number(currentRecord?.qtyPassed),
         },
       };
     } else if (action === "judge" && config.page.ngDispositionFlow) {
-      const qtyRework = await window.formPrompt("Qty yang dapat dirework:", String(currentRecord?.qtyNg || 0), { title: "QC Judgment NG" }); if (qtyRework === null) return;
-      const defaultReject = Math.max(0, number(currentRecord?.qtyNg) - number(qtyRework));
-      const qtyReject = await window.formPrompt("Qty final reject:", String(defaultReject), { title: "QC Judgment NG" }); if (qtyReject === null) return;
-      if (Math.abs(number(qtyRework) + number(qtyReject) - number(currentRecord?.qtyNg)) > 0.000001) { showAlert(`Qty Rework + Qty Reject harus sama dengan Qty NG ${currentRecord?.qtyNg}.`); return; }
-      const qcNotes = await window.formPrompt("Catatan judgment QC:", "", { title: "QC Judgment NG" }); if (qcNotes === null) return;
-      requestBody = { qtyRework: number(qtyRework), qtyReject: number(qtyReject), qcNotes: qcNotes.trim() || null };
+      const judgment = await collectNgJudgment();
+      if (!judgment) return;
+      requestBody = judgment;
     } else if (action === "approve" && config.page.slug === "production-logs") {
       // Production log approval posts the destination warehouse to the workflow
       // endpoint. The warehouse is operational context for the produced WIP and
@@ -4498,7 +4815,9 @@
       } else if (config.module === "incoming" || (config.module === "purchasing" && ["goods-receipts", "incoming-inspections"].includes(config.page.slug))) {
         const endpoint = action === "create-inspection"
           ? `/modules/api/incoming/goods-receipts/${encodeURIComponent(config.recordKey)}/create-inspection`
-          : `/modules/api/incoming/incoming-inspections/${encodeURIComponent(config.recordKey)}/${action === "complete-inspection" ? "complete" : action === "dispose-rejected" ? "dispose-rejected" : "putaway"}`;
+          : action === "direct-release"
+            ? `/modules/api/incoming/goods-receipts/${encodeURIComponent(config.recordKey)}/release-without-qc`
+            : `/modules/api/incoming/incoming-inspections/${encodeURIComponent(config.recordKey)}/${action === "complete-inspection" ? "complete" : action === "dispose-rejected" ? "dispose-rejected" : "putaway"}`;
         result = await api(endpoint, { method: "POST", body: JSON.stringify(action === "create-inspection" ? { grNumber: config.recordKey } : requestBody) });
       } else if (config.module === "outgoing" && ["delivery-schedules", "delivery-schedule"].includes(config.page.slug)) {
         result = await api(`/modules/api/outgoing/delivery-schedules/${encodeURIComponent(config.recordKey)}/${encodeURIComponent(action)}`, { method: "POST", body: JSON.stringify(requestBody) });

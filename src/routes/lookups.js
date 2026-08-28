@@ -57,13 +57,13 @@ function normalizeLookupPayload(payload, config, page = 1, pageSize = 25) {
   const rows = rowsFromPayload(payload, config.resultPaths);
   const results = rows.map((record) => {
     const id = nestedValue(record, config.valueKey);
-    const code = String(firstValue(record, config.codeKeys) || id || "").trim();
+    const code = String(firstValue(record, config.codeKeys) || "").trim();
     const name = String(firstValue(record, config.nameKeys) || "").trim();
     const meta = String(firstValue(record, config.metaKeys) || "").trim();
     const data = selectedData(record, config.dataKeys);
     return {
       id: String(id ?? ""),
-      text: [code, name].filter(Boolean).join(" · "),
+      text: [code, name].filter(Boolean).join(" · ") || "Referensi tersimpan",
       code,
       name,
       meta,
@@ -73,6 +73,14 @@ function normalizeLookupPayload(payload, config, page = 1, pageSize = 25) {
   }).filter((item) => item.id);
   const total = totalFromPayload(payload, results.length);
   return { results, pagination: { more: Number(page) * Number(pageSize) < total } };
+}
+
+function recordFromPayload(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  if (payload.data && typeof payload.data === "object" && !Array.isArray(payload.data)) return payload.data;
+  if (payload.item && typeof payload.item === "object" && !Array.isArray(payload.item)) return payload.item;
+  if (payload.result && typeof payload.result === "object" && !Array.isArray(payload.result)) return payload.result;
+  return payload;
 }
 
 async function readBackend(response) {
@@ -125,8 +133,42 @@ function createLookupHandler({ fetchImpl = global.fetch, backendUrl = defaultBac
   };
 }
 
+function createLookupResolveHandler({ fetchImpl = global.fetch, backendUrl = defaultBackendUrl } = {}) {
+  return async function lookupResolveHandler(req, res) {
+    const config = getLookupSource(req.params.source);
+    if (!config) return res.status(404).json({ code: "LOOKUP_SOURCE_NOT_FOUND", message: "Sumber lookup tidak tersedia." });
+    try {
+      let response = await fetchImpl(`${backendUrl}${config.endpoint}/${encodeURIComponent(req.params.value)}`, {
+        headers: forwardedHeaders(req), signal: AbortSignal.timeout(15000)
+      });
+      let payload = await readBackend(response);
+      let record = response.ok ? recordFromPayload(payload) : null;
+      if (!record) {
+        const url = new URL(`${backendUrl}${config.endpoint}`);
+        url.searchParams.set("q", String(req.params.value));
+        url.searchParams.set("search", String(req.params.value));
+        url.searchParams.set("page", "1");
+        url.searchParams.set("limit", "100");
+        response = await fetchImpl(url, { headers: forwardedHeaders(req), signal: AbortSignal.timeout(15000) });
+        payload = await readBackend(response);
+        if (!response.ok) return res.status(response.status).json({ code: payload.code, message: payload.message || "Referensi lookup tidak ditemukan." });
+        const expected = String(req.params.value);
+        record = rowsFromPayload(payload, config.resultPaths).find((row) => String(nestedValue(row, config.valueKey) ?? "") === expected) || null;
+      }
+      const normalized = normalizeLookupPayload(record ? [record] : [], config, 1, 1).results[0];
+      if (!normalized) return res.status(404).json({ code: "LOOKUP_VALUE_NOT_FOUND", message: "Referensi lookup tidak ditemukan." });
+      return res.json({ result: normalized });
+    } catch (error) {
+      const timedOut = error?.name === "TimeoutError" || error?.name === "AbortError";
+      return res.status(timedOut ? 504 : 503).json({ code: timedOut ? "LOOKUP_TIMEOUT" : "LOOKUP_UNAVAILABLE", message: timedOut ? "Pencarian lookup melewati batas waktu." : "Data lookup belum dapat dimuat." });
+    }
+  };
+}
+
+router.get("/:source/resolve/:value", createLookupResolveHandler());
 router.get("/:source", createLookupHandler());
 
 module.exports = router;
 module.exports.normalizeLookupPayload = normalizeLookupPayload;
 module.exports.createLookupHandler = createLookupHandler;
+module.exports.createLookupResolveHandler = createLookupResolveHandler;

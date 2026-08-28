@@ -87,7 +87,16 @@
     });
     return [...groups.values()]
       .sort((a, b) => a.machineCode.localeCompare(b.machineCode))
-      .map((group) => ({ ...group, items: group.items.sort((a, b) => Number(a.sequence || 0) - Number(b.sequence || 0)) }));
+      .map((group) => ({
+        ...group,
+        items: group.items.sort((a, b) => {
+          const aMinute = toMinute(a.plannedStartTime);
+          const bMinute = toMinute(b.plannedStartTime);
+          const aOperationalMinute = aMinute == null ? Number.MAX_SAFE_INTEGER : aMinute < 7 * 60 ? aMinute + 1440 : aMinute;
+          const bOperationalMinute = bMinute == null ? Number.MAX_SAFE_INTEGER : bMinute < 7 * 60 ? bMinute + 1440 : bMinute;
+          return aOperationalMinute - bOperationalMinute || Number(a.sequence || 0) - Number(b.sequence || 0);
+        }),
+      }));
   }
 
   function matrixHourWindow(value = "07-23") {
@@ -96,8 +105,22 @@
     let end = Number.isFinite(rawEnd) ? rawEnd * 60 : 23 * 60;
     if (end <= start) end += 1440;
     const hours = [];
-    for (let minute = start; minute <= end; minute += 60) hours.push({ minute, label: String(Math.floor((minute % 1440) / 60)).padStart(2, "0") });
+    for (let minute = start; minute < end; minute += 60) hours.push({ minute, label: String(Math.floor((minute % 1440) / 60)).padStart(2, "0") });
     return { start, end, hours };
+  }
+
+  function formatOperationalTime(value, dayStart = "07:00") {
+    const minute = toMinute(value);
+    const start = toMinute(dayStart);
+    if (minute == null) return "-";
+    const explicitDayOffset = Math.floor(minute / 1440);
+    const inferredDayOffset = explicitDayOffset === 0 && start != null && minute < start ? 1 : explicitDayOffset;
+    return `${toTime(minute)}${inferredDayOffset > 0 ? ` +${inferredDayOffset}` : ""}`;
+  }
+
+  function formatOperationalRange(item = {}, dayStart = "07:00") {
+    if (!item.plannedStartTime || !item.plannedEndTime) return "WAKTU BELUM DIATUR";
+    return `${formatOperationalTime(item.plannedStartTime, dayStart)}–${formatOperationalTime(item.plannedEndTime, dayStart)}`;
   }
 
   function scheduleHourRange(item = {}, windowStart = 7 * 60, windowEnd = 23 * 60) {
@@ -106,14 +129,15 @@
     if (start == null || end == null) return null;
     if (windowEnd > 1440 && start < windowStart) start += 1440;
     if (end <= start) end += 1440;
-    return { start: Math.floor(start / 60) * 60, end: Math.ceil(end / 60) * 60 };
+    return { start, end };
   }
 
   function scheduleHourState(item, hourMinute, windowStart, windowEnd) {
     const range = scheduleHourRange(item, windowStart, windowEnd);
     if (!range) return "empty";
-    if (hourMinute === range.start) return "start";
-    if (hourMinute > range.start && hourMinute <= range.end) return "occupied";
+    const bucketEnd = hourMinute + 60;
+    if (range.start >= hourMinute && range.start < bucketEnd) return "start";
+    if (range.start < bucketEnd && range.end > hourMinute) return "occupied";
     return "empty";
   }
 
@@ -142,9 +166,9 @@
     return { scope: "PLANNED", label: `PLANNED · ${String(status || "Draft").toUpperCase()}`, readOnly: status === "Released" };
   }
 
-  const canEditRevision = (status) => String(status || "Draft") === "Draft";
+  const canEditRevision = (status) => ["Draft", "Ready", "Partially Released"].includes(String(status || "Draft"));
   const apiPath = (path) => `/modules/api/${String(path || "").replace(/^\/+/, "")}`;
   const requestHeaders = (token = "") => ({ Accept: "application/json", "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) });
 
-  return { toMinute, toTime, buildHourTicks, blockPlacement, timelineWindow, monthlyEditorUrl, groupByMachine, matrixHourWindow, scheduleHourRange, scheduleHourState, shortageQty, shiftScheduleTime, workspaceMode, canEditRevision, apiPath, requestHeaders };
+  return { toMinute, toTime, formatOperationalTime, formatOperationalRange, buildHourTicks, blockPlacement, timelineWindow, monthlyEditorUrl, groupByMachine, matrixHourWindow, scheduleHourRange, scheduleHourState, shortageQty, shiftScheduleTime, workspaceMode, canEditRevision, apiPath, requestHeaders };
 }));

@@ -1,5 +1,5 @@
 <%- include('../partials/head') %>
-<link rel="stylesheet" href="/css/ppic-daily-production-plan.css?v=20260826-execution-queue-3">
+<link rel="stylesheet" href="/css/ppic-daily-production-plan.css?v=20260827-auto-correct-2">
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: 'daily-production-plans' }) %>
 
@@ -33,7 +33,7 @@
   <section class="dpp-board app-container">
     <div class="dpp-board-head">
       <div><span>MACHINE × HOUR MATRIX</span><h2 id="dpp-caption">Rencana Produksi Harian</h2><p id="dpp-subtitle">Klik bar untuk melihat atau mengubah alokasi pada revision Draft.</p></div>
-      <div class="dpp-board-actions"><span id="dpp-direct-edit-badge" class="dpp-direct-edit-badge" hidden>DRAG / COPY AKTIF</span><a id="dpp-edit-allocation" class="dpp-button edit" href="#dpp-matrix">✎ Edit Alokasi</a><button id="dpp-validate" class="dpp-button ghost" type="button">Cek Kesiapan</button><button id="dpp-release" class="dpp-button primary" type="button">Release ke Production</button></div>
+      <div class="dpp-board-actions"><span id="dpp-direct-edit-badge" class="dpp-direct-edit-badge" hidden>DRAG / COPY AKTIF</span><span class="dpp-release-mode-badge">RELEASE 1× KLIK</span><a id="dpp-edit-allocation" class="dpp-button edit" href="#dpp-matrix">✎ Edit Alokasi</a><button id="dpp-auto-correct" class="dpp-button auto-correct" type="button">↔ Auto Correct Placement</button><button id="dpp-validate" class="dpp-button ghost" type="button">Cek Kesiapan</button><button id="dpp-release-all" class="dpp-button release" type="button" disabled>Release Semua</button></div>
     </div>
     <div id="dpp-alert" class="dpp-alert" hidden></div>
     <div id="dpp-schedule-note" class="dpp-alert" hidden></div>
@@ -51,6 +51,6 @@
 
 <dialog id="dpp-dialog" class="dpp-dialog"><form id="dpp-dialog-form"><header><div><span>ALOKASI HARIAN</span><h3 id="dpp-dialog-title">-</h3></div><button id="dpp-dialog-close" type="button" aria-label="Tutup">×</button></header><div id="dpp-dialog-body"></div><footer><a class="dpp-button edit" id="dpp-dialog-source-edit" href="#" hidden>Buka Monthly Plan</a><button class="dpp-button ghost" id="dpp-dialog-cancel" type="button">Batal</button><button class="dpp-button primary" id="dpp-dialog-save" type="submit">Simpan Perubahan</button></footer></form></dialog>
 <script id="dpp-config" type="application/json"><%- JSON.stringify({ initialDate, role: 'PPIC' }).replace(/</g, '\u003c') %></script>
-<script src="/js/ppic-daily-plan-model.js?v=20260825-preview-time-edit-2"></script>
-<script src="/js/ppic-daily-production-plan.js?v=20260826-execution-queue-4"></script>
+<script src="/js/ppic-daily-plan-model.js?v=20260827-auto-correct-2"></script>
+<script src="/js/ppic-daily-production-plan.js?v=20260828-breakdown-focus-2"></script>
 <%- include('../partials/footer') %>

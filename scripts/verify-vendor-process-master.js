@@ -14,7 +14,7 @@ const processCode = config.fields.find((field) => field.name === "vendorProcessC
 const vendors = config.fields.find((field) => field.name === "vendorIds");
 
 verify("master terdaftar sebagai Kode Proses Vendor", config.label === "Kode Proses Vendor");
-verify("kode dipilih dari Master Data Proses", processCode?.lookup?.entity === "processes" && processCode.lookup.valueKey === "processCode");
+verify("kode dipilih dari Master Data Proses", processCode?.lookup?.entity === "process-codes" && processCode.lookup.valueKey === "processCode");
 verify("vendor pelaksana mendukung multi assignment", vendors?.lookup?.entity === "vendors" && vendors.multiple === true);
 verify("list menampilkan vendor dan penggunaan price list", config.columns.some((column) => column.data === "vendorCount") && config.columns.some((column) => column.data === "priceListCount"));
 verify("field turunan tidak ikut form edit", formTemplate.includes("!item.formHidden"));

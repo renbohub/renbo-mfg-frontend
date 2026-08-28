@@ -92,7 +92,7 @@
       return `<td class="yd-value current ${value === 0 ? "is-zero" : ""}">${qty(value)}</td>`;
     }
     const value = number(metric[type]);
-    if (type !== "eff") return `<td class="yd-value ${type} ${value === 0 ? "is-zero" : ""}">${qty(value)}</td>`;
+    if (type !== "efd") return `<td class="yd-value ${type} ${value === 0 ? "is-zero" : ""}">${qty(value)}</td>`;
     if (metric.lock?.locked) return `<td class="yd-value eff is-locked"><button type="button" data-open-lock data-part="${esc(row.partCode)}" data-month="${esc(month.key)}" title="EFD sudah dikunci"><span>${qty(metric.lock.lockedEfd)}</span><small>🔒</small></button></td>`;
     const overridden = Boolean(metric.efdOverride);
     return `<td class="yd-value eff ${value === 0 ? "is-zero" : ""} ${overridden ? "is-overridden" : ""}"><button type="button" data-edit-efd data-part="${esc(row.partCode)}" data-month="${esc(month.key)}" title="Edit sumber EFD"><span>${qty(value)}</span>${overridden ? `<small>${esc(metric.efdSource === "MANUAL" ? "MANUAL" : metric.efdSource)}</small>` : ""}</button></td>`;
