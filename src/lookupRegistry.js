@@ -16,8 +16,8 @@ function source(endpoint, valueKey, codeKeys, nameKeys, options = {}) {
 const registry = Object.freeze({
   customers: source("/api/master-data/customers", "id", ["customerCode", "code"], ["customerName", "name"]),
   "customer-codes": source("/api/master-data/customers", "customerCode", ["customerCode", "code"], ["customerName", "name"], { dataKeys: ["id", "customerCode", "customerName", "contact", "phone", "email", "shippingAddress", "paymentTerms", "currencyCode"] }),
-  suppliers: source("/api/master-data/suppliers", "id", ["supplierCode", "code"], ["supplierName", "name"]),
-  "supplier-codes": source("/api/master-data/suppliers", "supplierCode", ["supplierCode", "code"], ["supplierName", "name"]),
+  suppliers: source("/api/master-data/suppliers", "id", ["supplierCode", "code"], ["supplierName", "name"], { queryMap: { q: "q", pageSize: "limit" } }),
+  "supplier-codes": source("/api/master-data/suppliers", "supplierCode", ["supplierCode", "code"], ["supplierName", "name"], { queryMap: { q: "q", pageSize: "limit" } }),
   vendors: source("/api/master-data/vendors", "id", ["vendorCode", "code"], ["vendorName", "name"]),
   "vendor-codes": source("/api/master-data/vendors", "vendorCode", ["vendorCode", "code"], ["vendorName", "name"]),
   parts: source("/api/master-data/parts", "id", ["partCode", "partNumber", "code"], ["partName", "name"], { metaKeys: ["uomCode"], dataKeys: ["purchaseUomCode", "baseUomCode", "stockUomCode", "productionUomCode", "salesUomCode"] }),

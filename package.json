@@ -34,10 +34,11 @@
     "test:mpp-recommendation": "node scripts/verify-mpp-recommendation.js",
     "test:work-center-master": "node scripts/verify-work-center-master.js",
     "test:working-hour-profile-master": "node scripts/verify-working-hour-profile-master.js",
+    "test:yearly-working-calendar": "node scripts/verify-yearly-working-calendar.js",
     "test:vendor-process-master": "node scripts/verify-vendor-process-master.js",
     "test:vendor-receipt-layout": "node scripts/verify-vendor-receipt-layout.js",
     "test:schedule-board": "node scripts/verify-schedule-board.js",
-    "build": "npm run test:ai-assistant-ui && npm run test:ai-model-profile-page && npm run test:ai-context-actions && npm run test:ai-capacity-actions && npm run test:encoding && npm run test:enterprise-lookup && npm run test:master-data-safety && npm run test:document-shell && npm run test:shared-ui && npm run test:mpp-gantt && npm run test:mps-delivery-status && npm run test:mps-recovery-actions && npm run test:mrp-planning-runs-page && npm run test:mrp-current-stock && npm run test:monthly-production-plan-page && npm run test:daily-production-plan-model && npm run test:mpp-recommendation && npm run test:mpp-capacity-editor && npm run test:work-center-master && npm run test:working-hour-profile-master && npm run test:vendor-process-master && npm run check && npm run check:ppic-cockpit"
+    "build": "npm run test:ai-assistant-ui && npm run test:ai-model-profile-page && npm run test:ai-context-actions && npm run test:ai-capacity-actions && npm run test:encoding && npm run test:enterprise-lookup && npm run test:master-data-safety && npm run test:document-shell && npm run test:shared-ui && npm run test:mpp-gantt && npm run test:mps-delivery-status && npm run test:mps-recovery-actions && npm run test:mps-recovery-kanban && npm run test:mps-feasibility-checklist && npm run test:mrp-planning-runs-page && npm run test:mrp-current-stock && npm run test:monthly-production-plan-page && npm run test:daily-production-plan-model && npm run test:mpp-recommendation && npm run test:mpp-capacity-editor && npm run test:work-center-master && npm run test:working-hour-profile-master && npm run test:yearly-working-calendar && npm run test:vendor-process-master && npm run check && npm run check:ppic-cockpit"
   },
   "dependencies": {
     "alpinejs": "^3.14.9",

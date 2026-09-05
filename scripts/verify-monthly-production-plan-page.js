@@ -8,7 +8,7 @@ const view = fs.readFileSync(path.join(root, "views/ppic/monthly-production-plan
 const script = fs.readFileSync(path.join(root, "public/js/ppic-monthly-production-plan.js"), "utf8");
 assert.match(view, /id="mpp-recommendation-generate"[^>]*>✦ Auto Allocation</,
   "Auto Allocation harus selalu terlihat meskipun scenario belum dibuat");
-assert.match(script, /Qwen menganalisis…/);
+assert.match(script, /OR-Tools mengoptimasi…/);
 const style = fs.readFileSync(path.join(root, "public/css/ppic-monthly-production-plan.css"), "utf8");
 
 assert.match(route, /req\.query\.tab === "mpp"[^\n]+monthly-production-plans/, "tab MPP lama harus redirect ke halaman terpisah");

@@ -245,6 +245,11 @@ const registry = {
     columns: [column("profileCode", "Kode Profile"), column("profileName", "Nama Profile"), column("profileType", "Tipe"), column("effectiveFrom", "Berlaku Mulai", { type: "date" }), column("effectiveUntil", "Berlaku Sampai", { type: "date" }), column("assignmentCount", "Dipakai", { type: "number" }), column("isActive", "Status", { type: "active" })],
     fields: [field("profileCode", "Kode Profile", "text", { required: true, section: "Identitas" }), field("profileName", "Nama Profile", "text", { required: true, section: "Identitas" }), field("profileType", "Tipe Profile", "select", { required: true, options: option("REGULAR", "RAMADAN", "SPECIAL"), section: "Masa Berlaku" }), field("effectiveFrom", "Berlaku Mulai", "date", { section: "Masa Berlaku" }), field("effectiveUntil", "Berlaku Sampai", "date", { section: "Masa Berlaku" }), field("priority", "Prioritas", "number", { min: 0, defaultValue: 0, section: "Masa Berlaku" }), field("isActive", "Aktif", "checkbox", { defaultChecked: true, section: "Kontrol" }), field("notes", "Catatan", "textarea", { section: "Kontrol" })]
   }),
+  "yearly-working-calendars": entity({
+    slug: "yearly-working-calendars", permission: "machines", label: "Kalender Kerja Tahunan", singular: "Event Kalender Kerja", group: "Data Operasional", icon: "calendar",
+    endpoint: "/api/master-data/yearly-working-calendars", customView: "master-data/yearly-working-calendar", pageScript: "/js/yearly-working-calendar.js?v=20260904-2",
+    columns: [], fields: []
+  }),
   machines: machineEntity(),
   dies: diesEntity(),
   "dies-parts": entity({

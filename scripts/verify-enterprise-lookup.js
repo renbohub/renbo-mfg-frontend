@@ -49,6 +49,11 @@ async function verifyLookupGateway() {
     if (!getLookupSource(source)) failures.push(`lookup source ${source} belum di-allowlist`);
   });
   assertEqual(requiredSources.every((source) => listLookupSources().includes(source)), true, "lookup registry wajib memuat source inti");
+  assertEqual(
+    [getLookupSource("suppliers").queryMap.q, getLookupSource("suppliers").queryMap.pageSize],
+    ["q", "limit"],
+    "lookup supplier meneruskan parameter pencarian dan pagination yang dibaca backend",
+  );
 
   const normalized = normalizeLookupPayload({ data: [{ id: "P1", partCode: "C001", partName: "Bracket", status: "Active", purchaseUomCode: "PCS" }], total: 3 }, getLookupSource("parts"), 1, 1);
   assertEqual(normalized, {
@@ -92,13 +97,15 @@ async function verifyLookupGateway() {
 
 function verifyLookupModel() {
   const model = require(path.join(ROOT, "public/js/enterprise-lookup-model.js"));
-  contracts += 6;
+  contracts += 8;
   if (typeof model.normalizeResponse !== "function") failures.push("lookup model belum mengekspor normalizeResponse");
   if (typeof model.composeLabel !== "function") failures.push("lookup model belum mengekspor composeLabel");
   if (typeof model.currentOption !== "function") failures.push("lookup model belum mengekspor currentOption");
   if (typeof model.normalizeQuery !== "function") failures.push("lookup model belum mengekspor normalizeQuery");
   if (typeof model.isDependencyReady !== "function") failures.push("lookup model belum mengekspor isDependencyReady");
   if (typeof model.isResolvedValue !== "function") failures.push("lookup model belum mengekspor isResolvedValue");
+  if (typeof model.closestDialog !== "function") failures.push("lookup model belum mengekspor closestDialog");
+  if (typeof model.dropdownHost !== "function") failures.push("lookup model belum mengekspor dropdownHost");
   if (failures.some((failure) => failure.startsWith("lookup model"))) return;
 
   assertEqual(model.normalizeResponse({ results: [{ id: 8, code: "P-008", name: "Bracket", meta: "PCS", active: true }], pagination: { more: 1 } }), {
@@ -110,6 +117,11 @@ function verifyLookupModel() {
   assertEqual([model.normalizeQuery("  bracket  "), model.normalizeQuery("   ")], ["bracket", ""], "query lookup dinormalisasi");
   assertEqual([model.isDependencyReady("WH-01"), model.isDependencyReady(""), model.isDependencyReady(null)], [true, false, false], "dependency readiness eksplisit");
   assertEqual([model.isResolvedValue("P1", ["", "P1"]), model.isResolvedValue("P2", ["P1"])], [true, false], "strict value harus didukung option");
+  const nativeDialog = { nodeName: "DIALOG" };
+  const fieldWrapper = { nodeName: "DIV" };
+  const selectInsideNativeDialog = { parentElement: fieldWrapper, closest: (selector) => selector.includes("dialog") ? nativeDialog : null };
+  assertEqual(model.closestDialog(selectInsideNativeDialog), nativeDialog, "lookup di native dialog memakai dialog sebagai dropdown parent");
+  assertEqual(model.dropdownHost(selectInsideNativeDialog), fieldWrapper, "lookup di native dialog memakai wrapper field untuk koordinat dropdown");
 }
 
 function verifyBrowserAdapterContracts() {

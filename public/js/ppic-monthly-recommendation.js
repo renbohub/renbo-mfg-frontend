@@ -272,6 +272,10 @@
 
   function renderScenarioSource(scenario) {
     const source = String(scenario?.generationSource || "").toUpperCase();
+    if (source === "OR_TOOLS_CP_SAT") {
+      const solver = scenario?.aiValidationSummary?.solver || {};
+      return `OR-TOOLS WASM CP-SAT · ${String(solver.status || "SOLVED").replaceAll("_", " ")}`;
+    }
     if (source === "RULE_BASED_FALLBACK") return "RULE-BASED FALLBACK";
     if (["AI", "AI_CORRECTED"].includes(source)) {
       const model = String(scenario?.modelProfileCode || "OFFLINE MODEL").replace(/[_-]?CPU$/i, "").replaceAll("_", "-");

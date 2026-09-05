@@ -21,6 +21,7 @@ const IGNORED_DIRECTORIES = new Set([
   "dist",
   "node_modules",
   "uploads",
+  "vendor",
 ]);
 const MOJIBAKE_PATTERNS = [
   { label: "replacement character", regex: /\uFFFD/u },

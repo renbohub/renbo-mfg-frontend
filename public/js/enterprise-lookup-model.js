@@ -67,5 +67,16 @@
     return expected.every((item) => available.has(item));
   }
 
-  return { normalizeResponse, composeLabel, currentOption, normalizeQuery, isDependencyReady, isResolvedValue };
+  function closestDialog(element) {
+    return element?.closest?.("dialog, .modal, .ops-modal, [role='dialog']") || null;
+  }
+
+  function dropdownHost(element) {
+    const dialog = closestDialog(element);
+    return String(dialog?.nodeName || "").toUpperCase() === "DIALOG"
+      ? element.parentElement || dialog
+      : dialog;
+  }
+
+  return { normalizeResponse, composeLabel, currentOption, normalizeQuery, isDependencyReady, isResolvedValue, closestDialog, dropdownHost };
 });

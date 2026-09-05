@@ -50,7 +50,8 @@
 </main>
 
 <dialog id="dpp-dialog" class="dpp-dialog"><form id="dpp-dialog-form"><header><div><span>ALOKASI HARIAN</span><h3 id="dpp-dialog-title">-</h3></div><button id="dpp-dialog-close" type="button" aria-label="Tutup">×</button></header><div id="dpp-dialog-body"></div><footer><a class="dpp-button edit" id="dpp-dialog-source-edit" href="#" hidden>Buka Monthly Plan</a><button class="dpp-button ghost" id="dpp-dialog-cancel" type="button">Batal</button><button class="dpp-button primary" id="dpp-dialog-save" type="submit">Simpan Perubahan</button></footer></form></dialog>
+<dialog id="dpp-shortfall-dialog" class="dpp-dialog"><form id="dpp-shortfall-form"><header><div><span>ACTUAL FEEDBACK</span><h3>Alokasikan ke Draft Selanjutnya</h3></div><button id="dpp-shortfall-close" type="button" aria-label="Tutup">×</button></header><div><p id="dpp-shortfall-summary"></p><label>Tanggal tujuan<input id="dpp-shortfall-date" type="date" required></label></div><footer><button class="dpp-button ghost" id="dpp-shortfall-cancel" type="button">Batal</button><button class="dpp-button primary" type="submit">Buat Alokasi Draft</button></footer></form></dialog>
 <script id="dpp-config" type="application/json"><%- JSON.stringify({ initialDate, role: 'PPIC' }).replace(/</g, '\u003c') %></script>
 <script src="/js/ppic-daily-plan-model.js?v=20260827-auto-correct-2"></script>
-<script src="/js/ppic-daily-production-plan.js?v=20260828-breakdown-focus-2"></script>
+<script src="/js/ppic-daily-production-plan.js?v=20260828-actual-feedback-allocation-1"></script>
 <%- include('../partials/footer') %>

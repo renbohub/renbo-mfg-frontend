@@ -75,7 +75,7 @@
     }
 
     function normalizeIncoming(payload) {
-      if (state.scope === "vendor") return (payload.vendorRows || []).map((row) => ({
+      if (state.scope === "vendor") return window.ScheduleBoardModel.expandOutgoingEvents((payload.vendorRows || []).map((row) => ({
         itemType: "VENDOR PROCESS",
         itemCode: row.partCode,
         itemName: row.partName || row.processName || row.processCode,
@@ -91,8 +91,8 @@
         reference: row.orderNumber,
         secondaryReference: row.moNumber,
         href: `/modules/production/vendor-process-orders/${encodeURIComponent(row.orderNumber)}`,
-      }));
-      return (payload.planRows || []).filter((row) => ["MATERIAL", "PURCHASE_PART"].includes(row.itemType)).map((row) => ({
+      })));
+      const plans = (payload.planRows || []).filter((row) => ["MATERIAL", "PURCHASE_PART"].includes(row.itemType)).map((row) => ({
         itemType: row.itemType === "MATERIAL" ? "MATERIAL" : "PURCHASE PART",
         itemCode: row.materialCode,
         itemName: row.materialName,
@@ -104,12 +104,29 @@
         uomCode: row.uomCode,
         status: row.status,
         reference: row.poNumber,
+        matchKey: [row.poNumber, row.materialCode, row.uomCode].join("|"),
         href: `/modules/purchasing/purchase-order/${encodeURIComponent(row.poNumber)}`,
       }));
+      const actuals = (payload.actualRows || []).map((row) => ({
+        itemType: "PURCHASE RECEIPT",
+        itemCode: row.materialCode,
+        itemName: row.materialName,
+        partnerName: row.supplierName,
+        eventAt: row.dueDate,
+        actualAt: row.receivedDate,
+        completedQty: row.qtyReceived,
+        uomCode: row.uomCode,
+        status: row.status,
+        reference: row.grNumber,
+        secondaryReference: row.poNumber,
+        matchKey: [row.poNumber, row.materialCode, row.uomCode].join("|"),
+        href: `/modules/incoming/goods-receipts/${encodeURIComponent(row.grNumber)}`,
+      }));
+      return window.ScheduleBoardModel.expandIncomingEvents(plans, actuals);
     }
 
     function normalizeOutgoing(payload) {
-      return (payload.rows || []).filter((row) => row.itemType === "FINISHED_GOOD").map((row) => ({
+      const rows = (payload.rows || []).filter((row) => row.itemType === "FINISHED_GOOD").map((row) => ({
         itemType: "FINISHED GOODS",
         itemCode: row.partCode,
         itemName: row.partName || row.partNumber,
@@ -126,10 +143,11 @@
         secondaryReference: row.soNumber,
         href: `/modules/outgoing/delivery-schedules/${encodeURIComponent(row.scheduleNumber)}`,
       }));
+      return window.ScheduleBoardModel ? window.ScheduleBoardModel.expandOutgoingEvents(rows) : rows;
     }
 
     function eventColumnKey(row) {
-      const value = row.eventAt;
+      const value = row.displayAt || row.eventAt;
       const date = parseDate(value);
       if (!date) return "";
       if (state.mode === "hour") return hasExplicitTime(value) ? `hour-${pad(date.getHours())}` : "no-time";
@@ -168,13 +186,17 @@
       const current = period();
       const periodColumns = columns();
       const groups = groupedRows();
-      const total = state.rows.reduce((sum, row) => sum + number(row.qty), 0);
+      const visibleKeys = new Set(periodColumns.map((column) => column.key));
+      const periodRows = state.rows.filter((row) => visibleKeys.has(eventColumnKey(row)));
+      const total = periodRows.reduce((sum, row) => sum + number(row.qty), 0);
       node("[data-board-period-label]").textContent = current.label;
       node("[data-board-period-kicker]").textContent = current.kicker;
       node("[data-board-row-count]").textContent = String(groups.length);
-      node("[data-board-total-qty]").textContent = fmt(total);
+      node("[data-board-total-plan]").textContent = fmt(periodRows.reduce((sum, row) => sum + number(row.planQty), 0));
+      node("[data-board-total-actual]").textContent = fmt(periodRows.reduce((sum, row) => sum + number(row.actualQty), 0));
+      node("[data-board-total-balance]").textContent = fmt(periodRows.reduce((sum, row) => sum + number(row.balanceQty), 0));
       const header = periodColumns.map((column) => `<th data-period-key="${esc(column.key)}" class="${column.today ? "is-today" : ""}"><b>${esc(column.label)}</b>${column.sublabel ? `<small class="d-block">${esc(column.sublabel)}</small>` : ""}</th>`).join("");
-      const body = groups.map((group) => `<tr>
+      const incomingBody = groups.map((group) => `<tr>
         <td><div class="schedule-board__item"><b>${esc(group.itemCode)}</b><small>${esc(group.itemName || "-")}</small><span class="schedule-board__type">${esc(group.itemType)}</span></div></td>
         <td><div class="schedule-board__partner"><b>${esc(group.partnerCode || group.partnerName)}</b><small>${esc(group.partnerName)}</small></div></td>
         ${periodColumns.map((column) => {
@@ -187,7 +209,31 @@
           return `<td data-period-key="${esc(column.key)}"><a href="${esc(first.href)}" class="schedule-board__cell ${status} ${events.length > 1 ? "has-multiple" : ""}" data-count="${events.length}" title="${esc(refs)}"><strong>${fmt(quantity)}</strong><small>${esc(group.uomCode || first.reference || "")}</small></a></td>`;
         }).join("")}
       </tr>`).join("");
-      node("[data-board-matrix]").innerHTML = groups.length ? `<table class="schedule-board__table"><thead><tr><th>Part / Item</th><th>${kind === "outgoing" ? "Customer" : state.scope === "vendor" ? "Vendor" : "Supplier"}</th>${header}</tr></thead><tbody>${body}</tbody></table>` : `<div class="schedule-board__empty">Tidak ada jadwal pada periode dan filter ini.</div>`;
+      const matrixBody = groups.map((group) => {
+        const rows = [
+          { label: "Planned", field: "plan" },
+          { label: "Actual", field: "actual" },
+          { label: "Balance", field: "balance" },
+          { label: "Status", field: "status" },
+        ];
+        return rows.map((metric, index) => `<tr class="schedule-board__metric-row metric-${metric.field}">
+          ${index === 0 ? `<td rowspan="4" class="schedule-board__fixed-part"><div class="schedule-board__item"><b>${esc(group.itemCode)}</b><small>${esc(group.itemName || "-")}</small><span class="schedule-board__type">${esc(group.itemType)}</span></div></td><td rowspan="4" class="schedule-board__fixed-customer"><div class="schedule-board__partner"><b>${esc(group.partnerCode || group.partnerName)}</b><small>${esc(group.partnerName)}</small></div></td>` : ""}
+          <td class="schedule-board__metric-label schedule-board__fixed-metric">${metric.label}</td>
+          ${periodColumns.map((column) => {
+            const events = group.cells.get(column.key) || [];
+            const summary = window.ScheduleBoardModel.summarizeOutgoingCell(events);
+            if (!events.length) return `<td data-period-key="${esc(column.key)}"></td>`;
+            const first = events[0];
+            const refs = events.map((event) => [event.reference, event.secondaryReference, event.status].filter(Boolean).join(" · ")).join("\n");
+            const value = metric.field === "status" ? summary.status : fmt(summary[metric.field]);
+            const timingClass = metric.field === "status" && summary.status ? ` timing-${summary.status.toLowerCase().replace(/\s+/g, "-")}` : "";
+            return `<td data-period-key="${esc(column.key)}"><a href="${esc(first.href)}" class="schedule-board__matrix-value${timingClass}" title="${esc(refs)}">${esc(value)}</a></td>`;
+          }).join("")}
+        </tr>`).join("");
+      }).join("");
+      const partnerHeading = kind === "outgoing" ? "Customer" : state.scope === "vendor" ? "Vendor" : "Supplier";
+      const tableHead = `<th class="schedule-board__fixed-part">Part</th><th class="schedule-board__fixed-customer">${partnerHeading}</th><th class="schedule-board__fixed-metric">Date</th>${header}`;
+      node("[data-board-matrix]").innerHTML = groups.length ? `<table class="schedule-board__table schedule-board__table--outgoing"><thead><tr>${tableHead}</tr></thead><tbody>${matrixBody}</tbody></table>` : `<div class="schedule-board__empty">Tidak ada jadwal pada periode dan filter ini.</div>`;
     }
 
     async function load() {

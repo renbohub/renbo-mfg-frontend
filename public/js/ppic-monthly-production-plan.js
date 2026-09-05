@@ -216,7 +216,7 @@
     const button = $("mpp-recommendation-generate");
     if (button) {
       button.disabled = state.recommendationBusy || Boolean(state.editor);
-      button.textContent = state.recommendationBusy ? "Qwen menganalisis…" : "✦ Auto Allocation";
+      button.textContent = state.recommendationBusy ? "OR-Tools mengoptimasi…" : "✦ Auto Allocation CP-SAT";
     }
     for (const id of ["mpp-recommendation-apply-all", "mpp-recommendation-apply-selected", "mpp-recommendation-apply-work-center", "mpp-recommendation-discard"]) {
       if ($(id)) $(id).disabled = state.recommendationBusy;
@@ -236,7 +236,8 @@
     const summary = window.MppRecommendation?.getScenarioSummary(scenario) || {};
     const badge = window.MppRecommendation?.renderScenarioBadge(scenario) || scenario.status;
     const scenarioSource = window.MppRecommendation?.renderScenarioSource(scenario) || "RULE-BASED";
-    $("mpp-recommendation-summary").innerHTML = `<div class="mpp-recommendation-title" title="${esc(JSON.stringify(scenario.aiValidationSummary || {}))}"><span>${esc(scenarioSource)}</span><strong>${esc(badge)}</strong><small>Plan resmi belum berubah</small></div><dl><div><dt>FG on-time</dt><dd>${qty(summary.fgOnTimeCount)}</dd></div><div class="late"><dt>FG late</dt><dd>${qty(summary.fgLateCount)}</dd></div><div><dt>New</dt><dd>${qty(summary.newAllocationCount)}</dd></div><div><dt>Moved / split</dt><dd>${qty(summary.movedOrSplitCount)}</dd></div><div class="overload"><dt>Overload</dt><dd>${qty(summary.overloadCellCount)}</dd></div><div class="queue"><dt>Material Queue</dt><dd>${qty(summary.materialQueueQty)}</dd></div><div class="${summary.fgCoverageReady ? "ready" : "late"}"><dt>FG covered</dt><dd>${summary.fgCoverageReady ? "YES" : "NO"}</dd></div><div class="${Number(summary.remainingAllocationQty) > 0 ? "queue" : "ready"}"><dt>Remain</dt><dd>${qty(summary.remainingAllocationQty)}</dd></div></dl>`;
+    const solver = scenario.aiValidationSummary?.solver || {};
+    $("mpp-recommendation-summary").innerHTML = `<div class="mpp-recommendation-title" title="${esc(JSON.stringify(scenario.aiValidationSummary || {}))}"><span>${esc(scenarioSource)}</span><strong>${esc(badge)}</strong><small>${solver.taskCount != null ? `${qty(solver.taskCount)} task · ${esc(solver.engineVersion || "0.9.1")} · ${qty(solver.wallTimeSeconds)} detik` : "Plan resmi belum berubah"}</small></div><dl><div><dt>FG on-time</dt><dd>${qty(summary.fgOnTimeCount)}</dd></div><div class="late"><dt>FG late</dt><dd>${qty(summary.fgLateCount)}</dd></div><div><dt>New</dt><dd>${qty(summary.newAllocationCount)}</dd></div><div><dt>Moved / split</dt><dd>${qty(summary.movedOrSplitCount)}</dd></div><div class="overload"><dt>Overload</dt><dd>${qty(summary.overloadCellCount)}</dd></div><div class="queue"><dt>Material Queue</dt><dd>${qty(summary.materialQueueQty)}</dd></div><div class="${summary.fgCoverageReady ? "ready" : "late"}"><dt>FG covered</dt><dd>${summary.fgCoverageReady ? "YES" : "NO"}</dd></div><div class="${Number(summary.remainingAllocationQty) > 0 ? "queue" : "ready"}"><dt>Remain</dt><dd>${qty(summary.remainingAllocationQty)}</dd></div></dl>`;
     const workCenterSelect = $("mpp-recommendation-work-center");
     const selectedValue = workCenterSelect.value;
     const workCenterIds = [...new Set((scenario.items || []).filter((item) => item.changeType && item.applyStatus === "PENDING" && item.workCenterId).map((item) => item.workCenterId))].sort();

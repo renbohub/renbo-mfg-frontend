@@ -4,7 +4,7 @@
   const config = JSON.parse(configNode.textContent || "{}");
   const model = window.PpicDailyPlanModel;
   const productionMode = config.role === "PRODUCTION";
-  const state = { date: config.initialDate, workspace: null, machines: [], selected: null, selectedMachine: "ALL", hourRange: "07-07", scheduleClipboard: null, moving: false, autoSelectNearest: productionMode && !new URLSearchParams(window.location.search).has("date") };
+  const state = { date: config.initialDate, workspace: null, machines: [], selected: null, selectedException: null, selectedMachine: "ALL", hourRange: "07-07", scheduleClipboard: null, moving: false, autoSelectNearest: productionMode && !new URLSearchParams(window.location.search).has("date") };
   const $ = (id) => document.getElementById(id);
   const esc = (value) => String(value ?? "").replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
   const fmt = (value) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(value || 0));
@@ -336,7 +336,15 @@
     $("dpp-unscheduled").querySelectorAll("[data-open-id]").forEach((node) => node.addEventListener("click", () => openItem(schedules.find((item) => item.id === node.dataset.openId))));
     const exceptions = state.workspace?.exceptions || [];
     $("dpp-exception-count").textContent = String(exceptions.length);
-    $("dpp-exceptions").innerHTML = exceptions.length ? exceptions.map((item) => `<div class="dpp-list-item"><div><strong>${esc(item.exceptionType)} · ${esc(item.partCode || item.machineId || "-")}</strong><span>${esc(item.severity)} · ${fmt(item.qty)} ${esc(item.uomCode || "")} · ${esc(item.state)}</span></div>${!productionMode ? `<button type="button" disabled>Terapkan ke Draft</button>` : ""}</div>`).join("") : `<p class="dpp-muted">Belum ada exception aktual untuk Planning Selanjutnya.</p>`;
+    $("dpp-exceptions").innerHTML = exceptions.length ? exceptions.map((item, index) => `<div class="dpp-list-item"><div><strong>${esc(item.exceptionType)} · ${esc(item.partCode || item.machineId || "-")}</strong><span>${esc(item.severity)} · ${fmt(item.qty)} ${esc(item.uomCode || "")} · ${esc(item.state)}</span></div>${!productionMode && item.action === "ALLOCATE_NEXT_DRAFT" ? `<button data-allocate-exception="${index}" type="button">Alokasikan Selanjutnya</button>` : ""}</div>`).join("") : `<p class="dpp-muted">Belum ada exception aktual untuk Planning Selanjutnya.</p>`;
+    $("dpp-exceptions").querySelectorAll("[data-allocate-exception]").forEach((node) => node.addEventListener("click", () => {
+      state.selectedException = exceptions[Number(node.dataset.allocateException)];
+      const minimum = addDays(String(state.selectedException.planDate || state.date).slice(0, 10), 1);
+      $("dpp-shortfall-date").min = minimum;
+      $("dpp-shortfall-date").value = minimum;
+      $("dpp-shortfall-summary").textContent = `${state.selectedException.partCode || "Part"} · ${fmt(state.selectedException.qty)} ${state.selectedException.uomCode || ""}`;
+      $("dpp-shortfall-dialog").showModal();
+    }));
   }
 
   function renderSummary() {
@@ -376,7 +384,7 @@
     const scheduleNote = $("dpp-schedule-note");
     if (scheduleNote) {
       scheduleNote.hidden = !timeline.startsAfterFirstShift;
-      scheduleNote.textContent = timeline.startsAfterFirstShift ? `Alokasi aktual baru mulai ${firstTimedItem?.plannedStartTime || "malam"} karena rekomendasi Monthly Plan memakai Delivery JIT. Untuk allocation Draft, copy lalu klik jam tujuan, drag jadwal di matrix, atau ubah jam melalui popup.` : "";
+      scheduleNote.textContent = timeline.startsAfterFirstShift ? `Alokasi mulai ${firstTimedItem?.plannedStartTime || "malam"} mengikuti netting JIT OR-Tools. Untuk allocation Draft, copy lalu klik jam tujuan, drag jadwal di matrix, atau ubah jam melalui popup.` : "";
     }
     if (allocationPreview) {
       const nextAction = previewPlanStatus === "Confirmed"
@@ -503,6 +511,20 @@
   document.querySelectorAll("[data-scope]").forEach((node) => node.addEventListener("click", () => { state.date = node.dataset.scope === "tomorrow" ? addDays(todayKey(), 1) : todayKey(); load(); }));
   $("dpp-dialog-close")?.addEventListener("click", () => $("dpp-dialog").close());
   $("dpp-dialog-cancel")?.addEventListener("click", () => $("dpp-dialog").close());
+  $("dpp-shortfall-close")?.addEventListener("click", () => $("dpp-shortfall-dialog").close());
+  $("dpp-shortfall-cancel")?.addEventListener("click", () => $("dpp-shortfall-dialog").close());
+  $("dpp-shortfall-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!state.selectedException?.sourceLogId) return;
+    try {
+      const targetDate = $("dpp-shortfall-date").value;
+      await request(model.apiPath("planning-ppic/daily-plan/execution-shortfalls/allocate"), { method: "POST", body: JSON.stringify({ sourceLogId: state.selectedException.sourceLogId, targetDate }) });
+      $("dpp-shortfall-dialog").close();
+      notify(`Shortfall ${fmt(state.selectedException.qty)} ${state.selectedException.uomCode || ""} dialokasikan ke Draft ${targetDate}.`, "success");
+      state.selectedException = null;
+      await load();
+    } catch (error) { notify(error.message, "error"); }
+  });
   $("dpp-release-all")?.addEventListener("click", releaseAll);
   $("dpp-breakdown")?.addEventListener("click", async () => {
     if (!productionMode || !state.selected?.machineId) return;
@@ -555,8 +577,9 @@
     try {
       const result = await request(model.apiPath("planning-ppic/daily-plan/auto-correct"), { method: "POST", body: JSON.stringify({ date: state.date, revisionId: state.workspace.revision?.allocationPreview ? null : state.workspace.revision?.id || null, expectedVersion: state.workspace.revision?.allocationPreview ? null : state.workspace.revision?.version }) });
       const warningCopy = result.warnings?.length ? ` · ${result.warnings.length} operation masih perlu review: ${result.warnings[0].message}` : "";
+      const solverCopy = result.solver ? ` · OR-Tools ${result.solver.status} · ${Number(result.solver.taskCount ?? result.items?.length ?? 0)} task · ${Number(result.solver.wallTimeSeconds || 0).toFixed(3)} detik` : "";
       await load();
-      notify(result.changedCount ? `${result.changedCount} placement berhasil dikoreksi${warningCopy}.` : `Placement sudah sesuai jam kerja; tidak ada perubahan${warningCopy}.`, result.warnings?.length ? "warning" : "success");
+      notify(result.changedCount ? `${result.changedCount} placement berhasil dikoreksi${solverCopy}${warningCopy}.` : `Placement sudah sesuai jam kerja${solverCopy}; tidak ada perubahan${warningCopy}.`, result.warnings?.length ? "warning" : "success");
     } catch (error) { notify(error.message, "error"); }
     finally { state.moving = false; }
   });

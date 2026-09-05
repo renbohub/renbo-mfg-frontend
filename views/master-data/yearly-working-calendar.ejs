@@ -1,0 +1,74 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/yearly-working-calendar.css?v=20260904-2">
+<%- include('../partials/header-master') %>
+
+<main class="ywc-page">
+  <section class="ywc-hero app-container">
+    <div>
+      <span class="ywc-eyebrow">MASTER DATA / CAPACITY CALENDAR</span>
+      <h1>Kalender Kerja Tahunan</h1>
+      <p>Kelola hari kerja, libur nasional, event perusahaan, dan shift khusus Ramadan sebagai dasar kapasitas RCCP.</p>
+    </div>
+    <div class="ywc-actions">
+      <div class="ywc-master-links">
+        <a href="/master-data/shifts">Master Shift</a>
+        <a href="/master-data/working-hour-profiles">Working Hours</a>
+      </div>
+      <div class="ywc-year-control" aria-label="Pilih tahun kalender">
+        <button id="ywc-prev-year" type="button" title="Tahun sebelumnya">&#8249;</button>
+        <input id="ywc-year" type="number" min="2000" max="2100" aria-label="Tahun">
+        <button id="ywc-next-year" type="button" title="Tahun berikutnya">&#8250;</button>
+      </div>
+      <button id="ywc-new-event" class="btn btn-primary brand-button" type="button">+ Tambah Event</button>
+    </div>
+  </section>
+
+  <div id="ywc-alert" class="app-container ywc-alert" role="alert" hidden></div>
+
+  <section class="ywc-kpis app-container" aria-label="Ringkasan kalender">
+    <article><span>Total event</span><strong id="ywc-kpi-events">0</strong><small>pada tahun terpilih</small></article>
+    <article><span>Hari libur</span><strong id="ywc-kpi-holidays">0</strong><small>tanggal unik</small></article>
+    <article><span>Hari kerja khusus</span><strong id="ywc-kpi-special">0</strong><small>Ramadan & event</small></article>
+    <article><span>Cakupan mesin</span><strong id="ywc-kpi-machines">—</strong><small id="ywc-kpi-coverage">mesin aktif</small></article>
+  </section>
+
+  <section class="ywc-layout app-container">
+    <div class="ywc-calendar-panel">
+      <header class="ywc-section-head">
+        <div><h2 id="ywc-calendar-title">Kalender</h2><p>Klik tanggal berwarna untuk membuka event.</p></div>
+        <div class="ywc-legend"><span class="holiday">Libur</span><span class="ramadan">Ramadan</span><span class="event">Event</span><span class="weekend">Akhir pekan</span></div>
+      </header>
+      <div id="ywc-months" class="ywc-months"><div class="ywc-loading">Memuat kalender kerja...</div></div>
+    </div>
+
+    <aside class="ywc-events-panel">
+      <header><div><h2>Daftar Event</h2><p id="ywc-event-count">0 event</p></div></header>
+      <div id="ywc-event-list" class="ywc-event-list"><div class="ywc-loading">Memuat event...</div></div>
+      <div class="ywc-note"><strong>Terhubung ke RCCP</strong><p>Perubahan kalender membatalkan hasil capacity check terkait. Hasil baru dihitung otomatis saat MPS dibuat atau dihitung ulang.</p></div>
+    </aside>
+  </section>
+</main>
+
+<dialog id="ywc-dialog" class="ywc-dialog">
+  <form id="ywc-form" method="dialog" novalidate>
+    <header><div><span>YEARLY CAPACITY EVENT</span><h2 id="ywc-dialog-title">Tambah Event Kalender</h2><p>Terapkan aturan tanggal ke seluruh mesin aktif.</p></div><button id="ywc-close" type="button" aria-label="Tutup">&times;</button></header>
+    <div class="ywc-dialog-body">
+      <label class="span-2"><span>Nama event <em>*</em></span><input name="eventName" required maxlength="140" placeholder="Contoh: Libur Idul Fitri 1448 H"></label>
+      <label><span>Tipe event <em>*</em></span><select name="eventType" required><option value="NATIONAL_HOLIDAY">Libur nasional</option><option value="COLLECTIVE_LEAVE">Cuti bersama</option><option value="RAMADAN_SHIFT">Shift Ramadan</option><option value="COMPANY_EVENT">Event perusahaan</option><option value="MAINTENANCE">Maintenance terencana</option><option value="OTHER">Lainnya</option></select></label>
+      <label><span>Status hari <em>*</em></span><select name="dayStatus" required><option value="HOLIDAY">Libur / kapasitas 0</option><option value="WORKING">Hari kerja khusus</option></select></label>
+      <label><span>Tanggal mulai <em>*</em></span><input name="dateFrom" type="date" required></label>
+      <label><span>Tanggal selesai <em>*</em></span><input name="dateTo" type="date" required></label>
+      <div id="ywc-profile-field" class="ywc-profile-field span-2">
+        <label><span>Working Hour Profile <em>*</em></span><select name="workingHourProfileId"><option value="">Pilih profile shift...</option></select><small>Jam, break, dan overtime diambil dari profile untuk setiap working day.</small></label>
+        <div class="ywc-relation-flow" aria-label="Relasi kalender kerja"><b>Working Day</b><i>&rarr;</i><b>Working Hours</b><i>&rarr;</i><b>Shift Master</b></div>
+        <div id="ywc-profile-preview" class="ywc-profile-preview"><p>Pilih Working Hour Profile untuk melihat shift per hari.</p></div>
+      </div>
+      <fieldset class="span-2"><legend>Diterapkan pada hari</legend><div id="ywc-weekdays" class="ywc-weekdays"></div></fieldset>
+      <label class="ywc-check span-2"><input name="overwriteExisting" type="checkbox"><span><strong>Timpa override yang sudah ada</strong><small>Aktifkan hanya bila event ini memang harus mengganti override manual atau event lain pada mesin dan tanggal yang sama.</small></span></label>
+    </div>
+    <footer><button id="ywc-delete" class="btn btn-outline-danger" type="button" hidden>Hapus Event</button><div></div><button id="ywc-cancel" class="btn btn-light" type="button">Batal</button><button id="ywc-save" class="btn btn-primary brand-button" type="submit">Terapkan Kalender</button></footer>
+  </form>
+</dialog>
+
+<script id="ywc-config" type="application/json"><%- JSON.stringify({ config }).replace(/</g, '\u003c') %></script>
+<%- include('../partials/footer') %>

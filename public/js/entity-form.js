@@ -116,7 +116,8 @@
     if (!item) return;
     const setIfEmpty = (name, value) => { const input = form.elements[name]; if (input && !input.value && value != null) input.value = value; };
     if (config.slug === "material-price-lists") {
-      setIfEmpty("purchasePackageUomCode", item.materialFormRef?.symbol || item.materialForm);
+      const formValue = String(item.materialFormRef?.defaultPurchaseUomCode || item.materialFormRef?.formCode || item.materialForm || item.materialFormRef?.symbol || "").trim().toUpperCase();
+      setIfEmpty("purchasePackageUomCode", ({ C: "COIL", S: "SHEET", P: "PCS", PIECES: "PCS" })[formValue] || formValue);
       setIfEmpty("uomCode", item.defaultPurchaseUomCode || item.materialFormRef?.defaultPurchaseUomCode);
     } else if (config.slug === "part-price-lists") {
       setIfEmpty("uomCode", item.purchaseUomCode || item.baseUomCode || item.stockUomCode);
@@ -136,6 +137,10 @@
       const value = params.get(field.name);
       if (field.type === "checkbox") input.checked = value === "true" || value === "1";
       else if (field.type === "lookup" && window.EnterpriseLookup) tasks.push(resolveLookupOption(field, input, value));
+      else if (config.slug === "material-price-lists" && field.name === "purchasePackageUomCode") {
+        const normalized = String(value || "").trim().toUpperCase();
+        input.value = ({ C: "COIL", S: "SHEET", P: "PCS", PIECES: "PCS" })[normalized] || normalized;
+      }
       else input.value = value;
     });
     await Promise.all(tasks);

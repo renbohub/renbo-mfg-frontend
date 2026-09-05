@@ -52,8 +52,9 @@
   }
 
   function dropdownParent(select) {
-    const modal = select.closest(".modal, .ops-modal, [role='dialog']");
-    return modal && $ ? $(modal) : ($ ? $(document.body) : undefined);
+    const host = model.dropdownHost(select);
+    if (host && host !== model.closestDialog(select)) host.classList.add("enterprise-lookup-dropdown-host");
+    return host && $ ? $(host) : ($ ? $(document.body) : undefined);
   }
 
   function parentData(select) {

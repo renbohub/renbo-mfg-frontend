@@ -28,6 +28,7 @@
 
 /* Keep the wide editor table inside its own scroll area instead of widening the page. */
 .bom-table-editor-page{width:100%;max-width:100%;overflow-x:clip}
+.bom-price-partner{display:grid;gap:4px;margin-bottom:7px}.bom-price-partner small{color:#475569;font-size:9px;font-weight:800;text-transform:uppercase}.bom-price-partner .form-select{min-width:210px}
 .bom-record-toolbar,.bom-table-editor-content,.bom-table-header-card,.bom-estimate-summary,.bom-table-grid-card{min-width:0;max-width:100%}
 .bom-table-editor-content{width:100%}
 .bom-table-grid-card{width:100%;overflow:hidden}
@@ -71,3 +72,48 @@
 .bom-report-child-bom { width:max-content; padding:2px 5px; border-radius:4px; background:#eef2ff; color:#4338ca!important; font-weight:700; }
 .bom-report-dialog .modal-footer>div{flex-wrap:wrap;justify-content:flex-end}.bom-report-dialog .modal-footer .btn{font-size:11px;white-space:nowrap}
 @media(max-width:900px){.bom-report-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.bom-report-dialog .modal-footer{align-items:flex-start;gap:10px}.bom-report-dialog .modal-footer>div{justify-content:flex-start}}
+.bom-table-vendor-note {
+  display: block;
+  margin-top: .55rem;
+  padding: .55rem .7rem;
+  border: 1px solid #f1c76b;
+  border-radius: .55rem;
+  background: #fff8df;
+  color: #76520a;
+  font-weight: 650;
+}
+
+.bom-vendor-routing-card {
+  display: grid;
+  width: 100%;
+  min-width: 210px;
+  gap: .18rem;
+  border: 1px solid #b9c8f3;
+  border-radius: .55rem;
+  background: #f6f8ff;
+  padding: .55rem .65rem;
+  text-align: left;
+  color: #173478;
+}
+
+.bom-vendor-routing-card small,
+.bom-vendor-routing-card span { font-size: .7rem; color: #627099; }
+.bom-vendor-routing-card strong { font-size: .78rem; }
+
+.bom-process-vendor-guide {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .45rem .65rem;
+  margin: .85rem 1rem 0;
+  padding: .65rem .8rem;
+  border: 1px solid #cbd5f0;
+  border-radius: .65rem;
+  background: #f7f9ff;
+  color: #33466f;
+  font-size: .76rem;
+}
+
+.bom-process-vendor-guide b { color: #162d66; }
+.bom-process-vendor-guide span { padding: .2rem .42rem; border-radius: 99px; background: #e9eeff; }
+.bom-process-vendor-guide a { color: #2149a4; font-weight: 700; }
