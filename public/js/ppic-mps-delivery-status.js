@@ -12,6 +12,7 @@
     const status = text(value);
     if (["FEASIBLE", "ON_TIME", "SAFE"].includes(status)) return "FEASIBLE";
     if (["AT_RISK", "WARNING"].includes(status)) return "AT_RISK";
+    if (status === "MASTER_DATA_INCOMPLETE") return "MASTER_DATA_INCOMPLETE";
     if (["NOT_FEASIBLE", "INFEASIBLE", "LATE", "BLOCKER", "CAPACITY_LATE", "MATERIAL_LATE"].includes(status)) return "INFEASIBLE";
     return "STALE";
   };
@@ -24,6 +25,23 @@
       tone: "warning",
       canRecovery: true,
       canAcceptLate: true,
+    };
+    // Current MPS netting is authoritative for a stock-covered delivery. An
+    // older Accept Late approval may remain linked for audit, but it must not
+    // make a now-feasible, zero-production phase look late in the workbench.
+    if (feasibility === "FEASIBLE") return {
+      code: "FEASIBLE",
+      label: "Delivery Feasible",
+      tone: "success",
+      canRecovery: false,
+      canAcceptLate: false,
+    };
+    if (feasibility === "MASTER_DATA_INCOMPLETE") return {
+      code: "MASTER_DATA_INCOMPLETE",
+      label: "Master Data Belum Lengkap",
+      tone: "warning",
+      canRecovery: true,
+      canAcceptLate: false,
     };
     const disposition = text(snapshot.dispositionStatus);
     if (disposition === "ACCEPT_LATE_APPROVED") return {
@@ -61,13 +79,7 @@
       canRecovery: true,
       canAcceptLate: true,
     };
-    return {
-      code: "FEASIBLE",
-      label: "Delivery Feasible",
-      tone: "success",
-      canRecovery: false,
-      canAcceptLate: false,
-    };
+    return { code: "FEASIBLE", label: "Delivery Feasible", tone: "success", canRecovery: false, canAcceptLate: false };
   }
 
   function decoratePhases(phases = [], snapshots = []) {
@@ -86,6 +98,7 @@
     if (!statuses.length) return phaseStatus({ feasibilityStatus: "STALE" });
     return statuses.find((row) => row.code === "INFEASIBLE")
       || statuses.find((row) => row.code === "STALE")
+      || statuses.find((row) => row.code === "MASTER_DATA_INCOMPLETE")
       || statuses.find((row) => row.code === "ACCEPT_LATE_PENDING")
       || statuses.find((row) => row.code.startsWith("RECOVERY_"))
       || statuses.find((row) => row.code === "ACCEPT_LATE_APPROVED")
@@ -103,45 +116,17 @@
   }
 
   function phaseAction(status = {}) {
-    if (status.code === "STALE") return { mode: "recheck", icon: "↻", label: "Hitung ulang feasibility" };
+    if (status.code === "STALE") return { mode: "recheck", icon: "↻", label: "Hasil stale — gunakan Hitung Ulang MPS" };
     if (status.canRecovery || status.canAcceptLate) return { mode: "handle", icon: "!", label: "Tangani delivery" };
     return { mode: "detail", icon: "i", label: "Detail feasibility" };
   }
 
-  function inspectionAction(gate = {}) {
-    const status = text(gate.feasibilityStatus);
-    const blockers = Math.max(Number(gate.blockerCount) || 0, 0);
-    if (status === "STALE" || status === "UNKNOWN" || !status) return {
-      label: `Periksa${blockers ? ` ${blockers}` : ""} Delivery`,
-      tone: "warning",
-    };
-    if (status === "INFEASIBLE") return {
-      label: "Periksa Ulang Delivery",
-      tone: "danger",
-    };
-    return { label: "Periksa Ulang Delivery", tone: "success" };
-  }
-
-  function reviewRequest(mpsNumber, deliveryTargetId = "") {
-    return {
-      url: `/modules/api/planning-ppic/mps/${encodeURIComponent(String(mpsNumber || ""))}/delivery-feasibility/review`,
-      options: {
-        method: "POST",
-        body: JSON.stringify({ deliveryTargetIds: deliveryTargetId ? [String(deliveryTargetId)] : [] }),
-      },
-    };
-  }
-
   function blockedGateTitle(gate = {}) {
+    if (text(gate.feasibilityStatus) === "MASTER_DATA_INCOMPLETE") return "Master Data Delivery Belum Lengkap";
     return text(gate.feasibilityStatus) === "INFEASIBLE"
       ? "Delivery Infeasible"
       : "Delivery Belum Diperiksa";
   }
 
-  function inspectionSuccessMessage(result = {}) {
-    const fallback = `${Math.max(Number(result.reviewedCount) || 0, 0)} delivery phase selesai diperiksa.`;
-    return `${String(result.message || fallback).trim()} Delivery aman dikonfirmasi otomatis; blocker tetap memerlukan tindakan.`;
-  }
-
-  return { phaseStatus, decoratePhases, summarizePhases, actionLinks, phaseAction, inspectionAction, reviewRequest, blockedGateTitle, inspectionSuccessMessage };
+  return { phaseStatus, decoratePhases, summarizePhases, actionLinks, phaseAction, blockedGateTitle };
 });

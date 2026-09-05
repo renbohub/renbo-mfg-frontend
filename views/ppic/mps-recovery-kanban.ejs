@@ -1,0 +1,52 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/ppic-mps-recovery-kanban.css?v=20260904-1">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'mps-recovery' }) %>
+
+<main class="mrk-page">
+  <header class="mrk-page-head app-container planning-shared-header">
+    <div>
+      <span class="mrk-eyebrow">MPS RECOVERY CONTROL</span>
+      <h1>Recovery Kanban</h1>
+      <p>Tindak lanjut masalah feasibility dari PPIC sampai departemen terkait.</p>
+    </div>
+    <div class="mrk-head-actions">
+      <label class="mrk-search"><span aria-hidden="true">⌕</span><input id="mrk-search" type="search" placeholder="Cari MPS, part, recovery, PIC…" autocomplete="off"></label>
+      <label class="mrk-month"><span>Periode</span><input id="mrk-month" type="month" value="<%= initialMonth %>"></label>
+      <button id="mrk-refresh" class="mrk-outline-action" type="button">↻ Refresh</button>
+      <a class="mrk-primary-action" href="/modules/planning-ppic/mps/workbench?month=<%= initialMonth %>">Buka MPS</a>
+    </div>
+  </header>
+
+  <section class="mrk-kpis app-container" aria-label="Ringkasan recovery">
+    <article><span>Total Recovery</span><strong id="mrk-total">0</strong><small>periode terpilih</small></article>
+    <article class="open"><span>Open</span><strong id="mrk-open">0</strong><small>belum ditangani</small></article>
+    <article class="progress"><span>In Progress</span><strong id="mrk-progress">0</strong><small>sedang dikerjakan</small></article>
+    <article class="waiting"><span>Waiting</span><strong id="mrk-waiting">0</strong><small>menunggu konfirmasi</small></article>
+    <article class="done"><span>Done</span><strong id="mrk-done">0</strong><small>recovery selesai</small></article>
+  </section>
+
+  <section class="mrk-toolbar app-container">
+    <div><b>Feedback Status</b><span>Geser kartu atau gunakan pilihan status di dalam kartu.</span></div>
+    <label>Dept <select id="mrk-dept" data-searchable-disabled><option value="">Semua Dept</option></select></label>
+    <span id="mrk-sync-state" role="status" aria-live="polite"></span>
+  </section>
+
+  <div id="mrk-alert" class="mrk-alert app-container" hidden></div>
+  <section id="mrk-board" class="mrk-board app-container" aria-label="Kanban Recovery MPS">
+    <% [
+      ['OPEN', 'Open', 'Belum mulai'],
+      ['IN_PROGRESS', 'In Progress', 'Sedang ditindaklanjuti'],
+      ['WAITING', 'Waiting', 'Menunggu approval atau pihak lain'],
+      ['DONE', 'Done', 'Tindakan selesai']
+    ].forEach(column => { %>
+      <section class="mrk-column" data-feedback-column="<%= column[0] %>">
+        <header><div><i></i><span><b><%= column[1] %></b><small><%= column[2] %></small></span></div><strong data-column-count="<%= column[0] %>">0</strong></header>
+        <div class="mrk-card-list" data-card-list="<%= column[0] %>"><div class="mrk-column-empty">Belum ada recovery</div></div>
+      </section>
+    <% }) %>
+  </section>
+</main>
+
+<script id="mrk-page-config" type="application/json"><%- JSON.stringify({ initialMonth }).replace(/</g, '\u003c') %></script>
+<%- include('../partials/footer') %>

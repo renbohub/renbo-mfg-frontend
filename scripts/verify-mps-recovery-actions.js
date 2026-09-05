@@ -1,6 +1,8 @@
 "use strict";
 
 const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
 
 let recoveryActions = {};
 try {
@@ -121,5 +123,15 @@ assert.strictEqual(mergedLate.find((row) => row.id === "ACCEPT_LATE").targetDate
   assert.strictEqual(recoveryActions.shouldRefreshDeliveryAfterCommand(command), true, `${command} must refresh the MPS delivery snapshot`);
 });
 assert.strictEqual(recoveryActions.shouldRefreshDeliveryAfterCommand("load"), false);
+
+const workbench = fs.readFileSync(path.join(__dirname, "../public/js/ppic-mps-workbench.js"), "utf8");
+const view = fs.readFileSync(path.join(__dirname, "../views/ppic/mps-workbench.ejs"), "utf8");
+const routes = fs.readFileSync(path.join(__dirname, "../src/routes/modules.js"), "utf8");
+assert.match(view, /id="mwb-bulk-accept-late"/);
+assert.match(workbench, /recovery-plans\/bulk-accept-late/);
+assert.match(workbench, /Accept Late Semua/);
+assert.match(routes, /demand-planning\/recovery-plans\/bulk-accept-late/);
+assert.doesNotMatch(workbench, /confirmMps\.disabled[^\n]+lifecycleStatus !== "CAPACITY_CHECKED"/);
+assert.match(workbench, /confirmMps\.disabled[^\n]+rccp\?\.approvalAllowed[^\n]+deliveryAllowed/);
 
 console.log("MPS in-page recovery action contracts: OK");

@@ -137,9 +137,11 @@ router.post("/api/planning-ppic/demand-planning/exception-workbench/:exceptionId
   return proxyPageMutation(req, res, "/api/planning/demand-planning/exception-workbench", "POST", `/${encodeURIComponent(req.params.exceptionId)}/${action}`);
 });
 router.post("/api/planning-ppic/demand-planning/feasibility", (req, res) => proxyPageMutation(req, res, "/api/planning/demand-planning", "POST", "/feasibility"));
+router.get("/api/planning-ppic/demand-planning/recovery-plans", (req, res) => proxyReadWithQuery(req, res, "/api/planning/demand-planning/recovery-plans", "Kanban Recovery MPS gagal dimuat."));
+router.patch("/api/planning-ppic/demand-planning/recovery-plans/:planId/feedback-status", (req, res) => proxyPageMutation(req, res, "/api/planning/demand-planning", "PATCH", `/recovery-plans/${encodeURIComponent(req.params.planId)}/feedback-status`));
 router.get("/api/planning-ppic/demand-planning/:deliveryTargetId/recovery-plan", (req, res) => proxyReadWithQuery(req, res, `/api/planning/demand-planning/${encodeURIComponent(req.params.deliveryTargetId)}/recovery-plan`, "Recovery Plan gagal dimuat."));
 router.put("/api/planning-ppic/demand-planning/:deliveryTargetId/recovery-plan", (req, res) => proxyPageMutation(req, res, "/api/planning/demand-planning", "PUT", `/${encodeURIComponent(req.params.deliveryTargetId)}/recovery-plan`));
-router.post("/api/planning-ppic/demand-planning/recovery-plans/bulk-accept-late", (req, res) => proxyPageMutation(req, res, "/api/planning/demand-planning", "POST", "/recovery-plans/bulk-accept-late"));
+router.post("/api/planning-ppic/demand-planning/recovery-plans/bulk-accept-late", (req, res) => proxyPageMutation(req, res, "/api/planning/demand-planning", "POST", "/recovery-plans/bulk-accept-late", 120000));
 router.post("/api/planning-ppic/demand-planning/recovery-plans/:planId/submit", (req, res) => proxyPageMutation(req, res, "/api/planning/demand-planning", "POST", `/recovery-plans/${encodeURIComponent(req.params.planId)}/submit`));
 router.patch("/api/planning-ppic/demand-planning/recovery-plans/:planId/:decision", (req, res) => {
   const decision = ["approve", "reject"].includes(req.params.decision) ? req.params.decision : null;
@@ -158,6 +160,12 @@ router.get("/api/planning-ppic/mps/workbench", (req, res) => {
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return proxyPageMutation(req, res, "/api/planning/mps", "GET", `/workbench${suffix}`);
 });
+router.get("/api/planning-ppic/mps/workbench/lines/:lineId/feasibility", (req, res) => proxyReadWithQuery(
+  req,
+  res,
+  `/api/planning/mps/workbench/lines/${encodeURIComponent(req.params.lineId)}/feasibility`,
+  "Detail checklist kelayakan schedule gagal dimuat.",
+));
 router.get("/api/planning-ppic/mps/mbom-revision-options", (req, res) => {
   const query = new URLSearchParams();
   if (req.query.months) query.set("months", String(req.query.months));
@@ -620,7 +628,12 @@ router.get("/planning-ppic/mps/workbench", (req, res) => {
   const module = getModule("planning-ppic");
   const nextMonth = addMonthKey(jakartaMonthKey(), 1);
   const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : nextMonth;
-  return res.render("ppic/mps-workbench", { title: "Master Production Schedule", module, activePpicTab: "mps", initialMonth, pageScript: "/js/ppic-mps-workbench.js?v=20260828-delta-mps-1", ...common(module.slug) });
+  return res.render("ppic/mps-workbench", { title: "Master Production Schedule", module, activePpicTab: "mps", initialMonth, pageScript: "/js/ppic-mps-workbench.js?v=20260904-auto-evaluation-1", ...common(module.slug) });
+});
+router.get("/planning-ppic/mps/recovery-kanban", (req, res) => {
+  const module = getModule("planning-ppic");
+  const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : jakartaMonthKey();
+  return res.render("ppic/mps-recovery-kanban", { title: "MPS Recovery Kanban", module, activePpicTab: "mps-recovery", initialMonth, pageScript: "/js/ppic-mps-recovery-kanban.js?v=20260904-1", ...common(module.slug) });
 });
 router.get("/planning-ppic/tutorial", (_req, res) => {
   const module = getModule("planning-ppic");

@@ -14,10 +14,7 @@ assert.strictEqual(typeof deliveryStatus.decoratePhases, "function", "production
 assert.strictEqual(typeof deliveryStatus.summarizePhases, "function", "production module must expose summarizePhases");
 assert.strictEqual(typeof deliveryStatus.actionLinks, "function", "production module must expose actionLinks");
 assert.strictEqual(typeof deliveryStatus.phaseAction, "function", "production module must expose phaseAction");
-assert.strictEqual(typeof deliveryStatus.inspectionAction, "function", "production module must expose inspectionAction");
-assert.strictEqual(typeof deliveryStatus.reviewRequest, "function", "production module must expose reviewRequest");
 assert.strictEqual(typeof deliveryStatus.blockedGateTitle, "function", "production module must expose blockedGateTitle");
-assert.strictEqual(typeof deliveryStatus.inspectionSuccessMessage, "function", "production module must expose inspectionSuccessMessage");
 
 const feasible = deliveryStatus.phaseStatus({
   sourceCurrent: true,
@@ -31,6 +28,11 @@ assert.deepStrictEqual(feasible, {
   canRecovery: false,
   canAcceptLate: false,
 });
+assert.deepStrictEqual(deliveryStatus.phaseStatus({
+  sourceCurrent: true,
+  feasibilityStatus: "FEASIBLE",
+  dispositionStatus: "ACCEPT_LATE_APPROVED",
+}), feasible, "current stock-covered feasibility must win over a historical Accept Late disposition");
 assert.deepStrictEqual(deliveryStatus.phaseAction(feasible), {
   mode: "detail",
   icon: "i",
@@ -73,6 +75,20 @@ assert.deepStrictEqual(deliveryStatus.phaseAction(infeasible), {
   label: "Tangani delivery",
 });
 
+const incomplete = deliveryStatus.phaseStatus({
+  sourceCurrent: true,
+  feasibilityStatus: "MASTER_DATA_INCOMPLETE",
+  dispositionStatus: "ACCEPT_LATE_APPROVED",
+});
+assert.deepStrictEqual(incomplete, {
+  code: "MASTER_DATA_INCOMPLETE",
+  label: "Master Data Belum Lengkap",
+  tone: "warning",
+  canRecovery: true,
+  canAcceptLate: false,
+}, "incomplete master data must not be rendered as Accept Late");
+assert.strictEqual(deliveryStatus.phaseAction(incomplete).mode, "handle");
+
 assert.deepStrictEqual(deliveryStatus.phaseStatus({
   sourceCurrent: true,
   feasibilityStatus: "INFEASIBLE",
@@ -101,7 +117,7 @@ assert.strictEqual(deliveryStatus.phaseStatus({ feasibilityStatus: "STALE" }).la
 assert.deepStrictEqual(deliveryStatus.phaseAction(deliveryStatus.phaseStatus({ feasibilityStatus: "STALE" })), {
   mode: "recheck",
   icon: "↻",
-  label: "Hitung ulang feasibility",
+  label: "Hasil stale — gunakan Hitung Ulang MPS",
 });
 assert.strictEqual(
   deliveryStatus.phaseAction(deliveryStatus.phaseStatus({ sourceCurrent: true, feasibilityStatus: "INFEASIBLE", dispositionStatus: "ACCEPT_LATE_APPROVED" })).mode,
@@ -126,46 +142,8 @@ assert.deepStrictEqual(deliveryStatus.actionLinks("DT 1"), {
   acceptLate: "accept-late",
 });
 
-assert.deepStrictEqual(deliveryStatus.inspectionAction({
-  feasibilityStatus: "STALE",
-  blockerCount: 8,
-}), {
-  label: "Periksa 8 Delivery",
-  tone: "warning",
-});
-assert.deepStrictEqual(deliveryStatus.inspectionAction({
-  feasibilityStatus: "FEASIBLE",
-  blockerCount: 0,
-}), {
-  label: "Periksa Ulang Delivery",
-  tone: "success",
-});
-assert.deepStrictEqual(deliveryStatus.inspectionAction({
-  feasibilityStatus: "INFEASIBLE",
-  blockerCount: 3,
-}), {
-  label: "Periksa Ulang Delivery",
-  tone: "danger",
-});
-assert.deepStrictEqual(deliveryStatus.reviewRequest("MPS/202609", "DT 1"), {
-  url: "/modules/api/planning-ppic/mps/MPS%2F202609/delivery-feasibility/review",
-  options: {
-    method: "POST",
-    body: JSON.stringify({ deliveryTargetIds: ["DT 1"] }),
-  },
-});
-assert.deepStrictEqual(deliveryStatus.reviewRequest("MPS-202609"), {
-  url: "/modules/api/planning-ppic/mps/MPS-202609/delivery-feasibility/review",
-  options: {
-    method: "POST",
-    body: JSON.stringify({ deliveryTargetIds: [] }),
-  },
-});
 assert.strictEqual(deliveryStatus.blockedGateTitle({ feasibilityStatus: "STALE" }), "Delivery Belum Diperiksa");
 assert.strictEqual(deliveryStatus.blockedGateTitle({ feasibilityStatus: "INFEASIBLE" }), "Delivery Infeasible");
-assert.strictEqual(
-  deliveryStatus.inspectionSuccessMessage({ reviewedCount: 8 }),
-  "8 delivery phase selesai diperiksa. Delivery aman dikonfirmasi otomatis; blocker tetap memerlukan tindakan.",
-);
+assert.strictEqual(deliveryStatus.blockedGateTitle({ feasibilityStatus: "MASTER_DATA_INCOMPLETE" }), "Master Data Delivery Belum Lengkap");
 
 console.log("MPS table delivery status contracts: OK");
