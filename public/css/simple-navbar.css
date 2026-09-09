@@ -1,0 +1,305 @@
+/* Utilities are scoped to the new shared navbar; page and header themes stay intact. */
+.context-navbar-actions.simple-navbar-tools,
+.navbar-account {
+  --sn-ink: var(--h-ink, var(--ui-text, #263442));
+  --sn-muted: var(--h-muted, var(--ui-muted, #74808c));
+  --sn-surface: var(--h-paper, var(--ui-surface, #fff));
+  --sn-line: var(--h-line, var(--ui-border, #e5e9ed));
+  --sn-hover: rgba(100, 116, 139, .08);
+  --sn-focus: #8699ad;
+  color: var(--sn-ink);
+}
+
+.context-navbar-actions.simple-navbar-tools {
+  display: inline-flex !important;
+  align-items: center;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
+/* Override the older shared/home mobile rules that hide utility buttons. */
+.context-navbar-actions.simple-navbar-tools > button,
+.home-shell .home-header .context-navbar-actions.simple-navbar-tools > button {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.context-navbar-actions.simple-navbar-tools[hidden],
+.context-navbar-actions.simple-navbar-tools.d-none,
+.context-navbar-actions.simple-navbar-tools > button[hidden],
+.context-navbar-actions.simple-navbar-tools > button.d-none,
+.home-shell .home-header .context-navbar-actions.simple-navbar-tools > button[hidden],
+.home-shell .home-header .context-navbar-actions.simple-navbar-tools > button.d-none { display: none !important; }
+
+.context-navbar-actions.simple-navbar-tools > .context-nav-button {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sn-muted);
+  box-shadow: none;
+  transition: color .15s, background-color .15s;
+}
+.context-navbar-actions.simple-navbar-tools > .context-nav-button:hover {
+  background: var(--sn-hover);
+  color: var(--sn-ink);
+}
+.simple-navbar-tools .context-nav-button .ui-icon { width: 18px; height: 18px; }
+.simple-navbar-tools > .navbar-ai-button { font-size: 12px; font-weight: 650; letter-spacing: -.2px; }
+.simple-navbar-tools .navbar-inbox-button .context-nav-badge {
+  top: 0;
+  right: -1px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border: 2px solid var(--sn-surface);
+  background: #b65047;
+  color: #fff;
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 650;
+}
+
+.context-navbar-actions.simple-navbar-tools > .navbar-demo-badge {
+  gap: 4px;
+  min-height: 28px;
+  margin-right: 5px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff5dc;
+  color: #856130;
+  box-shadow: none;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 550;
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  transition: background-color .15s;
+}
+.context-navbar-actions.simple-navbar-tools > .navbar-demo-badge:hover { background: #f9edcc; }
+
+.navbar-account {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-left: 2px;
+}
+.navbar-account .navbar-account-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 2px 3px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sn-muted);
+  box-shadow: none;
+  cursor: pointer;
+}
+.navbar-account .navbar-account-trigger::after { display: none; }
+.navbar-account .navbar-account-trigger:hover,
+.navbar-account .navbar-account-trigger[aria-expanded="true"] { background: var(--sn-hover); color: var(--sn-ink); }
+.navbar-account .navbar-account-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #edf0f2;
+  color: #5b6976;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  object-fit: cover;
+}
+.navbar-account-trigger > svg,
+.navbar-account-trigger > .ui-icon { width: 11px; height: 11px; flex: 0 0 11px; }
+
+.navbar-account .dropdown-menu.navbar-account-menu {
+  width: 250px;
+  min-width: 0;
+  max-width: calc(100vw - 24px);
+  max-height: min(520px, calc(100dvh - 88px));
+  margin-top: 8px !important;
+  padding: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--sn-line);
+  border-radius: 12px;
+  background: var(--sn-surface);
+  color: var(--sn-ink);
+  box-shadow: 0 12px 32px rgba(26, 39, 50, .12);
+}
+.navbar-account .navbar-account-identity {
+  display: grid;
+  gap: 3px;
+  padding: 9px 11px 13px;
+  margin-bottom: 5px;
+  border-bottom: 1px solid var(--sn-line);
+}
+.navbar-account-identity > strong,
+.navbar-account-identity > small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.navbar-account-identity > strong { color: var(--sn-ink); font-size: 13px; font-weight: 600; }
+.navbar-account-identity > small { color: var(--sn-muted); font-size: 11px; font-weight: 400; }
+
+.navbar-account .navbar-account-setting,
+.navbar-account .navbar-account-action {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 38px;
+  margin: 0;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sn-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: left;
+  text-decoration: none;
+  white-space: normal;
+}
+.navbar-account button.navbar-account-setting:hover,
+.navbar-account .navbar-account-action:hover { background: var(--sn-hover); }
+.navbar-account label.navbar-account-setting { justify-content: space-between; cursor: default; }
+.navbar-account-setting[data-ui-theme-toggle] { justify-content: space-between; }
+.navbar-account-action > span { min-width: 0; }
+.navbar-account-action small { display: block; margin-top: 2px; color: var(--sn-muted); font-size: 10px; }
+.navbar-account-setting [data-ui-language] {
+  width: auto;
+  min-width: 78px;
+  max-width: 135px;
+  min-height: 30px;
+  padding: 3px 20px 3px 8px;
+  border: 1px solid var(--sn-line);
+  border-radius: 6px;
+  background-color: var(--sn-surface);
+  color: var(--sn-ink);
+  font: inherit;
+  font-size: 11px;
+}
+.navbar-account-setting > .ui-icon { width: 16px; height: 16px; color: var(--sn-muted); }
+.navbar-account-setting .ui-theme-toggle__light,
+.navbar-account-setting .ui-theme-toggle__dark { width: 16px; color: var(--sn-muted); font-size: 16px; line-height: 1; text-align: center; }
+.navbar-account-setting span:not(.ui-theme-toggle__light):not(.ui-theme-toggle__dark) { font-size: inherit; }
+.navbar-account .navbar-account-logout { color: #a94f45; margin-top: 5px; }
+.navbar-account .navbar-account-logout:hover { color: #943d35; background: #fcf1ef; }
+
+.simple-navbar-tools > button:focus-visible,
+.navbar-account button:focus-visible,
+.navbar-account select:focus-visible {
+  outline: 2px solid var(--sn-focus);
+  outline-offset: 3px;
+}
+
+html[data-theme="dark"] .context-navbar-actions.simple-navbar-tools > .context-nav-button {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: var(--sn-muted) !important;
+}
+html[data-theme="dark"] .context-navbar-actions.simple-navbar-tools > .context-nav-button:hover {
+  background: var(--sn-hover) !important;
+  color: var(--sn-ink) !important;
+}
+html[data-theme="dark"] .simple-navbar-tools > .navbar-demo-badge { background: #3c3425; color: #dfc18b; }
+html[data-theme="dark"] .simple-navbar-tools > .navbar-demo-badge:hover { background: #493e2a; }
+html[data-theme="dark"] .navbar-account-avatar { background: #30404b; color: #c2cdd5; }
+html[data-theme="dark"] .navbar-account .navbar-account-menu { box-shadow: 0 14px 34px rgba(0, 0, 0, .24); }
+html[data-theme="dark"] .navbar-account .navbar-account-logout { color: #e8a297; }
+html[data-theme="dark"] .navbar-account .navbar-account-logout:hover { color: #f3b9b0; background: #e8a29712; }
+
+@media (max-width: 950px) {
+  .home-shell .home-header .context-navbar-actions.simple-navbar-tools { display: inline-flex !important; }
+}
+@media (max-width: 700px) {
+  /* The workspace selector gets its own row instead of shrinking to zero. */
+  body:has(.module-header .simple-navbar-tools) { --ui-header-height: 101px; }
+  .module-header:has(.simple-navbar-tools) { height: auto; }
+  .module-header:has(.simple-navbar-tools) .module-header-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-rows: 40px 38px;
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 6px;
+    height: auto;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  .module-header .module-header-row > .module-brand {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    max-width: 100%;
+    justify-content: flex-start;
+    padding: 0;
+    border-right: 0;
+  }
+  .module-header .module-header-row > .module-brand img { width: 104px; max-width: 100%; height: auto; max-height: 28px; }
+  .module-header .module-header-row > .simple-navbar-tools { grid-column: 2; grid-row: 1; margin: 0; }
+  .module-header .module-header-row > .navbar-account { grid-column: 3; grid-row: 1; }
+  .module-header .module-header-row > .module-nav {
+    position: static;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    min-width: 0;
+    height: 38px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .master-topbar .topbar-row:has(> .navbar-account) { gap: 8px; }
+  .master-topbar .topbar-row:has(> .navbar-account) > .customer-brand { flex: 0 1 128px; min-width: 0; }
+  .master-topbar .topbar-row:has(> .navbar-account) > .customer-brand img { max-width: 100%; }
+
+  .home-shell .home-header:has(.simple-navbar-tools) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    height: auto;
+    min-height: 0;
+    padding: 12px 14px;
+  }
+  .home-shell .home-header > .home-brand { grid-column: 1; grid-row: 1; min-width: 0; gap: 0; }
+  .home-shell .home-header > .home-brand img { width: 104px; max-width: 100%; height: auto; }
+  .home-shell .home-header > .home-brand > span { display: none; }
+  .home-shell .home-header > .home-header-tools { grid-column: 2; grid-row: 1; margin: 0; gap: 4px; }
+  .home-shell .home-header > .home-nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    min-width: 0;
+    height: 32px;
+    margin: 0;
+    gap: 22px;
+    overflow-x: auto;
+  }
+  .context-navbar-actions.simple-navbar-tools { gap: 1px; }
+  .context-navbar-actions.simple-navbar-tools > .context-nav-button { width: 36px; height: 38px; }
+  .context-navbar-actions.simple-navbar-tools > .navbar-demo-badge { min-height: 32px; margin-right: 2px; padding: 5px 8px; font-size: 10px; }
+  .navbar-account { margin-left: 0; }
+  .navbar-account .navbar-account-trigger { min-height: 40px; gap: 4px; }
+  .navbar-account .navbar-account-setting,
+  .navbar-account .navbar-account-action { min-height: 42px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .simple-navbar-tools > button { transition: none; }
+}

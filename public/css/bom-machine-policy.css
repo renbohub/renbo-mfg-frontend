@@ -1,0 +1,22 @@
+.bom-machine-policy{margin-top:10px;padding:10px;border:1px solid #d9deeb;border-radius:6px;background:#f8fafc;min-width:280px;max-width:640px;white-space:normal;grid-column:1/-1;font-size:12px}
+.bom-machine-policy summary{cursor:pointer;font-weight:600;color:#263c65}
+.bom-machine-policy label{display:block;margin-top:8px;font-weight:500}
+.bom-machine-policy small{display:block;margin-top:8px;color:#596578;line-height:1.5}
+.bom-policy-resource{padding:6px 0;border-top:1px solid #e2e7ef;margin-top:8px}
+.bom-policy-resource-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px}
+.bom-machine-policy input,.bom-machine-policy select{font-size:12px}
+.bom-policy-row .bom-machine-policy{max-width:none;margin:0}
+.bom-policy-row .bom-policy-content{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 16px}
+.bom-policy-row .bom-policy-content>small{grid-column:1/-1}
+.bom-policy-row td{padding:10px!important}
+.bom-executor-policy{background:#fff;border-color:#ccd6e8}
+.bom-executor-content{padding-top:4px}
+.bom-executor-policy .bom-executor-choice{display:flex;align-items:flex-start;gap:8px;line-height:1.5}
+.bom-executor-choice input{flex:0 0 auto;margin-top:3px}
+.bom-executor-vendors{border:1px solid #e2e7ef;border-radius:6px;padding:10px 12px;margin-top:12px}
+.bom-executor-vendors legend{float:none;width:auto;padding:0 4px;font-size:12px;font-weight:600;margin:0}
+.bom-executor-vendors a{display:inline-block;margin-top:8px}
+.bom-executor-inhouse{margin-top:14px;border-top:1px solid #e2e7ef;padding-top:12px}
+.bom-executor-inhouse>.bom-machine-policy{max-width:none}
+@media(max-width:900px){.bom-policy-row .bom-policy-content{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.bom-machine-policy{min-width:0;width:100%}.bom-policy-resource-fields,.bom-policy-row .bom-policy-content{grid-template-columns:1fr}}

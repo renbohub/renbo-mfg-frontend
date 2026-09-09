@@ -1,0 +1,27 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-master') %>
+<link rel="stylesheet" href="/css/monthly-pricing.css?v=20260908-inheritance-1">
+<link rel="stylesheet" href="/css/vendor-bom-price-form.css?v=20260909-multi-supplier-1">
+<main class="entity-form-page transaction-form-page monthly-pricing-page vendor-bom-price-page">
+  <div class="app-container">
+    <%- include('../partials/document-shell', {documentShell:{variant:'master',eyebrow:'Master Data · Harga Vendor',number:mode==='create'?'NEW':'EDIT',title:'Harga Vendor dari BOM FG',subtitle:'Kelola beberapa supplier untuk setiap proses vendor. Supplier default tetap mengikuti BOM.',actions:'<button id="save-button" type="submit" form="entity-form" class="btn btn-primary brand-button" disabled><span>Simpan Harga</span><i class="spinner-border spinner-border-sm d-none"></i></button>',backHref:'/master-data/vendor-price-lists'}}) %>
+    <div id="form-alert" class="alert alert-danger d-none" role="alert"></div>
+    <form id="entity-form" class="vendor-bom-form">
+      <section class="vendor-bom-context">
+        <div class="form-field fg-picker"><label class="form-label" for="fg-part">FG dari BOM <em>*</em></label><select id="fg-part" name="fgPartId" class="form-select lookup-select" data-enterprise-lookup="vendor-bom-fgs" data-lookup-placeholder="Cari part number, nama, atau kode FG" required><option value=""></option></select><small class="form-help">BOM aktif dipilih otomatis menurut tanggal kerja ERP. Nama, nomor, dan kode part mengikuti master part.</small></div>
+        <div class="form-field"><label class="form-label" for="pricing-year">Tahun Harga <em>*</em></label><input id="pricing-year" name="pricingYear" class="form-control" type="number" min="2000" max="2100" required></div>
+        <div class="form-field"><label class="form-label" for="price-currency">Mata Uang <em>*</em></label><select id="price-currency" name="currencyCode" class="form-select lookup-select" data-enterprise-lookup="currencies" required><option value=""></option></select></div>
+        <div class="form-field"><label class="form-label" for="price-customer">Customer (opsional)</label><select id="price-customer" name="customerId" class="form-select lookup-select" data-enterprise-lookup="customers"><option value=""></option></select></div>
+      </section>
+      <section id="fg-summary" class="vendor-bom-summary d-none" aria-live="polite"></section>
+      <div class="vendor-bom-help">Satu proses dan child part dapat memiliki beberapa supplier, masing-masing dengan harga bulanan sendiri. Gunakan Tambah supplier untuk memasukkan alternatif. Harga bulan sebelumnya diteruskan sampai ada perubahan; 0 berarti harga nol. Hilangkan centang pada harga supplier yang belum akan diisi. Child part yang dipakai oleh beberapa FG menggunakan harga vendor yang sama.</div>
+      <div id="bom-price-status" role="status" aria-live="polite">Pilih FG untuk melihat proses vendor dari BOM.</div>
+      <div id="vendor-bom-rows"></div>
+      <section class="vendor-bom-quotation"><label class="form-label" for="quotation-files">Tambahkan File Quotation</label><input id="quotation-files" name="quotationFiles" class="form-control" type="file" multiple><small class="form-help">File lama tetap tersimpan. File tambahan disertakan pada harga supplier yang dicentang.</small></section>
+      <div class="form-actions"><a href="/master-data/vendor-price-lists" class="btn btn-light">Kembali ke daftar</a><button id="reload-bom" type="button" class="btn btn-outline-secondary">Muat Ulang Proses & Harga</button></div>
+    </form>
+  </div>
+</main>
+<script id="vendor-bom-config" type="application/json"><%- JSON.stringify({mode,recordId,recordKey}).replace(/</g,'\\u003c') %></script>
+<script src="/js/monthly-pricing.js?v=20260908-inheritance-1"></script>
+<%- include('../partials/footer') %>

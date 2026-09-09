@@ -197,12 +197,21 @@
       if (!response.ok) throw new Error(payload.message || "Export gagal.");
       const rows = (payload.data || []).map((row) => config.columns.map((column) => get(row, column.data) ?? ""));
       if (shared.downloadCsv) {
-        shared.downloadCsv(`${config.slug}-${new Date().toISOString().slice(0, 10)}.csv`, config.columns.map((column) => column.label), rows);
+        shared.downloadCsv(`${config.slug}-${(globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10)}.csv`, config.columns.map((column) => column.label), rows);
       }
     } catch (error) {
       showAlert(error.message);
     } finally {
       button.disabled = false;
     }
+  });
+
+  document.getElementById('forecast-template-download')?.addEventListener('click', async event => {
+    const button = event.currentTarget; button.disabled = true;
+    try {
+      const response = await fetch('/modules/api/sales/forecasts/template', {headers:{Authorization:'Bearer ' + token()}});
+      if (!response.ok) throw new Error((await response.json().catch(()=>({}))).message || 'Template gagal diunduh.');
+      const href = URL.createObjectURL(await response.blob()), link = document.createElement('a'); link.href = href; link.download = 'Template-Forecast-ERP.xlsx'; link.click(); setTimeout(()=>URL.revokeObjectURL(href),1000);
+    } catch(error) { alert(error.message); } finally { button.disabled = false; }
   });
 })();

@@ -2,7 +2,7 @@
 <%- include('../partials/header-master') %>
 <main class="entity-page">
   <section class="entity-toolbar app-container">
-    <div class="enterprise-page-heading"><span>Master Data</span><h1><%= config.label %></h1><p>Kelola referensi data yang digunakan lintas proses ERP.</p></div>
+    <div class="enterprise-page-heading"><span>Master Data</span><h1><%= config.label %></h1><p><%= config.description || 'Kelola referensi data yang digunakan lintas proses ERP.' %></p></div>
     <div class="toolbar-search"><%- include('../partials/icon', { name: 'search' }) %><input id="entity-search" type="search" placeholder="Cari <%= config.singular.toLowerCase() %>..."></div>
     <select id="deleted-filter" class="form-select deleted-filter" aria-label="Status data"><option value="false">Data aktif</option><option value="true">Data terhapus</option></select>
     <div class="toolbar-spacer"></div>
@@ -44,4 +44,5 @@
   </div></div>
 </div>
 <script id="entity-config" type="application/json"><%- JSON.stringify(config).replace(/</g, '\\u003c') %></script>
+<% if (config.monthlyPricing) { %><script src="/js/monthly-pricing.js?v=20260908-inheritance-1"></script><% } %>
 <%- include('../partials/footer') %>

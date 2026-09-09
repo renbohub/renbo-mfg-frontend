@@ -36,6 +36,7 @@
     const markDirty = () => { if (!state(form).submitting) state(form).dirty = true; };
     form.addEventListener("input", markDirty);
     form.addEventListener("change", markDirty);
+    form.addEventListener("document-form:loaded", () => { state(form).dirty = false; });
     form.addEventListener("submit", (event) => {
       if (state(form).submitting) { event.preventDefault(); return; }
       setSubmitLock(form, true);

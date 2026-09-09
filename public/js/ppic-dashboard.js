@@ -9,11 +9,11 @@
   const num = (value) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(value || 0));
   const capacityHours = (minutes) => `${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(minutes || 0) / 60)} jam`;
   const currentMonthKey = () => {
-    const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit" }).formatToParts(new Date());
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit" }).formatToParts((globalThis.erpBusinessNow?.() || new Date()));
     const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
     return `${values.year}-${values.month}`;
   };
-  const currentMpsAnchor = () => { const now = new Date(), anchor = new Date(now.getFullYear(), now.getMonth() + (now.getDate() < 20 ? -1 : 0), 1); return `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(2, "0")}`; };
+  const currentMpsAnchor = () => { const now = (globalThis.erpBusinessNow?.() || new Date()), anchor = new Date(now.getFullYear(), now.getMonth() + (now.getDate() < 20 ? -1 : 0), 1); return `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(2, "0")}`; };
   const mpsWindowMonths = (anchor = currentMpsAnchor()) => { const [year, month] = anchor.split("-").map(Number); return [0, 1, 2].map((offset) => { const value = new Date(year, month - 1 + offset, 1); return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`; }); };
   let rows = [];
   let monthlyRows = [];

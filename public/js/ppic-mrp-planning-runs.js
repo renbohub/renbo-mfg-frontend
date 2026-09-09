@@ -123,6 +123,7 @@
     renderSummary();
     renderTable();
     $("mrp-open-mps").href = `/modules/planning-ppic/mps/workbench?month=${encodeURIComponent(state.data.month)}`;
+    $("mrp-material-table").href = `/modules/planning-ppic/mrp?month=${encodeURIComponent(state.data.month)}`;
   }
 
   function showAlert(message) {
@@ -141,7 +142,7 @@
       state.data = await api(`/modules/api/planning-ppic/execution-cockpit?month=${encodeURIComponent(month)}`);
       state.rows = state.data.mrpRuns || [];
       state.page = 1;
-      history.replaceState({}, "", `${location.pathname}?month=${encodeURIComponent(state.data.month)}`);
+      history.replaceState({}, "", `${location.pathname}?month=${encodeURIComponent(state.data.month)}&view=runs`);
       render();
     } catch (error) {
       state.rows = [];

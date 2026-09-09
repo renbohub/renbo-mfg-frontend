@@ -2,32 +2,119 @@
   const config = JSON.parse(document.getElementById("bom-editor-config").textContent);
   const editable = config.mode !== "view";
   const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
-  const state = { parts: [], materials: [], materialForms: [], customers: [], uoms: [], processMaster: [], machines: [], numberingRules: new Map(), boms: [], drafts: [], bomByPartId: new Map(), expandedBoms: new Set(), nodes: [], selectedId: null, scale: 1, rootX: 990, rootY: 42, canvasWidth: 2200, canvasHeight: 1400, recordId: "", noReg: config.recordKey || "", quickPartKind: "child", quickInsertBefore: null, pendingSequenceShift: null, sequenceInsertionPolicy: { locked: false, strategy: "SHIFT_MAIN_SEQUENCE", usage: {} }, pendingPartCounter: 0, draftId: config.mode === "draft" ? config.recordKey : "", draftUpdatedAt: "", draftAutosaveTimer: null, draftSaving: false, draftDirty: false, approving: false };
+  const state = { inspectorTab: "part", suppliers: [], vendors: [], vendorProcesses: [], vendorPrices: [], machineCostRates: [], partPrices: [], materialPrices: [], currencies: [], omittedNodes: [], parts: [], materials: [], materialForms: [], customers: [], uoms: [], processMaster: [], machines: [], dies: [], numberingRules: new Map(), boms: [], drafts: [], bomByPartId: new Map(), expandedBoms: new Set(), nodes: [], selectedId: null, scale: 1, rootX: 990, rootY: 42, canvasWidth: 2200, canvasHeight: 1400, recordId: "", noReg: config.recordKey || "", quickPartKind: "child", quickInsertBefore: null, pendingSequenceShift: null, sequenceInsertionPolicy: { locked: false, strategy: "SHIFT_MAIN_SEQUENCE", usage: {} }, pendingPartCounter: 0, draftId: config.mode === "draft" ? config.recordKey : "", draftUpdatedAt: "", draftAutosaveTimer: null, draftSaving: false, draftDirty: false, approving: false };
   const canvas = document.getElementById("bom-canvas");
   const viewport = document.getElementById("bom-canvas-viewport");
   const alertBox = document.getElementById("bom-alert");
   const inspectorForm = document.getElementById("bom-inspector-form");
   const rootPart = document.getElementById("bom-root-part");
   const rootUom = document.getElementById("bom-root-uom");
-  const partById = (id) => state.parts.find((part) => part.id === id) || {};
+  const partById = (id) => state.parts.find((part) => part.id === id) || state.nodes.find((node) => node.partId === id && node.part?.id === id)?.part || {};
   const nodeKey = (node) => node?.id || node?.clientKey;
   const selectedNode = () => state.nodes.find((node) => nodeKey(node) === state.selectedId);
   const createKey = () => `node_${window.crypto?.randomUUID ? window.crypto.randomUUID() : Date.now() + "_" + Math.random().toString(16).slice(2)}`;
   const authHeaders = (json = false) => ({ Authorization: `Bearer ${token()}`, ...(json ? { "content-type": "application/json" } : {}) });
   const escapeHtml = (value) => { const node = document.createElement("div"); node.textContent = value ?? ""; return node.innerHTML; };
   const isNewBomMode = () => config.mode === "create" || config.mode === "draft";
+  const partMasterCache = new Map();
+  const partDetailReads = new Map();
+  let nextPartPageStart = 500; let partMasterTotal = 500; let partPageRead = null;
 
+  const commercial = window.BomCommercial.create({ getState: () => state, getDate: () => document.getElementById("bom-effective")?.value || (globalThis.erpBusinessNow?.() || new Date()) });
+  const panels = window.BomCanvasPanels.create({ getState: () => state, partById, commercial, getRootPartId: () => rootPart.value });
   if (!editable) document.querySelector(".bom-editor-page").classList.add("bom-view-mode");
 
   function showError(message) { alertBox.textContent = message; alertBox.classList.remove("d-none"); window.scrollTo({ top: 0, behavior: "smooth" }); }
   function clearError() { alertBox.classList.add("d-none"); }
   function optionLabel(part) { return [part.partCode || part.partNumber, part.partName].filter(Boolean).join(" — ") || "Part tanpa nama"; }
+  function refreshLookupLabels(scope = document) {
+    if (!window.jQuery) return;
+    scope.querySelectorAll("select.select2-hidden-accessible").forEach((select) => window.jQuery(select).trigger("change.select2"));
+  }
   function setOptions(select, items, valueKey, label, placeholder) {
-    const current = select.value; select.innerHTML = `<option value="">${placeholder}</option>`;
+    const current = select.value; const selected = Array.from(select.options || []).find((option) => option.value === current);
+    select.innerHTML = `<option value="">${placeholder}</option>`;
     items.forEach((item) => { const option = document.createElement("option"); option.value = item[valueKey] ?? ""; option.textContent = label(item); select.appendChild(option); });
+    if (current && !items.some((item) => String(item[valueKey]) === current) && selected) select.appendChild(selected);
     select.value = current;
   }
-  function dateInput(value) { if (!value) return ""; const date = new Date(value); return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10); }
+
+  function rememberReferencedPart(part) {
+    if (!part?.id) return null;
+    const existing = state.parts.find((item) => item.id === part.id);
+    const resolved = existing?.isPending ? existing : Object.assign(existing || {}, partMasterCache.get(part.id) || {}, part);
+    if (!existing) state.parts.push(resolved);
+    partMasterCache.set(part.id, resolved);
+    return resolved;
+  }
+
+  function refreshPartOptions() {
+    setOptions(rootPart, state.parts, "id", optionLabel, "Pilih produk utama");
+    setOptions(document.getElementById("node-part"), state.parts, "id", optionLabel, "Pilih part");
+    refreshLookupLabels();
+  }
+
+  async function hydratePartReferences(ids, embeddedParts = []) {
+    embeddedParts.filter(Boolean).forEach(rememberReferencedPart);
+    const required = [...new Set(ids.filter(Boolean))];
+    const unresolved = () => required.filter((id) => !state.parts.some((part) => part.id === id));
+    unresolved().forEach((id) => { if (partMasterCache.has(id)) rememberReferencedPart(partMasterCache.get(id)); });
+    // Legacy drafts store UUIDs only; the part detail endpoint resolves codes, so
+    // read additional pages only until these saved references have been found.
+    while (unresolved().length && nextPartPageStart < partMasterTotal) {
+      if (!partPageRead) {
+        const start = nextPartPageStart;
+        partPageRead = fetchJson(`/master-data/api/parts?start=${start}&length=500&isDeleted=false`).then((payload) => {
+          const parts = payload.data || payload.items || [];
+          parts.forEach((part) => partMasterCache.set(part.id, part));
+          partMasterTotal = Number(payload.recordsTotal ?? payload.total ?? partMasterTotal);
+          nextPartPageStart = parts.length ? start + 500 : partMasterTotal;
+        }).finally(() => { partPageRead = null; });
+      }
+      await partPageRead;
+      unresolved().forEach((id) => { if (partMasterCache.has(id)) rememberReferencedPart(partMasterCache.get(id)); });
+    }
+    if (unresolved().length) throw new Error(`Master part referensi belum ditemukan: ${unresolved().join(", ")}. Periksa master sebelum menyimpan BOM.`);
+    refreshPartOptions();
+  }
+
+  async function hydrateRecordParts(record) {
+    const details = (record.details || []).filter((detail) => detail.isDeleted !== true);
+    await hydratePartReferences([record.partId, ...details.map((detail) => detail.partId)], [record.part, ...details.map((detail) => detail.part)]);
+  }
+
+  async function hydrateLookupPart(select, item) {
+    const id = String(item?.id || select.value || "");
+    if (!id) return null;
+    let part = state.parts.find((entry) => entry.id === id);
+    if (!part) {
+      const code = item?.code || item?.partCode || item?.data?.partCode;
+      if (code) {
+        if (!partDetailReads.has(id)) partDetailReads.set(id, fetchJson(`/master-data/api/parts/${encodeURIComponent(code)}`).finally(() => partDetailReads.delete(id)));
+        const loaded = await partDetailReads.get(id);
+        if (String(loaded.id) !== id) throw new Error("Part terpilih berubah. Pilih ulang part dari master.");
+        part = rememberReferencedPart(loaded);
+      } else {
+        await hydratePartReferences([id]);
+        part = state.parts.find((entry) => entry.id === id);
+      }
+    }
+    if (String(select.value) !== id) return null;
+    refreshPartOptions();
+    const option = Array.from(select.options || []).find((entry) => entry.value === id);
+    if (option) { option.textContent = optionLabel(part); option._enterpriseLookupData = part; }
+    return part;
+  }
+
+  function bindPartLookupHydration() {
+    if (!window.jQuery) return;
+    window.jQuery(document).on("select2:select.bomPartHydration", "#bom-root-part, #node-part, #quick-existing-part", async function (event) {
+      try {
+        if (await hydrateLookupPart(this, event.params?.data)) this.dispatchEvent(new Event("change", { bubbles: true }));
+      } catch (error) { showError(`Master part gagal dimuat: ${error.message}`); }
+    });
+  }
+  function dateInput(value) { if (!value) return ""; const date = new Date(value); return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" }); }
   function partVisualClass(part = {}) {
     if (part.itemType === "FG") return "bom-part-fg";
     if (part.itemType === "WIP") return "bom-part-wip";
@@ -44,7 +131,7 @@
 
   async function initialize() {
     try {
-      const [partsPayload, materialPayload, materialFormPayload, customerPayload, uomPayload, bomPayload, processPayload, machinePayload, numberingPayload, draftPayload] = await Promise.all([
+      const [partsPayload, materialPayload, materialFormPayload, customerPayload, uomPayload, bomPayload, processPayload, machinePayload, numberingPayload, draftPayload, diesPayload] = await Promise.all([
         fetchJson("/master-data/api/parts?start=0&length=500&isDeleted=false"),
         fetchJson("/master-data/api/materials?start=0&length=500&isDeleted=false"),
         fetchJson("/master-data/api/material-forms?start=0&length=100&isDeleted=false"),
@@ -54,15 +141,23 @@
         fetchJson("/master-data/api/processes?start=0&length=500&isDeleted=false"),
         fetchJson("/master-data/api/machines?start=0&length=500&isDeleted=false"),
         fetchJson("/master-data/api/numbering-rules?start=0&length=500&isDeleted=false"),
-        editable ? fetchJson("/modules/api/manufacturing-bom/bill-of-materials/drafts") : Promise.resolve({ data: [] })
+        editable ? fetchJson("/modules/api/manufacturing-bom/bill-of-materials/drafts") : Promise.resolve({ data: [] }),
+        fetchJson("/master-data/api/dies?start=0&length=500&isDeleted=false").catch(() => ({ data: [] }))
       ]);
+      const commercialKeys = ["suppliers", "vendors", "vendorProcesses", "vendorPrices", "machineCostRates", "partPrices", "materialPrices", "currencies"];
+      const commercialSlugs = ["suppliers", "vendors", "vendor-processes", "vendor-price-lists", "machine-cost-rates", "part-price-lists", "material-price-lists", "currencies"];
+      const masterResults = await Promise.all(commercialSlugs.map((slug) => fetchJson(`/master-data/api/${slug}?start=0&length=500&isDeleted=false`).catch(() => ({ data: [] }))));
+      commercialKeys.forEach((key, index) => state[key] = masterResults[index].data || masterResults[index].items || []);
       state.parts = (partsPayload.data || []).filter((part) => part.canUseInBom !== false);
+      (partsPayload.data || []).forEach((part) => partMasterCache.set(part.id, part));
+      partMasterTotal = Number(partsPayload.recordsTotal ?? partsPayload.total ?? (partsPayload.data || []).length);
       state.materials = materialPayload.data || [];
       state.materialForms = materialFormPayload.data || [];
       state.customers = customerPayload.data || [];
       state.uoms = uomPayload.data || [];
       state.processMaster = processPayload.data || [];
       state.machines = machinePayload.data || [];
+      state.dies = diesPayload.data || [];
       state.numberingRules = new Map((numberingPayload.data || []).map((rule) => [rule.ruleKey, rule]));
       state.boms = bomPayload.data || [];
       state.drafts = draftPayload.data || [];
@@ -79,9 +174,11 @@
       renderRecentBoms(state.boms.slice(0, 10));
       renderRecentDrafts(state.drafts.slice(0, 10));
       renderPalette();
+      bindPartLookupHydration();
       if (config.mode === "draft") await loadDraft(); else if (config.mode !== "create") await loadRecord(); else {
         const requestedPartCode = new URLSearchParams(location.search).get("partCode");
-        const requestedPart = state.parts.find((part) => String(part.partCode) === String(requestedPartCode));
+        let requestedPart = state.parts.find((part) => String(part.partCode) === String(requestedPartCode));
+        if (requestedPartCode && !requestedPart) { requestedPart = rememberReferencedPart(await fetchJson(`/master-data/api/parts/${encodeURIComponent(requestedPartCode)}`)); refreshPartOptions(); }
         if (requestedPart) {
           rootPart.value = requestedPart.id;
           rootUom.value = requestedPart.productionUomCode || requestedPart.baseUomCode || "";
@@ -94,7 +191,7 @@
 
   function renderRecentBoms(items) {
     const target = document.getElementById("bom-recent-list");
-    target.innerHTML = items.length ? items.map((item) => { const expired = item.expiryDate && new Date(item.expiryDate) < new Date(); return `<a href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(item.noReg)}/edit"><b>${escapeHtml(item.noReg || "—")}</b><small>${escapeHtml(item.part?.partName || item.part?.partCode || "BOM")}</small><span class="${expired ? "draft" : "active"}">${expired ? "Expired" : "Approved"}</span></a>`; }).join("") : '<div class="bom-panel-empty">Belum ada BOM.</div>';
+    target.innerHTML = items.length ? items.map((item) => { const expired = item.expiryDate && new Date(item.expiryDate) < (globalThis.erpBusinessNow?.() || new Date()); return `<a href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(item.noReg)}/edit"><b>${escapeHtml(item.noReg || "—")}</b><small>${escapeHtml(item.part?.partName || item.part?.partCode || "BOM")}</small><span class="${expired ? "draft" : "active"}">${expired ? "Expired" : "Approved"}</span></a>`; }).join("") : '<div class="bom-panel-empty">Belum ada BOM.</div>';
   }
 
   function renderRecentDrafts(items) {
@@ -104,6 +201,7 @@
 
   async function loadRecord() {
     const record = await fetchJson(`/modules/api/manufacturing-bom/bill-of-materials/${encodeURIComponent(config.recordKey)}`);
+    await hydrateRecordParts(record);
     state.recordId = record.id; state.noReg = record.noReg;
     state.sequenceInsertionPolicy = record.sequenceInsertionPolicy || state.sequenceInsertionPolicy;
     rootPart.value = record.partId || ""; rootUom.value = record.uomCode || "";
@@ -111,10 +209,32 @@
     document.getElementById("bom-effective").value = dateInput(record.effectiveDate);
     document.getElementById("bom-expiry").value = dateInput(record.expiryDate);
     document.getElementById("bom-notes").value = record.notes || "";
+    state.revisionPolicy = record.revisionPolicy;
+    if (config.mode === "edit") {
+      const policy = state.revisionPolicy;
+      document.getElementById("bom-save").disabled = !policy || !policy.isLatest;
+      if (!policy) throw new Error("Status pemakaian produksi belum tersedia. Muat ulang sebelum menyimpan.");
+      rootPart.disabled = true;
+      const mode = document.getElementById("bom-revision-mode");
+      mode.replaceChildren(new Option(policy.mode === "newRevision" ? `Otomatis: revisi baru ${policy.nextRevision}` : `Otomatis: tetap revisi ${record.revision || 1}`, policy.mode));
+      mode.disabled = true;
+      document.getElementById("bom-revision-policy-note").textContent = policy.isLatest ? policy.reason : `Revisi historis hanya untuk dilihat. Buka ${policy.latestNoReg} untuk mengedit.`;
+      document.getElementById("bom-revision-note").required = policy.mode === "newRevision";
+      if (policy.mode === "newRevision") {
+        document.getElementById("bom-effective").value = policy.nextEffectiveDate;
+        document.getElementById("bom-expiry").value = "";
+      }
+    }
     document.getElementById("bom-page-title").textContent = record.noReg || config.recordKey;
     state.nodes = (record.details || []).filter((item) => !item.isDeleted).map((item, index) => ({
-      id: item.id, clientKey: item.id || createKey(), parentDetailId: item.parentDetailId || null, partId: item.partId || "", linkedBom: (item.part?.mbomHeaders || []).find((bom) => bom.noReg !== record.noReg) || null, qty: Number(item.qty || 0), uomCode: item.uomCode || "", category: item.category || "Purchase", assemblyPolicyOverride: item.assemblyPolicyOverride || "DEFAULT", leadTime: Number(item.leadTime || 0), leadTimeUnit: item.leadTimeUnit || "HOUR", materialThickness: item.materialThickness, materialWidth: item.materialWidth, materialPitch: item.materialPitch, materialCavity: item.materialCavity, materialDensity: item.materialDensity, materialFormId: item.materialFormId, materialScheme: item.materialScheme || "DEFAULT", defaultGrossWeight: item.defaultGrossWeight, alternateMaterialFormId: item.alternateMaterialFormId, alternateMaterialPitch: item.alternateMaterialPitch, alternateMaterialCavity: item.alternateMaterialCavity, alternateGrossWeight: item.alternateGrossWeight, grossWeight: Number(item.grossWeight || 0), notes: item.notes || "", processes: item.mbomProcesses || [], x: 860 + (index % 4) * 260, y: 230 + Math.floor(index / 4) * 180
+      id: item.id, sourceDetail: item, part: item.part || null, ...commercial.detailFields(item), clientKey: item.id || createKey(), parentDetailId: item.parentDetailId || null, partId: item.partId || "", linkedBom: (item.part?.mbomHeaders || []).find((bom) => bom.noReg !== record.noReg) || null, qty: Number(item.qty || 0), uomCode: item.uomCode || "", category: item.category || "Purchase", assemblyPolicyOverride: item.assemblyPolicyOverride || "DEFAULT", leadTime: Number(item.leadTime || 0), leadTimeUnit: item.leadTimeUnit || "HOUR", materialThickness: item.materialThickness, materialWidth: item.materialWidth, materialPitch: item.materialPitch, materialCavity: item.materialCavity, materialDensity: item.materialDensity, materialFormId: item.materialFormId, materialScheme: item.materialScheme || "DEFAULT", defaultGrossWeight: item.defaultGrossWeight, alternateMaterialFormId: item.alternateMaterialFormId, alternateMaterialPitch: item.alternateMaterialPitch, alternateMaterialCavity: item.alternateMaterialCavity, alternateGrossWeight: item.alternateGrossWeight, grossWeight: Number(item.grossWeight || 0), notes: item.notes || "", processes: item.mbomProcesses || [], x: 860 + (index % 4) * 260, y: 230 + Math.floor(index / 4) * 180
     }));
+    state.omittedNodes = state.nodes.filter((node) => {
+      let parent = state.nodes.find((p) => nodeKey(p) === node.parentDetailId); const seen = new Set();
+      while (parent && !seen.has(nodeKey(parent))) { seen.add(nodeKey(parent)); if (parent.linkedBom) return true; parent = state.nodes.find((p) => nodeKey(p) === parent.parentDetailId); }
+      return false;
+    });
+    const omittedKeys = new Set(state.omittedNodes.map(nodeKey)); state.nodes = state.nodes.filter((node) => !omittedKeys.has(nodeKey(node)));
     for (const node of [...state.nodes]) {
       if (node.linkedBom) await expandLinkedBom(node, node.linkedBom, new Set([record.noReg]));
     }
@@ -136,7 +256,7 @@
       const clean = { ...part }; delete clean._createdThisSave; return clean;
     });
     const nodes = state.nodes.filter((node) => !node.external).map((node) => ({
-      clientKey: node.clientKey || node.id || createKey(), parentDetailId: node.parentDetailId || null, partId: node.partId, qty: Number(node.qty || 0), uomCode: node.uomCode || "", category: node.category || "Purchase", assemblyPolicyOverride: node.assemblyPolicyOverride || "DEFAULT", leadTime: Number(node.leadTime || 0), leadTimeUnit: node.leadTimeUnit || "HOUR", materialThickness: node.materialThickness, materialWidth: node.materialWidth, materialPitch: node.materialPitch, materialCavity: node.materialCavity, materialDensity: node.materialDensity, materialFormId: node.materialFormId, materialScheme: node.materialScheme || "DEFAULT", defaultGrossWeight: node.defaultGrossWeight, alternateMaterialFormId: node.alternateMaterialFormId, alternateMaterialPitch: node.alternateMaterialPitch, alternateMaterialCavity: node.alternateMaterialCavity, alternateGrossWeight: node.alternateGrossWeight, grossWeight: Number(node.grossWeight || 0), notes: node.notes || "", processes: node.processes || [], x: Number(node.x || 0), y: Number(node.y || 0), linkedBom: node.linkedBom || null,
+      ...commercial.detailFields(node), clientKey: node.clientKey || node.id || createKey(), parentDetailId: node.parentDetailId || null, partId: node.partId, qty: Number(node.qty || 0), uomCode: node.uomCode || "", category: node.category || "Purchase", assemblyPolicyOverride: node.assemblyPolicyOverride || "DEFAULT", leadTime: Number(node.leadTime || 0), leadTimeUnit: node.leadTimeUnit || "HOUR", materialThickness: node.materialThickness, materialWidth: node.materialWidth, materialPitch: node.materialPitch, materialCavity: node.materialCavity, materialDensity: node.materialDensity, materialFormId: node.materialFormId, materialScheme: node.materialScheme || "DEFAULT", defaultGrossWeight: node.defaultGrossWeight, alternateMaterialFormId: node.alternateMaterialFormId, alternateMaterialPitch: node.alternateMaterialPitch, alternateMaterialCavity: node.alternateMaterialCavity, alternateGrossWeight: node.alternateGrossWeight, grossWeight: Number(node.grossWeight || 0), notes: node.notes || "", processes: node.processes || [], x: Number(node.x || 0), y: Number(node.y || 0), linkedBom: node.linkedBom || null,
     }));
     return {
       version: 1,
@@ -164,9 +284,12 @@
     const saved = draft.payload || {}; const header = saved.header || {};
     state.draftId = draft.id; state.draftUpdatedAt = draft.updatedAt; state.noReg = draft.draftNumber; state.pendingPartCounter = Number(saved.pendingPartCounter || 0);
     (saved.pendingParts || []).forEach((part) => { if (!state.parts.some((item) => item.id === part.id)) state.parts.push({ ...part, isPending: true }); });
+    await hydratePartReferences([header.rootPartId, ...(saved.nodes || []).map((node) => node.partId)], [header.part, ...(saved.nodes || []).map((node) => node.part)]);
     setOptions(rootPart, state.parts, "id", optionLabel, "Pilih produk utama"); setOptions(document.getElementById("node-part"), state.parts, "id", optionLabel, "Pilih part"); renderPalette();
     rootPart.value = header.rootPartId || ""; rootUom.value = header.uomCode || ""; document.getElementById("bom-revision").value = header.revision || 1; document.getElementById("bom-effective").value = header.effectiveDate || ""; document.getElementById("bom-expiry").value = header.expiryDate || ""; document.getElementById("bom-notes").value = header.notes || "";
     state.nodes = (saved.nodes || []).map((node) => ({ ...node, id: null, clientKey: node.clientKey || createKey(), processes: node.processes || [] }));
+    state.expandedBoms.clear();
+    for (const node of [...state.nodes]) if (node.linkedBom) await expandLinkedBom(node, node.linkedBom, new Set());
     document.getElementById("bom-page-title").textContent = draft.draftNumber; setDraftStatus("Draft tersimpan"); renderRoot(); renderAll(); fitCanvas();
   }
 
@@ -205,6 +328,7 @@
   }
 
   function renderRoot() {
+    refreshLookupLabels(document.querySelector(".bom-header-form"));
     const part = partById(rootPart.value); const root = document.getElementById("bom-root-node");
     root.classList.remove("bom-part-fg", "bom-part-wip", "bom-part-purchase", "bom-part-material", "bom-part-default"); root.classList.add(partVisualClass(part));
     root.innerHTML = `<small>PRODUK UTAMA</small><b>${escapeHtml(part.partCode || part.partNumber || "Pilih produk utama")}</b><span class="bom-node-part-number">Part No: ${escapeHtml(part.partNumber || "—")}</span><span>${escapeHtml(part.partName || "Root BOM")}</span>${editable ? '<div class="bom-node-footer"><span>Root BOM</span><button type="button" data-root-add title="Tambah part ke root">＋</button></div>' : ""}`;
@@ -222,6 +346,16 @@
     return linked && linked.noReg !== state.noReg ? linked : null;
   }
 
+  function ownedByLinkedBom(node, nodes) {
+    const byKey = new Map(nodes.map((n) => [nodeKey(n), n]));
+    let parent = byKey.get(node.parentDetailId); const seen = new Set();
+    while (parent && !seen.has(nodeKey(parent))) {
+      seen.add(nodeKey(parent)); if (parent.linkedBom) return true;
+      parent = byKey.get(parent.parentDetailId);
+    }
+    return false;
+  }
+
   async function expandLinkedBom(hostNode, linkedBom, ancestorBoms = new Set()) {
     if (!linkedBom?.noReg || ancestorBoms.has(linkedBom.noReg)) return;
     const hostKey = nodeKey(hostNode); const expansionKey = `${hostKey}:${linkedBom.noReg}`;
@@ -229,12 +363,15 @@
     state.expandedBoms.add(expansionKey);
     try {
       const record = await fetchJson(`/modules/api/manufacturing-bom/bill-of-materials/${encodeURIComponent(linkedBom.noReg)}`);
+      await hydrateRecordParts(record);
       if (record.partId) state.bomByPartId.set(record.partId, record);
       const details = (record.details || []).filter((item) => !item.isDeleted);
       const keyBySourceId = new Map(details.map((item) => [item.id, `ext_${hostKey}_${item.id}`]));
       const externalNodes = details.map((item, index) => ({
         id: null,
         sourceDetailId: item.id,
+        part: item.part || null,
+        ...commercial.detailFields(item),
         clientKey: keyBySourceId.get(item.id),
         parentDetailId: keyBySourceId.get(item.parentDetailId) || hostKey,
         partId: item.partId || "",
@@ -251,9 +388,11 @@
         x: hostNode.x + (index % 3 - 1) * 250,
         y: hostNode.y + 185 + Math.floor(index / 3) * 185,
       }));
-      state.nodes.push(...externalNodes);
+      const visibleExternalNodes = externalNodes.filter((node) => !ownedByLinkedBom(node, externalNodes));
+      state.nodes.push(...visibleExternalNodes);
+      hostNode.linkedBomLoaded = true;
       const nextAncestors = new Set(ancestorBoms); nextAncestors.add(linkedBom.noReg);
-      for (const node of externalNodes) {
+      for (const node of visibleExternalNodes) {
         if (node.linkedBom) await expandLinkedBom(node, node.linkedBom, nextAncestors);
       }
     } catch (error) {
@@ -284,7 +423,7 @@
       // Proses pertama adalah kartu paling bawah (alur produksi dibaca dari bawah ke atas).
       items.sort((a, b) => b.nodeIndex - a.nodeIndex || Number(a.process.sequence || 0) - Number(b.process.sequence || 0) || a.processIndex - b.processIndex);
       const master = state.processMaster.find((item) => item.id === processId); const code = master?.processCode || "PROCESS";
-      items.forEach((item, index) => { item.process.occurrenceCode = items.length === 1 ? code : `${code}-${index + 1}`; item.process.notes = item.process.occurrenceCode; });
+      items.forEach((item, index) => { item.process.occurrenceCode = items.length === 1 ? code : `${code}-${index + 1}`; });
     });
   }
 
@@ -352,17 +491,17 @@
     const material = part.material || state.materials.find((item) => item.id === part.materialId) || null;
     const parentNode = state.nodes.find((item) => nodeKey(item) === node.parentDetailId); const parentPart = partById(parentNode?.partId || rootPart.value);
     const bases = parentPart.partBases || []; const base = bases.find((item) => String(item.baseOn || "").toLowerCase() === "actual") || bases[0] || {};
-    node.materialThickness = material?.thickness ?? node.materialThickness ?? null;
-    node.materialWidth = material?.width ?? node.materialWidth ?? null;
-    node.materialDensity = material?.density ?? node.materialDensity ?? null;
+    node.materialThickness = node.materialThickness ?? material?.thickness ?? null;
+    node.materialWidth = node.materialWidth ?? material?.width ?? null;
+    node.materialDensity = node.materialDensity ?? material?.density ?? null;
     node.materialPitch = node.materialPitch ?? base.length ?? null;
     node.materialCavity = node.materialCavity ?? base.cavity ?? 1;
-    const thickness = Number(node.materialThickness || 0); const width = Number(node.materialWidth || 0); const pitch = Number(node.materialPitch || 0); const cavity = Math.max(1, Number(node.materialCavity || 1)); const density = Number(node.materialDensity || 0);
+    const thickness = Number(node.materialThickness || 0); const width = Number(node.materialWidth || 0); const pitch = Number(node.materialPitch || 0); const cavity = Math.max(1, Math.round(Number(node.materialCavity || 1))); const density = Number(node.materialDensity || 0);
     node.materialFormId = node.materialFormId || null;
     node.defaultGrossWeight = thickness > 0 && width > 0 && pitch > 0 && density > 0 ? thickness * width * pitch * density / cavity : 0;
-    const altPitch = Number(node.alternateMaterialPitch || 0); const altCavity = Math.max(1, Number(node.alternateMaterialCavity || 1));
+    const altPitch = Number(node.alternateMaterialPitch || 0); const altCavity = Math.max(1, Math.round(Number(node.alternateMaterialCavity || 1)));
     node.alternateGrossWeight = thickness > 0 && width > 0 && altPitch > 0 && density > 0 ? thickness * width * altPitch * density / altCavity : null;
-    node.grossWeight = node.materialScheme === "ALTERNATIVE" && node.alternateGrossWeight ? node.alternateGrossWeight : node.defaultGrossWeight;
+    node.grossWeight = node.materialScheme === "ALTERNATIVE" ? Number(node.alternateGrossWeight || 0) : node.defaultGrossWeight;
     return { part, material, parentPart, base, grossWeight: node.grossWeight };
   }
 
@@ -388,6 +527,7 @@
       const childBomCount = state.nodes.filter((node) => { const part = partById(node.partId); return !node.external && part.itemType === "FG" && node.partId !== rootPart.value && !linkedBomForPart(node.partId); }).length;
       const label = document.querySelector("#bom-save span"); if (label) label.textContent = isNewBomMode() ? `Approve ${childBomCount + 1} BOM` : childBomCount ? `Simpan + ${childBomCount} BOM Turunan` : "Simpan BOM";
     }
+    panels.renderOverview();
     drawConnections();
     scheduleDraftAutosave();
   }
@@ -499,6 +639,7 @@
   function renderInspector() {
     const node = selectedNode(); const empty = document.getElementById("bom-inspector-empty");
     document.getElementById("bom-inspector").classList.toggle("open", Boolean(node));
+    document.querySelector(".bom-workspace").classList.toggle("has-inspector", Boolean(node));
     empty.classList.toggle("d-none", Boolean(node)); inspectorForm.classList.toggle("d-none", !node); if (!node) return;
     const part = partById(node.partId); document.getElementById("bom-inspector-caption").textContent = node.external ? `Referensi dari ${node.sourceBomNoReg}. Klik label node untuk edit BOM asal.` : optionLabel(part);
     document.getElementById("node-part").value = node.partId || ""; document.getElementById("node-qty").value = node.qty ?? 0; document.getElementById("node-uom").value = node.uomCode || "";
@@ -514,8 +655,16 @@
       document.getElementById("node-material-alt-cavity").value = node.alternateMaterialCavity ?? 1;
       document.getElementById("node-material-alt-gross").value = Number(node.alternateGrossWeight || 0).toFixed(6);
     }
+    panels.renderSourcing(node);
+    panels.renderCosts(node);
     renderNodeProcesses(node);
-    inspectorForm.querySelectorAll("input,select,textarea,button").forEach((input) => input.disabled = !editable || Boolean(node.external));
+    setInspectorTab(state.inspectorTab);
+    refreshLookupLabels(inspectorForm);
+    inspectorForm.querySelectorAll("input,select,textarea,button").forEach((input) => {
+      if (input.closest(".bom-inspector-tabs")) return;
+      if (input.closest("#node-process-list")) { if (!editable || node.external) input.disabled = true; return; }
+      input.disabled = !editable || Boolean(node.external);
+    });
     const insertButton = document.getElementById("node-insert-before");
     if (insertButton) {
       const canInsert = editable && !node.external && !part.isPending
@@ -531,10 +680,17 @@
   function processLabel(processId) { const item = state.processMaster.find((process) => process.id === processId); return item?.processName || item?.processCode || "Pilih proses"; }
   function renderNodeProcesses(node) {
     assignProcessOccurrenceCodes();
-    const target = document.getElementById("node-process-list"); node.processes = (node.processes || []).sort((a, b) => Number(a.sequence || 0) - Number(b.sequence || 0)); const processes = node.processes;
-    const specifications = [...new Map(state.machines.filter((machine) => machine.machineSpecificationCode).map((machine) => [machine.machineSpecificationCode, machine])).values()];
-    target.innerHTML = processes.length ? processes.map((process, index) => { const selectedSpec = process.machineSpecificationCode || process.machine?.machineSpecificationCode || state.machines.find((machine) => machine.id === process.machineId)?.machineSpecificationCode || ""; process.machineSpecificationCode = selectedSpec; const eligibleCount = state.machines.filter((machine) => machine.machineSpecificationCode === selectedSpec && machine.status === "Active").length; return `<div class="bom-process-row" data-process-index="${index}"><input class="form-control" data-process-field="sequence" type="number" min="1" value="${Number(process.sequence || 0)}" title="Order proses dalam part"><select class="form-select" data-process-field="processId"><option value="">Pilih proses</option>${state.processMaster.map((item) => `<option value="${item.id}" ${item.id === process.processId ? "selected" : ""}>${escapeHtml(item.processCode || "")} · ${escapeHtml(item.processName || "")}</option>`).join("")}</select><span class="bom-process-occurrence"><b>Routing ${escapeHtml(process.routingNumber || "-")}</b> · Kode BOM: <b>${escapeHtml(process.occurrenceCode || "-")}</b></span><select class="form-select" data-process-field="machineSpecificationCode"><option value="">Pilih machine specification</option>${specifications.map((item) => `<option value="${escapeHtml(item.machineSpecificationCode)}" ${item.machineSpecificationCode === selectedSpec ? "selected" : ""}>${escapeHtml(item.machineSpecificationCode)} · ${escapeHtml(item.machineSpecificationName || item.machineSpecificationCode)}</option>`).join("")}</select><small>${eligibleCount} mesin aktif eligible; mesin aktual dipilih di Capacity Planning</small><input class="form-control" data-process-field="cycleTime" type="number" min="0" step="0.01" value="${Number(process.cycleTime || 0)}" title="Cycle time (detik)"><button type="button" data-remove-process title="Hapus proses">×</button></div>`; }).join("") : '<div class="bom-process-empty">Belum ada sequence proses.</div>';
-    if (!editable) target.querySelectorAll("input,select,button").forEach((control) => control.disabled = true);
+    node.processes = (node.processes || []).sort((a, b) => Number(a.sequence || 0) - Number(b.sequence || 0));
+    panels.renderRouting(node, !editable || Boolean(node.external));
+  }
+
+  function setInspectorTab(tab) {
+    state.inspectorTab = ["part", "material", "routing", "cost"].includes(tab) ? tab : "part";
+    document.querySelectorAll("[data-canvas-tab]").forEach((button) => {
+      const active = button.dataset.canvasTab === state.inspectorTab;
+      button.setAttribute("aria-selected", String(active)); button.tabIndex = active ? 0 : -1;
+    });
+    document.querySelectorAll("[data-canvas-panel]").forEach((panel) => panel.hidden = panel.dataset.canvasPanel !== state.inspectorTab);
   }
 
   function autoLayout() {
@@ -644,7 +800,7 @@
     return match ? Number(match[1]) : null;
   }
   function formatPreviewNumber(rule, sequence, context = {}) {
-    const now = new Date(); const pad = (value, size = 2) => String(value).padStart(size, "0");
+    const now = (globalThis.erpBusinessNow?.() || new Date()); const pad = (value, size = 2) => String(value).padStart(size, "0");
     const values = {
       PREFIX: context.prefix ?? rule?.prefix ?? "", YYYY: String(now.getFullYear()), YY: String(now.getFullYear()).slice(-2), MM: pad(now.getMonth() + 1), DD: pad(now.getDate()),
       SEQ: pad(sequence, Number(rule?.sequenceLength || 4)), CUSTOMER: context.customer || "", TYPE: context.type || "", REV: context.rev || "00", CODE: context.code || "", LEVEL: context.process || "000", PROCESS: context.process || "000", BRANCH: context.branch || "",
@@ -984,13 +1140,13 @@
   }
 
   function serializeBomNode(node, parentDetailId = node.parentDetailId || null, levelComponent = computeLevel(node) + 1) {
-    materialConsumption(node); return { id: node.id, clientKey: node.clientKey, parentDetailId, levelComponent, partId: node.partId, qty: Number(node.qty), uomCode: node.uomCode || null, category: node.category, assemblyPolicyOverride: node.assemblyPolicyOverride, leadTime: Number(node.leadTime || 0), leadTimeUnit: node.leadTimeUnit || "HOUR", materialThickness: node.materialThickness ?? null, materialWidth: node.materialWidth ?? null, materialPitch: node.materialPitch ?? null, materialCavity: node.materialCavity ?? null, materialDensity: node.materialDensity ?? null, materialFormId: node.materialFormId || null, materialScheme: node.materialScheme || "DEFAULT", defaultGrossWeight: node.defaultGrossWeight ?? null, alternateMaterialFormId: node.alternateMaterialFormId || null, alternateMaterialPitch: node.alternateMaterialPitch ?? null, alternateMaterialCavity: node.alternateMaterialCavity ?? null, alternateGrossWeight: node.alternateGrossWeight ?? null, grossWeight: Number(node.grossWeight || 0), notes: node.notes || null, mbomProcesses: node.processes || [] };
+    materialConsumption(node); return { ...commercial.detailFields(node), id: node.id, clientKey: node.clientKey, parentDetailId, levelComponent, partId: node.partId, qty: Number(node.qty), uomCode: node.uomCode || null, category: node.category, assemblyPolicyOverride: node.assemblyPolicyOverride, leadTime: Number(node.leadTime || 0), leadTimeUnit: node.leadTimeUnit || "HOUR", materialThickness: node.materialThickness ?? null, materialWidth: node.materialWidth ?? null, materialPitch: node.materialPitch ?? null, materialCavity: node.materialCavity ?? null, materialDensity: node.materialDensity ?? null, materialFormId: node.materialFormId || null, materialScheme: node.materialScheme || "DEFAULT", defaultGrossWeight: node.defaultGrossWeight ?? null, alternateMaterialFormId: node.alternateMaterialFormId || null, alternateMaterialPitch: node.alternateMaterialPitch ?? null, alternateMaterialCavity: node.alternateMaterialCavity ?? null, alternateGrossWeight: node.alternateGrossWeight ?? null, grossWeight: Number(node.grossWeight || 0), notes: node.notes || null, mbomProcesses: node.processes || [] };
   }
 
   function belongsToChildAssembly(node) {
     let parent = state.nodes.find((item) => !item.external && nodeKey(item) === node.parentDetailId); const visited = new Set();
     while (parent && !visited.has(nodeKey(parent))) {
-      visited.add(nodeKey(parent)); if (partById(parent.partId).itemType === "FG") return true;
+      visited.add(nodeKey(parent)); if (partById(parent.partId).itemType === "FG" || parent.linkedBom) return true;
       parent = state.nodes.find((item) => !item.external && nodeKey(item) === parent.parentDetailId);
     }
     return false;
@@ -1044,8 +1200,11 @@
   }
 
   async function saveBom() {
+    if (!isNewBomMode() && !state.revisionPolicy?.isLatest) return showError("Buka revisi terbaru dan muat ulang status produksi sebelum menyimpan.");
     clearError(); const localNodes = state.nodes.filter((node) => !node.external); if (!rootPart.value) return showError("Produk utama wajib dipilih."); if (!localNodes.length) return showError("Tambahkan minimal satu komponen ke canvas BOM.");
     const invalid = localNodes.find((node) => !node.partId || !(Number(node.qty) > 0)); if (invalid) { state.selectedId = nodeKey(invalid); renderAll(); renderInspector(); return showError("Semua node wajib memiliki Part dan Qty lebih dari 0."); }
+    const validation = panels.validate();
+    if (validation.errors.length) return showError(validation.errors.join("\n"));
     const invalidMaterial = localNodes.find((node) => { const part = partById(node.partId); if (part.itemType !== "RAW" || part.rawType !== "MATERIAL") return false; return !node.materialFormId || (node.alternateMaterialFormId && node.alternateMaterialFormId === node.materialFormId) || (node.materialScheme === "ALTERNATIVE" && (!node.alternateMaterialFormId || !(Number(node.alternateMaterialPitch) > 0))); });
     if (invalidMaterial) { state.selectedId = nodeKey(invalidMaterial); renderAll(); renderInspector(); return showError("Raw material wajib memiliki Form default. Form alternatif harus berbeda dan dilengkapi pitch bila dipakai."); }
     const invalidProcessNode = localNodes.find((node) => { const sequences = (node.processes || []).map((item) => Number(item.sequence)); return (node.processes || []).some((item) => !item.processId || !(Number(item.sequence) > 0)) || new Set(sequences).size !== sequences.length; });
@@ -1060,13 +1219,14 @@
     try {
       await applyPendingSequenceShift(sequenceShift);
       materialization = await materializePendingParts();
-      const revisionMode = !isNewBomMode() ? (document.getElementById("bom-revision-mode")?.value || "newRevision") : null;
+      const revisionMode = !isNewBomMode() ? state.revisionPolicy.mode : null;
       const revisionNote = document.getElementById("bom-revision-note")?.value?.trim() || null;
       if (revisionMode === "newRevision" && !revisionNote) throw new Error("Catatan revisi wajib diisi agar perubahan struktur dapat diaudit.");
       const header = { partId: rootPart.value, uomCode: rootUom.value || null, revision: Number(document.getElementById("bom-revision").value || 1), effectiveDate: document.getElementById("bom-effective").value || null, expiryDate: document.getElementById("bom-expiry").value || null, notes: document.getElementById("bom-notes").value || null, revisionMode, revisionNote, expirePreviousRevision: true };
       // Parent MBOM hanya menyimpan FG/sub-assembly sebagai referensi. Isi turunannya
       // disimpan pada MBOM milik FG tersebut agar tidak ada dua titik pemeliharaan.
       const details = localNodes.filter((node) => !belongsToChildAssembly(node)).map((node) => serializeBomNode(node));
+      if (revisionMode === "correction") details.push(...state.omittedNodes.map((node) => node.sourceDetail || serializeBomNode(node)));
       await saveGeneratedChildBoms(createdChildBoms);
       const url = isNewBomMode() ? "/modules/api/manufacturing-bom/bill-of-materials" : `/modules/api/manufacturing-bom/bill-of-materials/${encodeURIComponent(state.recordId)}`;
       const response = await fetch(url, { method: isNewBomMode() ? "POST" : "PATCH", headers: authHeaders(true), body: JSON.stringify({ revisionMode, header, details }) });
@@ -1084,6 +1244,22 @@
     }
   }
 
+  document.querySelectorAll("[data-canvas-tab]").forEach((button) => {
+    button.addEventListener("click", () => setInspectorTab(button.dataset.canvasTab));
+    button.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault(); const tabs = [...document.querySelectorAll("[data-canvas-tab]")]; const index = tabs.indexOf(button);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+      setInspectorTab(tabs[next].dataset.canvasTab); tabs[next].focus();
+    });
+  });
+  document.getElementById("bom-inspector-close").addEventListener("click", () => { state.selectedId = null; renderAll(); renderInspector(); });
+  document.getElementById("bom-toggle-library").addEventListener("click", (event) => {
+    const collapsed = document.querySelector(".bom-workspace").classList.toggle("library-collapsed");
+    event.currentTarget.setAttribute("aria-expanded", String(!collapsed));
+  });
+  if (window.innerWidth < 900) { document.querySelector(".bom-workspace").classList.add("library-collapsed"); document.getElementById("bom-toggle-library").setAttribute("aria-expanded", "false"); }
+  document.getElementById("bom-effective").addEventListener("change", () => { renderAll(); renderInspector(); });
   rootPart.addEventListener("change", () => { renderRoot(); renderAll(); });
   document.getElementById("bom-toggle-notes").addEventListener("click", () => document.getElementById("bom-notes").classList.toggle("d-none"));
   document.getElementById("bom-part-search").addEventListener("input", renderPalette);
@@ -1099,10 +1275,18 @@
       if (field === "partId") {
         const descendantKeys = descendantsOf(nodeKey(node));
         state.nodes = state.nodes.filter((item) => !(item.external && descendantKeys.has(nodeKey(item))));
-        [...state.expandedBoms].filter((key) => key.startsWith(`${nodeKey(node)}:`)).forEach((key) => state.expandedBoms.delete(key));
+        descendantKeys.add(nodeKey(node));
+        [...state.expandedBoms].filter((key) => [...descendantKeys].some((id) => key.startsWith(`${id}:`))).forEach((key) => state.expandedBoms.delete(key));
+        node.linkedBomLoaded = false;
       }
       node[field] = this.value === "" && field === "parentDetailId" ? null : cast(this.value);
+      if (field === "category" && node.category !== "Purchase") { node.materialSupplyType = "SUPPLIER_PURCHASE"; node.supplyCustomerId = null; }
       if (field === "partId") {
+        node.part = partById(node.partId);
+        (node.processes || []).forEach((route) => window.BomMachinePolicy.clearUnrelatedDies(route, state.dies, node.partId));
+        Object.assign(node, { supplierId: node.part.supplierId || null, supplyCustomerId: null, materialSupplyType: "SUPPLIER_PURCHASE" });
+        for (const key of ["materialThickness", "materialWidth", "materialDensity", "materialPitch", "materialCavity", "materialFormId", "alternateMaterialFormId", "alternateMaterialPitch", "alternateMaterialCavity", "defaultGrossWeight", "alternateGrossWeight", "grossWeight"]) node[key] = null;
+        node.materialScheme = "DEFAULT";
         node.linkedBom = linkedBomForPart(node.partId);
         if (node.linkedBom) await expandLinkedBom(node, node.linkedBom).catch((error) => showError(`BOM turunan gagal dimuat: ${error.message}`));
         autoLayout();
@@ -1115,9 +1299,53 @@
     [["node-material-pitch", "materialPitch"], ["node-material-cavity", "materialCavity"]].forEach(([id, field]) => document.getElementById(id).addEventListener("change", function () { const node = selectedNode(); if (!node || node.external) return; node[field] = this.value === "" ? null : Number(this.value); materialConsumption(node); renderAll(); renderInspector(); }));
     [["node-material-form", "materialFormId"], ["node-material-scheme", "materialScheme"], ["node-material-alt-form", "alternateMaterialFormId"]].forEach(([id, field]) => document.getElementById(id).addEventListener("change", function () { const node = selectedNode(); if (!node || node.external) return; node[field] = this.value || null; materialConsumption(node); renderAll(); renderInspector(); }));
     [["node-material-alt-pitch", "alternateMaterialPitch"], ["node-material-alt-cavity", "alternateMaterialCavity"]].forEach(([id, field]) => document.getElementById(id).addEventListener("change", function () { const node = selectedNode(); if (!node || node.external) return; node[field] = this.value === "" ? null : Number(this.value); materialConsumption(node); renderAll(); renderInspector(); }));
-    document.getElementById("node-add-process").addEventListener("click", () => { const node = selectedNode(); if (!node) return; const part = partById(node.partId); const ruleKey = part.partType === "COMP" ? "PART_CHILD_COMPONENT" : "PART_CHILD_NON_COMPONENT"; const step = Math.max(1, Number(state.numberingRules.get(ruleKey)?.processStep || 10)); const nextSequence = Math.max(0, ...(node.processes || []).map((item) => Number(item.sequence || 0))) + step; node.processes.push({ processId: state.processMaster[0]?.id || "", machineId: null, machineSpecificationCode: "", alternativeMachineIds: [], sequence: nextSequence, cycleTime: 0, notes: null }); renderNodeProcesses(node); renderAll(); });
-    document.getElementById("node-process-list").addEventListener("change", (event) => { const row = event.target.closest("[data-process-index]"); const node = selectedNode(); if (!row || !node) return; const process = node.processes[Number(row.dataset.processIndex)]; const field = event.target.dataset.processField; if (!process || !field) return; process[field] = ["sequence", "cycleTime"].includes(field) ? Number(event.target.value || 0) : event.target.value || null; if (field === "machineSpecificationCode") { const representative = state.machines.find((machine) => machine.machineSpecificationCode === process.machineSpecificationCode && machine.status === "Active") || state.machines.find((machine) => machine.machineSpecificationCode === process.machineSpecificationCode); process.machineId = representative?.id || null; process.machine = representative || null; process.alternativeMachineIds = []; } renderAll(); renderNodeProcesses(node); });
-    document.getElementById("node-process-list").addEventListener("click", (event) => { const button = event.target.closest("[data-remove-process]"); const row = event.target.closest("[data-process-index]"); const node = selectedNode(); if (!button || !row || !node) return; node.processes.splice(Number(row.dataset.processIndex), 1); renderNodeProcesses(node); renderAll(); });
+    document.getElementById("node-add-process").addEventListener("click", () => { const node = selectedNode(); if (!node || node.external) return; const part = partById(node.partId); const ruleKey = part.partType === "COMP" ? "PART_CHILD_COMPONENT" : "PART_CHILD_NON_COMPONENT"; const step = Math.max(1, Number(state.numberingRules.get(ruleKey)?.processStep || 10)); const nextSequence = Math.max(0, ...(node.processes || []).map((item) => Number(item.sequence || 0))) + step; node.processes.push({ processId: "", routingMode: node.category === "Vendor" ? "VENDOR" : "INHOUSE", vendorId: null, machineId: null, machineSpecificationCode: "", alternativeMachineIds: [], sequence: nextSequence, cycleTime: 0, notes: null }); renderNodeProcesses(node); renderAll(); });
+    document.getElementById("node-process-list").addEventListener("input", (event) => {
+      const node = selectedNode(); const field = event.target.dataset.processField;
+      if (!node || node.external || !["cycleTime", "notes"].includes(field)) return;
+      const row = event.target.closest("[data-process-index]"); const process = node.processes?.[Number(row?.dataset.processIndex)];
+      if (!process) return;
+      process[field] = field === "cycleTime" ? Number(event.target.value || 0) : event.target.value || null;
+      if (field === "cycleTime") {
+        const cost = commercial.processCost(process, node); const amount = row.querySelector(".bom-canvas-cost strong");
+        if (amount) amount.textContent = cost.found ? new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(cost.value) : "Belum lengkap";
+        panels.renderOverview(); panels.renderCosts(node);
+      }
+      scheduleDraftAutosave();
+    });
+    document.getElementById("node-process-list").addEventListener("change", (event) => {
+      const node = selectedNode(); if (!node || node.external) return;
+      const process = node.processes?.[Number(event.target.closest("[data-process-index]")?.dataset.processIndex)];
+      if (!process) return;
+      if (window.BomExecutorPolicy.update(process, event.target) || window.BomMachinePolicy.update(process, event.target)) { renderAll(); renderInspector(); return; }
+      const field = event.target.dataset.processField; if (!field) return;
+      if (field === "routingMode") window.BomExecutorPolicy.changeDefault(process, event.target.value);
+      else process[field] = ["sequence", "cycleTime"].includes(field) ? Number(event.target.value || 0) : event.target.value || null;
+      if (field === "routingMode") {
+        if (process.routingMode === "VENDOR") {
+          commercial.autoSelectEligibleVendor(process, node);
+        }
+      }
+      if (field === "processId") { process.process = state.processMaster.find((m) => m.id === process.processId) || null; commercial.autoSelectEligibleVendor(process, node); }
+      if (field === "vendorId") process.vendor = state.vendors.find((v) => v.id === process.vendorId) || null;
+      if (field === "machineSpecificationCode") {
+        const representative = state.machines.find((m) => m.machineSpecificationCode === process.machineSpecificationCode && m.status === "Active");
+        process.machineId = representative?.id || null; process.machine = representative || null;
+        process.alternativeMachineIds = []; window.BomExecutorPolicy.resetMachines(process); process.diesId = null;
+      }
+      renderAll(); renderInspector();
+    });
+    document.getElementById("node-sourcing").addEventListener("change", (event) => {
+      const node = selectedNode(); const field = event.target.dataset.nodeField;
+      if (!node || node.external || !["supplierId", "materialSupplyType", "supplyCustomerId"].includes(field)) return;
+      node[field] = event.target.value || null;
+      if (field === "materialSupplyType" && node.materialSupplyType === "CUSTOMER_SUPPLIED" && !node.supplyCustomerId) {
+        const customerCode = partById(rootPart.value).customerCode;
+        node.supplyCustomerId = state.customers.find((c) => c.customerCode === customerCode)?.id || null;
+      }
+      renderAll(); renderInspector();
+    });
+    document.getElementById("node-process-list").addEventListener("click", (event) => { const button = event.target.closest("[data-remove-process]"); const row = event.target.closest("[data-process-index]"); const node = selectedNode(); if (!button || !row || !node || node.external) return; node.processes.splice(Number(row.dataset.processIndex), 1); renderNodeProcesses(node); renderAll(); });
     document.querySelectorAll("[data-create-part]").forEach((button) => button.addEventListener("click", () => openQuickPartDialog(button.dataset.createPart)));
     document.querySelectorAll("[data-inspector-add]").forEach((button) => button.addEventListener("click", () => openQuickPartDialog(button.dataset.inspectorAdd)));
     document.querySelectorAll("[data-add-kind]").forEach((button) => button.addEventListener("click", () => { document.getElementById("bom-add-kind-dialog").close(); openQuickPartDialog(button.dataset.addKind); }));

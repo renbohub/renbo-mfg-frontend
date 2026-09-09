@@ -42,7 +42,7 @@
     renderLines(currentPo.details || [], invoiceDetails);
   }
   async function init() {
-    $("invoice-date").value = new Date().toISOString().slice(0, 10);
+    $("invoice-date").value = (globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10);
     const response = await api("/modules/api/purchasing/purchase-order?start=0&length=500");
     const purchaseOrders = Array.isArray(response) ? response : [];
     $("invoice-po").insertAdjacentHTML("beforeend", purchaseOrders

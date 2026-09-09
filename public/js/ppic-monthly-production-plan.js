@@ -23,7 +23,7 @@
       weekend: [0, 6].includes(date.getUTCDay()),
     };
   };
-  const currentJakartaDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const currentJakartaDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format((globalThis.erpBusinessNow?.() || new Date()));
 
   async function api(url, options = {}) {
     const response = await fetch(url, { method: options.method || "GET", headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${token()}` }, body: options.body == null ? undefined : JSON.stringify(options.body), credentials: "same-origin" });
@@ -32,6 +32,7 @@
       const error = new Error(payload.message || "Monthly Production Plan gagal dimuat.");
       error.status = response.status;
       error.code = payload.code || null;
+      error.payload = payload;
       throw error;
     }
     return payload;
@@ -57,7 +58,7 @@
     const hasBlocker = Boolean(day.blocker);
     if (!hasQty && !hasLoad && !hasBlocker && day.recommendationMoved) return '<td class="mpp-empty-cell mpp-recommendation-moved"><span class="mpp-recommended-label">MOVED</span></td>';
     if (!hasQty && !hasLoad && !hasBlocker) return state.editor
-      ? `<td class="mpp-empty-cell mpp-cell-editable"><button class="mpp-cell-button" type="button" data-cell-row="${esc(row.key)}" data-cell-date="${key}" aria-label="Atur capacity ${esc(row.workCenterCode)} ${key}">＋</button></td>`
+      ? `<td class="mpp-empty-cell mpp-cell-editable"><button class="mpp-cell-button" type="button" data-cell-row="${esc(row.key)}" data-cell-date="${key}" aria-label="Atur capacity ${esc(resourceLabel(row))} ${key}">＋</button></td>`
       : '<td class="mpp-empty-cell">–</td>';
     const load = Number(day.loadPercent) || 0;
     const capacityState = hasBlocker || load > 100 ? "overload" : load > 85 ? "warning" : hasLoad ? "safe" : "";
@@ -108,32 +109,54 @@
       ? `<td class="mpp-summary-cell requirement" title="${esc(summary.requirementBreakdown)}"><b>${esc(summary.requirement)}</b></td>`
       : '<td class="mpp-summary-cell empty">–</td>';
     const remainingCell = summary.available
-      ? `<td class="mpp-summary-cell remaining" title="Kebutuhan dikurangi Stock WH, Stock WIP, dan Total Produksi"><b>${esc(summary.remaining)}</b></td>`
+      ? `<td class="mpp-summary-cell remaining" title="Sisa kebutuhan part dan proses yang sama, setelah stok dan produksi di seluruh mesin"><b>${esc(summary.remaining)}</b></td>`
       : '<td class="mpp-summary-cell empty">–</td>';
-    return `${warehouseStockCell}${wipStockCell}${requirementCell}<td class="mpp-summary-cell production" title="Total allocation produksi authoritative selama bulan ini"><b>${esc(production)}</b></td>${remainingCell}`;
+    return `${warehouseStockCell}${wipStockCell}${requirementCell}<td class="mpp-summary-cell production" title="Total alokasi produksi pada mesin / vendor ini selama bulan terpilih"><b>${esc(production)}</b></td>${remainingCell}`;
   }
 
   function displayRows() {
     let rows = state.data?.rows || [];
     if (state.editor && state.stagedChanges.length) rows = window.MppCapacityEditor?.projectStagedMatrix(rows, state.stagedChanges) || rows;
     if (state.recommendation) rows = window.MppRecommendation?.projectRecommendationRows(rows, state.recommendation) || rows;
-    return rows;
+    return window.MppCapacityEditor?.withPlanningTotals(rows) || rows;
   }
+
+  const resourceLabel = (row) => row?.machineName || row?.machineCode || row?.resourceCode || row?.workCenterCode || "Belum dialokasikan";
+  const resourceDetail = (row) => row?.machineCode || row?.resourceName || row?.workCenterName || "";
+  const resourceSearch = (row) => [resourceLabel(row), resourceDetail(row), row.workCenterCode, row.workCenterName, row.lineCode].filter(Boolean).join(" ").toLowerCase();
 
   function visibleRows() {
     const term = state.search.toLowerCase();
     return displayRows().filter((row) => {
       if (state.type && row.type !== state.type) return false;
       if (!term) return true;
-      return `${row.workCenterCode} ${row.workCenterName} ${row.machineCodes?.join(" ")} ${row.children?.map((child) => `${child.partNumber || ""} ${child.partCode} ${child.partName} ${child.processCodes?.join(" ")}`).join(" ")} ${row.fgRequirements?.map((item) => `${item.partNumber || ""} ${item.partCode} ${item.partName || ""} ${item.processCode || ""}`).join(" ")}`.toLowerCase().includes(term);
+      return `${resourceSearch(row)} ${row.children?.map((child) => `${child.partNumber || ""} ${child.partCode} ${child.partName} ${child.processCodes?.join(" ")}`).join(" ")} ${row.fgRequirements?.map((item) => `${item.partNumber || ""} ${item.partCode} ${item.partName || ""} ${item.processCode || ""}`).join(" ")}`.toLowerCase().includes(term);
     });
   }
 
   function renderHeader() {
-    $("mpp-month-thead").innerHTML = `<tr><th>Work Center / Part</th><th class="mpp-summary-head stock-wh"><span>Stock WH</span></th><th class="mpp-summary-head stock-wip"><span>Stock WIP</span></th><th class="mpp-summary-head requirement"><span>Kebutuhan EFD</span></th><th class="mpp-summary-head production"><span>Total Produksi</span></th><th class="mpp-summary-head remaining"><span>Remain Allocation</span></th>${state.data.dates.map((key) => {
+    $("mpp-month-thead").innerHTML = `<tr><th>Mesin / Part</th><th class="mpp-summary-head stock-wh"><span>Stock WH</span></th><th class="mpp-summary-head stock-wip"><span>Stock WIP</span></th><th class="mpp-summary-head requirement"><span>Kebutuhan EFD</span></th><th class="mpp-summary-head production"><span>Total Produksi</span></th><th class="mpp-summary-head remaining"><span>Remain Allocation</span></th>${state.data.dates.map((key) => {
       const info = dateParts(key);
       return `<th class="mpp-date-head ${info.weekend ? "weekend" : ""} ${key === currentJakartaDate ? "today" : ""}"><span>${esc(info.weekday)}</span><b>${info.day}</b><small>${key === currentJakartaDate ? "Hari ini" : "Target"}</small></th>`;
     }).join("")}</tr>`;
+  }
+
+  const executor = window.MppExecutor?.create({ api, onApplied: (planNumber) => load(planNumber) });
+  function executorSources(child, date = null) {
+    return window.MppExecutor?.collectSources(child, state.data?.editor?.remainingAllocations || state.data?.remainingAllocations || [], date) || [];
+  }
+  function executorButton(row, child, date = null) {
+    if (child?.type !== "PART" || !executorSources(child, date).length) return "";
+    return `<button type="button" class="mpp-executor-launch" data-executor-row="${esc(row.key)}" data-executor-child="${esc(child.key)}" ${date ? `data-executor-date="${esc(date)}"` : ""} ${state.editor || state.recommendationBusy || state.workflowBusy ? 'disabled title="Selesaikan editor atau proses plan sebelum mengubah pelaksana"' : 'title="Pilih mesin atau vendor aktual untuk batch dan proses ini"'}>Ubah Pelaksana</button>`;
+  }
+  function openExecutor(rowKey, childKey, date = null) {
+    if (!executor || state.editor || state.recommendationBusy || state.workflowBusy) return;
+    const row = (state.data?.rows || []).find((item) => item.key === rowKey);
+    const child = row?.children?.find((item) => item.key === childKey);
+    const sources = executorSources(child, date);
+    if (!sources.length) return;
+    $("mpp-month-dialog").close();
+    executor.open(sources);
   }
 
   function renderBody() {
@@ -141,12 +164,12 @@
     const resourceHtml = rows.map((row) => {
       const isCollapsed = state.collapsed.has(row.key);
       const term = state.search.toLowerCase();
-      const matchingChildren = !state.search ? row.children : row.children.filter((child) => `${child.partNumber || ""} ${child.partCode} ${child.partName || ""} ${(child.processCodes || []).join(" ")}`.toLowerCase().includes(term));
+      const matchingChildren = !term || resourceSearch(row).includes(term) ? row.children : row.children.filter((child) => `${child.partNumber || ""} ${child.partCode} ${child.partName || ""} ${(child.processCodes || []).join(" ")}`.toLowerCase().includes(term));
       const childRows = matchingChildren.map((child) => {
         const processLabel = (child.processCodes || []).join(" · ") || "Proses belum ditentukan";
-        return `<tr class="mpp-part-row ${child.type === "BLOCKER" ? "blocker" : ""}" data-parent="${esc(row.key)}" ${isCollapsed ? "hidden" : ""}><td><div class="mpp-part-label"><i>↳</i><div><b>${esc(child.partNumber || child.partCode)}</b><small>${esc(child.partCode)} · ${esc(child.partName || "Part produksi")}</small>${child.type === "PART" ? `<span class="mpp-part-trace"><em>${esc(child.itemType || "WIP")}</em><strong>Process ${esc(processLabel)}</strong></span>` : ""}</div></div></td>${childPlanningCells(child)}${state.data.dates.map((key) => childCell(row, child, key)).join("")}</tr>`;
+        return `<tr class="mpp-part-row ${child.type === "BLOCKER" ? "blocker" : ""}" data-parent="${esc(row.key)}" ${isCollapsed ? "hidden" : ""}><td><div class="mpp-part-label"><i>↳</i><div><b>${esc(child.partNumber || child.partCode)}</b><small>${esc(child.partCode)} · ${esc(child.partName || "Part produksi")}</small>${child.type === "PART" ? `<span class="mpp-part-trace"><em>${esc(child.itemType || "WIP")}</em><strong>Process ${esc(processLabel)}</strong></span>` : ""}${executorButton(row, child)}</div></div></td>${childPlanningCells(child)}${state.data.dates.map((key) => childCell(row, child, key)).join("")}</tr>`;
       }).join("");
-      return `<tr class="mpp-wc-row ${row.type === "OUTSOURCE" ? "vendor" : ""} ${row.blockerCount > 0 ? "blocked" : ""}"><td><button class="mpp-wc-toggle" type="button" data-toggle-row="${esc(row.key)}" aria-expanded="${!isCollapsed}"><i>▼</i><span><b>${esc(row.workCenterCode)}</b><small>${esc(row.workCenterName)}${row.machineCodes?.length ? ` · ${esc(row.machineCodes.join(", "))}` : ""}</small></span><span class="mpp-resource-chips">${resourceChip(row)}</span></button></td>${emptyPlanningCells()}${state.data.dates.map((key) => parentCell(row, key)).join("")}</tr>${childRows}`;
+      return `<tr class="mpp-wc-row ${row.type === "OUTSOURCE" ? "vendor" : ""} ${row.blockerCount > 0 ? "blocked" : ""}"><td><button class="mpp-wc-toggle" type="button" data-toggle-row="${esc(row.key)}" aria-expanded="${!isCollapsed}"><i>▼</i><span><b>${esc(resourceLabel(row))}</b><small>${esc(resourceDetail(row))}${row.machineId && row.workCenterCode ? ` · WC ${esc(row.workCenterCode)}` : ""}</small></span><span class="mpp-resource-chips">${resourceChip(row)}</span></button></td>${emptyPlanningCells()}${state.data.dates.map((key) => parentCell(row, key)).join("")}</tr>${childRows}`;
     }).join("");
     const fgByPart = new Map();
     for (const requirement of state.data.fgRequirements || []) {
@@ -171,7 +194,7 @@
     }).join("")}</tr>`).join("")}` : "";
     const html = `${resourceHtml}${fgGroupHtml}`;
     $("mpp-month-tbody").innerHTML = html || `<tr><td colspan="${state.data.dates.length + 6}" class="mpp-month-empty">Tidak ada allocation yang sesuai filter.</td></tr>`;
-    $("mpp-month-range").textContent = `${rows.length} Work Center · ${rows.reduce((sum, row) => sum + row.children.filter((child) => child.type === "PART").length, 0)} Part · ${fgParts.length} FG parent`;
+    $("mpp-month-range").textContent = `${rows.filter((row) => row.machineId).length} Mesin · ${rows.filter((row) => row.type === "OUTSOURCE").length} Vendor · ${rows.reduce((sum, row) => sum + row.children.filter((child) => child.type === "PART").length, 0)} Part · ${fgParts.length} FG parent`;
     bindTableEvents();
   }
 
@@ -183,7 +206,7 @@
     const materialHold = Number(data.summary?.materialHoldCount || 0);
     const crossMonth = Number(data.summary?.crossMonthCount || 0);
     $("mpp-kpi-plans").textContent = qty(data.summary?.planCount);
-    $("mpp-kpi-centers").textContent = qty(data.summary?.workCenterCount);
+    $("mpp-kpi-centers").textContent = qty(data.summary?.machineCount);
     $("mpp-kpi-load").textContent = percent(capacity.utilizationPercent);
     $("mpp-kpi-load-note").textContent = `${hours(capacity.loadMinutes)} / ${hours(capacity.availableMinutes)}`;
     $("mpp-kpi-blockers").textContent = qty(overloaded);
@@ -218,7 +241,7 @@
       button.disabled = state.recommendationBusy || Boolean(state.editor);
       button.textContent = state.recommendationBusy ? "OR-Tools mengoptimasi…" : "✦ Auto Allocation CP-SAT";
     }
-    for (const id of ["mpp-recommendation-apply-all", "mpp-recommendation-apply-selected", "mpp-recommendation-apply-work-center", "mpp-recommendation-discard"]) {
+    for (const id of ["mpp-recommendation-apply-all", "mpp-recommendation-apply-selected", "mpp-recommendation-apply-resource", "mpp-recommendation-discard"]) {
       if ($(id)) $(id).disabled = state.recommendationBusy;
     }
   }
@@ -238,17 +261,16 @@
     const scenarioSource = window.MppRecommendation?.renderScenarioSource(scenario) || "RULE-BASED";
     const solver = scenario.aiValidationSummary?.solver || {};
     $("mpp-recommendation-summary").innerHTML = `<div class="mpp-recommendation-title" title="${esc(JSON.stringify(scenario.aiValidationSummary || {}))}"><span>${esc(scenarioSource)}</span><strong>${esc(badge)}</strong><small>${solver.taskCount != null ? `${qty(solver.taskCount)} task · ${esc(solver.engineVersion || "0.9.1")} · ${qty(solver.wallTimeSeconds)} detik` : "Plan resmi belum berubah"}</small></div><dl><div><dt>FG on-time</dt><dd>${qty(summary.fgOnTimeCount)}</dd></div><div class="late"><dt>FG late</dt><dd>${qty(summary.fgLateCount)}</dd></div><div><dt>New</dt><dd>${qty(summary.newAllocationCount)}</dd></div><div><dt>Moved / split</dt><dd>${qty(summary.movedOrSplitCount)}</dd></div><div class="overload"><dt>Overload</dt><dd>${qty(summary.overloadCellCount)}</dd></div><div class="queue"><dt>Material Queue</dt><dd>${qty(summary.materialQueueQty)}</dd></div><div class="${summary.fgCoverageReady ? "ready" : "late"}"><dt>FG covered</dt><dd>${summary.fgCoverageReady ? "YES" : "NO"}</dd></div><div class="${Number(summary.remainingAllocationQty) > 0 ? "queue" : "ready"}"><dt>Remain</dt><dd>${qty(summary.remainingAllocationQty)}</dd></div></dl>`;
-    const workCenterSelect = $("mpp-recommendation-work-center");
-    const selectedValue = workCenterSelect.value;
-    const workCenterIds = [...new Set((scenario.items || []).filter((item) => item.changeType && item.applyStatus === "PENDING" && item.workCenterId).map((item) => item.workCenterId))].sort();
+    const resourceSelect = $("mpp-recommendation-resource");
+    const selectedValue = resourceSelect.value;
+    const resourceKeys = [...new Set((scenario.items || []).filter((item) => item.changeType && item.applyStatus === "PENDING").map(recommendationResourceKey).filter(Boolean))].sort();
     const matrixRows = displayRows();
-    const workCenterLabel = (id) => {
-      const row = matrixRows.find((candidate) => candidate.key === id || candidate.key === `WC:${id}`);
-      return row ? `${row.workCenterCode} · ${row.workCenterName}` : id;
-    };
-    workCenterSelect.innerHTML = `<option value="">Pilih Work Center</option>${workCenterIds.map((id) => `<option value="${esc(id)}">${esc(workCenterLabel(id))}</option>`).join("")}`;
-    if (workCenterIds.includes(selectedValue)) workCenterSelect.value = selectedValue;
-    $("mpp-recommendation-apply-work-center").disabled = state.recommendationBusy || !workCenterSelect.value;
+    resourceSelect.innerHTML = '<option value="">Pilih Mesin / Vendor</option>' + resourceKeys.map((key) => {
+      const row = matrixRows.find((candidate) => candidate.key === key);
+      return '<option value="' + esc(key) + '">' + esc(row ? resourceLabel(row) + ' · ' + resourceDetail(row) : key) + '</option>';
+    }).join("");
+    if (resourceKeys.includes(selectedValue)) resourceSelect.value = selectedValue;
+    $("mpp-recommendation-apply-resource").disabled = state.recommendationBusy || !resourceSelect.value;
     $("mpp-recommendation-apply-selected").disabled = state.recommendationBusy || state.selectedRecommendationIds.size === 0;
     $("mpp-recommendation-apply-all").disabled = state.recommendationBusy || Number(summary.selectableCount || 0) === 0;
     $("mpp-recommendation-queue").disabled = Number(summary.materialQueueQty || 0) <= 0 && Number(summary.carryOverQty || 0) <= 0;
@@ -281,14 +303,14 @@
 
   function workflowView(plan) {
     if (!plan) return { action: null, step: "PLAN BELUM TERSEDIA", title: "Pilih Monthly Production Plan", copy: "Plan akan muncul setelah MPS dan MRP membentuk kebutuhan produksi.", label: "Belum tersedia", disabled: true };
-    if (state.workflowDetailLoading) return { action: null, step: "MEMERIKSA GATE", title: "Membaca readiness plan", copy: "Matrix sudah dapat dibaca sambil status resmi, Capacity, MO, dan Daily Plan dimuat.", label: "Memeriksa…", disabled: true };
+    if (state.workflowDetailLoading) return { action: null, step: "MEMERIKSA GATE", title: "Membaca readiness plan", copy: "Matrix sudah dapat dibaca sambil kesiapan jadwal mesin, MO, dan Daily Plan dimuat.", label: "Memeriksa…", disabled: true };
     if (plan.replanRequired) return { action: null, step: "REPLAN REQUIRED", title: "Sumber atau jadwal sudah berubah", copy: plan.replanReason || "Sinkronkan ulang Monthly Plan sebelum melanjutkan.", label: "Replan diperlukan", disabled: true };
     if (state.editor) return { action: null, step: "EDITOR AKTIF", title: "Selesaikan draft allocation", copy: "Save atau Cancel perubahan editor sebelum menjalankan tindakan resmi.", label: "Editor sedang aktif", disabled: true };
     if (plan.status === "Draft") return { action: "CONFIRM", step: "1 / 4 · REVIEW PLAN", title: "Kunci plan hasil review", copy: "Confirm menyatakan qty, delivery phase, dan allocation sudah diperiksa. Halaman tidak akan refresh.", label: "Confirm Plan", disabled: false };
     if (plan.status === "Confirmed") {
       const summary = plan.planReadiness?.summary || {};
       const ready = plan.planReadiness?.releaseReady === true;
-      return { action: "RELEASE", step: "2 / 4 · CAPACITY GATE", title: ready ? "Capacity siap untuk release" : "Selesaikan blocker Capacity", copy: ready ? `${Number(summary.warning || 0)} warning non-blocking. Release membuka pembuatan MO.` : `${Number(summary.blocking || 0)} blocker dan ${Number(summary.overridable || 0)} override belum selesai. Buka Capacity untuk rincian.`, label: ready ? "Release Plan" : "Belum siap release", disabled: !ready };
+      return { action: "RELEASE", step: "2 / 4 · KESIAPAN PLAN", title: ready ? "Jadwal mesin siap untuk release" : "Selesaikan kendala jadwal dan material", copy: ready ? `${Number(summary.warning || 0)} warning non-blocking. Release membuka pembuatan MO.` : `${Number(summary.blocking || 0)} blocker dan ${Number(summary.overridable || 0)} override belum selesai. Periksa rincian kesiapan dan jadwal mesin di halaman ini.`, label: ready ? "Release Plan" : "Belum siap release", disabled: !ready };
     }
     if (["Released", "In Progress"].includes(plan.status)) {
       const pending = pendingMoDetails(plan);
@@ -318,9 +340,12 @@
     $("mpp-workflow-step").textContent = view.step;
     $("mpp-workflow-title").textContent = view.title;
     $("mpp-workflow-copy").textContent = view.copy;
-    const capacityLink = $("mpp-workflow-capacity");
-    capacityLink.href = `/modules/planning-ppic/capacity-planning?month=${encodeURIComponent(state.data?.month || "")}${plan?.planNumber ? `&planNumber=${encodeURIComponent(plan.planNumber)}` : ""}`;
-    capacityLink.hidden = !plan || !["Confirmed", "Released", "In Progress"].includes(plan.status);
+    const scheduleLink = $("mpp-workflow-schedule");
+    scheduleLink.href = "#mpp-month-board";
+    scheduleLink.hidden = !plan || !["Confirmed", "Released", "In Progress"].includes(plan.status);
+    const issues = plan?.planReadiness?.issues || [];
+    $("mpp-workflow-issues").hidden = !issues.length;
+    $("mpp-workflow-issue-list").innerHTML = issues.map((issue) => `<li><b>${esc([issue.machineCode, issue.partCode, issue.processCode].filter(Boolean).join(" · ") || issue.severity || "Plan")}</b><span>${esc(issue.message || issue.reason || issue.code || "Periksa jadwal dan sumber plan.")}</span></li>`).join("");
     const dailyDate = view.dailyDate || firstDailyPlanDate(plan);
     const dailyLink = $("mpp-workflow-daily");
     dailyLink.hidden = !dailyDate;
@@ -497,7 +522,7 @@
       $("mpp-editor-queue-title").textContent = `${staged} perubahan draft${allocated ? ` · ${qty(allocated)} qty dialokasikan` : ""}${queued ? ` · ${qty(queued)} qty dalam antrian` : ""}`;
     }
     const draftLabel = state.editor?.scope === "REPLAN" ? "Replan residual" : state.editor?.scope === "GLOBAL" ? "Kalender mesin global" : "Plan resmi";
-    if (!state.cutClipboard) $("mpp-editor-queue-note").textContent = staged ? `${draftLabel} belum berubah. Save menerapkan seluruh perubahan sekaligus.` : existingQueue.length ? `${existingQueue.length} antrian aktif; rekomendasi menjaga predecessor, successor, dan FG required.` : state.editor?.scope === "REPLAN" ? "Replan hanya mengubah allocation Draft; histori Published tetap immutable." : state.editor?.scope === "GLOBAL" ? "Global hanya mengubah kalender mesin; allocation production plan tidak ikut berubah." : "Klik cell Work Center atau child part untuk mulai mengatur.";
+    if (!state.cutClipboard) $("mpp-editor-queue-note").textContent = staged ? `${draftLabel} belum berubah. Save menerapkan seluruh perubahan sekaligus.` : existingQueue.length ? `${existingQueue.length} antrian aktif; rekomendasi menjaga predecessor, successor, dan FG required.` : state.editor?.scope === "REPLAN" ? "Replan hanya mengubah allocation Draft; histori Published tetap immutable." : state.editor?.scope === "GLOBAL" ? "Global hanya mengubah kalender mesin; allocation production plan tidak ikut berubah." : "Klik cell mesin atau child part untuk mulai mengatur.";
     $("mpp-editor-cut-cancel").hidden = !state.cutClipboard;
     $("mpp-editor-undo").disabled = staged === 0;
     $("mpp-editor-save").disabled = staged === 0;
@@ -543,6 +568,11 @@
       setRecommendationBusy(false);
       renderRecommendationBar();
     }
+  }
+
+  function recommendationResourceKey(item) {
+    const value = item.proposedValue || {};
+    return value.targetMachineId ? "MACHINE:" + value.targetMachineId : value.vendorId ? "VENDOR:" + value.vendorId : value.targetRowKey;
   }
 
   async function applyRecommendation(selection) {
@@ -625,7 +655,7 @@
   function capacityEditorBody(row, key, day) {
     const machines = day.machines?.length ? day.machines : allMachines().filter((machine) => row.machineCodes?.includes(machine.machineCode));
     const global = state.editor?.scope === "GLOBAL";
-    return `<input type="hidden" name="editorMode" value="MACHINE_DAY"><input type="hidden" name="scheduleDate" value="${key}"><div class="mpp-editor-help"><b>${global ? "Global machine calendar" : "Plan-specific capacity"}</b><span>${global ? "Berlaku ke seluruh plan yang memakai mesin ini pada tanggal yang dipilih. Allocation plan tidak berubah." : "Aktif/nonaktifkan mesin dan tentukan jam efektif khusus plan ini. Global calendar tidak ikut berubah."}</span></div><div class="mpp-machine-editor-list">${machines.map((machine, index) => `<article class="mpp-machine-editor-card" role="group" aria-labelledby="mpp-machine-title-${index}"><header class="mpp-machine-editor-card-head"><label><input name="machineActive-${index}" type="checkbox" ${machine.active !== false ? "checked" : ""}><span><b id="mpp-machine-title-${index}">${esc(machine.machineCode)}</b><small>${esc(machine.machineName || "Mesin produksi")}</small></span></label><em>${percent(machine.availableMinutes ? machine.loadMinutes / machine.availableMinutes * 100 : 0)} load</em></header><input type="hidden" name="machineId-${index}" value="${esc(machine.id)}"><div class="mpp-editor-fields"><label>Shift mulai<input name="startTime-${index}" type="time" value="07:00" required></label><label>Shift selesai<input name="endTime-${index}" type="time" value="14:00" required></label><label>Break (menit)<input name="breakMinutes-${index}" type="number" min="0" step="5" value="0"></label><label>Lembur (menit)<input name="overtimeMinutes-${index}" type="number" min="0" step="15" value="0"></label></div></article>`).join("") || '<div class="mpp-editor-empty">Work Center ini belum memiliki relasi mesin. Atur dari Master Work Center.</div>'}</div><label class="mpp-editor-reason">Alasan perubahan<textarea name="reason" rows="2" required placeholder="Contoh: overtime untuk mengejar FG required"></textarea></label>`;
+    return `<input type="hidden" name="editorMode" value="MACHINE_DAY"><input type="hidden" name="scheduleDate" value="${key}"><div class="mpp-editor-help"><b>${global ? "Global machine calendar" : "Plan-specific capacity"}</b><span>${global ? "Berlaku ke seluruh plan yang memakai mesin ini pada tanggal yang dipilih. Allocation plan tidak berubah." : "Aktif/nonaktifkan mesin dan tentukan jam efektif khusus plan ini. Global calendar tidak ikut berubah."}</span></div><div class="mpp-machine-editor-list">${machines.map((machine, index) => `<article class="mpp-machine-editor-card" role="group" aria-labelledby="mpp-machine-title-${index}"><header class="mpp-machine-editor-card-head"><label><input name="machineActive-${index}" type="checkbox" ${machine.active !== false ? "checked" : ""}><span><b id="mpp-machine-title-${index}">${esc(resourceLabel(machine))}</b><small>${esc(resourceDetail(machine))}</small></span></label><em>${percent(machine.availableMinutes ? machine.loadMinutes / machine.availableMinutes * 100 : 0)} load</em></header><input type="hidden" name="machineId-${index}" value="${esc(machine.id)}"><div class="mpp-editor-fields"><label>Shift mulai<input name="startTime-${index}" type="time" value="07:00" required></label><label>Shift selesai<input name="endTime-${index}" type="time" value="14:00" required></label><label>Break (menit)<input name="breakMinutes-${index}" type="number" min="0" step="5" value="0"></label><label>Lembur (menit)<input name="overtimeMinutes-${index}" type="number" min="0" step="15" value="0"></label></div></article>`).join("") || '<div class="mpp-editor-empty">Data mesin belum tersedia pada tanggal ini.</div>'}</div><label class="mpp-editor-reason">Alasan perubahan<textarea name="reason" rows="2" required placeholder="Contoh: overtime untuk mengejar FG required"></textarea></label>`;
   }
 
   function stockLevelTable(candidates, key) {
@@ -648,6 +678,8 @@
     const allocationId = body?.querySelector('[name="allocationId"]')?.value;
     const allocation = state.activeAllocationEditor?.allocations?.find((item) => item.allocationId === allocationId);
     if (!body || !allocation) return;
+    const targetMachine = body.querySelector('[name="targetMachineId"]');
+    if (targetMachine && allocation.machineId) targetMachine.value = allocation.machineId;
     const quantity = body.querySelector('[name="qty"]');
     const targetDate = body.querySelector('[name="targetDate"]');
     const vendorSendDate = body.querySelector('[name="vendorSendDate"]');
@@ -671,7 +703,7 @@
     const machines = allMachines();
     const vendor = row.type === "OUTSOURCE";
     state.activeAllocationEditor = { allocations, key, rowKey: row.key, childKey: child.key, partCode: child.partCode, processCode: (child.processCodes || []).join(" · ") };
-    return `<input type="hidden" name="editorMode" value="ALLOCATION"><div class="mpp-editor-help"><b>${vendor ? "Vendor batch" : "Move / split allocation"}</b><span>Pilih Cut untuk memindahkan full allocation langsung dari matrix, atau gunakan form untuk split dan pengaturan detail.</span><button class="mpp-cut-action" type="button" data-cut-allocation>✂ Cut</button></div><div class="mpp-editor-fields two"><label>Allocation<select name="allocationId" required>${allocations.map((allocation) => `<option value="${esc(allocation.allocationId)}" data-qty="${allocation.qty}">${allocation.stagedChangeId ? "DRAFT · " : ""}${esc(allocation.planNumber || "Plan")} · ${qty(allocation.qty)} ${esc(allocation.uomCode)}</option>`).join("")}</select></label><label>Aksi<select name="actionType"><option value="${vendor ? "VENDOR_BATCH" : "MOVE_ALLOCATION"}">${vendor ? "Ubah / split vendor batch" : "Pindah / split"}</option><option value="QUEUE_ALLOCATION">Lepas ke antrian</option></select></label><label>Qty<input name="qty" type="number" min="0.01" step="0.01" value="${allocations[0]?.qty || 0}" required></label><label>Target tanggal<input name="targetDate" type="date" value="${key}" required></label>${vendor ? `<label>Tanggal kirim vendor<input name="vendorSendDate" type="date" value="${key}" required></label><label>Tanggal kembali vendor<input name="vendorReturnDate" type="date" min="${key}" value="${allocations[0]?.vendorReturnDate || key}" required></label>` : `<label>Mesin tujuan<select name="targetMachineId">${machines.map((machine) => `<option value="${esc(machine.id)}">${esc(machine.machineCode)} · ${esc(machine.machineName || "")}</option>`).join("")}</select></label>`}</div><div data-allocation-stock="${esc(allocations[0]?.allocationId || "")}"></div><label class="mpp-force-check"><input name="force" type="checkbox"> Force Move bila melanggar arahan dependency/capacity</label><label class="mpp-editor-reason">Alasan<textarea name="reason" rows="2" required placeholder="Alasan operasional dan catatan dependency"></textarea></label>`;
+    return `<input type="hidden" name="editorMode" value="ALLOCATION"><div class="mpp-editor-help"><b>${vendor ? "Vendor batch" : "Move / split allocation"}</b><span>Pilih Cut untuk memindahkan full allocation langsung dari matrix, atau gunakan form untuk split dan pengaturan detail.</span><button class="mpp-cut-action" type="button" data-cut-allocation>✂ Cut</button></div><div class="mpp-editor-fields two"><label>Allocation<select name="allocationId" required>${allocations.map((allocation) => `<option value="${esc(allocation.allocationId)}" data-qty="${allocation.qty}">${allocation.stagedChangeId ? "DRAFT · " : ""}${esc(allocation.planNumber || "Plan")} · ${qty(allocation.qty)} ${esc(allocation.uomCode)}</option>`).join("")}</select></label><label>Aksi<select name="actionType"><option value="${vendor ? "VENDOR_BATCH" : "MOVE_ALLOCATION"}">${vendor ? "Ubah / split vendor batch" : "Pindah / split"}</option><option value="QUEUE_ALLOCATION">Lepas ke antrian</option></select></label><label>Qty<input name="qty" type="number" min="0.01" step="0.01" value="${allocations[0]?.qty || 0}" required></label><label>Target tanggal<input name="targetDate" type="date" value="${key}" required></label>${vendor ? `<label>Tanggal kirim vendor<input name="vendorSendDate" type="date" value="${key}" required></label><label>Tanggal kembali vendor<input name="vendorReturnDate" type="date" min="${key}" value="${allocations[0]?.vendorReturnDate || key}" required></label>` : `<label>Mesin tujuan<select name="targetMachineId">${machines.map((machine) => `<option value="${esc(machine.id)}">${esc(resourceLabel(machine))} · ${esc(resourceDetail(machine))}</option>`).join("")}</select></label>`}</div><div data-allocation-stock="${esc(allocations[0]?.allocationId || "")}"></div><label class="mpp-force-check"><input name="force" type="checkbox"> Force Move bila melanggar arahan dependency/capacity</label><label class="mpp-editor-reason">Alasan<textarea name="reason" rows="2" required placeholder="Alasan operasional dan catatan dependency"></textarea></label>`;
   }
 
   function remainingAllocationEditorBody(row, child, key) {
@@ -685,7 +717,7 @@
     const defaultVendorId = first.vendorId || vendors[0]?.id || "";
     const defaultReturnDate = first.recommendedReturnDate || key;
     const stockTable = stockLevelTable(candidates, key);
-    return `<input type="hidden" name="editorMode" value="ALLOCATE_REMAINING"><input type="hidden" name="candidateKey" value="${esc(remainingCandidateKey(first))}"><input type="hidden" name="routingMode" value="${vendorMode ? "VENDOR" : "INHOUSE"}"><div class="mpp-editor-help"><b>Allocate batch</b><span>Qty otomatis di-pegging ke delivery phase paling awal. Plan baru berubah setelah Save Changes.</span></div><div class="mpp-remaining-summary"><span>${esc(child.partCode)}</span><b>${esc((child.processCodes || []).join(" · ") || "Process")}</b><em>Maks. ${qty(limit.maxQty)} ${esc(first.uomCode || "PCS")}</em></div><div class="mpp-editor-fields two"><label>Remaining demand<input value="${qty(limit.demandRemainingQty)} ${esc(first.uomCode || "PCS")} · ${candidates.length} delivery phase" readonly></label><label>Qty allocation<input name="qty" type="number" min="0.01" step="0.01" max="${Number(limit.maxQty || 0)}" value="${Number(limit.maxQty || 0)}" required></label><label>Tanggal target<input name="targetDate" type="date" value="${key}" required></label>${vendorMode ? `<label>Vendor<select name="vendorId" required>${vendors.map((vendor) => `<option value="${esc(vendor.id)}" ${vendor.id === defaultVendorId ? "selected" : ""}>${esc(vendor.vendorCode)} · ${esc(vendor.vendorName || "")}</option>`).join("")}</select></label><label>Tanggal kembali vendor<input name="vendorReturnDate" type="date" min="${key}" value="${defaultReturnDate}" required></label>` : `<label>Mesin<select name="targetMachineId" required>${machines.map((machine) => `<option value="${esc(machine.id)}">${esc(machine.machineCode)} · ${esc(machine.machineName || "")}</option>`).join("")}</select></label><label>Shift<select name="shift" required><option value="1">Shift 1</option><option value="2">Shift 2</option><option value="3">Shift 3</option></select></label><label>Jam mulai<input name="plannedStartTime" type="time"></label><label>Jam selesai<input name="plannedEndTime" type="time"></label>`}</div>${stockTable}<label class="mpp-force-check"><input name="force" type="checkbox"> Force bila tanggal melanggar arahan dependency atau capacity</label><label class="mpp-editor-reason">Alasan allocation<textarea name="reason" rows="2" required placeholder="Contoh: kirim batch sesuai stock WIP tersedia"></textarea></label>`;
+    return `<input type="hidden" name="editorMode" value="ALLOCATE_REMAINING"><input type="hidden" name="candidateKey" value="${esc(remainingCandidateKey(first))}"><input type="hidden" name="routingMode" value="${vendorMode ? "VENDOR" : "INHOUSE"}"><div class="mpp-editor-help"><b>Allocate batch</b><span>Qty otomatis di-pegging ke delivery phase paling awal. Plan baru berubah setelah Save Changes.</span></div><div class="mpp-remaining-summary"><span>${esc(child.partCode)}</span><b>${esc((child.processCodes || []).join(" · ") || "Process")}</b><em>Maks. ${qty(limit.maxQty)} ${esc(first.uomCode || "PCS")}</em></div><div class="mpp-editor-fields two"><label>Remaining demand<input value="${qty(limit.demandRemainingQty)} ${esc(first.uomCode || "PCS")} · ${candidates.length} delivery phase" readonly></label><label>Qty allocation<input name="qty" type="number" min="0.01" step="0.01" max="${Number(limit.maxQty || 0)}" value="${Number(limit.maxQty || 0)}" required></label><label>Tanggal target<input name="targetDate" type="date" value="${key}" required></label>${vendorMode ? `<label>Vendor<select name="vendorId" required>${vendors.map((vendor) => `<option value="${esc(vendor.id)}" ${vendor.id === defaultVendorId ? "selected" : ""}>${esc(vendor.vendorCode)} · ${esc(vendor.vendorName || "")}</option>`).join("")}</select></label><label>Tanggal kembali vendor<input name="vendorReturnDate" type="date" min="${key}" value="${defaultReturnDate}" required></label>` : `<label>Mesin<select name="targetMachineId" required>${machines.map((machine) => `<option value="${esc(machine.id)}" ${machine.id === row.machineId ? "selected" : ""}>${esc(resourceLabel(machine))} · ${esc(resourceDetail(machine))}</option>`).join("")}</select></label><label>Shift<select name="shift" required><option value="1">Shift 1</option><option value="2">Shift 2</option><option value="3">Shift 3</option></select></label><label>Jam mulai<input name="plannedStartTime" type="time"></label><label>Jam selesai<input name="plannedEndTime" type="time"></label>`}</div>${stockTable}<label class="mpp-force-check"><input name="force" type="checkbox"> Force bila tanggal melanggar arahan dependency atau capacity</label><label class="mpp-editor-reason">Alasan allocation<textarea name="reason" rows="2" required placeholder="Contoh: kirim batch sesuai stock WIP tersedia"></textarea></label>`;
   }
 
   function showEditorNotice(message, type = "warning") {
@@ -784,7 +816,7 @@
   function openEditorCell(row, source, key) {
     const child = source !== row ? source : null;
     const day = source?.days?.[key] || {};
-    $("mpp-editor-dialog-title").textContent = `${child?.partCode || row.workCenterCode} · ${dateParts(key).short}`;
+    $("mpp-editor-dialog-title").textContent = `${child?.partCode || resourceLabel(row)} · ${dateParts(key).short}`;
     const allocateRemaining = child && !(day.allocations || []).some((allocation) => allocation.editable !== false) && remainingCandidatesFor(row, child).length > 0;
     $("mpp-editor-dialog").classList.toggle("mpp-remaining-dialog", Boolean(child));
     $("mpp-editor-dialog-kicker").textContent = allocateRemaining ? "REMAIN ALLOCATION" : child ? "ALLOCATION EDITOR" : "MACHINE-DAY CAPACITY";
@@ -864,13 +896,19 @@
     }
     const day = source?.days?.[key] || {};
     const date = dateParts(key);
-    $("mpp-dialog-title").textContent = `${source?.partCode || row?.workCenterCode || "Allocation"} · ${date.short}`;
+    $("mpp-dialog-title").textContent = `${source?.partCode || resourceLabel(row)} · ${date.short}`;
     const plans = day.planNumbers || [];
-    $("mpp-dialog-body").innerHTML = `<div class="mpp-dialog-grid"><article><span>Planned Qty</span><b>${qty(day.qty)} ${esc((day.uomCodes || []).join(" / ") || "PCS")}</b></article><article><span>Capacity Load</span><b>${day.loadPercent != null && Number(day.loadMinutes) > 0 ? percent(day.loadPercent) : day.minutes ? hours(day.minutes) : "-"}</b></article><article><span>Work Center</span><b>${esc(row?.workCenterCode || "-")}</b></article><article><span>Process</span><b>${esc((source?.processCodes || []).join(" · ") || row?.type || "-")}</b></article><article><span>FG Required</span><b>${esc((day.fgRequiredDates || source?.fgRequiredDates || []).map(shortDate).join(", ") || "-")}</b></article></div>${day.blocker ? `<div class="mpp-month-alert"><b>Capacity blocker ${percent(day.blocker.peakPercent)}</b><br>${hours(day.blocker.excessMinutes)} belum mendapat kapasitas. Tetap berada di owner month untuk dialokasikan manual.</div>` : ""}<div class="mpp-dialog-plans"><span>Sumber Monthly Plan</span><div>${plans.length ? plans.map((plan) => `<a href="/modules/planning-ppic/monthly-production-plans/${encodeURIComponent(plan)}">${esc(plan)} ↗</a>`).join("") : "<small>Tidak ada nomor plan pada cell ini.</small>"}</div></div>`;
+    $("mpp-dialog-body").innerHTML = `<div class="mpp-dialog-grid"><article><span>Planned Qty</span><b>${qty(day.qty)} ${esc((day.uomCodes || []).join(" / ") || "PCS")}</b></article><article><span>Capacity Load</span><b>${day.loadPercent != null && Number(day.loadMinutes) > 0 ? percent(day.loadPercent) : day.minutes ? hours(day.minutes) : "-"}</b></article><article><span>Mesin / Vendor</span><b>${esc(resourceLabel(row))}</b></article><article><span>Process</span><b>${esc((source?.processCodes || []).join(" · ") || row?.type || "-")}</b></article><article><span>FG Required</span><b>${esc((day.fgRequiredDates || source?.fgRequiredDates || []).map(shortDate).join(", ") || "-")}</b></article></div>${day.blocker ? `<div class="mpp-month-alert"><b>Capacity blocker ${percent(day.blocker.peakPercent)}</b><br>${hours(day.blocker.excessMinutes)} belum mendapat kapasitas. Tetap berada di owner month untuk dialokasikan manual.</div>` : ""}<div class="mpp-dialog-plans"><span>Sumber Monthly Plan</span><div>${plans.length ? plans.map((plan) => `<a href="/modules/planning-ppic/monthly-production-plans/${encodeURIComponent(plan)}">${esc(plan)} ↗</a>`).join("") : "<small>Tidak ada nomor plan pada cell ini.</small>"}</div></div>`;
+    const executorAction = childKey ? executorButton(row, source, key) : "";
+    if (executorAction) {
+      $("mpp-dialog-body").insertAdjacentHTML("beforeend", `<div class="mpp-dialog-executor-actions"><p>Atur mesin, vendor, atau pembagian qty untuk batch pada tanggal ini.</p>${executorAction}</div>`);
+      $("mpp-dialog-body").querySelector("[data-executor-row]")?.addEventListener("click", () => openExecutor(row.key, source.key, key));
+    }
     $("mpp-month-dialog").showModal();
   }
 
   function bindTableEvents() {
+    $("mpp-month-tbody").querySelectorAll("[data-executor-row]").forEach((button) => button.addEventListener("click", () => openExecutor(button.dataset.executorRow, button.dataset.executorChild, button.dataset.executorDate || null)));
     document.querySelectorAll("[data-toggle-row]").forEach((button) => button.addEventListener("click", () => {
       const key = button.dataset.toggleRow;
       if (state.collapsed.has(key)) state.collapsed.delete(key); else state.collapsed.add(key);
@@ -962,8 +1000,8 @@
   $("mpp-editor-scope").addEventListener("change", () => renderEditorToolbar());
   $("mpp-editor-start").addEventListener("click", async () => { try { await startEditor(); } catch (error) { $("mpp-month-alert").textContent = error.message; $("mpp-month-alert").hidden = false; } });
   $("mpp-recommendation-generate").addEventListener("click", async () => { try { await startAutoAllocation(); } catch (error) { $("mpp-month-alert").textContent = error.message; $("mpp-month-alert").hidden = false; } });
-  $("mpp-recommendation-work-center").addEventListener("change", () => renderRecommendationBar());
-  $("mpp-recommendation-apply-work-center").addEventListener("click", async () => { try { const workCenterId = $("mpp-recommendation-work-center").value; if (workCenterId) await applyRecommendation({ mode: "WORK_CENTER", workCenterIds: [workCenterId] }); } catch (error) { $("mpp-month-alert").textContent = error.message; $("mpp-month-alert").hidden = false; } });
+  $("mpp-recommendation-resource").addEventListener("change", () => renderRecommendationBar());
+  $("mpp-recommendation-apply-resource").addEventListener("click", async () => { try { const key = $("mpp-recommendation-resource").value; if (key) await applyRecommendation({ mode: "ITEMS", itemIds: (state.recommendation?.items || []).filter((item) => recommendationResourceKey(item) === key && item.changeType && item.applyStatus === "PENDING").map((item) => item.id) }); } catch (error) { $("mpp-month-alert").textContent = error.message; $("mpp-month-alert").hidden = false; } });
   $("mpp-recommendation-apply-selected").addEventListener("click", async () => { try { await applyRecommendation({ mode: "ITEMS", itemIds: [...state.selectedRecommendationIds] }); } catch (error) { $("mpp-month-alert").textContent = error.message; $("mpp-month-alert").hidden = false; } });
   $("mpp-recommendation-apply-all").addEventListener("click", () => { try { openAutoAllocationDialog(); } catch (error) { $("mpp-month-alert").textContent = error.message; $("mpp-month-alert").hidden = false; } });
   $("mpp-recommendation-discard").addEventListener("click", async () => { try { await discardRecommendation(); } catch (error) { $("mpp-month-alert").textContent = error.message; $("mpp-month-alert").hidden = false; } });

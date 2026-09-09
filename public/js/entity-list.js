@@ -56,7 +56,7 @@
 
   const columns = [
     { data: null, orderable: false, searchable: false, width: "42px", render: (_v, _t, row) => row.isVirtual ? '<span title="Resource otomatis">◇</span>' : `<input class="form-check-input row-select" type="checkbox" value="${esc(row.id)}" ${selected.has(row.id) ? "checked" : ""}>` },
-    ...config.columns.map((col) => ({ data: null, name: col.data, render: (_v, renderType, row) => { const value = get(row, col.data); return renderType === "display" ? renderColumn(value, col) : value ?? ""; } })),
+    ...config.columns.map((col) => ({ data: null, name: col.data, orderable: col.orderable !== false, render: (_v, renderType, row) => { const value = get(row, col.data); return renderType === "display" ? renderColumn(value, col) : value ?? ""; } })),
     { data: null, orderable: false, searchable: false, width: "142px", render: (_v, _t, row) => completeness(row) },
     { data: null, orderable: false, searchable: false, width: "118px", render: (_v, _t, row) => {
       const key = row[config.detailKey] || row.id;
@@ -73,7 +73,7 @@
     ajax: function (data, callback) {
       data.isDeleted = document.getElementById("deleted-filter").value;
       $.ajax({ url: `/master-data/api/${config.slug}`, data, headers: { Authorization: `Bearer ${token()}` },
-        success: (payload) => { alertBox.classList.add("d-none"); gallery?.setRows(payload.data); callback(payload); },
+        success: (payload) => { if (config.monthlyPricing) payload.data = (payload.data || []).map(window.MonthlyPricing.project); alertBox.classList.add("d-none"); gallery?.setRows(payload.data); callback(payload); },
         error: (xhr) => { if (handleUnauthorized(xhr)) return; alertBox.textContent = xhr.responseJSON?.message || "Data gagal dimuat."; alertBox.classList.remove("d-none"); callback({ draw: data.draw, recordsTotal: 0, recordsFiltered: 0, data: [] }); }
       });
     },
@@ -116,15 +116,16 @@
     const response = await fetch(`/master-data/api/${config.slug}?${query}`, { headers: { Authorization: `Bearer ${token()}` } });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.message || "Data export gagal dimuat.");
-    return payload.data || [];
+    const rows = payload.data || [];
+    return config.monthlyPricing ? rows.map(window.MonthlyPricing.project) : rows;
   }
   async function exportMaster(format, button) {
     try {
       const rows = await fetchExportRows();
       const payload = {
         title: config.label,
-        subtitle: `Master Data · ${rows.length} baris · ${new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date())}`,
-        fileName: `${config.slug}-${new Date().toISOString().slice(0, 10)}`,
+        subtitle: `Master Data · ${rows.length} baris · ${new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format((globalThis.erpBusinessNow?.() || new Date()))}`,
+        fileName: `${config.slug}-${(globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10)}`,
         headers: config.columns.map((column) => column.label),
         rows: rows.map((row) => config.columns.map((column) => { const value = get(row, column.data); return value && typeof value === "object" ? "" : value ?? ""; })),
       };
@@ -137,7 +138,7 @@
   function templateField(field) {
     const options = Array.isArray(field.options) ? field.options.map((option) => option.label || option.value).join(" | ") : "";
     const lookupLabel = field.lookup ? `${field.label}: gunakan code/name/number dari Master ${field.lookup.entity}` : "";
-    const example = field.defaultValue === "today" ? new Date().toISOString().slice(0, 10)
+    const example = field.defaultValue === "today" ? (globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10)
       : field.type === "checkbox" ? "Ya"
       : field.type === "date" ? "2026-08-12"
       : field.type === "number" ? "0"

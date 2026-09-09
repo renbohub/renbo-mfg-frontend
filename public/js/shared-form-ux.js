@@ -60,6 +60,7 @@
     };
     form.addEventListener("input", update);
     form.addEventListener("change", update);
+    form.addEventListener("document-form:loaded", update);
     requestAnimationFrame(update);
     return { progress, update };
   }

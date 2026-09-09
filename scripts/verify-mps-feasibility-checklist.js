@@ -14,7 +14,7 @@ for (const status of ["FEASIBLE", "FEASIBLE_WITH_RISK", "NOT_FEASIBLE", "NOT_EVA
 assert.doesNotMatch(view, /Feasible with Action/);
 assert.doesNotMatch(script, /FEASIBLE_WITH_ACTION/);
 assert.match(view, /id="mwb-feasibility-modal"/);
-assert.match(view, /Checklist Kelayakan Schedule &amp; Delivery/);
+assert.match(view, /Checksheet Kelayakan Produksi/);
 assert.match(view, /data-feasibility-filter="issues"/);
 assert.doesNotMatch(view, /id="mwb-feasibility-recalculate"/);
 assert.doesNotMatch(view, /id="mwb-check-delivery"/);
@@ -42,3 +42,8 @@ assert.match(css, /\.mwb-feasibility-panel/);
 assert.match(css, /\.mwb-demand-table.*position:sticky/);
 
 console.log("MPS feasibility checklist UI verification passed.");
+const audit = require("../public/js/ppic-mps-audit-model.js");
+assert.equal(audit.facts({ code: "MPS_MATERIAL", status: "NOT_CHECKED", gap: { display: "Kurang material; menunggu ETA customer" } }).gap,
+  "Kurang material; menunggu ETA customer", "a calculated shortage must not be labelled uncalculated when only ETA is missing");
+assert.match(script, /Periksa Checksheet/);
+assert.match(routes, /checksheet\/evaluate/);

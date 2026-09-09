@@ -60,6 +60,6 @@
 </main>
 <script id="ops-detail-config" type="application/json"><%- JSON.stringify({ module: module.slug, moduleLabel: module.label, page, recordKey, purchaseCategory }).replace(/</g, '\\u003c') %></script>
 <% if (module.slug === 'planning-ppic' && page.slug === 'monthly-production-plans') { %><script src="/vendor/frappe-gantt/frappe-gantt.umd.js"></script><% } %>
-<% if (module.slug === 'purchasing' && page.slug === 'purchase-suggestions') { %><script src="/js/purchase-suggestion-compact-ui.js?v=20260828-coverage-2"></script><% } %>
+<% if (module.slug === 'purchasing' && page.slug === 'purchase-suggestions') { %><script src="/js/purchase-suggestion-compact-ui.js?v=20260906-mrp-delivery-need-1"></script><% } %>
 <% if (isGoodsReceiptDetail) { %><script src="/vendor/tabulator/js/tabulator.min.js"></script><% } %>
 <%- include('../partials/footer') %>

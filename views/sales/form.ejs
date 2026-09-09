@@ -49,6 +49,9 @@
         </label>
       </section>
       <div class="form-actions sales-form-actions" aria-hidden="true"></div>
+      <% if (page.salesType === 'sales-order') { %>
+      <section class="sales-form-workspace"><h2>Lampiran PO Pelanggan</h2><p>Opsional. PDF, DOCX, XLSX maksimal 10 MB per file. Lampiran diunggah setelah draft tersimpan dan dapat dikelola dari detail SO.</p><input id="so-form-attachments" class="form-control" type="file" accept=".pdf,.docx,.xlsx" multiple aria-label="Lampiran PO pelanggan"></section>
+      <% } %>
     </form>
     <%- include('../partials/document-comments', { documentComments: { recordKey: mode === 'edit' ? recordKey : null, showPending: mode !== 'edit', title: `Komentar ${page.label}`, variant: 'receipt' } }) %>
   </article>

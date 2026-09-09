@@ -1,0 +1,15 @@
+"use strict";
+const assert = require("node:assert/strict");
+const { availableRuns, selectRun } = require("../public/js/ppic-mrp-monthly-model");
+const active = { runNumber: "R12", planRevision: 12, presentationStatus: "SIMULATED", executionScope: "PERIOD", approvedRunNumber: "R10", approvedPlanRevision: 10 };
+const rows = availableRuns([{ runNumber: "LINK", executionScope: "LINKED_SOURCE", planRevision: 99 }, active, { runNumber: "PREVIEW", scenarioAssumptions: { planningMode: "M_PLUS_ONE_PREVIEW" } }]);
+assert.equal(selectRun(rows).runNumber, "R12");
+assert.equal(selectRun(rows, "R10").presentationStatus, "APPROVED");
+assert.equal(selectRun(rows, "R10").planRevision, 10);
+assert.equal(selectRun(rows, "ANOTHER-MONTH"), null, "never silently fall back to another run");
+assert.equal(selectRun(availableRuns([])), null);
+assert.equal(rows.length, 3);
+assert.equal(rows.at(-1).runNumber, "LINK");
+assert.equal(availableRuns([active, active]).length, 2);
+assert.equal(selectRun(availableRuns([{...active, runNumber:"FAILED", presentationStatus:"FAILED", approvedRunNumber:null, planRevision:99},active])).runNumber,"R12");
+console.log("PASS monthly MRP table: working revision, approved option, empty month, invalid selection and linked-source separation");

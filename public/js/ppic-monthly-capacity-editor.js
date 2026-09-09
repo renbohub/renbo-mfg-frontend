@@ -25,7 +25,7 @@
 
   function getQueueSummary(state) {
     const queue = state.queue || [];
-    const today = state.currentDate || new Date().toISOString().slice(0, 10);
+    const today = state.currentDate || (globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10);
     return {
       lines: queue.length,
       qty: queue.reduce((sum, item) => sum + Number(item.qty || 0), 0),
@@ -104,13 +104,14 @@
     const wipStockQty = Number(planning.wipCoverageQty || 0) + Number(planning.fgCoverageQty || 0);
     const requirementQty = Number(planning.totalRequirementQty || 0);
     const productionQty = Number(child.monthlyProductionQty || 0);
+    const planningProductionQty = Number(child.planningProductionQty ?? productionQty);
     return {
       available: true,
       warehouseStock: format(warehouseStockQty),
       wipStock: format(wipStockQty),
       requirement: format(requirementQty),
       production: format(productionQty),
-      remaining: format(Math.max(requirementQty - warehouseStockQty - wipStockQty - productionQty, 0)),
+      remaining: format(Math.max(requirementQty - warehouseStockQty - wipStockQty - planningProductionQty, 0)),
       uomCode,
       warehouseStockBreakdown: warehouseSources.length
         ? warehouseSources.map((source) => `${source.partCode} ${format(source.equivalentQty)}`).join(" + ")
@@ -363,6 +364,56 @@
     return result;
   }
 
+  function resolveMatrixTarget(rows, value, partCode, processCode, sourceChild = null) {
+    const machineId = value.targetMachineId;
+    const vendorId = value.targetVendorId || value.vendorId;
+    const row = machineId
+      ? rows.find((candidate) => candidate.machineId === machineId || candidate.key === `MACHINE:${machineId}`)
+      : vendorId
+        ? rows.find((candidate) => candidate.key === `VENDOR:${vendorId}`)
+        : rows.find((candidate) => candidate.key === value.targetRowKey);
+    if (!row) return null;
+    const matches = (child) => child.type !== "BLOCKER" && child.partCode === partCode
+      && (!processCode || !(child.processCodes || []).length || child.processCodes.some((code) => String(code).toUpperCase() === String(processCode).toUpperCase()));
+    let child = row.children.find((candidate) => candidate.key === value.targetChildKey)
+      || row.children.find((candidate) => candidate.type !== "BLOCKER" && candidate.partCode === partCode && (row.machineId || matches(candidate)));
+    if (!child) {
+      const template = sourceChild || rows.flatMap((candidate) => candidate.children || []).find(matches);
+      child = {
+        ...(template ? copy(template) : { type: "PART", partCode, partName: partCode, planning: null }),
+        key: value.targetChildKey || (row.type === "OUTSOURCE" ? `PART:${partCode}:${processCode || "VENDOR"}` : `PART:${partCode}`),
+        processCodes: processCode ? [processCode] : (template?.processCodes || []),
+        days: {}, monthlyProductionQty: 0,
+      };
+      row.children.push(child);
+    }
+    child.processCodes ||= [];
+    if (processCode && !child.processCodes.includes(processCode)) child.processCodes.push(processCode);
+    return { row, child };
+  }
+
+  function refreshProjectedTotals(rows) {
+    for (const row of rows) {
+      for (const child of row.children || []) child.monthlyProductionQty = Object.values(child.days || {}).reduce((sum, day) => sum + Number(day.qty || 0), 0);
+      for (const day of Object.values(row.days || {})) {
+        day.loadPercent = Number(day.availableMinutes) > 0 ? Math.round(Number(day.loadMinutes || 0) / day.availableMinutes * 1000) / 10 : (Number(day.loadMinutes) > 0 ? 999 : 0);
+        if (row.machineId) for (const machine of day.machines || []) if (machine.id === row.machineId) machine.loadMinutes = Number(day.loadMinutes || 0);
+      }
+    }
+    return rows;
+  }
+
+  function withPlanningTotals(rows) {
+    // Requirement and stock belong to the part/process across machines; dated quantities remain local.
+    const groupKey = (row, child) => [row.type, child.partCode, [...(child.processCodes || [])].sort().join("|")].join("::");
+    const totals = new Map();
+    for (const row of rows) for (const child of row.children || []) if (child.type === "PART") {
+      const key = groupKey(row, child);
+      totals.set(key, (totals.get(key) || 0) + Number(child.monthlyProductionQty || 0));
+    }
+    return rows.map((row) => ({ ...row, children: row.children.map((child) => ({ ...child, planningProductionQty: totals.get(groupKey(row, child)) })) }));
+  }
+
   function projectStagedMatrix(rows = [], changes = []) {
     const projected = copy(rows || []);
     for (const [changeIndex, change] of (changes || []).entries()) {
@@ -380,25 +431,28 @@
           if (source) break;
         }
         if (!source) continue;
-        const movedQty = Number(change.qty || 0);
-        const allocationQty = Math.max(Number(source.allocation.qty || 0), Number(source.day.qty || 0), movedQty);
+        const target = resolveMatrixTarget(projected, { ...change, targetRowKey: change.targetRowKey || source.row.key }, change.partCode || source.child.partCode, change.processCode || source.allocation.processCode, source.child);
+        if (!target) continue;
+        const movedQty = Math.min(Number(change.qty || 0), Number(source.allocation.qty || 0));
+        const allocationQty = Number(source.allocation.qty || 0);
         const minuteRatio = allocationQty > 0 ? Math.min(movedQty / allocationQty, 1) : 0;
-        const movedMinutes = Number(source.day.minutes || 0) * minuteRatio;
+        const movedMinutes = Number(source.allocation.minutes ?? source.day.minutes ?? 0) * minuteRatio;
         source.day.qty = Math.max(Number(source.day.qty || 0) - movedQty, 0);
         source.day.minutes = Math.max(Number(source.day.minutes || 0) - movedMinutes, 0);
         const sourceParentDay = source.row.days?.[source.date];
         if (sourceParentDay) {
           sourceParentDay.qty = Math.max(Number(sourceParentDay.qty || 0) - movedQty, 0);
           sourceParentDay.minutes = Math.max(Number(sourceParentDay.minutes || 0) - movedMinutes, 0);
+          sourceParentDay.loadMinutes = Math.max(Number(sourceParentDay.loadMinutes || 0) - movedMinutes, 0);
+          sourceParentDay.staged = true;
         }
-        if (Number(source.allocation.qty || 0) > movedQty) source.allocation.qty = Number(source.allocation.qty) - movedQty;
+        if (Number(source.allocation.qty || 0) > movedQty) {
+          source.allocation.qty = Number(source.allocation.qty) - movedQty;
+          source.allocation.minutes = Math.max(Number(source.allocation.minutes ?? (movedMinutes / minuteRatio)) - movedMinutes, 0);
+        }
         else source.day.allocations = (source.day.allocations || []).filter((entry) => entry !== source.allocation);
 
-        const targetRow = projected.find((row) => row.key === change.targetRowKey) || source.row;
-        const targetChild = targetRow?.children?.find((child) => child.key === change.targetChildKey)
-          || targetRow?.children?.find((child) => child.partCode === (change.partCode || source.child.partCode)
-            && (!(child.processCodes || []).length || !change.processCode || (child.processCodes || []).some((code) => String(code).toUpperCase() === String(change.processCode).toUpperCase())))
-          || source.child;
+        const { row: targetRow, child: targetChild } = target;
         if (!targetRow || !targetChild) continue;
         const makeDay = () => ({ qty: 0, minutes: 0, availableMinutes: 0, loadMinutes: 0, loadPercent: 0, uomCodes: [], planNumbers: [], fgRequiredDates: [], allocations: [], machines: [], itemCount: 0, blocker: null });
         const childDay = targetChild.days[change.targetDate] ||= makeDay();
@@ -408,6 +462,7 @@
           day.minutes = Number(day.minutes || 0) + movedMinutes;
           day.staged = true;
         }
+        parentDay.loadMinutes = Number(parentDay.loadMinutes || 0) + movedMinutes;
         childDay.allocations ||= [];
         childDay.allocations.push({
           ...copy(source.allocation),
@@ -416,6 +471,7 @@
           stagedChangeId: change._changeId || null,
           draftChange: copy(change),
           qty: movedQty,
+          minutes: movedMinutes,
           scheduleDate: change.targetDate,
           machineId: change.targetMachineId || source.allocation.machineId || null,
           vendorId: change.targetVendorId || change.vendorId || source.allocation.vendorId || null,
@@ -426,13 +482,13 @@
       }
       if (change.type !== "ALLOCATE_REMAINING" || !change.targetDate || Number(change.qty || 0) <= 0) continue;
       const routingMode = String(change.routingMode || "INHOUSE").toUpperCase();
-      const row = projected.find((candidate) => {
+      const legacyRow = projected.find((candidate) => {
         if ((candidate.type === "OUTSOURCE") !== (routingMode === "VENDOR")) return false;
         return (candidate.children || []).some((child) => child.partCode === change.partCode
           && (!(child.processCodes || []).length || (child.processCodes || []).some((code) => String(code).toUpperCase() === String(change.processCode || "").toUpperCase())));
       });
-      const child = row?.children?.find((candidate) => candidate.partCode === change.partCode
-        && (!(candidate.processCodes || []).length || (candidate.processCodes || []).some((code) => String(code).toUpperCase() === String(change.processCode || "").toUpperCase())));
+      const target = resolveMatrixTarget(projected, { ...change, targetRowKey: change.targetRowKey || legacyRow?.key }, change.partCode, change.processCode);
+      const { row, child } = target || {};
       if (!row || !child) continue;
       const makeDay = () => ({ qty: 0, minutes: 0, availableMinutes: 0, loadMinutes: 0, loadPercent: 0, uomCodes: [], planNumbers: [], fgRequiredDates: [], allocations: [], machines: [], itemCount: 0, blocker: null });
       const childDay = child.days[change.targetDate] ||= makeDay();
@@ -447,6 +503,8 @@
         lineNumber: change.lineNumber ?? null,
         mbomProcessId: change.mbomProcessId || null,
         routingMode,
+        machineId: change.targetMachineId || null,
+        vendorId: change.vendorId || null,
         scheduleDate: change.targetDate,
         vendorReturnDate: change.vendorReturnDate || null,
         qty: quantity,
@@ -468,8 +526,8 @@
       }
       child.monthlyProductionQty = Number(child.monthlyProductionQty || 0) + quantity;
     }
-    return projected;
+    return refreshProjectedTotals(projected);
   }
 
-  return { createEditorState, reduceEditorState, getQueueSummary, getUnallocatedNotice, formatMaterialWarnings, hydrateStagedChanges, replaceStagedChange, validateVendorDates, getAuthoritativeCapacity, getChildPlanningSummary, getRemainingCandidates, getRemainingAllocationLimit, getPreviousStockRows, isSameAllocationRow, evaluateTargetAvailability, buildCutPasteChange, distributeRemainingQty, projectStagedMatrix };
+  return { createEditorState, reduceEditorState, getQueueSummary, getUnallocatedNotice, formatMaterialWarnings, hydrateStagedChanges, replaceStagedChange, validateVendorDates, getAuthoritativeCapacity, getChildPlanningSummary, getRemainingCandidates, getRemainingAllocationLimit, getPreviousStockRows, isSameAllocationRow, evaluateTargetAvailability, buildCutPasteChange, distributeRemainingQty, projectStagedMatrix, resolveMatrixTarget, refreshProjectedTotals, withPlanningTotals };
 });

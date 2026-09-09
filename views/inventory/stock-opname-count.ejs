@@ -1,5 +1,6 @@
 <%- include('../partials/head') %>
 <link rel="stylesheet" href="/css/stock-opname-count.css?v=20260826-multi-member-2">
+<link rel="stylesheet" href="/css/stock-opname-scan.css?v=20260908-1">
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
 
@@ -36,6 +37,14 @@
           <em id="sto-round-label">ROUND 1 · COUNTING</em>
         </div>
       </div>
+
+      <section class="soc-scan-panel" aria-label="Scan barcode dan QR stock opname">
+        <form id="sto-scan-form"><label for="sto-scan-reference">Scan barcode / QR</label><div><input id="sto-scan-reference" class="form-control" maxlength="512" autocomplete="off" placeholder="Scanner atau ketik part/material code"><button type="submit" class="btn btn-primary">Cari item</button><button id="sto-scan-camera" type="button" class="btn btn-outline-primary">Kamera</button><button id="sto-scan-stop" type="button" class="btn btn-outline-secondary" hidden>Stop</button></div></form>
+        <video id="sto-scan-video" autoplay muted playsinline hidden></video>
+        <p id="sto-scan-message" role="status" aria-live="polite">Scan memilih item; qty fisik tetap diisi dan disimpan oleh petugas.</p>
+        <div id="sto-scan-matches"></div>
+        <div class="soc-scan-downloads"><button type="button" class="btn btn-outline-secondary" data-sto-document="labels.pdf">Cetak Label QR</button><button type="button" class="btn btn-outline-secondary" data-sto-document="report.pdf">Laporan PDF Lengkap</button><button type="button" class="btn btn-outline-secondary" data-sto-document="report.xlsx">Laporan Excel Lengkap</button></div>
+      </section>
 
       <div class="soc-progress-strip">
         <div><span>Total Item</span><b id="sto-total-lines">0</b></div>

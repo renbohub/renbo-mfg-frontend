@@ -1,14 +1,20 @@
 (() => {
   "use strict";
   const weeklyDeltaModel = window.PpicMrpWeeklyDeltaModel;
+  const supplyModel = window.PpicMrpSupplyModel;
+  const materialGroups = window.PpicMrpMaterialGroups;
+  const nettingSummary = window.PpicMrpNettingSummary;
+  const expandedMaterials = new Set();
+  let selectedMaterialCategory = "MATERIAL";
   const cfg = JSON.parse(document.getElementById("mrps-config")?.textContent || "{}");
-  const key = cfg.recordKey;
+  let key = cfg.recordKey;
   const $ = (id) => document.getElementById(id);
+  $("mrps-customer-supply")?.addEventListener("click", () => { location.href = `/modules/purchasing/customer-supplies${key ? `?run=${encodeURIComponent(key)}` : ""}`; });
   const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
   const savedMPlusOneDisplayMode = localStorage.getItem("mrps-mplus-display-mode");
   const shouldHideZeroMatrixRow = window.PpicMrpZeroFilter?.shouldHideZeroMatrixRow || (() => false);
   const summarizeCurrentStock = window.PpicMrpStockSummary?.summarizeCurrentStock || (() => ({ warehouseQty: 0, wipQty: 0, totalQty: 0, warehouseLines: [], wipLines: [] }));
-  const state = { doc: null, view: "matrix", query: "", filter: "ALL", page: 1, pageSize: 25, requirementGrouping: localStorage.getItem("mrps-requirement-grouping") !== "FLAT" ? "GROUPED" : "FLAT", mPlusOneDisplayMode: savedMPlusOneDisplayMode === "FULL_EFD" ? "FULL_EFD" : "NET_CURRENT_STOCK", hideZeroQty: localStorage.getItem("mrps-hide-zero-qty") === "1", expandedGroups: new Set(), defaultGroupInitialized: false, rows: new Map(), bucketCells: new Map(), action: null, recovery: null, autoLookaheadAttempted: false };
+  const state = { doc: null, view: "matrix", query: "", filter: "ALL", page: 1, pageSize: 25, requirementGrouping: localStorage.getItem("mrps-requirement-grouping") !== "FLAT" ? "GROUPED" : "FLAT", mPlusOneDisplayMode: savedMPlusOneDisplayMode === "FULL_EFD" ? "FULL_EFD" : "NET_CURRENT_STOCK", showCovered: localStorage.getItem("mrps-show-covered") === "1", expandedGroups: new Set(), defaultGroupInitialized: false, rows: new Map(), bucketCells: new Map(), action: null, recovery: null, autoLookaheadAttempted: false };
   const esc = (value) => String(value ?? "-").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
   const number = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
   const num = (value, digits = 2) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: digits }).format(number(value));
@@ -28,10 +34,10 @@
   const date = (value) => validDate(value) ? new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value)) : "-";
   const shortDate = (value) => validDate(value) ? new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" }).format(new Date(value)) : "-";
   const dateKey = (value) => validDate(value) ? new Date(value).toISOString().slice(0, 10) : "";
-  const startUtcDay = (value = new Date()) => { const result = new Date(value); result.setUTCHours(0, 0, 0, 0); return result; };
+  const startUtcDay = (value = (globalThis.erpBusinessNow?.() || new Date())) => { const result = new Date(value); result.setUTCHours(0, 0, 0, 0); return result; };
   const addUtcDays = (value, days) => { const result = startUtcDay(value); result.setUTCDate(result.getUTCDate() + days); return result; };
   const addUtcMonths = (value, months) => { const result = new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + months, 1)); return result; };
-  const saturdayAnchor = (value) => { const result = startUtcDay(value); const distance = (result.getUTCDay() + 1) % 7; result.setUTCDate(result.getUTCDate() - distance); return result; };
+  const mondayAnchor = (value) => { const result = startUtcDay(value); const distance = (result.getUTCDay() + 6) % 7; result.setUTCDate(result.getUTCDate() - distance); return result; };
   const month = (value) => validDate(value) ? new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(new Date(value)) : "-";
   const slug = (value) => String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const mrpLifecycle = (doc = {}) => {
@@ -182,6 +188,7 @@
   }
   function requirementState(row) {
     if (number(row.netRequirement) <= .000001) return { key: "COVERED", label: "Covered", tone: "covered" };
+    if (supplyModel.isCustomerSupplied(row)) return { key: "OPEN", label: "Menunggu suplai customer", tone: "warning" };
     if (String(row.procurementWindow || "").toUpperCase() === "EXPEDITE") return { key: "URGENT", label: "Urgent", tone: "urgent" };
     return { key: "OPEN", label: "Perlu dibeli", tone: "buy" };
   }
@@ -213,7 +220,7 @@
       const sources = demandSources(row);
       const usageSearch = `${usage.parent?.partCode || ""} ${usage.parent?.partNumber || ""} ${usage.parent?.partName || ""} ${usage.output?.partCode || ""} ${usage.output?.partNumber || ""} ${usage.routes.map((route) => `${route.code} ${route.name}`).join(" ")} ${usage.bomNumber}`;
       const sourceSearch = sources.map((source) => `${source.type} ${source.sourceNumber} ${source.customerCode} ${source.fgPartCode} phase ${source.phaseNumber}`).join(" ");
-      return { ...row, _usage: usage, _demandSources: sources, _id: `${prefix}:${row.id || index}`, _state: requirementState(row), _search: `${identity} ${row.partCode} ${partName} ${row.planningPartCode || ""} ${row.planningCustomerCode || ""} ${usageSearch} ${sourceSearch}`.toLowerCase() };
+      return { ...row, _usage: usage, _demandSources: sources, _id: `${prefix}:${row.id || index}`, _state: requirementState(row), _search: `${identity} ${row.partCode} ${partName} ${row.planningPartCode || ""} ${row.planningCustomerCode || ""} ${usageSearch} ${sourceSearch} ${supplyModel.supplyLabel(row)}`.toLowerCase() };
     });
   }
   function buyRows() { return mapBuyRows(state.doc?.requirements || [], "req"); }
@@ -254,10 +261,11 @@
     return [...targets.values()];
   }
   function weeklyBuckets() {
-    return weeklyDeltaModel.buildWeeklyBuckets(validDate(state.doc?.planningMonth) ? state.doc.planningMonth : new Date());
+    const dates = [...(state.doc?.requirements || []), ...(state.doc?.mPlusOnePreview?.requirements || [])].map((row) => row.materialRequiredDate || row.requiredDate);
+    return weeklyDeltaModel.buildWeeklyBuckets(validDate(state.doc?.planningMonth) ? state.doc.planningMonth : (globalThis.erpBusinessNow?.() || new Date()), dates);
   }
   function weeklyStatus(items, bucket) {
-    const today = startUtcDay(new Date());
+    const today = startUtcDay((globalThis.erpBusinessNow?.() || new Date()));
     const warningLimit = addUtcDays(today, 7);
     const targetIds = [...new Set(items.flatMap((item) => (item._demandSources || []).map((source) => source.deliveryTargetId).filter(Boolean)))];
     const plans = recoveryPlanByTarget();
@@ -279,8 +287,8 @@
       const matrixRequirementQty = lookaheadRequirement
         ? lookaheadDisplayQty(item)
         : number(item.netRequirement);
-      if (!validDate(targetAvailableDate) || (!lookaheadRequirement && matrixRequirementQty <= .000001)) continue;
-      const anchor = saturdayAnchor(targetAvailableDate);
+      if (!validDate(targetAvailableDate) || !nettingSummary.includeRequirement(matrixRequirementQty, item.grossRequirement, state.showCovered)) continue;
+      const anchor = mondayAnchor(targetAvailableDate);
       const bucket = buckets.byKey.get(dateKey(anchor));
       if (!bucket) continue;
       const sources = item._demandSources || demandSources(item);
@@ -290,7 +298,8 @@
       const materialCode = item.part?.material?.materialCode || item.partCode;
       const parentCode = usage.parent?.partCode || usage.output?.partCode || item.planningPartCode || "-";
       const process = routeLabel(usage);
-      const key = `${fgCodes.join("+") || item.fgPartCode || "NO-FG"}|${materialCode}|${parentCode}|${process}`;
+      const category = supplyModel.materialCategory(item);
+      const key = `${fgCodes.join("+") || item.fgPartCode || "NO-FG"}|${materialCode}|${parentCode}|${process}|${uom(item)}|${supplyModel.supplyKey(item)}|${category}`;
       if (!grouped.has(key)) grouped.set(key, {
         _id: `matrix:${grouped.size}`,
         _search: "",
@@ -298,6 +307,10 @@
         fgName: fgPart?.partName || item._groupLabel || "Demand MRP",
         fgCode: fgPart?.partCode || fgCodes.join(", ") || item.fgPartCode || item.planningPartCode || "-",
         materialCode,
+        _materialCategory: category,
+        materialPartNumbers: [],
+        materialSupplyType: item.materialSupplyType,
+        supplyCustomerCode: item.supplyCustomerCode,
         materialName: item.part?.material?.materialName || item.part?.partName || item.part?.partNumber || "-",
         identificationNumber: usage.parent?.partNumber || usage.output?.partNumber || "-",
         identificationCode: parentCode,
@@ -306,12 +319,12 @@
         cells: new Map(),
       });
       const row = grouped.get(key);
+      const materialPartNumber = String(item.part?.partNumber || "").trim();
+      if (materialPartNumber && !row.materialPartNumbers.includes(materialPartNumber)) row.materialPartNumbers.push(materialPartNumber);
       if (!row.cells.has(bucket.key)) row.cells.set(bucket.key, { bucket, qty: 0, rawQty: 0, officialQty: 0, baselineQty: 0, additionalQty: 0, lookaheadQty: 0, hasLookahead: false, items: [] });
       const cell = row.cells.get(bucket.key);
       const itemRawQty = matrixRequirementQty;
-      const itemDisplayQty = number(isDiscreteUom(row.uom)
-        ? lookaheadRequirement ? matrixRequirementQty : (item.plannedOrderQtyPcs ?? item.netRequirement)
-        : matrixRequirementQty);
+      const itemDisplayQty = matrixRequirementQty <= .000001 ? 0 : supplyModel.matrixQty(item, { netQty: matrixRequirementQty, discrete: isDiscreteUom(row.uom), lookahead: lookaheadRequirement });
       cell.rawQty += itemRawQty;
       cell.qty += itemDisplayQty;
       if (lookaheadRequirement) { cell.lookaheadQty += itemDisplayQty; cell.hasLookahead = true; }
@@ -333,12 +346,12 @@
         cell.baselineQty = planningQty(cell.baselineQty, row.uom);
         cell.additionalQty = planningQty(cell.additionalQty, row.uom);
         cell.lookaheadQty = planningQty(cell.lookaheadQty, row.uom);
-        cell.status = weeklyStatus(cell.items, cell.bucket);
+        cell.status = cell.qty <= .000001 ? { key: "COVERED", label: "Tercover", tone: "covered" } : weeklyStatus(cell.items, cell.bucket);
         officialTotal += cell.officialQty;
         lookaheadTotal += cell.lookaheadQty;
         states.push(cell.status);
       }
-      const priority = { LATE: 0, ACCEPT_LATE: 1, WARNING: 2, GREEN: 3 };
+      const priority = { LATE: 0, ACCEPT_LATE: 1, WARNING: 2, GREEN: 3, COVERED: 4 };
       const status = states.sort((left, right) => priority[left.key] - priority[right.key])[0] || { key: "GREEN", label: "Due Date > 1 Minggu", tone: "on-track" };
       row.total = officialTotal;
       row.officialTotal = officialTotal;
@@ -346,7 +359,7 @@
       row.hasLookahead = [...row.cells.values()].some((cell) => cell.hasLookahead);
       row.currentStock = summarizeCurrentStock([...row.cells.values()].flatMap((cell) => cell.items));
       row._state = status;
-      row._search = `${row.fgLabel} ${row.fgName} ${row.fgCode} ${row.materialCode} ${row.materialName} ${row.identificationNumber} ${row.identificationCode} ${row.process} ${status.label}`.toLowerCase();
+      row._search = `${row.fgLabel} ${row.fgName} ${row.fgCode} ${row.materialCode} ${row.materialPartNumbers.join(" ")} ${row.materialName} ${row.identificationNumber} ${row.identificationCode} ${row.process} ${supplyModel.supplyLabel(row)} ${status.label}`.toLowerCase();
       return row;
     }).sort((left, right) => left._state.key.localeCompare(right._state.key) || left.fgLabel.localeCompare(right.fgLabel) || left.materialCode.localeCompare(right.materialCode));
   }
@@ -389,21 +402,43 @@
     return (state.pegging?.items || []).map((row, index) => ({ ...row, _id: `peg:${index}`, _state: peggingState(row), _search: `${row.customerCode || ""} ${row.fgPartCode || ""} ${row.sourceNumber || ""} ${row.materialOrComponent || row.partCode || ""}`.toLowerCase() }));
   }
   function currentRows() {
-    if (state.view === "matrix") return weeklyMatrixRows();
+    if (state.view === "matrix") return materialGroups.groupMaterials(weeklyMatrixRows(), { supplyKey: supplyModel.supplyKey, summarizeCurrentStock });
     const rows = state.view === "buy" ? buyRows() : state.view === "exception" ? exceptionRows() : makeRows();
     const priority = { URGENT: 0, OPEN: 1, COVERED: 2 };
     return rows.sort((left, right) => (priority[left._state.key] ?? 9) - (priority[right._state.key] ?? 9) || String(left.requiredDate || left.targetDeliveryDate || left.orderDate || "").localeCompare(String(right.requiredDate || right.targetDeliveryDate || right.orderDate || "")));
   }
-  function visibleRows() {
+  function eligibleRows() {
     return currentRows().filter((row) => (
-      (state.view !== "matrix" || !shouldHideZeroMatrixRow(row, state.hideZeroQty))
+      (state.view !== "matrix" || !shouldHideZeroMatrixRow(row, !state.showCovered))
       && (!state.query || row._search.includes(state.query))
       && (state.filter === "ALL" || (state.filter === "ACTION" ? !["COVERED", "GREEN"].includes(row._state.key) : row._state.key === state.filter))
     ));
   }
+  function renderMaterialCategories(rows) {
+    const wrap = $("mrps-material-categories");
+    const relevant = ["matrix", "buy"].includes(state.view);
+    wrap.hidden = !relevant;
+    if (!relevant) return;
+    const counts = rows.reduce((result, row) => {
+      const category = supplyModel.materialCategory(row);
+      result[category] = (result[category] || 0) + 1;
+      return result;
+    }, {});
+    const categories = [...supplyModel.materialCategories.filter((category) => category.key !== "UNCLASSIFIED" || counts.UNCLASSIFIED || selectedMaterialCategory === "UNCLASSIFIED"), { key: "ALL", label: "Semua", help: "Semua kategori material" }];
+    wrap.innerHTML = categories.map((category) => `<button type="button" data-mrps-category="${category.key}" aria-pressed="${selectedMaterialCategory === category.key}" title="${esc(category.help)}"><span>${esc(category.label)}</span><b>${num(category.key === "ALL" ? rows.length : counts[category.key] || 0, 0)}</b></button>`).join("");
+  }
   function renderHeader() {
     const doc = state.doc; if (!doc) return;
     const lifecycle = mrpLifecycle(doc);
+    const breadcrumb = document.querySelector(".mrps-breadcrumb a");
+    if (breadcrumb) {
+      breadcrumb.href = `/modules/planning-ppic/mrp?month=${encodeURIComponent(cfg.initialMonth || String(doc.planningMonth || "").slice(0, 7))}`;
+      breadcrumb.textContent = "Tabel MRP";
+    }
+    if (cfg.monthlyMode) {
+      const option = $("mrps-run").selectedOptions[0];
+      if (option?.value === key) option.textContent = `${key} · ${lifecycle}${option.textContent.includes("sumber lintas bulan") ? " · sumber lintas bulan" : ""}`;
+    }
     $("mrps-title").textContent = doc.runNumber || key;
     $("mrps-status").textContent = lifecycle;
     $("mrps-status").className = `mrps-badge ${slug(lifecycle)}`;
@@ -430,9 +465,9 @@
   }
   function renderKpis() {
     const make = makeRows(); const buy = buyRows(); const exceptions = exceptionRows();
-    const matrix = weeklyMatrixRows();
+    const matrix = materialGroups.groupMaterials(weeklyMatrixRows(), { supplyKey: supplyModel.supplyKey, summarizeCurrentStock });
     const activeMake = make.filter((row) => row._state.key !== "COVERED");
-    const activeBuy = buy.filter((row) => row._state.key !== "COVERED");
+    const activeBuy = buy.filter((row) => row._state.key !== "COVERED" && !supplyModel.isCustomerSupplied(row));
     $("mrps-kpi-make").textContent = num(activeMake.length, 0);
     $("mrps-kpi-buy").textContent = num(activeBuy.length, 0);
     $("mrps-kpi-covered").textContent = num([...make, ...buy].filter((row) => row._state.key === "COVERED").length, 0);
@@ -444,15 +479,22 @@
   }
   function renderMatrix(rows) {
     const bucketModel = weeklyBuckets();
-    const fixedColumns = `<th rowspan="2" class="mrps-matrix-fixed mrps-fixed-fg">FG</th><th rowspan="2" class="mrps-matrix-fixed mrps-fixed-material">Material / Part</th><th rowspan="2" class="mrps-matrix-fixed mrps-fixed-identification">Identification</th><th rowspan="2" class="mrps-matrix-fixed mrps-fixed-status">Status</th><th colspan="2" class="mrps-current-stock-group">Current Stock</th>`;
+    const fixedColumns = `<th rowspan="2" scope="col" class="mrps-material-heading">Material / Part</th><th rowspan="2" scope="col">FG Pemakai</th><th rowspan="2" scope="col">Part / Proses Pemakai</th><th rowspan="2" scope="col">Status</th><th colspan="2" class="mrps-current-stock-group">Current Stock</th>`;
+    const table = $("mrps-head").closest("table");
+    const widths = [220, 170, 180, 150, 72, 72, ...bucketModel.flat.map(() => 92), 130, 85];
+    table.style.width = `${widths.reduce((sum, width) => sum + width, 0)}px`;
+    table.querySelector("colgroup")?.remove();
+    table.insertAdjacentHTML("afterbegin", `<colgroup>${widths.map((width) => `<col style="width:${width}px">`).join("")}</colgroup>`);
     const lookaheadTotals = state.doc?.mPlusOneOption?.totals || {};
     const selectedBasis = state.mPlusOneDisplayMode === "FULL_EFD" ? lookaheadTotals.efdMPlusOne : lookaheadTotals.netDemandOnly;
     const monthColumns = bucketModel.groups.map((group) => `<th colspan="${group.buckets.length}" class="mrps-month-group ${group.offset === 1 ? "lookahead" : ""}">${esc(group.label)}<small>${month(group.monthStart)}${group.offset === 1 ? ` · Look-ahead · ${esc(lookaheadDisplayLabel())} ${num(selectedBasis)}` : ""}</small></th>`).join("");
     const totalColumns = `<th rowspan="2" class="mrps-number">Total</th><th rowspan="2">Action</th>`;
-    const weekColumns = bucketModel.groups.flatMap((group) => group.buckets.map((bucket) => `<th class="mrps-week-head ${group.offset === 1 ? "lookahead" : ""}"><b>W${bucket.week}</b><small>Target tersedia</small><i>${shortDate(bucket.start)}–${shortDate(bucket.end)}</i></th>`)).join("");
+    const weekColumns = bucketModel.groups.flatMap((group) => group.buckets.map((bucket) => `<th class="mrps-week-head ${group.offset === 1 ? "lookahead" : ""}" title="Target material tersedia ${date(bucket.start)}–${date(bucket.end)}"><b>W${bucket.week}</b><i>${shortDate(bucket.start)}–${shortDate(bucket.end)}</i></th>`)).join("");
     $("mrps-head").innerHTML = `<tr>${fixedColumns}${monthColumns}${totalColumns}</tr><tr><th class="mrps-stock-subhead">WH</th><th class="mrps-stock-subhead">WIP</th>${weekColumns}</tr>`;
     state.bucketCells = new Map();
-    $("mrps-body").innerHTML = rows.map((row) => {
+    const displayRows = rows.flatMap((group) => expandedMaterials.has(group._id) ? [group, ...group.children] : [group]);
+    $("mrps-body").innerHTML = displayRows.map((row) => {
+      state.rows.set(row._id, row);
       const bucketCells = bucketModel.groups.flatMap((group) => group.buckets).map((bucket) => {
         const cell = row.cells.get(bucket.key);
         if (!cell) return `<td class="mrps-week-cell empty">—</td>`;
@@ -463,17 +505,21 @@
             ? ` · official ${qty(cell.officialQty, row.uom)} + preview ${qty(cell.lookaheadQty, row.uom)}`
             : cell.lookaheadQty > 0 ? " · preview" : " · preview covered"
           : "";
-        const ownership = cell.additionalQty > 0
-          ? `<em class="mrps-additional-mark">ADD ${qty(cell.additionalQty, row.uom)}</em>`
-          : `<em class="mrps-baseline-mark">BASE ${qty(cell.baselineQty, row.uom)}</em>`;
-        return `<td class="mrps-week-cell ${esc(cell.status.tone)} ${cell.hasLookahead ? "lookahead" : ""} ${cell.additionalQty > 0 ? "is-additional" : "is-baseline"}"><button type="button" data-mrps-week-cell="${esc(cellId)}" title="Lihat delivery phase dan tanggal material harus datang"><b>${qty(cell.qty, row.uom)}</b><small>${esc(row.uom)}${previewLabel}</small>${ownership}</button></td>`;
+        const ownership = cell.status.key === "COVERED" ? "Tercover" : cell.hasLookahead ? (cell.officialQty > 0 ? "Official + M+1" : "Preview M+1") : cell.additionalQty > 0 ? `ADD ${qty(cell.additionalQty, row.uom)}` : "BASE";
+        return `<td class="mrps-week-cell ${esc(cell.status.tone)} ${cell.hasLookahead ? "lookahead" : ""} ${cell.additionalQty > 0 ? "is-additional" : "is-baseline"}"><button type="button" data-mrps-week-cell="${esc(cellId)}" title="${esc(`${cell.status.label}${previewLabel} · BASE ${qty(cell.baselineQty, row.uom)} · ADD ${qty(cell.additionalQty, row.uom)} · Klik untuk netting`)}"><b>${qty(cell.qty, row.uom)} ${esc(row.uom)}</b><small>${esc(ownership)}</small></button></td>`;
       }).join("");
       const recoveryButton = row._state.key === "LATE"
         ? `<button type="button" class="mrps-status-button ${esc(row._state.tone)}" data-mrps-recovery="${esc(row._id)}">${esc(row._state.label)}</button>`
         : `<span class="mrps-status-label ${esc(row._state.tone)}">${esc(row._state.label)}</span>`;
-      const previewNote = row.hasLookahead ? `<small>M+1 ${row.lookaheadTotal > 0 ? `${qty(row.lookaheadTotal, row.uom)} ${esc(row.uom)}` : "covered 0"} · tidak ditotal</small>` : `<small>Official M-1 + M</small>`;
+      const previewNote = row.hasLookahead ? `<small title="Preview M+1 tidak masuk total official">M+1: ${qty(row.lookaheadTotal, row.uom)} ${esc(row.uom)} · preview</small>` : `<small>Official M-1 + M</small>`;
       const stock = row.currentStock || { warehouseQty: 0, wipQty: 0, totalQty: 0 };
-      return `<tr class="mrps-matrix-row"><td><b>${esc(row.fgLabel)}</b><small>${esc(row.fgName)} · ${esc(row.fgCode)}</small></td><td><b>${esc(row.materialCode)}</b><small>${esc(row.materialName)}</small></td><td><b>${esc(row.identificationNumber)}</b><small>${esc(row.identificationCode)} · ${esc(row.process)}</small></td><td>${recoveryButton}</td><td class="mrps-number mrps-current-stock-cell warehouse"><button type="button" data-mrps-stock="${esc(row._id)}" data-stock-kind="warehouse" title="Lihat sumber stock warehouse"><b>${qty(stock.warehouseQty, row.uom)}</b><small>${esc(row.uom)}</small></button></td><td class="mrps-number mrps-current-stock-cell wip"><button type="button" data-mrps-stock="${esc(row._id)}" data-stock-kind="wip" title="Lihat sumber stock WIP"><b>${qty(stock.wipQty, row.uom)}</b><small>${esc(row.uom)}</small></button></td>${bucketCells}<td class="mrps-number mrps-matrix-total"><b>${qty(row.officialTotal, row.uom)}</b><small>${esc(row.uom)} · official</small>${previewNote}</td><td><button class="mrps-row-action" type="button" data-mrps-matrix-detail="${esc(row._id)}">Rincian</button></td></tr>`;
+      const isGroup = Boolean(row.children);
+      const material = isGroup
+        ? `<button type="button" class="mrps-material-toggle" data-mrps-material-group="${esc(row._id)}" aria-expanded="${expandedMaterials.has(row._id)}" aria-label="${expandedMaterials.has(row._id) ? "Tutup" : "Buka"} pemakaian ${esc(row.materialCode)}" title="${esc(`${row.materialCode} · ${row.materialName} · Part No: ${row.materialPartNumbers.join(", ") || "—"}`)}"><span class="mrps-material-chevron" aria-hidden="true">${expandedMaterials.has(row._id) ? "▾" : "▸"}</span><span><b>${esc(row.materialCode)} · ${esc(row.materialName)}</b><small>Part No: ${esc(row.materialPartNumbers.join(", ") || "—")}${supplyModel.isCustomerSupplied(row) ? ` · Suplai customer ${esc(row.supplyCustomerCode || "")}` : ""}</small></span></button>`
+        : `<span class="mrps-material-child-label"><b>↳ ${esc(row.identificationNumber)}</b><small>${esc(row.fgLabel)} · ${esc(row.process)}</small></span>`;
+      const fg = isGroup ? `<b>${esc(row.fgLabel)}</b><small>${num(row.children.length, 0)} pemakaian BOM</small>` : `<b>${esc(row.fgLabel)}</b><small>${esc(row.fgName)} · ${esc(row.fgCode)}</small>`;
+      const part = isGroup ? `<span class="mrps-material-hint">${expandedMaterials.has(row._id) ? "Detail di bawah" : "Buka untuk lihat part"}</span>` : `<b>${esc(row.identificationNumber)}</b><small>${esc(row.identificationCode)} · ${esc(row.process)}</small>`;
+      return `<tr class="mrps-matrix-row ${isGroup ? "mrps-material-parent" : "mrps-material-child"}"><td>${material}</td><td>${fg}</td><td>${part}</td><td>${recoveryButton}</td><td class="mrps-number mrps-current-stock-cell warehouse"><button type="button" data-mrps-stock="${esc(row._id)}" data-stock-kind="warehouse" title="Lihat sumber stock warehouse"><b>${qty(stock.warehouseQty, row.uom)}</b><small>${esc(row.uom)}</small></button></td><td class="mrps-number mrps-current-stock-cell wip"><button type="button" data-mrps-stock="${esc(row._id)}" data-stock-kind="wip" title="Lihat sumber stock WIP"><b>${qty(stock.wipQty, row.uom)}</b><small>${esc(row.uom)}</small></button></td>${bucketCells}<td class="mrps-number mrps-matrix-total"><b>${qty(row.officialTotal, row.uom)} ${esc(row.uom)}</b>${previewNote}</td><td><button class="mrps-row-action" type="button" data-mrps-matrix-detail="${esc(row._id)}">Rincian</button></td></tr>`;
     }).join("");
   }
   function renderBuy(rows) {
@@ -505,7 +551,7 @@
       const partNumber = usage.parent?.partNumber || usage.output?.partNumber || "-";
       const partCode = usage.parent?.partCode || usage.output?.partCode || "-";
        const plannedOrder = (state.doc?.plannedOrders || []).find((order) => order.partCode === row.partCode && String(order.requiredDate || "").slice(0,10) === String(row.requiredDate || "").slice(0,10));
-       return `${groupHeader}<tr><td><b>${esc(code)}</b><small>${esc(name)}${code !== row.partCode ? ` · source ${esc(row.partCode)}` : ""}</small></td><td class="mrps-usage-cell"><b>${esc(partNumber)}</b><small>${esc(partCode)}</small></td><td class="mrps-process-cell"><span>${esc(routeLabel(usage))}</span></td><td class="mrps-number"><b>${num(row.grossRequirement)}</b><small>${esc(uom(row))}</small></td><td class="mrps-number"><b>${num(audit.warehouseAvailable + audit.embeddedWip)}</b><small>Available ${num(audit.warehouseAvailable)} · WIP ${num(audit.embeddedWip)}</small></td><td class="mrps-number"><b>${num(audit.firmSupply)}</b><small>${esc(uom(row))}</small></td><td class="mrps-number mrps-net-buy"><b>${num(row.netRequirement)}</b><small>${plannedOrder ? esc(plannedOrder.orderNumber) : `Buy ${num(buy)} ${esc(uom(row))}`}</small></td><td><b>${date(timeline.materialRequired)}</b><small>${esc(row.procurementWindow || "Normal")}</small></td><td><b>${date(timeline.customerDelivery)}</b><small>${esc(row.customerCode || row.planningCustomerCode || "Demand source")}</small></td><td>${badge(row._state.label,row._state.tone)}</td><td><button class="mrps-row-action" type="button" data-mrps-detail="${esc(row._id)}">Rincian</button></td></tr>`;
+       return `${groupHeader}<tr><td><b>${esc(code)}</b><small>${esc(name)}${code !== row.partCode ? ` · source ${esc(row.partCode)}` : ""}</small><small>${esc(supplyModel.supplyLabel(row))}</small></td><td class="mrps-usage-cell"><b>${esc(partNumber)}</b><small>${esc(partCode)}</small></td><td class="mrps-process-cell"><span>${esc(routeLabel(usage))}</span></td><td class="mrps-number"><b>${num(row.grossRequirement)}</b><small>${esc(uom(row))}</small></td><td class="mrps-number"><b>${num(audit.warehouseAvailable + audit.embeddedWip)}</b><small>Available ${num(audit.warehouseAvailable)} · WIP ${num(audit.embeddedWip)}</small></td><td class="mrps-number"><b>${num(audit.firmSupply)}</b><small>${esc(uom(row))}</small></td><td class="mrps-number mrps-net-buy"><b>${num(row.netRequirement)}</b><small>${supplyModel.isCustomerSupplied(row) ? "Suplai customer · tidak dibeli" : plannedOrder ? esc(plannedOrder.orderNumber) : `Buy ${num(buy)} ${esc(uom(row))}`}</small></td><td><b>${date(timeline.materialRequired)}</b><small>${esc(row.procurementWindow || "Normal")}</small></td><td><b>${date(timeline.customerDelivery)}</b><small>${esc(row.customerCode || row.planningCustomerCode || "Demand source")}</small></td><td>${badge(row._state.label,row._state.tone)}</td><td><button class="mrps-row-action" type="button" data-mrps-detail="${esc(row._id)}">Rincian</button></td></tr>`;
     }).join("");
   }
   function renderMake(rows) {
@@ -551,17 +597,22 @@
     $("mrps-body").innerHTML = rows.map((row) => `<tr><td><b>${esc(row.customerCode || "-")}</b><small>${esc(row.sourceNumber || row.sourceType || "-")}</small></td><td><b>${esc(row.fgPartCode || "-")}</b></td><td><b>${esc(row.materialOrComponent || row.partCode || "-")}</b></td><td>${date(row.targetDeliveryDate)}</td><td>${date(row.requiredDate)}</td><td class="mrps-number"><b>${num(row.requirementQty)}</b></td><td class="mrps-number"><b>${num(row.supplyCoverageQty)}</b></td><td>${badge(row._state.label,row._state.tone)}</td><td><button class="mrps-row-action" type="button" data-mrps-detail="${esc(row._id)}">Rincian</button></td></tr>`).join("");
   }
   function renderTable() {
-    const all = visibleRows();
+    const eligible = eligibleRows();
+    renderMaterialCategories(eligible);
+    const all = eligible.filter((row) => !["matrix", "buy"].includes(state.view) || selectedMaterialCategory === "ALL" || supplyModel.materialCategory(row) === selectedMaterialCategory);
     const pages = Math.max(Math.ceil(all.length / state.pageSize), 1); state.page = Math.min(state.page, pages);
     const start = (state.page - 1) * state.pageSize; const rows = all.slice(start, start + state.pageSize);
     state.rows = new Map(rows.map((row) => [row._id, row]));
     document.querySelector(".mrps-table")?.classList.toggle("mrps-weekly-table", state.view === "matrix");
+    const table = $("mrps-head").closest("table");
+    table.classList.toggle("mrps-material-table", state.view === "matrix");
+    if (state.view !== "matrix") { table.querySelector("colgroup")?.remove(); table.style.width = ""; }
     $("mrps-grouping-wrap").hidden = state.view !== "make";
     $("mrps-mplus-display-wrap").hidden = state.view !== "matrix" || !(state.doc?.mPlusOnePreview?.requirements || []).length;
-    $("mrps-hide-zero-wrap").hidden = state.view !== "matrix";
+    $("mrps-show-covered-wrap").hidden = state.view !== "matrix";
     if (state.view === "matrix") renderMatrix(rows); else if (state.view === "buy") renderBuy(rows); else if (state.view === "exception") renderException(rows); else renderMake(rows);
-    if (!rows.length) $("mrps-body").innerHTML = `<tr><td colspan="${state.view === "matrix" ? weeklyBuckets().flat.length + 8 : state.view === "make" ? 12 : state.view === "buy" ? 11 : 7}" class="mrps-empty">Tidak ada data yang cocok.</td></tr>`;
-    $("mrps-range").textContent = all.length ? `${start + 1}–${Math.min(start + state.pageSize, all.length)} dari ${all.length}` : "0 data";
+    if (!rows.length) $("mrps-body").innerHTML = `<tr><td colspan="${state.view === "matrix" ? weeklyBuckets().flat.length + 8 : state.view === "make" ? 12 : state.view === "buy" ? 11 : 7}" class="mrps-empty">Tidak ada data yang cocok${["matrix", "buy"].includes(state.view) && selectedMaterialCategory !== "ALL" ? ` untuk kategori ${esc(supplyModel.materialCategories.find((c) => c.key === selectedMaterialCategory)?.label || "terpilih")}` : ""}.</td></tr>`;
+    $("mrps-range").textContent = all.length ? `${start + 1}–${Math.min(start + state.pageSize, all.length)} dari ${all.length}${state.view === "matrix" ? " material" : ""}` : "0 data";
     $("mrps-page").textContent = `Halaman ${state.page} / ${pages}`; $("mrps-prev").disabled = state.page <= 1; $("mrps-next").disabled = state.page >= pages;
     $("mrps-loading").hidden = true; $("mrps-table-wrap").hidden = false;
   }
@@ -593,8 +644,10 @@
     const changedSupply = Math.abs(audit.currentUncovered - number(row.netRequirement)) > .000001;
     $("mrps-drawer-title").textContent = row.part?.material?.materialCode || row.partCode;
     $("mrps-drawer-meta").textContent = row.part?.material?.materialName || row.part?.partName || row.part?.partNumber || "MRP requirement";
-    $("mrps-drawer-body").innerHTML = `<section class="mrps-trace-section"><header><b>Dipakai untuk</b><small>Relasi langsung dari mBOM</small></header><div class="mrps-detail-grid"><div><span>Part Number</span><b>${esc(parentPart.partNumber || "-")}</b></div><div><span>Part Code</span><b>${esc(parentPart.partCode || "-")}</b></div><div><span>Output BOM</span><b>${esc(outputPart.partNumber || "-")}<small>${esc(outputPart.partCode || "-")}</small></b></div><div><span>mBOM</span><b>${esc(usage.bomNumber)}</b></div></div><div class="mrps-process-list"><span>Proses pemakaian</span><div>${routeCards}</div></div></section>${demandSection}<section class="mrps-trace-section"><header><b>Hasil BOM explode &amp; netting stock</b><small>Runtutan angka yang dipakai sistem</small></header><ol class="mrps-trace-steps"><li><span>1</span><div><b>Driver kebutuhan parent</b><small>${parentDriverQty ? `${num(parentDriverQty)} ${esc(parentTrace?.part?.productionUomCode || parentTrace?.part?.baseUomCode || "PCS")}` : "Mengikuti demand parent pada mBOM"}</small></div></li><li><span>2</span><div><b>Pemakaian BOM</b><small>${num(usage.qtyPerParent)} ${esc(usage.usageUom)} per parent</small></div></li><li><span>3</span><div><b>Hasil explode BOM</b><small>${num(row.grossRequirement)} ${esc(uom(row))}</small></div></li></ol><div class="mrps-equation"><span>Gross BOM<b>${num(row.grossRequirement)}</b></span><i>−</i><span>Stock available<b>${num(audit.warehouseAvailable)}</b></span><i>−</i><span>Dalam WIP / FG<b>${num(audit.embeddedWip)}</b></span><i>−</i><span>Open PO eligible<b>${num(audit.firmSupply)}</b></span><i>=</i><span class="result">Uncovered saat ini<b>${num(audit.currentUncovered)} ${esc(uom(row))}</b></span></div>${changedSupply ? `<p class="mrps-reconcile-note">Net MRP saat run: <b>${num(row.netRequirement)} ${esc(uom(row))}</b>. Angka uncovered saat ini berbeda karena saldo stock atau open PO dapat berubah setelah MRP dijalankan.</p>` : `<p class="mrps-reconcile-note success">Sesuai dengan net MRP saat run: <b>${num(row.netRequirement)} ${esc(uom(row))}</b>.</p>`}<div class="mrps-formula"><b>Rekomendasi order</b><span>Net MRP ${num(row.netRequirement)} → planned order ${num(buy)} ${esc(uom(row))}</span><span>MOQ diterapkan pada Purchase Suggestion, sehingga hasil explode dan net requirement tetap asli.</span></div></section><div class="mrps-source"><b>Sumber demand</b>MPS ${esc(state.doc?.mpsNumber || "-")} · FG utama ${esc(row.fgPartCode || row.planningPartCode || "-")} · Customer ${esc(row.planningCustomerCode || row.customerCode || "-")}</div>`;
+    $("mrps-drawer-body").innerHTML = `<section class="mrps-trace-section"><header><b>Dipakai untuk</b><small>Relasi langsung dari mBOM</small></header><div class="mrps-detail-grid"><div><span>Part Number</span><b>${esc(parentPart.partNumber || "-")}</b></div><div><span>Part Code</span><b>${esc(parentPart.partCode || "-")}</b></div><div><span>Output BOM</span><b>${esc(outputPart.partNumber || "-")}<small>${esc(outputPart.partCode || "-")}</small></b></div><div><span>mBOM</span><b>${esc(usage.bomNumber)}</b></div></div><div class="mrps-process-list"><span>Proses pemakaian</span><div>${routeCards}</div></div></section>${demandSection}<section class="mrps-trace-section"><header><b>Hasil BOM explode &amp; netting stock</b><small>Runtutan angka yang dipakai sistem</small></header><ol class="mrps-trace-steps"><li><span>1</span><div><b>Driver kebutuhan parent</b><small>${parentDriverQty ? `${num(parentDriverQty)} ${esc(parentTrace?.part?.productionUomCode || parentTrace?.part?.baseUomCode || "PCS")}` : "Mengikuti demand parent pada mBOM"}</small></div></li><li><span>2</span><div><b>Pemakaian BOM</b><small>${num(usage.qtyPerParent)} ${esc(usage.usageUom)} per parent</small></div></li><li><span>3</span><div><b>Hasil explode BOM</b><small>${num(row.grossRequirement)} ${esc(uom(row))}</small></div></li></ol><div class="mrps-equation"><span>Gross BOM<b>${num(row.grossRequirement)}</b></span><i>−</i><span>Stock available<b>${num(audit.warehouseAvailable)}</b></span><i>−</i><span>Dalam WIP / FG<b>${num(audit.embeddedWip)}</b></span><i>−</i><span>Open PO eligible<b>${num(audit.firmSupply)}</b></span><i>=</i><span class="result">Uncovered saat ini<b>${num(audit.currentUncovered)} ${esc(uom(row))}</b></span></div>${changedSupply ? `<p class="mrps-reconcile-note">Net MRP saat run: <b>${num(row.netRequirement)} ${esc(uom(row))}</b>. Angka uncovered saat ini berbeda karena saldo stock atau open PO dapat berubah setelah MRP dijalankan.</p>` : `<p class="mrps-reconcile-note success">Sesuai dengan net MRP saat run: <b>${num(row.netRequirement)} ${esc(uom(row))}</b>.</p>`}<div class="mrps-formula"><b>${supplyModel.isCustomerSupplied(row) ? "Kebutuhan suplai customer" : "Rekomendasi order"}</b><span>Net MRP ${num(row.netRequirement)} ${esc(uom(row))} · ${esc(supplyModel.supplyLabel(row))}</span><span>${supplyModel.isCustomerSupplied(row) ? "Kebutuhan tetap ditampilkan dan dinetting. Tidak dibuat Purchase Suggestion / PR / PO." : `Planned order ${num(buy)} ${esc(uom(row))}. MOQ diterapkan pada Purchase Suggestion; net requirement MRP tetap asli.`}</span></div></section><div class="mrps-source"><b>Sumber demand</b>MPS ${esc(state.doc?.mpsNumber || "-")} · FG utama ${esc(row.fgPartCode || row.planningPartCode || "-")} · Customer ${esc(row.planningCustomerCode || row.customerCode || "-")}</div>`;
     $("mrps-drawer-body").insertAdjacentHTML("afterbegin", lineageHtml(row));
+    const auditMarkup = $("mrps-drawer-body").innerHTML;
+    $("mrps-drawer-body").innerHTML = `${compactNettingMarkup({ items: [row], row: { uom: uom(row) } })}<details class="mrps-netting-audit"><summary>Detail BOM &amp; sumber perhitungan</summary>${auditMarkup}</details>`;
   }
   function openOrder(row) {
     const remaining = Math.max(number(row.qty) - number(row.qtyReleased), 0);
@@ -628,6 +681,24 @@
       }));
     });
     return result.sort((left, right) => String(left.deliveryDate || "").localeCompare(String(right.deliveryDate || "")) || String(left.sourceNumber || "").localeCompare(String(right.sourceNumber || "")));
+  }
+  function compactNettingMarkup(cell) {
+    const totals = nettingSummary.summarize(cell.items, isLookaheadRequirement);
+    const unit = cell.row.uom;
+    const cards = [["official", "Netting MRP"], ["preview", "Preview M+1 · terpisah dari official"]].map(([key, title]) => {
+      const total = totals[key];
+      if (!total.count) return "";
+      const covered = total.complete && total.net <= .000001;
+      return `<section class="mrps-netting-compact"><header><b>${title}</b><span class="mrps-badge ${covered ? "covered" : "buy"}">${!total.complete ? "Data belum lengkap" : covered ? "Tercover" : "Perlu supply"}</span></header><div class="mrps-netting-numbers"><div><span>Kebutuhan</span><b>${total.complete ? qty(total.gross, unit) : "—"}</b><small>${esc(unit)}</small></div><div><span>Tercover</span><b>${total.complete ? qty(total.covered, unit) : "—"}</b><small>Stok + firm supply</small></div><div class="${covered ? "covered" : "shortage"}"><span>Kekurangan</span><b>${total.complete ? qty(total.net, unit) : "—"}</b><small>${esc(unit)}</small></div></div><p>${!total.complete ? "Lengkapi data kebutuhan dan netting pada snapshot MRP." : covered ? "Kebutuhan sudah terpenuhi. Tidak perlu supply tambahan." : "Kekurangan harus tersedia sebelum tanggal pemakaian."}</p></section>`;
+    }).join("");
+    const arrivals = cell.items.map((item) => item.materialRequiredDate || item.requiredDate).filter(validDate).sort((a, b) => new Date(a) - new Date(b));
+    const purchaseDates = cell.items.filter((item) => !supplyModel.isCustomerSupplied(item) && number(item.netRequirement) > .000001).map((item) => item.orderDate || item.latestPrDate).filter(validDate).sort((a, b) => new Date(a) - new Date(b));
+    const customerSupply = cell.items.some((item) => supplyModel.isCustomerSupplied(item));
+    const consumption = cell.items.map((item) => {
+      const usage = item._usage || bomUsage(item);
+      return `<tr><td><b>${esc(usage.parent?.partNumber || usage.output?.partNumber || item.planningPartCode || "—")}</b><small>${esc(routeLabel(usage))}</small></td><td>${date(item.materialRequiredDate || item.requiredDate)}</td><td class="mrps-number">${qty(isLookaheadRequirement(item) ? item.mPlusOneActualNetPurchaseQty ?? item.netRequirement : item.netRequirement, unit)} ${esc(unit)}${isLookaheadRequirement(item) ? " · M+1" : ""}</td></tr>`;
+    }).join("");
+    return `${cards}<div class="mrps-netting-dates"><span>Material tersedia<b>${arrivals.length ? date(arrivals[0]) + (dateKey(arrivals[0]) !== dateKey(arrivals.at(-1)) ? ` – ${date(arrivals.at(-1))}` : "") : "Belum tersedia"}</b></span>${purchaseDates.length ? `<span>Mulai pembelian paling lambat<b>${date(purchaseDates[0])}</b></span>` : ""}${customerSupply ? '<span>Sumber supply<b>Disuplai customer · tidak dibeli</b></span>' : ""}</div><details class="mrps-netting-audit"><summary>Part pemakai · ${num(cell.items.length, 0)} kebutuhan</summary><div class="mrps-netting-consumption"><table><thead><tr><th>Part / proses</th><th>Material tersedia</th><th>Kekurangan</th></tr></thead><tbody>${consumption}</tbody></table></div></details>`;
   }
   function bucketDetailMarkup(cell, includeRecovery = true) {
     const phases = weeklyPhaseRows(cell.items);
@@ -678,13 +749,12 @@
         ? `Official ${qty(cell.officialQty, cell.row.uom)} + Preview M+1 ${qty(cell.lookaheadQty, cell.row.uom)} · preview tidak masuk total`
         : cell.lookaheadQty > 0 ? `Preview M+1 · ${lookaheadDisplayLabel()} · tidak masuk total official` : "Preview M+1 covered oleh WIP/stock · tidak masuk total official"
       : esc(cell.status.label);
-    const quantityLabel = cell.hasLookahead && cell.officialQty <= 0 ? "Gross look-ahead material" : "Net material";
-    return `<section class="mrps-week-summary"><div><span>Target material tersedia</span><b>W${cell.bucket.week} · ${date(cell.bucket.start)}–${date(cell.bucket.end)}</b><small>Qty pada bucket ini harus sudah tersedia dalam rentang tanggal tersebut.</small></div><div><span>${quantityLabel}</span><b>${qty(cell.qty, cell.row.uom)} ${esc(cell.row.uom)}</b><small>${ownershipCopy}</small>${discreteAudit}</div></section><section class="mrps-trace-section"><header><b>Delivery phase yang dicakup</b><small>${num(phases.length, 0)} phase · target material ditampilkan per sumber</small></header><div class="mrps-week-phase-list">${phaseCards || '<div class="mrps-demand-empty">Delivery phase belum memiliki pegging.</div>'}</div></section><section class="mrps-trace-section"><header><b>Audit formula netting</b><small>Base demand + buffer child − stock / firm supply = net material</small></header><div class="mrps-netting-list">${nettingRows}</div></section>${historyMarkup}<div class="mrps-week-recovery-action">${recovery}</div>`;
+    return `<header class="mrps-netting-week"><b>W${cell.bucket.week} · ${date(cell.bucket.start)}–${date(cell.bucket.end)}</b><small>Snapshot ${esc(state.doc?.runNumber || "MRP")}</small></header>${compactNettingMarkup(cell)}<div class="mrps-week-recovery-action">${recovery}</div><details class="mrps-netting-audit"><summary>Detail perhitungan &amp; delivery phase</summary><section class="mrps-week-summary"><div><span>Qty tabel</span><b>${qty(cell.qty, cell.row.uom)} ${esc(cell.row.uom)}</b><small>${ownershipCopy}</small>${discreteAudit}</div></section><section class="mrps-trace-section"><header><b>Delivery phase yang dicakup</b></header><div class="mrps-week-phase-list">${phaseCards || '<div class="mrps-demand-empty">Delivery phase belum memiliki pegging.</div>'}</div></section><section class="mrps-trace-section"><header><b>Audit formula netting</b><small>Kebutuhan − stok / firm supply terpakai = kekurangan</small></header><div class="mrps-netting-list">${nettingRows}</div></section>${historyMarkup}</details>`;
   }
   function openWeeklyBucket(cellId) {
     const cell = state.bucketCells.get(cellId); if (!cell) return;
     $("mrps-drawer-title").textContent = `${cell.row.materialCode} · W${cell.bucket.week}`;
-    $("mrps-drawer-meta").textContent = `${cell.row.fgLabel} · target tersedia ${date(cell.bucket.start)}–${date(cell.bucket.end)} · detail per delivery phase`;
+    $("mrps-drawer-meta").textContent = `${cell.row.materialName} · Part No: ${(cell.row.materialPartNumbers || []).join(", ") || "—"}`;
     $("mrps-drawer-body").innerHTML = bucketDetailMarkup(cell);
     $("mrps-drawer").setAttribute("aria-hidden", "false");
   }
@@ -692,7 +762,7 @@
     const row = state.rows.get(rowId); if (!row) return;
     const cells = [...row.cells.values()].sort((left, right) => left.bucket.start - right.bucket.start);
     $("mrps-drawer-title").textContent = row.materialCode;
-    $("mrps-drawer-meta").textContent = `${row.fgLabel} · ${row.identificationCode} · ${row.process}`;
+    $("mrps-drawer-meta").textContent = `${row.materialName} · Part No: ${(row.materialPartNumbers || []).join(", ") || "—"}`;
     $("mrps-drawer-body").innerHTML = cells.map((cell) => bucketDetailMarkup({ ...cell, row }, false)).join('<hr class="mrps-week-separator">');
     $("mrps-drawer").setAttribute("aria-hidden", "false");
   }
@@ -876,10 +946,12 @@
     }
   }
   async function load() {
+    if (!key) return;
     try {
       state.doc = await api(`/modules/api/planning-ppic/material-requirements-planning/${encodeURIComponent(key)}`);
       renderHeader(); renderKpis(); renderTable(); alert("");
-      await ensureAutomaticMPlusOnePreview();
+      // Opening the monthly table is read-only; preview creation remains an explicit option here.
+      if (!cfg.monthlyMode) await ensureAutomaticMPlusOnePreview();
     } catch (error) { $("mrps-loading").textContent = error.message; alert(error.message); }
   }
 
@@ -926,6 +998,14 @@
 
   document.addEventListener("click", (event) => {
     const view = event.target.closest("[data-mrps-view]"); if (view) return void switchView(view.dataset.mrpsView);
+    const materialGroup = event.target.closest("[data-mrps-material-group]");
+    if (materialGroup) {
+      const groupKey = materialGroup.dataset.mrpsMaterialGroup;
+      if (expandedMaterials.has(groupKey)) expandedMaterials.delete(groupKey); else expandedMaterials.add(groupKey);
+      renderTable();
+      [...document.querySelectorAll("[data-mrps-material-group]")].find((button) => button.dataset.mrpsMaterialGroup === groupKey)?.focus({ preventScroll: true });
+      return;
+    }
     const group = event.target.closest("[data-mrps-group]"); if (group) { const groupKey = group.dataset.mrpsGroup; if (state.expandedGroups.has(groupKey)) state.expandedGroups.delete(groupKey); else state.expandedGroups.add(groupKey); return renderTable(); }
     const detail = event.target.closest("[data-mrps-detail]"); if (detail) return openDrawer(detail.dataset.mrpsDetail);
     const weekCell = event.target.closest("[data-mrps-week-cell]"); if (weekCell) return openWeeklyBucket(weekCell.dataset.mrpsWeekCell);
@@ -984,13 +1064,21 @@
   });
   $("mrps-search").addEventListener("input", (event) => { state.query = String(event.target.value || "").trim().toLowerCase(); state.page = 1; renderTable(); });
   $("mrps-filter").addEventListener("change", (event) => { state.filter = event.target.value; state.page = 1; renderTable(); });
+  $("mrps-material-categories").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-mrps-category]");
+    if (!button) return;
+    selectedMaterialCategory = button.dataset.mrpsCategory;
+    state.page = 1;
+    renderTable();
+    $("mrps-material-categories").querySelector(`[data-mrps-category="${selectedMaterialCategory}"]`)?.focus();
+  });
   $("mrps-page-size").addEventListener("change", (event) => { state.pageSize = number(event.target.value) || 25; state.page = 1; renderTable(); });
   $("mrps-grouping").value = state.requirementGrouping;
   $("mrps-grouping").addEventListener("change", (event) => { state.requirementGrouping = event.target.value === "FLAT" ? "FLAT" : "GROUPED"; localStorage.setItem("mrps-requirement-grouping", state.requirementGrouping); renderTable(); });
   $("mrps-mplus-display").value = state.mPlusOneDisplayMode;
   $("mrps-mplus-display").addEventListener("change", (event) => { state.mPlusOneDisplayMode = event.target.value === "FULL_EFD" ? "FULL_EFD" : "NET_CURRENT_STOCK"; localStorage.setItem("mrps-mplus-display-mode", state.mPlusOneDisplayMode); state.page = 1; renderTable(); });
-  $("mrps-hide-zero").checked = state.hideZeroQty;
-  $("mrps-hide-zero").addEventListener("change", (event) => { state.hideZeroQty = event.target.checked; localStorage.setItem("mrps-hide-zero-qty", state.hideZeroQty ? "1" : "0"); state.page = 1; renderTable(); });
+  $("mrps-show-covered").checked = state.showCovered;
+  $("mrps-show-covered").addEventListener("change", (event) => { state.showCovered = event.target.checked; localStorage.setItem("mrps-show-covered", state.showCovered ? "1" : "0"); state.page = 1; renderKpis(); renderTable(); });
   $("mrps-prev").addEventListener("click", () => { if (state.page > 1) { state.page -= 1; renderTable(); } });
   $("mrps-next").addEventListener("click", () => { state.page += 1; renderTable(); });
   $("mrps-modal-form").addEventListener("submit", async (event) => {
@@ -1032,5 +1120,47 @@
     }
   });
   document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeDrawer(); closeModal(); closeMPlusOne(); closeRecovery(); closeStockPopup(); } });
-  load();
+  async function openMonthlyTable() {
+    const month = cfg.initialMonth;
+    const picker = $("mrps-run");
+    const go = (nextMonth, run = "") => {
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(nextMonth)) return;
+      location.assign(`/modules/planning-ppic/mrp?month=${encodeURIComponent(nextMonth)}${run ? `&run=${encodeURIComponent(run)}` : ""}`);
+    };
+    $("mrps-month").addEventListener("change", (event) => go(event.target.value));
+    picker.addEventListener("change", (event) => go(month, event.target.value));
+    const empty = (message, failed = false) => {
+      document.querySelector(".mrps-kpis").hidden = true;
+      document.querySelector(".mrps-workbench").hidden = true;
+      $("mrps-search").disabled = true;
+      $("mrps-filter").disabled = true;
+      $("mrps-title").textContent = `MRP · ${month}`;
+      $("mrps-status").textContent = failed ? "Gagal dimuat" : "Belum ada run";
+      $("mrps-meta").textContent = message;
+      $("mrps-actions").innerHTML = `<a class="btn btn-outline-primary" href="/modules/planning-ppic/mps/workbench?month=${encodeURIComponent(month)}">Buka Rolling MPS</a>`;
+      if (failed) alert(message);
+    };
+    try {
+      const data = await api(`/modules/api/planning-ppic/execution-cockpit?month=${encodeURIComponent(month)}`);
+      const rows = window.PpicMrpMonthlyModel.availableRuns(data.mrpRuns || []);
+      picker.innerHTML = rows.length ? rows.map((row) => `<option value="${esc(row.runNumber)}">${esc(row.runNumber)} · ${esc(row.presentationStatus || row.status)}${row.executionScope === "LINKED_SOURCE" ? " · sumber lintas bulan" : ""}</option>`).join("") : '<option value="">Belum ada MRP</option>';
+      picker.disabled = !rows.length;
+      const selected = window.PpicMrpMonthlyModel.selectRun(rows, cfg.selectedRun);
+      if (!selected) {
+        if (cfg.selectedRun) { picker.value = ""; empty("Run yang dipilih tidak tersedia pada periode ini. Pilih run yang tersedia atau buka Daftar Run.", true); }
+        else empty(`Belum ada MRP untuk ${month}. Pilih periode lain atau hitung MRP dari Rolling MPS.`);
+        return;
+      }
+      key = selected.runNumber;
+      picker.value = key;
+      const documentLink = $("mrps-run-document");
+      documentLink.href = `/modules/planning-ppic/mrp/${encodeURIComponent(key)}`;
+      documentLink.hidden = false;
+      await load();
+    } catch (error) {
+      picker.innerHTML = '<option value="">Run gagal dimuat</option>';
+      empty(error.message, true);
+    }
+  }
+  if (cfg.monthlyMode) openMonthlyTable(); else load();
 })();

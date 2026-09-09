@@ -10,7 +10,7 @@
   const qty = (value, uomCode = "") => shared.formatQuantity(value, uomCode, { maximumFractionDigits: 2 });
   const slug = (value) => String(value || "draft").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   const statusBadge = (value) => `<span class="ops-badge ${esc(slug(value))}">${esc(value || "-")}</span>`;
-  const localDateKey = (value = new Date()) => {
+  const localDateKey = (value = (globalThis.erpBusinessNow?.() || new Date())) => {
     const date = value instanceof Date ? value : new Date(value);
     if (Number.isNaN(date.getTime())) return "";
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -86,7 +86,7 @@
   let ganttWeekAnchor = localDateKey();
   let ganttMeta = { weekStart: null, weekEnd: null, total: 0 };
   const mondayOf = (value) => {
-    const date = value ? new Date(`${value}T12:00:00`) : new Date();
+    const date = value ? new Date(`${value}T12:00:00`) : (globalThis.erpBusinessNow?.() || new Date());
     const day = date.getDay();
     date.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
     return date;
@@ -269,7 +269,7 @@
     const initialDate = document.getElementById("ops-filter-schedule-date");
     if (initialDate) initialDate.value = localDateKey();
     const dateLabel = document.getElementById("daily-work-date-label");
-    if (dateLabel) dateLabel.textContent = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date());
+    if (dateLabel) dateLabel.textContent = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format((globalThis.erpBusinessNow?.() || new Date()));
   }
 
   const table = new DataTable("#ops-table", {
@@ -329,7 +329,7 @@
   document.querySelectorAll("[data-work-scope]").forEach((button) => button.addEventListener("click", () => {
     const scope = button.dataset.workScope;
     const dateInput = document.getElementById("ops-filter-schedule-date");
-    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrow = (globalThis.erpBusinessNow?.() || new Date()); tomorrow.setDate(tomorrow.getDate() + 1);
     document.querySelectorAll("[data-work-scope]").forEach((item) => item.classList.toggle("active", item === button));
     if (dateInput) dateInput.value = scope === "today" ? localDateKey() : scope === "tomorrow" ? localDateKey(tomorrow) : "";
     const labels = { today: "Hari ini", tomorrow: "Besok", overdue: "Pekerjaan terlambat", all: "Semua tanggal" };
@@ -342,7 +342,7 @@
     const button = event.target.closest("[data-gantt-nav]");
     if (!button) return;
     const action = button.dataset.ganttNav;
-    const anchor = action === "today" ? new Date() : mondayOf(ganttWeekAnchor);
+    const anchor = action === "today" ? (globalThis.erpBusinessNow?.() || new Date()) : mondayOf(ganttWeekAnchor);
     if (action !== "today") anchor.setDate(anchor.getDate() + number(action));
     ganttWeekAnchor = localDateKey(anchor);
     const dateInput = document.getElementById("ops-filter-schedule-date");
@@ -391,7 +391,7 @@
   document.getElementById("ops-export").addEventListener("click", () => {
     const header = config.page.columns.map((column) => column.label);
     const values = visibleRows.map((row) => config.page.columns.map((column) => get(row, column.data) ?? ""));
-    shared.downloadCsv(`${config.module}-${config.page.slug}-${new Date().toISOString().slice(0, 10)}.csv`, header, values);
+    shared.downloadCsv(`${config.module}-${config.page.slug}-${(globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10)}.csv`, header, values);
   });
 
   async function loadWarehouseFilter() {

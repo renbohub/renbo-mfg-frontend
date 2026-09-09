@@ -1,10 +1,12 @@
+<% const isHomePage = typeof activePage !== 'undefined' && activePage === 'home'; %>
 <header class="module-header">
   <div class="app-container module-header-row">
     <a class="module-brand customer-brand" href="/modules" aria-label="PT. Mitsutoyo Indonesia">
       <img class="customer-brand-logo customer-brand-logo--module" src="/img/mitsutoyo-indonesia-logo.png" alt="PT. Mitsutoyo Indonesia">
     </a>
     <nav class="module-nav" aria-label="Navigasi modul">
-      <a class="module-nav-home <%= !activeModule ? 'active' : '' %>" href="/modules" <%= !activeModule ? 'aria-current="page"' : '' %>>
+      <a class="module-nav-home <%= isHomePage ? 'active' : '' %>" href="/home" <%- isHomePage ? 'aria-current="page"' : '' %>><span class="module-nav-link-icon"><%- include('icon', { name: 'home' }) %></span><span>Beranda</span></a>
+      <a class="module-nav-home <%= !activeModule && !isHomePage ? 'active' : '' %>" href="/modules" <%- !activeModule && !isHomePage ? 'aria-current="page"' : '' %>>
         <span class="module-nav-link-icon"><%- include('icon', { name: 'grid' }) %></span>
         <span>Workspace</span>
       </a>
@@ -34,7 +36,7 @@
       </div>
       <div class="module-quick-links" aria-label="Semua modul ERP">
         <% modules.forEach(item => { %>
-          <a class="<%= activeModule === item.slug ? 'active' : '' %>" href="/modules/<%= item.slug %>" <%= activeModule === item.slug ? 'aria-current="page"' : '' %>>
+          <a class="<%= activeModule === item.slug ? 'active' : '' %>" href="/modules/<%= item.slug %>" <%- activeModule === item.slug ? 'aria-current="page"' : '' %>>
             <span class="module-nav-link-icon"><%- include('icon', { name: item.icon }) %></span>
             <span><%= item.shortLabel %></span>
           </a>
@@ -42,10 +44,6 @@
       </div>
     </nav>
     <%- include('context-navbar-actions') %>
-    <div class="module-user dropdown">
-      <span class="module-user-avatar" data-user-avatar>U</span>
-      <span class="module-user-copy"><span class="module-user-name" data-user-name>User</span><small data-user-role>ERP User</small></span>
-      <button type="button" class="module-logout" data-logout>Keluar</button>
-    </div>
+    <%- include('navbar-account') %>
   </div>
 </header>

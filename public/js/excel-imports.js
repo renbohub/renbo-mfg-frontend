@@ -7,6 +7,8 @@
   let sourceChecksum = null;
   let sourceMetadata = null;
   let currentBatch = null;
+  let legacyPreviewHash = null, legacyReport = null;
+  const isLegacy = (type = importType()) => ["CUSTOMER_MASTER", "PRODUCT_MASTER"].includes(type);
   const importType = () => $("excel-import-type").value || "FORECAST";
 
   async function api(url, options = {}) {
@@ -36,7 +38,7 @@
   }
 
   function rowsForPreview() {
-    if (!uploadedRows.length) return stagedRows || inputRows();
+    if (!uploadedRows.length) return isLegacy() ? inputRows() : stagedRows || inputRows();
     const sheets = selectedSheetNames();
     if (!sheets.length) throw new Error("Pilih minimal satu sheet untuk diproses.");
     return uploadedRows.filter((row) => sheets.includes(row.sheetName));
@@ -49,12 +51,20 @@
       importType: importType(),
       sourcePeriod: $("excel-import-period").value.trim(),
       sourceChecksum,
+      previewHash: legacyPreviewHash,
       metadata: sourceMetadata,
       rows,
     };
   }
 
+  function renderLegacyPreview(preview) {
+    legacyPreviewHash=preview.previewHash;legacyReport=preview;
+    const rows=preview.lines || [], errors=preview.errors || [], s=preview.summary || {};
+    $('excel-import-preview-result').innerHTML='<h5>Rekonsiliasi Master</h5><p>Baru: '+escape(s.createCount || 0)+' · Update: '+escape(s.updateCount || 0)+' · Tetap: '+escape(s.noopCount || 0)+' · Error: '+errors.length+'</p>'+ (errors.length ? '<div class="alert alert-warning">'+errors.map(e=>escape(e.sheetName)+' row '+escape(e.rowNumber)+': '+escape(e.message)).join('<br>')+'</div>':'')+'<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Baris</th><th>Kode</th><th>Operation</th><th>Hasil</th><th>Perubahan nilai</th></tr></thead><tbody>'+rows.map(row=>'<tr><td>'+escape(row.rowNumber)+'</td><td>'+escape(row.code)+'</td><td>'+escape(row.operation)+'</td><td>'+escape(row.errors?.length?'ERROR':row.action)+'</td><td>'+(row.diff || []).map(d=>escape(d.field)+': '+escape(d.before ?? '(baru)')+' → '+escape(d.after)).join('<br>')+'</td></tr>').join('')+'</tbody></table></div>';
+    $('excel-import-preview-result').classList.remove('d-none');$('legacy-report-download').classList.remove('d-none');$('excel-import-save').disabled=!rows.length||Boolean(errors.length);
+  }
   function renderPreview(preview) {
+    if (isLegacy()) return renderLegacyPreview(preview);
     const errors = preview.errors || [];
     const lines = preview.lines || [];
     const summary = preview.summary || preview.reconciliation || {};
@@ -68,7 +78,7 @@
   }
 
   async function forecastPreview(rows) {
-    const endpoint = importType() === "FORECAST" ? "forecast-preview" : "historical-preview";
+    const endpoint = isLegacy() ? "legacy-preview" : importType() === "FORECAST" ? "forecast-preview" : "historical-preview";
     const result = await api(`/master-data/api/excel-imports/${endpoint}`, { method: "POST", body: JSON.stringify({ ...payload(rows), rows }) });
     renderPreview(result);
     return result;
@@ -131,7 +141,7 @@
         await forecastPreview(rows);
         if ($("excel-import-save").disabled) return;
       }
-      const batch = await api("/master-data/api/excel-imports", { method: "POST", body: JSON.stringify(payload(rows)) });
+      const batch = await api(isLegacy() ? "/master-data/api/excel-imports/legacy-stage" : "/master-data/api/excel-imports", { method: "POST", body: JSON.stringify(payload(rows)) });
       currentBatch = batch;
       $("excel-import-approve").disabled = batch.status !== "VALIDATED";
       $("excel-import-apply").disabled = true;
@@ -154,12 +164,13 @@
   async function apply(key = currentBatch?.batchNumber) {
     try {
       if (!key) throw new Error("Pilih batch yang sudah disetujui.");
-      const type = currentBatch?.importType || importType();
-      const action = type === "FORECAST" ? "apply-forecast" : "apply-historical";
+      const type = currentBatch?.batchNumber === key ? currentBatch.importType : importType();
+      const action = isLegacy(type) ? "apply-legacy" : type === "FORECAST" ? "apply-forecast" : "apply-historical";
       const result = await api(`/master-data/api/excel-imports/${encodeURIComponent(key)}/${action}`, { method: "POST", body: "{}" });
       currentBatch = result.batch || currentBatch;
+      if (isLegacy(type)) { legacyReport = await api(`/master-data/api/excel-imports/${encodeURIComponent(key)}/legacy-report`); $("legacy-report-download").classList.remove("d-none"); }
       $("excel-import-apply").disabled = true;
-      notify(result.idempotent ? "Batch ini sudah pernah diterapkan; tidak ada data ganda." : (type === "FORECAST" ? `Forecast berhasil dibuat (${result.forecastCount || 0} header).` : `Data historis diterapkan: ${result.reconciliation?.appliedCount || 0} baris.`), "success");
+      notify(result.idempotent ? "Batch ini sudah pernah diterapkan; tidak ada data ganda." : (isLegacy(type) ? `Master diterapkan: ${result.reconciliation?.appliedCount || 0} perubahan; ${result.reconciliation?.noopCount || 0} tanpa perubahan.` : type === "FORECAST" ? `Forecast berhasil dibuat (${result.forecastCount || 0} header).` : `Data historis diterapkan: ${result.reconciliation?.appliedCount || 0} baris.`), "success");
       await loadBatches();
     } catch (error) { notify(error.message); }
   }
@@ -168,7 +179,7 @@
     try {
       const result = await api("/master-data/api/excel-imports?page=1&limit=30");
       const items = result.items || [];
-      $("excel-import-batches").innerHTML = items.map((item) => `<tr><td><b>${escape(item.batchNumber)}</b><small class="d-block text-muted">${escape(item.importType)}</small></td><td>${escape(item.fileName)}</td><td>${escape(item.sourcePeriod)}</td><td>${escape(item.rowCount)}</td><td>${escape(item.errorCount)}</td><td><span class="badge text-bg-${item.status === "APPLIED" ? "success" : item.status === "APPROVED" ? "primary" : item.status === "VALIDATED" ? "warning" : "secondary"}">${escape(item.status)}</span></td><td>${escape(String(item.createdAt || "").slice(0, 10))}</td><td><button class="btn btn-sm btn-outline-primary" data-select="${escape(item.batchNumber)}" data-type="${escape(item.importType)}">Pilih</button>${item.status === "VALIDATED" ? ` <button class="btn btn-sm btn-outline-success" data-approve="${escape(item.batchNumber)}" data-type="${escape(item.importType)}">Setujui</button>` : ""}${item.status === "APPROVED" ? ` <button class="btn btn-sm btn-success" data-apply="${escape(item.batchNumber)}" data-type="${escape(item.importType)}">Terapkan</button>` : ""}</td></tr>`).join("") || '<tr><td colspan="8" class="text-center text-muted py-4">Belum ada batch import.</td></tr>';
+      $("excel-import-batches").innerHTML = items.map((item) => `<tr><td><b>${escape(item.batchNumber)}</b><small class="d-block text-muted">${escape(item.importType)}</small></td><td>${escape(item.fileName)}</td><td>${escape(item.sourcePeriod)}</td><td>${escape(item.rowCount)}</td><td>${escape(item.errorCount)}</td><td><span class="badge text-bg-${item.status === "APPLIED" ? "success" : item.status === "APPROVED" ? "primary" : item.status === "VALIDATED" ? "warning" : "secondary"}">${escape(item.status)}</span></td><td>${escape(String(item.createdAt || "").slice(0, 10))}</td><td><button class="btn btn-sm btn-outline-primary" data-select="${escape(item.batchNumber)}" data-type="${escape(item.importType)}">Pilih</button>${isLegacy(item.importType) ? ` <button class="btn btn-sm btn-outline-secondary" data-report="${escape(item.batchNumber)}" data-type="${escape(item.importType)}">Rekonsiliasi</button>` : ""}${item.status === "VALIDATED" ? ` <button class="btn btn-sm btn-outline-success" data-approve="${escape(item.batchNumber)}" data-type="${escape(item.importType)}">Setujui</button>` : ""}${item.status === "APPROVED" ? ` <button class="btn btn-sm btn-success" data-apply="${escape(item.batchNumber)}" data-type="${escape(item.importType)}">Terapkan</button>` : ""}</td></tr>`).join("") || '<tr><td colspan="8" class="text-center text-muted py-4">Belum ada batch import.</td></tr>';
     } catch (error) { notify(error.message); }
   }
 
@@ -180,7 +191,8 @@
   $("excel-import-refresh").addEventListener("click", loadBatches);
   $("excel-import-sheets").addEventListener("change", refreshSelectedSheets);
   $("excel-import-batches").addEventListener("click", (event) => {
-    const { select, approve: approveKey, apply: applyKey, type } = event.target.dataset;
+    const { select, approve: approveKey, apply: applyKey, report: reportKey, type } = event.target.dataset;
+    if (reportKey) api(`/master-data/api/excel-imports/${encodeURIComponent(reportKey)}/legacy-report`).then(report => { legacyReport=report; $("legacy-report-download").classList.remove("d-none"); notify(`Laporan ${reportKey} siap diunduh.`, "info"); }).catch(error=>notify(error.message));
     if (type) $("excel-import-type").value = type;
     if (select) {
       currentBatch = { batchNumber: select, status: "", importType: type || importType() };
@@ -193,4 +205,20 @@
   });
   $("excel-import-type").addEventListener("change", () => { currentBatch = null; $("excel-import-save").disabled = true; $("excel-import-apply").disabled = true; notify("Jenis import berubah. Jalankan preview ulang.", "info"); });
   loadBatches();
+
+  document.getElementById('forecast-template-download')?.addEventListener('click', async event => {
+    const button = event.currentTarget; button.disabled = true;
+    try {
+      const response = await fetch('/modules/api/sales/forecasts/template', {headers:{Authorization:'Bearer ' + token()}});
+      if (!response.ok) throw new Error((await response.json().catch(()=>({}))).message || 'Template gagal diunduh.');
+      const href = URL.createObjectURL(await response.blob()), link = document.createElement('a'); link.href = href; link.download = 'Template-Forecast-ERP.xlsx'; link.click(); setTimeout(()=>URL.revokeObjectURL(href),1000);
+    } catch(error) { alert(error.message); } finally { button.disabled = false; }
+  });
+
+  $('legacy-report-download')?.addEventListener('click',()=>{
+    if(!legacyReport)return;const href=URL.createObjectURL(new Blob([JSON.stringify(legacyReport,null,2)],{type:'application/json'})),link=document.createElement('a');link.href=href;link.download=(legacyReport.batchNumber || 'preview-master')+'-reconciliation.json';link.click();setTimeout(()=>URL.revokeObjectURL(href),1000);
+  });
+  document.querySelectorAll('[data-legacy-template]').forEach(button=>button.addEventListener('click',async()=>{
+    button.disabled=true;try{const kind=button.dataset.legacyTemplate,response=await fetch('/master-data/api/excel-imports/legacy-template/'+kind,{headers:{Authorization:'Bearer '+token()}});if(!response.ok)throw Error((await response.json()).message || 'Template gagal diunduh');const href=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=href;link.download='Template-Master-'+kind+'.xlsx';link.click();setTimeout(()=>URL.revokeObjectURL(href),1000);}catch(error){notify(error.message);}finally{button.disabled=false;}
+  }));
 })();

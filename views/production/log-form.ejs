@@ -13,6 +13,7 @@
   </section>
 
   <div id="production-log-alert" class="alert d-none" role="alert"></div>
+  <div id="hmi-master-status" class="alert alert-warning d-none" role="status"></div>
   <form id="production-log-form" class="ops-detail-card production-log-form" data-mode="<%= mode %>" data-record-key="<%= recordKey || '' %>">
     <section class="production-log-section">
       <header class="production-log-section-header module-form-section-title">
@@ -90,7 +91,7 @@
             <label class="production-coil-notes"><span>Catatan</span><input data-coil-notes placeholder="Kondisi coil / NG phase"></label>
           </div>
           <section class="production-ng-reasons">
-            <header><div><strong>Reason NG Phase</strong><small>Satu phase dapat mempunyai beberapa reason; total qty reason harus sama dengan Qty NG.</small></div><button type="button" class="btn btn-sm btn-outline-primary" data-add-ng-reason>+ Reason NG</button></header>
+            <header><div><strong>Reason NG Phase</strong><small>Satu phase dapat mempunyai beberapa reason; total qty reason harus sama dengan Qty NG.</small><a href="/master-data/ng-reasons" target="_blank" rel="noopener">Kelola Master NG</a></div><button type="button" class="btn btn-sm btn-outline-primary" data-add-ng-reason>+ Reason NG</button></header>
             <div data-ng-reason-rows></div>
           </section>
         </article>
@@ -109,7 +110,7 @@
     <section class="production-log-section production-downtime-section">
       <header class="production-log-section-header production-log-section-head module-form-section-title">
         <span class="production-log-step">4</span>
-        <div><h2>Downtime</h2><p>Tambahkan hanya jika ada waktu berhenti selama proses produksi.</p></div>
+        <div><h2>Downtime</h2><p>Tambahkan hanya jika ada waktu berhenti selama proses produksi. <a href="/master-data/downtime-reasons" target="_blank" rel="noopener">Kelola Master Downtime</a></p></div>
         <div class="production-downtime-actions">
           <span>Total downtime <strong id="downtime-total">0</strong> menit</span>
           <button id="add-downtime" class="btn btn-outline-primary btn-sm" type="button">+ Tambah Downtime</button>

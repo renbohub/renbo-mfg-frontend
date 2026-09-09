@@ -3,7 +3,7 @@
   const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
   const weekdayNames = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
   const typeLabels = { NATIONAL_HOLIDAY: "Libur Nasional", COLLECTIVE_LEAVE: "Cuti Bersama", RAMADAN_SHIFT: "Shift Ramadan", COMPANY_EVENT: "Event Perusahaan", MAINTENANCE: "Maintenance", OTHER: "Lainnya" };
-  const state = { year: Number(new URLSearchParams(location.search).get("year")) || new Date().getFullYear(), events: [], profiles: [], machineCount: 0, editingId: null };
+  const state = { year: Number(new URLSearchParams(location.search).get("year")) || (globalThis.erpBusinessNow?.() || new Date()).getFullYear(), events: [], profiles: [], machineCount: 0, editingId: null };
   const $ = (selector) => document.querySelector(selector);
   const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);

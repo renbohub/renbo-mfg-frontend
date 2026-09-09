@@ -7,6 +7,7 @@
     <%
       const bomModeLabel = mode === 'create' ? 'BOM Generator' : mode === 'draft' ? 'Draft BOM' : mode === 'edit' ? 'Edit BOM' : 'Detail BOM';
       let bomEditorActions = mode === 'view' ? `<a class="btn btn-primary bom-primary" href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(recordKey)}/edit">Edit dengan Canvas</a>` : `<span id="bom-draft-status" class="bom-draft-status ${mode === 'draft' ? '' : 'd-none'}">${mode === 'draft' ? 'Draft tersimpan' : ''}</span><button id="bom-auto-layout" class="btn btn-outline-secondary" type="button">Auto Layout</button>${mode === 'create' ? '<button id="bom-make-draft" class="btn btn-primary bom-primary" type="button"><span>Make Draft</span><i class="spinner-border spinner-border-sm d-none"></i></button>' : ''}<button id="bom-save" class="btn btn-success ${mode === 'create' ? 'd-none' : ''}" type="button"><span>${mode === 'draft' ? 'Approve BOM' : 'Simpan BOM'}</span><i class="spinner-border spinner-border-sm d-none"></i></button>`;
+      if (mode === 'edit' || mode === 'view') bomEditorActions = `<a class="btn btn-outline-secondary" href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(recordKey)}/edit-table">Editor Tabel</a>` + bomEditorActions;
     %>
     <%- include('../partials/document-shell', { documentShell: { variant: 'planning', eyebrow: `Manufacturing BOM · ${bomModeLabel}`, number: mode === 'create' ? 'NEW' : recordKey, title: mode === 'create' ? 'BOM Baru' : bomModeLabel, titleId: 'bom-page-title', subtitle: 'Bangun struktur komponen dan routing tanpa mengubah kalkulasi BOM.', actions: bomEditorActions, backHref: '/modules/manufacturing-bom/bill-of-materials', breadcrumbHtml: '<a href="/modules/manufacturing-bom/bill-of-materials">BOM List</a><span>/</span><strong>Canvas</strong>' } }) %>
   </div>
@@ -15,12 +16,14 @@
     <div class="bom-header-field bom-header-product"><label>Produk Utama <em>*</em></label><select id="bom-root-part" class="form-select" data-enterprise-lookup="parts" data-value-key="id" data-label-key="partName" data-lookup-placeholder="Pilih produk utama" <%= mode === 'view' ? 'disabled' : '' %>><option value="">Memuat master part...</option></select></div>
     <div class="bom-header-field"><label>Base UOM</label><select id="bom-root-uom" class="form-select" data-enterprise-lookup="uom" data-value-key="uomCode" data-label-key="uomName" data-lookup-placeholder="Pilih UOM" <%= mode === 'view' ? 'disabled' : '' %>><option value="">Pilih UOM</option></select></div>
     <div class="bom-header-field"><label>Revisi</label><input id="bom-revision" class="form-control" type="number" min="1" value="1" <%= mode === 'view' || mode === 'edit' ? 'readonly' : '' %>></div>
-    <% if (mode === 'edit') { %><div class="bom-header-field"><label>Cara Simpan</label><select id="bom-revision-mode" class="form-select"><option value="newRevision">Buat revisi baru</option><option value="correction">Koreksi revisi ini</option></select></div><div class="bom-header-field"><label>Catatan Revisi</label><input id="bom-revision-note" class="form-control" placeholder="Alasan perubahan struktur"></div><% } %>
+    <% if (mode === 'edit') { %><div class="bom-header-field"><label for="bom-revision-mode">Revisi otomatis</label><select id="bom-revision-mode" class="form-select" disabled><option value="">Memeriksa pemakaian produksi…</option></select><small id="bom-revision-policy-note" class="text-muted"></small></div><div class="bom-header-field"><label for="bom-revision-note">Catatan Perubahan</label><input id="bom-revision-note" class="form-control" placeholder="Alasan perubahan"></div><% } %>
     <div class="bom-header-field"><label>Effective Date</label><input id="bom-effective" class="form-control" type="date" <%= mode === 'view' ? 'disabled' : '' %>></div>
     <div class="bom-header-field"><label>Expiry Date</label><input id="bom-expiry" class="form-control" type="date" <%= mode === 'view' ? 'disabled' : '' %>></div>
     <button id="bom-toggle-notes" class="bom-notes-button" type="button">Catatan</button>
     <textarea id="bom-notes" class="form-control bom-header-notes d-none" rows="2" placeholder="Catatan BOM..." <%= mode === 'view' ? 'disabled' : '' %>></textarea>
   </section>
+  <section class="bom-canvas-overview app-container" aria-label="Ringkasan BOM"><div><small>Komponen</small><strong id="canvas-summary-parts">0</strong></div><div><small>Material / pembelian</small><strong id="canvas-summary-material">—</strong></div><div><small>Proses in-house &amp; vendor</small><strong id="canvas-summary-process">—</strong></div><div><small>Estimasi per unit produk</small><strong id="canvas-summary-total">—</strong></div><div><small>Kelengkapan harga / rate</small><strong id="canvas-summary-coverage">—</strong></div><button id="bom-toggle-library" class="btn btn-outline-secondary" type="button" aria-expanded="true">Part Library</button></section>
+  <div id="canvas-graph-validation" class="bom-canvas-validation app-container" aria-live="polite"></div>
   <section class="bom-workspace">
     <aside class="bom-palette">
       <a class="bom-new-canvas" href="/modules/manufacturing-bom/bill-of-materials/new">＋ Buat BOM Baru</a>
@@ -39,23 +42,30 @@
       </div>
     </div>
     <aside id="bom-inspector" class="bom-inspector">
-      <div class="bom-panel-heading"><h2>Inspector</h2><p id="bom-inspector-caption">Pilih node untuk mengubah detail.</p></div>
+      <div class="bom-panel-heading"><div><h2>Detail komponen</h2><p id="bom-inspector-caption">Pilih node untuk mengubah detail.</p></div><button id="bom-inspector-close" type="button" aria-label="Tutup detail komponen">×</button></div>
       <div id="bom-inspector-empty" class="bom-panel-empty">Belum ada node dipilih.</div>
       <form id="bom-inspector-form" class="d-none" onsubmit="return false">
+        <div class="bom-inspector-tabs" role="tablist" aria-label="Detail komponen BOM"><button type="button" id="canvas-tab-part" role="tab" data-canvas-tab="part" aria-controls="canvas-panel-part">Part</button><button type="button" id="canvas-tab-material" role="tab" data-canvas-tab="material" aria-controls="canvas-panel-material">Material</button><button type="button" id="canvas-tab-routing" role="tab" data-canvas-tab="routing" aria-controls="canvas-panel-routing">Routing</button><button type="button" id="canvas-tab-cost" role="tab" data-canvas-tab="cost" aria-controls="canvas-panel-cost">Biaya</button></div>
+        <section id="canvas-panel-part" data-canvas-panel="part" role="tabpanel" aria-labelledby="canvas-tab-part">
         <% if (mode !== 'view') { %><section class="bom-inspector-add"><label>Tambah ke Canvas</label><div><button type="button" data-inspector-add="fg">＋ FG</button><button type="button" data-inspector-add="child">＋ Child Part</button><button type="button" data-inspector-add="purchase">＋ Purchase Part</button><button type="button" data-inspector-add="material">＋ Raw Material</button></div></section><% } %>
         <label>Part</label><select id="node-part" class="form-select" data-enterprise-lookup="parts" data-value-key="id" data-label-key="partName" data-lookup-placeholder="Pilih part"></select>
         <div class="bom-inspector-grid"><div><label>Qty</label><input id="node-qty" class="form-control" type="number" min="0.000001" step="0.000001"></div><div><label>UOM</label><select id="node-uom" class="form-select" data-enterprise-lookup="uom" data-value-key="uomCode" data-label-key="uomName" data-lookup-placeholder="Pilih UOM"></select></div></div>
         <label>Parent</label><select id="node-parent" class="form-select"></select>
-        <label>Category</label><select id="node-category" class="form-select"><option>Purchase</option><option>inHouse</option><option>Vendor</option></select>
+        <label>Category</label><select id="node-category" class="form-select"><option value="Purchase">Beli material / part</option><option value="inHouse">Buat internal</option><option value="Vendor">Proses outsource</option></select>
         <label>Assembly Policy</label><select id="node-policy" class="form-select"><option>DEFAULT</option><option>INLINE</option><option>SUB_ASSEMBLY</option></select>
         <div class="bom-inspector-grid"><div><label>Lead Time</label><input id="node-lead-time" class="form-control" type="number" min="0" step="0.01"></div><div><label>Satuan</label><select id="node-lead-time-unit" class="form-select"><option value="SECOND">Detik</option><option value="MINUTE">Menit</option><option value="HOUR">Jam</option><option value="DAY">Hari (8 jam kerja)</option></select></div></div>
+        <label for="node-notes">Catatan komponen</label><textarea id="node-notes" class="form-control" rows="3"></textarea>
+        </section>
+        <section id="canvas-panel-material" data-canvas-panel="material" role="tabpanel" aria-labelledby="canvas-tab-material" hidden>
+        <div id="node-sourcing"></div>
         <section id="node-material-consumption" class="bom-material-consumption d-none">
           <div class="bom-material-heading"><div><small>RAW MATERIAL CONSUMPTION</small><b id="node-material-name">Material belum terhubung</b></div><a id="node-material-link" href="/master-data/materials">Master Material</a></div>
           <div class="bom-material-spec-grid"><label>Form Default<select id="node-material-form" class="form-select"><option value="">Pilih form</option></select></label><label>Skema Aktif<select id="node-material-scheme" class="form-select"><option value="DEFAULT">Default</option><option value="ALTERNATIVE">Alternatif</option></select></label><label>T (mm)<input id="node-material-thickness" class="form-control" readonly></label><label>W (mm)<input id="node-material-width" class="form-control" readonly></label><label>P / Pitch (mm)<input id="node-material-pitch" class="form-control" type="number" min="0" step="0.001"></label><label>Cavity<input id="node-material-cavity" class="form-control" type="number" min="1" step="1"></label><label>Density (kg/mm³)<input id="node-material-density" class="form-control" readonly></label><label>Gross Weight (kg/pcs)<input id="node-gross-weight" class="form-control" readonly></label><label>Form Alternatif<select id="node-material-alt-form" class="form-select"><option value="">Tidak digunakan</option></select></label><label>Pitch Alternatif<input id="node-material-alt-pitch" class="form-control" type="number" min="0" step="0.001"></label><label>Cavity Alternatif<input id="node-material-alt-cavity" class="form-control" type="number" min="1" step="1"></label><label>Gross Alternatif<input id="node-material-alt-gross" class="form-control" readonly></label></div>
           <small id="node-material-formula">Gross = T × W × P × Density ÷ Cavity</small>
         </section>
-        <label>Catatan</label><textarea id="node-notes" class="form-control" rows="3"></textarea>
-        <section class="bom-node-processes"><div class="bom-process-title"><label>Routing Proses</label><button id="node-add-process" type="button">＋ Proses</button></div><div id="node-process-list" class="bom-node-process-list"></div></section>
+        </section>
+        <section id="canvas-panel-routing" class="bom-node-processes" data-canvas-panel="routing" role="tabpanel" aria-labelledby="canvas-tab-routing" hidden><div class="bom-process-title"><label>Routing Proses</label><button id="node-add-process" type="button">＋ Proses</button></div><div id="node-process-list" class="bom-node-process-list"></div></section>
+        <section id="canvas-panel-cost" data-canvas-panel="cost" role="tabpanel" aria-labelledby="canvas-tab-cost" hidden><div id="node-cost-breakdown"></div></section>
         <% if (mode !== 'view') { %><div class="bom-inspector-actions"><button id="node-insert-before" class="btn btn-outline-primary" type="button" title="Tambah proses/child tepat sebelum part terpilih">＋ Child di Atas</button><button id="node-add-child" class="btn btn-outline-primary" type="button">＋ Child</button><button id="node-delete" class="btn btn-outline-danger" type="button">Hapus Node</button></div><% } %>
       </form>
     </aside>
@@ -86,4 +96,10 @@
   </form>
 </dialog>
 <script id="bom-editor-config" type="application/json"><%- JSON.stringify({ mode, recordKey }).replace(/</g, '\\u003c') %></script>
+<link rel="stylesheet" href="/css/bom-machine-policy.css?v=20260908-executor-1">
+<script src="/js/bom-machine-policy.js?v=20260909-dies-1"></script>
+<script src="/js/bom-executor-policy.js?v=20260909-dies-1"></script>
+<link rel="stylesheet" href="/css/bom-canvas-editor.css?v=20260907-1">
+<script src="/js/bom-commercial.js?v=20260907-1"></script>
+<script src="/js/bom-canvas-panels.js?v=20260909-dies-1"></script>
 <%- include('../partials/footer') %>

@@ -20,6 +20,9 @@ const mpsScript = read("public/js/ppic-mps-workbench.js");
 const detailScript = read("public/js/ppic-mrp-detail-simple.js");
 
 assert(routes.includes('res.render("ppic/mrp-planning-runs"'), "route /planning-ppic/mrp harus merender halaman MRP terpisah");
+assert(routes.includes('req.query.view === "runs"'), "daftar run harus tetap dapat diakses sebagai tampilan sekunder");
+assert(routes.includes('monthlyMode: true'), "halaman MRP utama harus langsung merender tabel bulanan");
+assert(detailScript.includes('if (!cfg.monthlyMode) await ensureAutomaticMPlusOnePreview()'), "membuka tabel bulanan tidak boleh membuat scenario secara otomatis");
 assert(routes.includes('req.query.tab === "mrp"'), "URL Control Tower lama dengan tab=mrp harus ditangani sebagai redirect kompatibilitas");
 assert(routes.includes('/modules/planning-ppic/mrp?month='), "redirect kompatibilitas harus mempertahankan periode MRP");
 assert(subnav.includes("href: '/modules/planning-ppic/mrp'"), "subnav MRP harus menunjuk ke halaman terpisah");

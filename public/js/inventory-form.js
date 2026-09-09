@@ -460,7 +460,7 @@
 
   const dateInput = document.getElementById("stoDate");
   if (dateInput) {
-    const today = new Date();
+    const today = (globalThis.erpBusinessNow?.() || new Date());
     dateInput.value = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   }
   document.getElementById("movementType")?.addEventListener("change", syncMovementFields);

@@ -1,0 +1,75 @@
+/* Focused analysis: actual → target → gap. Scoped to the audit dialog. */
+.mwb-feasibility-panel .mwb-audit-overview { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:16px 18px; background:#f5f8fc; border:1px solid #dde5ef; border-radius:10px; margin-bottom:16px; }
+.mwb-audit-overview strong { display:block; color:#172238; font-size:16px; }
+.mwb-audit-overview p { margin:5px 0 0; font-size:12px; color:#526176; }
+.mwb-audit-count { font-size:12px; color:#526176; white-space:nowrap; }
+.mwb-audit-pill { display:inline-flex; align-items:center; gap:5px; padding:5px 9px; border-radius:6px; font-size:11px; font-weight:750; background:#eef2f7; color:#526176; }
+.mwb-audit-pill.success { background:#e3f5eb; color:#14663d; }
+.mwb-audit-pill.warning { background:#fff1d6; color:#815600; }
+.mwb-audit-pill.danger { background:#fee9e7; color:#ae3028; }
+.mwb-audit-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:0 0 12px; }
+.mwb-audit-head h3 { margin:0; font-size:14px; color:#172238; }
+.mwb-audit-head a { font-size:12px; text-decoration:none; }
+.mwb-audit-card { border:1px solid #dce3ed; border-radius:10px; margin-bottom:12px; background:#fff; overflow:hidden; }
+.mwb-audit-card>summary { display:flex; min-width:0; align-items:center; gap:12px; padding:14px 16px; cursor:pointer; list-style:none; }
+.mwb-audit-card>summary::-webkit-details-marker { display:none; }
+.mwb-audit-card>summary::after { content:'+'; color:#64748b; font-size:18px; }
+.mwb-audit-card[open]>summary::after { content:'−'; }
+.mwb-audit-card>summary>b { margin-right:auto; font-size:14px; color:#172238; }
+.mwb-audit-card>summary>small { color:#64748b; font-size:11px; }
+.mwb-audit-card.danger { border-left:3px solid #d75449; }
+.mwb-audit-card.warning { border-left:3px solid #deb15b; }
+.mwb-audit-card .mwb-checkpoint-detail { padding:0 16px 14px; background:#fff; }
+.mwb-audit-fact { padding:13px 0; border-bottom:1px solid #e8edf4; }
+.mwb-audit-fact>header { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:9px; }
+.mwb-audit-fact h4 { margin:0; font-size:12px; font-weight:700; color:#334155; }
+.mwb-audit-values { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+.mwb-audit-values>div { padding:10px 12px; background:#f6f8fb; border-radius:7px; min-width:0; }
+.mwb-audit-values span { display:block; color:#64748b; font-size:11px; margin-bottom:5px; }
+.mwb-audit-values b { color:#172238; font-size:16px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.mwb-audit-values .is-target { background:#eef3ff; }
+.mwb-audit-fact>p { margin:10px 0 0; font-size:12px; line-height:1.55; color:#526176; }
+.mwb-audit-fact>p b { color:#334155; }
+.mwb-audit-more { margin:12px 0 0; }
+.mwb-audit-more>summary { color:#526176; font-size:12px; padding:5px 0; cursor:pointer; }
+.mwb-audit-more .mwb-decision-block { margin-top:12px; }
+.mwb-audit-recovery { margin:12px 0 0; border:1px solid #c8d6ef; border-radius:8px; background:#f8faff; }
+.mwb-audit-recovery>summary { cursor:pointer; padding:11px 13px; font-size:12px; font-weight:700; color:#2049a7; }
+.mwb-audit-recovery .mwb-checkpoint-request { margin:0; border:0; background:transparent; padding:2px 13px 13px; }
+.mwb-audit-recovery .mwb-checkpoint-request button { grid-column:1/-1; justify-self:start; font-size:12px; }
+.mwb-audit-recovery p { padding:0 13px 12px; font-size:12px; margin:0; color:#526176; }
+.mwb-audit-recovery .mwb-checkpoint-request p { padding:0; }
+.mwb-audit-history { margin:10px 0; font-size:12px; }
+.mwb-audit-history small { display:block; color:#64748b; }
+.mwb-production-evidence { overflow:auto; max-width:100%; margin:12px 0; border:1px solid #dbe3ed; border-radius:7px; }
+.mwb-audit-card .mwb-audit-fact>header { display:none; }
+.mwb-production-evidence table { width:100%; border-collapse:separate; border-spacing:0; font-size:12px; }
+.mwb-production-evidence th,.mwb-production-evidence td { position:static!important; padding:9px 10px; text-align:left; border-bottom:1px solid #e2e8f0; background:#fff; color:#334155; white-space:nowrap; }
+.mwb-production-evidence th { background:#edf2f8; font-size:11px; font-weight:700; }
+.mwb-production-evidence td:first-child { min-width:160px; max-width:260px; white-space:normal; }
+.mwb-production-evidence td small { display:block; margin-top:3px; }
+[data-theme="dark"] .mwb-production-evidence td { background:#172033; color:#e2e8f0; }
+[data-theme="dark"] .mwb-production-evidence th { background:#26364e; color:#e2e8f0; }
+.mwb-audit-unavailable { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:10px 12px; margin-top:12px; background:#f6f8fb; border-radius:7px; font-size:12px; color:#526176; }
+.mwb-audit-unavailable button { padding:6px 10px; border:1px solid #cbd5e1; border-radius:5px; color:#64748b; background:#eef2f7; white-space:nowrap; }
+.mwb-audit-na ul { padding-left:18px; font-size:12px; color:#64748b; }
+.mwb-audit-na li { margin:7px 0; }
+.mwb-feasibility-panel .mwb-audit-note { font-size:11px; color:#64748b; margin:12px 0; }
+.mwb-audit-card [hidden] { display:none!important; }
+.mwb-feasibility-panel summary:focus-visible,.mwb-feasibility-panel button:focus-visible { outline:2px solid #3464d1; outline-offset:2px; }
+[data-theme="dark"] .mwb-audit-card,[data-theme="dark"] .mwb-audit-card .mwb-checkpoint-detail { background:#172033; color:#e2e8f0; }
+[data-theme="dark"] .mwb-audit-values>div,[data-theme="dark"] .mwb-audit-overview,[data-theme="dark"] .mwb-audit-unavailable,[data-theme="dark"] .mwb-audit-recovery { background:#202d43; }
+[data-theme="dark"] .mwb-audit-card b,[data-theme="dark"] .mwb-audit-card h4,[data-theme="dark"] .mwb-audit-overview strong { color:#e2e8f0; }
+[data-theme="dark"] .mwb-audit-card[open]>summary { background:#202d43; }
+[data-theme="dark"] .mwb-audit-card p,[data-theme="dark"] .mwb-audit-card small,[data-theme="dark"] .mwb-audit-values span,[data-theme="dark"] .mwb-audit-overview p,[data-theme="dark"] .mwb-audit-count,[data-theme="dark"] .mwb-audit-more>summary,[data-theme="dark"] .mwb-audit-note { color:#aebed3; }
+[data-theme="dark"] .mwb-audit-recovery>summary { color:#9cbcff; }
+@media(max-width:640px) {
+  .mwb-audit-values { grid-template-columns:1fr; gap:6px; }
+  .mwb-audit-values>div { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+  .mwb-audit-values span { flex:0 0 85px; margin:0; }
+  .mwb-audit-values b { font-size:14px; text-align:right; }
+  .mwb-audit-card>summary { flex-wrap:wrap; gap:8px; padding:12px; }
+  .mwb-audit-card>summary>small { display:none; }
+  .mwb-audit-card .mwb-checkpoint-detail { padding:0 12px 12px; }
+  .mwb-audit-unavailable { flex-wrap:wrap; }
+}

@@ -580,7 +580,27 @@ form.ops-detail-card > .module-form-actions {
 }
 
 .operations-category-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  min-width: 0;
   margin: 14px 40px !important;
+}
+
+.operations-category-tabs > a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1199px) {
+  .operations-category-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 800px) {
+  .operations-category-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 480px) {
+  .operations-category-tabs { grid-template-columns: minmax(0, 1fr); }
 }
 
 .module-data-page,
@@ -1325,6 +1345,39 @@ textarea {
 }
 
 /* Data table is the main ERP workspace. */
+/* Bootstrap's DataTables renderer uses .col-12 instead of .dt-layout-cell.
+   Constrain the flex item so only the table scrolls, not the page/footer. */
+.table-shell,
+.module-table-shell,
+.ops-table-card,
+.sales-card,
+.ppic-table-card,
+.report-detail-card,
+.bom-figma-table,
+.list-table-view,
+.dt-container,
+.table-responsive {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dt-container > .row,
+.dt-container > .dt-layout-table {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.dt-layout-table > :is(.dt-layout-cell, .col-12) {
+  display: block !important;
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  padding-left: 0;
+  padding-right: 0;
+  overflow: auto;
+  overscroll-behavior-x: contain;
+}
+
 .module-table-shell,
 .entity-table-shell,
 .ops-table-card,
@@ -1346,15 +1399,15 @@ textarea {
 }
 
 .list-table-view,
-.dt-layout-table .dt-layout-cell,
+.dt-layout-table > :is(.dt-layout-cell, .col-12),
 .table-responsive {
   position: relative;
 }
 
-.module-master-table .dt-layout-table .dt-layout-cell,
-.operations-master-table .dt-layout-table .dt-layout-cell,
-.ppic-master-table .dt-layout-table .dt-layout-cell,
-.entity-table-shell .dt-layout-table .dt-layout-cell,
+.module-master-table .dt-layout-table > :is(.dt-layout-cell, .col-12),
+.operations-master-table .dt-layout-table > :is(.dt-layout-cell, .col-12),
+.ppic-master-table .dt-layout-table > :is(.dt-layout-cell, .col-12),
+.entity-table-shell .dt-layout-table > :is(.dt-layout-cell, .col-12),
 .module-master-table > .list-table-view,
 .report-master-table > .list-table-view {
   max-height: min(64vh, 680px);
@@ -2496,10 +2549,10 @@ form.ops-detail-card > .module-form-actions,
     right: 14px;
   }
 
-  .module-master-table .dt-layout-table .dt-layout-cell,
-  .operations-master-table .dt-layout-table .dt-layout-cell,
-  .ppic-master-table .dt-layout-table .dt-layout-cell,
-  .entity-table-shell .dt-layout-table .dt-layout-cell,
+  .module-master-table .dt-layout-table > :is(.dt-layout-cell, .col-12),
+  .operations-master-table .dt-layout-table > :is(.dt-layout-cell, .col-12),
+  .ppic-master-table .dt-layout-table > :is(.dt-layout-cell, .col-12),
+  .entity-table-shell .dt-layout-table > :is(.dt-layout-cell, .col-12),
   .module-master-table > .list-table-view,
   .report-master-table > .list-table-view {
     max-height: 60vh;

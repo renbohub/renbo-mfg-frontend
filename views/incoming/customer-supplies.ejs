@@ -1,0 +1,13 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/customer-supplies.css?v=2">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'customer-supplies' }) %>
+<main class="cs-page app-container">
+  <header class="cs-header"><div><small>PURCHASING · MATERIAL MILIK CUSTOMER</small><h1>Suplai Material Customer</h1><p>Permintaan → Konfirmasi kiriman → Terima & QC → Stok customer</p></div><div class="cs-toolbar"><a class="btn btn-outline-primary" href="/modules/purchasing/eta-monitor?tab=customer">Monitor ETA</a><button id="cs-new" class="btn btn-primary">＋ Permintaan</button></div></header>
+  <div id="cs-message" role="status" class="alert d-none"></div>
+  <section class="cs-panel"><div class="cs-toolbar"><label class="cs-run-picker" for="cs-run">MRP run<select id="cs-run" class="form-select" disabled><option value="">Memuat MRP run…</option></select></label><button id="cs-load-mrp" class="btn btn-outline-primary" disabled>Lihat kebutuhan</button><a class="btn btn-outline-secondary" href="/modules/planning-ppic/mrp">Buka MRP</a></div><div id="cs-needs" aria-live="polite"></div></section>
+  <section class="cs-panel"><div class="cs-toolbar"><h2>Permintaan & kiriman</h2><label class="ms-auto"><span class="visually-hidden">Cari permintaan</span><input id="cs-search" class="form-control" placeholder="Cari customer / material…"></label><button id="cs-refresh" class="btn btn-outline-secondary">Muat ulang</button></div><div id="cs-requests" aria-live="polite"></div><div class="cs-toolbar"><button id="cs-prev" class="btn btn-sm btn-outline-secondary">Sebelumnya</button><span id="cs-page-info"></span><button id="cs-next" class="btn btn-sm btn-outline-secondary">Berikutnya</button></div></section>
+  <section class="cs-panel"><h2>Stok milik customer</h2><p class="text-muted small">Per lot pada halaman ini. Terpisah dari stok perusahaan; hanya qty lolos QC yang tersedia. Catat pemakaian melalui Keluar produksi.</p><div id="cs-stock"></div></section>
+  <dialog id="cs-dialog" aria-labelledby="cs-form-title"><form id="cs-form"><div class="cs-toolbar"><h2 id="cs-form-title"></h2><button id="cs-close" class="btn-close ms-auto" type="button" aria-label="Tutup"></button></div><div id="cs-form-fields" class="cs-fields"></div><p id="cs-form-error" class="text-danger" role="alert"></p><div class="cs-toolbar"><button class="btn btn-primary" type="submit">Simpan</button><span class="small text-muted">Tidak membuat PR/PO atau mengirim pesan ke customer.</span></div></form></dialog>
+</main>
+<%- include('../partials/footer') %>

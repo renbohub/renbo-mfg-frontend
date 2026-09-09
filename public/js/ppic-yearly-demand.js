@@ -9,7 +9,7 @@
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
   const demandModel = window.PpicYearlyDemandModel;
   const config = JSON.parse($("yd-page-config")?.textContent || "{}");
-  const state = { year: Number(config.currentYear) || new Date().getFullYear(), customerCode: "", q: "", page: 1, pageSize: 25, payload: null, requestId: 0, editing: null };
+  const state = { year: Number(config.currentYear) || (globalThis.erpBusinessNow?.() || new Date()).getFullYear(), customerCode: "", q: "", page: 1, pageSize: 25, payload: null, requestId: 0, editing: null };
   let searchTimer = null;
 
   async function api(url, options = {}) {

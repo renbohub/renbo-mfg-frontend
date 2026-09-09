@@ -21,7 +21,7 @@
   }
 
   function setToday() {
-    const now = new Date();
+    const now = (globalThis.erpBusinessNow?.() || new Date());
     document.getElementById("reservationDate").value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   }
 

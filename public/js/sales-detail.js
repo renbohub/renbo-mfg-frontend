@@ -17,7 +17,13 @@
     if (!response.ok) throw new Error(payload.message || "Permintaan gagal");
     return payload.data || payload;
   }
-  function show(message, kind = "danger") { const alert = $id("sales-alert"); alert.textContent = message; alert.className = `alert alert-${kind}`; }
+  function show(message, kind = "danger") {
+    const alert = $id("sales-alert"); alert.textContent = message; alert.className = `alert alert-${kind}`;
+    if (type === 'sales-order' && String(message).includes('Konfigurasikan approval SO')) {
+      alert.append(document.createTextNode(' '));
+      const link = document.createElement('a'); link.href = '/master-data/approval-rules'; link.textContent = 'Buka Approval Rules'; link.className = 'alert-link'; alert.append(link);
+    }
+  }
   function info(label, value) { return `<div><small>${esc(label)}</small><strong>${esc(value ?? "-")}</strong></div>`; }
   function initDetailTabs() {
     const tabs = [...document.querySelectorAll("[data-sales-tab]")];
@@ -60,6 +66,13 @@
     if (edit && type === "forecast") edit.classList.toggle("d-none", doc.status !== "Draft");
   }
   function renderSalesOrderActions() {
+    if (type === 'sales-order') {
+      $id('confirm-sales-order')?.classList.toggle('d-none', doc.status !== 'In Approval');
+      $id('submit-sales-order')?.classList.toggle('d-none', doc.status !== 'Draft');
+      $id('reject-sales-order')?.classList.toggle('d-none', doc.status !== 'In Approval');
+      $id('withdraw-sales-order')?.classList.toggle('d-none', doc.status !== 'In Approval');
+      $id('delete-document')?.classList.toggle('d-none', !['Draft', 'Cancelled'].includes(doc.status));
+    }
     const revise = $id("revise-sales-order");
     if (revise) revise.classList.toggle("d-none", type !== "sales-order" || !["Confirmed", "In Progress", "Ready to Deliver"].includes(doc.status));
     const edit = $id("edit-document");
@@ -68,8 +81,9 @@
   function renderInfo() {
     let fields;
     if (type === "quotation") fields = [["Customer", `${doc.customerCode || ""} — ${doc.customerName || ""}`], ["Tanggal Quotation", date(doc.quotationDate)], ["Valid Sampai", date(doc.validUntil)], ["Contact", doc.contact], ["Payment Terms", doc.paymentTerms], ["Currency", doc.currencyCode], ["Email", doc.email], ["Phone", doc.phone], ["Shipping Address", doc.shippingAddress]];
-    else if (type === "sales-order") fields = [["Customer", `${doc.customerCode || ""} — ${doc.customerName || ""}`], ["Tanggal Order", date(doc.soDate)], ["Delivery", date(doc.deliveryDate)], ["Quotation", doc.quotationNumber], ["Payment Terms", doc.paymentTerms], ["Currency", doc.currencyCode], ["Contact", doc.contact], ["Phone", doc.phone], ["Shipping Address", doc.shippingAddress]];
+    else if (type === "sales-order") fields = [["Customer", `${doc.customerCode || ""} — ${doc.customerName || ""}`], ["Tanggal Order", date(doc.soDate)], ["Quotation", doc.quotationNumber], ["Payment Terms", doc.paymentTerms], ["Currency", doc.currencyCode], ["Contact", doc.contact], ["Phone", doc.phone], ["Shipping Address", doc.shippingAddress]];
     else fields = [["Nama Forecast", doc.forecastName], ["Customer", doc.customerCode], ["Periode Mulai", date(doc.periodStart)], ["Periode Selesai", date(doc.periodEnd)], ["Jumlah Part", doc.details?.length || 0], ["Tujuan", "Acuan MRP & buffer stock (FG only)"]];
+    if (type === 'sales-order') fields.unshift(['Referensi PO Pelanggan', doc.customerPoNumber], ['Tracking ERP', doc.soNumber]);
     $id("detail-info").innerHTML = fields.map((item) => info(...item)).join("");
   }
   function renderItems() {
@@ -93,7 +107,7 @@
       $id("detail-summary").innerHTML = `<span>Total dokumen</span><strong>${money(doc.totalAmount)}</strong>`;
     }
   }
-  function renderWorkflow() { const maps = { quotation: ["Draft", "Submitted", "Approved", "Converted"], "sales-order": ["Draft", "Confirmed", "In Progress", "Completed"], forecast: ["Draft", "Submitted", "Confirmed", "Partial Product", "Consumed", "Closed", "Obsolete"] }; const steps = maps[type]; const current = steps.indexOf(doc.status); const converted = type === "quotation" && doc.convertedToSO; $id("workflow").innerHTML = steps.map((step, index) => `<div class="workflow-step ${(index <= current || converted && step === "Converted") ? "done" : ""}"><b>${step}</b><span>${index === 0 ? "Dokumen dibuat" : step === "Submitted" && type === "forecast" ? "Menunggu approval" : step === "Partial Product" ? "Sebagian demand sudah diproduksi; sisa bulan masih bisa dikonsumsi" : step === "Consumed" ? "Forecast sudah diturunkan ke planning" : "Tahap proses dokumen"}</span></div>`).join(""); }
+  function renderWorkflow() { const maps = { quotation: ["Draft", "Submitted", "Approved", "Converted"], "sales-order": ["Draft", "In Approval", "Confirmed", "In Progress", "Completed"], forecast: ["Draft", "Submitted", "Confirmed", "Partial Product", "Consumed", "Closed", "Obsolete"] }; const steps = maps[type]; const current = steps.indexOf(doc.status); const converted = type === "quotation" && doc.convertedToSO; $id("workflow").innerHTML = steps.map((step, index) => `<div class="workflow-step ${(index <= current || converted && step === "Converted") ? "done" : ""}"><b>${step}</b><span>${index === 0 ? "Dokumen dibuat" : step === "Submitted" && type === "forecast" ? "Menunggu approval" : step === "Partial Product" ? "Sebagian demand sudah diproduksi; sisa bulan masih bisa dikonsumsi" : step === "Consumed" ? "Forecast sudah diturunkan ke planning" : "Tahap proses dokumen"}</span></div>`).join(""); }
   function relatedTable(rows, emptyMessage) {
     if (!rows.length) return `<p class="sales-related-empty">${esc(emptyMessage)}</p>`;
     return `<div class="table-responsive"><table class="table sales-related-table"><thead><tr><th>Dokumen</th><th>Referensi</th><th>Konteks</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${esc(row.type)}</td><td><a class="erp-record-link" href="${row.href}">${esc(row.reference)}</a></td><td>${esc(row.context || "Related record")}</td></tr>`).join("")}</tbody></table></div>`;
@@ -145,8 +159,50 @@
     } catch (error) { body.innerHTML = `<tr><td colspan="8" class="text-danger text-center">${esc(error.message)}</td></tr>`; }
   }
   async function load() { doc = await api(`/modules/api/sales/${cfg.slug}/${encodeURIComponent(cfg.recordKey)}`); const key = doc[cfg.detailKey]; $id("document-number").textContent = key; $id("document-breadcrumb").textContent = key; $id("document-caption").textContent = type === "forecast" ? `${doc.forecastName || ""} • ${doc.customerCode || "-"}` : `${doc.customerName || "-"} • ${date(doc[type === "quotation" ? "quotationDate" : "soDate"])}`; renderStatus(); renderInfo(); renderItems(); renderWorkflow(); renderRelationships(); $id("detail-notes").textContent = doc.notes || "-"; if (type === "quotation" && !doc.convertedToSO && ["Approved", "Accepted"].includes(doc.status)) $id("make-to-so").classList.remove("d-none"); if (type === "sales-order" && doc.status === "Draft") $id("confirm-sales-order")?.classList.remove("d-none"); await loadPlanning(); }
+  const soBase = () => `/modules/api/sales/sales-orders/${encodeURIComponent(cfg.recordKey)}`;
+  async function downloadFile(url, filename) {
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${token()}` } });
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).message || 'File gagal diunduh.');
+    const blob = URL.createObjectURL(await response.blob()), link = document.createElement('a'); link.href = blob; link.download = filename; link.click(); setTimeout(() => URL.revokeObjectURL(blob), 1000);
+  }
+  async function loadSalesEvidence() {
+    if (type === 'forecast') {
+      const box = $id('forecast-version-history');
+      try {
+        const result = await api(`/modules/api/sales/forecasts/${encodeURIComponent(cfg.recordKey)}/history`);
+        box.innerHTML = (result.items || []).map(version => `<details ${version.forecastNumber === cfg.recordKey ? 'open' : ''}><summary>${esc(version.forecastNumber)} · Versi ${esc(version.version)} · ${esc(version.status)}${version.isCurrentVersion ? ' · Terkini' : ''}</summary><p>${esc(version.revisionReason || version.notes || '')}</p><div class="table-responsive"><table class="table"><thead><tr><th>Part</th><th>Bulan</th><th>UOM</th><th>Qty sebelumnya</th><th>Qty versi ini</th><th>Perubahan</th></tr></thead><tbody>${version.rows.map(row => `<tr><td>${esc(row.partCode)}</td><td>${esc(row.month)}</td><td>${esc(row.uomCode || '-')}</td><td>${num(row.previousQty)}</td><td>${num(row.qty)}</td><td>${num(row.deltaQty)}</td></tr>`).join('')}</tbody></table></div></details>`).join('') || '<p>Belum ada histori.</p>';
+      } catch(error) { box.textContent = error.message; }
+      return;
+    }
+    if (type !== 'sales-order') return;
+    const form = $id('so-attachment-form'); form.hidden = doc.status !== 'Draft'; form.classList.toggle('d-none', doc.status !== 'Draft');
+    $id('so-attachments').innerHTML = (doc.attachments || []).map(attachment => `<div class="d-flex flex-wrap gap-2 align-items-center mb-2">${attachment.files.map(file => `<button class="btn btn-sm btn-outline-secondary" type="button" data-attachment-download="${esc(file.downloadUrl)}" data-file-name="${esc(file.fileName)}">${esc(file.fileName)} (${num(file.fileSize / 1024)} KB)</button>`).join('')}<small>${esc(attachment.uploadedBy || '')}</small>${doc.status === 'Draft' ? `<button type="button" class="btn btn-sm btn-outline-danger" data-attachment-delete="${esc(attachment.id)}">Hapus</button>` : ''}</div>`).join('') || '<p>Belum ada lampiran.</p>';
+    const box = $id('so-approval-history');
+    try {
+      const result = await api(`${soBase()}/approvals`);
+      box.innerHTML = (result.items || []).map(request => `<details open><summary>${esc(request.requestNumber)} · ${esc(request.status)} · Tahap ${esc(request.currentStep)}</summary><ol>${request.rule.steps.map(step => `<li>${esc(step.stepName || step.stepOrder)} — ${esc(step.role?.roleName || step.permissionAction || 'Approver')} (${esc(step.requiredApprovals)} persetujuan)</li>`).join('')}</ol><div class="table-responsive"><table class="table"><thead><tr><th>Tahap</th><th>Keputusan</th><th>Oleh</th><th>Waktu</th><th>Catatan</th></tr></thead><tbody>${request.actions.map(action => `<tr><td>${esc(action.stepOrder)}</td><td>${esc(action.action)}</td><td>${esc(action.actedBy)}</td><td>${esc(new Date(action.actedAt).toLocaleString('id-ID'))}</td><td>${esc(action.notes || '-')}</td></tr>`).join('') || '<tr><td colspan="5">Menunggu persetujuan.</td></tr>'}</tbody></table></div></details>`).join('') || '<p>Draft belum diajukan. Ajukan untuk memulai approval bertingkat.</p>';
+    } catch(error) { box.textContent = error.message; }
+  }
+  for (const [id, action] of [['submit-sales-order','submit'], ['reject-sales-order','reject'], ['withdraw-sales-order','withdraw']]) {
+    $id(id)?.addEventListener('click', async () => {
+      const notes = action === 'submit' ? '' : prompt(action === 'reject' ? 'Alasan dikembalikan untuk revisi:' : 'Alasan menarik pengajuan:');
+      if (notes === null || (action !== 'submit' && !notes.trim())) return;
+      const button = $id(id); button.disabled = true;
+      try { await api(`${soBase()}/${action}`, { method:'POST', body:JSON.stringify({notes}) }); await load(); show('Workflow SO berhasil diperbarui.', 'success'); } catch(error) { show(error.message); } finally { button.disabled = false; }
+    });
+  }
+  $id('so-attachment-form')?.addEventListener('submit', async event => {
+    event.preventDefault(); const file = $id('so-attachment-file').files[0]; if (!file) return;
+    if (file.size > 10 * 1024 * 1024) return show('Maksimal ukuran lampiran 10 MB.');
+    const button = event.target.querySelector('button'); button.disabled = true;
+    try { const form = new FormData(); form.append('file',file); const response = await fetch(`${soBase()}/attachments`, { method:'POST', headers:{ Authorization:`Bearer ${token()}` }, body:form }); const payload = await response.json(); if (!response.ok) throw new Error(payload.message || 'Upload gagal.'); $id('so-attachment-file').value=''; await load(); } catch(error) { show(error.message); } finally { button.disabled=false; }
+  });
+  $id('so-attachments')?.addEventListener('click', async event => {
+    const download = event.target.closest('[data-attachment-download]'), remove = event.target.closest('[data-attachment-delete]');
+    try { if (download) await downloadFile(download.dataset.attachmentDownload, download.dataset.fileName); if (remove && confirm('Hapus lampiran dari SO?')) { await api(`${soBase()}/attachments/${encodeURIComponent(remove.dataset.attachmentDelete)}`, {method:'DELETE'}); await load(); } } catch(error) { show(error.message); }
+  });
   const originalLoad = load;
-  load = async () => { await originalLoad(); renderForecastActions(); renderSalesOrderActions(); await loadDemandSummary(); };
+  load = async () => { await originalLoad(); renderForecastActions(); renderSalesOrderActions(); await Promise.all([loadDemandSummary(), loadSalesEvidence()]); const pending = sessionStorage.getItem(`so-upload-warning:${cfg.recordKey}`); if (pending) { show(pending, 'warning'); sessionStorage.removeItem(`so-upload-warning:${cfg.recordKey}`); } };
   $id("submit-forecast")?.addEventListener("click", async () => {
     if (!confirm("Submit Forecast ini ke alur approval? Forecast belum dapat dikonsumsi PPIC sampai disetujui.")) return;
     const button = $id("submit-forecast"); button.disabled = true; button.textContent = "Submitting...";
@@ -175,7 +231,7 @@
     } catch (error) { show(error.message); button.disabled = false; button.textContent = "Buat Revisi"; }
   });
   $id("make-to-so").addEventListener("click", async () => { if (!confirm("Buat Sales Order dari quotation ini?")) return; const button = $id("make-to-so"); button.disabled = true; button.textContent = "Membuat SO..."; try { const so = await api(`/modules/api/sales/quotations/${encodeURIComponent(cfg.recordKey)}/make-to-so`, { method: "POST", body: "{}" }); location.href = `/modules/sales/sales-orders/${encodeURIComponent(so.soNumber)}`; } catch (error) { show(error.message); button.disabled = false; button.textContent = "Make to SO"; } });
-  $id("confirm-sales-order")?.addEventListener("click", async () => { if (!confirm("Confirm SO dan sinkronkan reservation stok?")) return; const button = $id("confirm-sales-order"); button.disabled = true; try { await api(`/modules/api/sales/sales-orders/${encodeURIComponent(cfg.recordKey)}/confirm`, { method: "PATCH", body: "{}" }); await load(); } catch (error) { show(error.message); button.disabled = false; } });
+  $id("confirm-sales-order")?.addEventListener("click", async () => { if (!confirm("Setujui tahap aktif SO? Konfirmasi dan reservation stok dilakukan setelah seluruh tahap selesai.")) return; const button = $id("confirm-sales-order"); button.disabled = true; try { await api(`/modules/api/sales/sales-orders/${encodeURIComponent(cfg.recordKey)}/confirm`, { method: "PATCH", body: "{}" }); await load(); } catch (error) { show(error.message); } finally { button.disabled = false; } });
   $id("revise-sales-order")?.addEventListener("click", async () => {
     const reason = await window.formPrompt("Alasan revisi Sales Order (wajib):", "", { title: "Buat Revisi Sales Order" });
     if (reason === null || !String(reason).trim()) return;

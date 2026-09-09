@@ -57,7 +57,7 @@ async function verifyLookupGateway() {
 
   const normalized = normalizeLookupPayload({ data: [{ id: "P1", partCode: "C001", partName: "Bracket", status: "Active", purchaseUomCode: "PCS" }], total: 3 }, getLookupSource("parts"), 1, 1);
   assertEqual(normalized, {
-    results: [{ id: "P1", text: "C001 · Bracket", code: "C001", name: "Bracket", meta: "", active: true, data: { purchaseUomCode: "PCS" } }],
+    results: [{ id: "P1", text: "C001 · Bracket", code: "C001", name: "Bracket", meta: "", active: true, data: { purchaseUomCode: "PCS", partCode: "C001", partName: "Bracket" } }],
     pagination: { more: true }
   }, "gateway menormalisasi envelope dan pagination");
 
@@ -79,6 +79,12 @@ async function verifyLookupGateway() {
   if (okResponse.statusCode !== 200) failures.push("gateway gagal meneruskan query valid");
   if (!calls[0]?.url.includes("warehouseCode=WH-001")) failures.push("gateway tidak meneruskan parent filter yang diizinkan");
   if (calls[0]?.options?.headers?.authorization !== "Bearer test") failures.push("gateway tidak meneruskan authorization header");
+
+  for (const source of ["vendors", "customers", "parts"]) {
+    await handler({ params: { source }, query: { q: "bintang", page: "2", pageSize: "25" }, get() {} }, okResponse);
+    const url = new URL(calls.at(-1).url);
+    assertEqual([url.searchParams.get("q"), url.searchParams.get("limit"), url.searchParams.get("page")], ["bintang", "25", "2"], `${source} uses backend search/pagination contract`);
+  }
 
   const missingResponse = { statusCode: 200, body: null, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
   await handler({ params: { source: "not-registered" }, query: {}, get() {} }, missingResponse);

@@ -1,0 +1,18 @@
+<% const categories = [
+  ['material', 'Material', 'SPHC dan Material Master · Permintaan PPIC dalam KG'],
+  ['purchase-part', 'Purchase Part', 'Purchased part yang memiliki drawing'],
+  ['universal-purchase-part', 'Universal Purchase Part', 'Purchased part tanpa drawing atau item universal'],
+  ['vendor-process', 'Vendor Process', 'Kebutuhan proses vendor dari alokasi Monthly Plan'],
+  ['non-production', 'Non Produksi', 'Consumable, service, asset, dan maintenance']
+]; const selectedCategory = categories.find(item => item[0] === purchaseCategory) || categories[1]; %>
+<section class="pr-category-filter app-container" aria-label="Filter Purchase Requisition">
+  <div class="pr-category-filter-row">
+    <span class="pr-category-filter-label">Jenis PR</span>
+    <nav class="pr-category-filter-tabs" aria-label="Jenis Purchase Requisition">
+      <% categories.forEach(([key, label, description]) => { %>
+        <a href="/modules/purchasing/purchase-requisitions?category=<%= key %>" class="<%= key === selectedCategory[0] ? 'active' : '' %>" <% if (key === selectedCategory[0]) { %>aria-current="page"<% } %> title="<%= description %>"><%= label %></a>
+      <% }); %>
+    </nav>
+  </div>
+  <p class="pr-category-filter-context"><strong><%= selectedCategory[1] %></strong><span aria-hidden="true">·</span><span><%= selectedCategory[2] %></span></p>
+</section>

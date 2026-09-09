@@ -5,7 +5,7 @@
   const salesStatuses = page.salesType === 'quotation'
     ? ['Draft', 'Submitted', 'Approved', 'Accepted', 'Rejected']
     : page.salesType === 'sales-order'
-      ? ['Draft', 'Confirmed', 'In Progress', 'Completed', 'Cancelled']
+      ? ['Draft', 'In Approval', 'Confirmed', 'In Progress', 'Completed', 'Cancelled', 'Superseded']
       : ['Draft', 'Submitted', 'Confirmed', 'Partial Product', 'Consumed', 'Closed', 'Obsolete', 'Superseded'];
 %>
 <main class="entity-page sales-list-page">
@@ -22,6 +22,7 @@
     <div class="toolbar-spacer"></div>
     <%- include('../partials/view-switcher') %>
     <button id="sales-export" class="btn btn-export" type="button">Export CSV</button>
+    <% if (page.salesType === 'forecast') { %><button id="forecast-template-download" type="button" class="btn btn-outline-primary">Unduh Template Forecast</button><a href="/master-data/excel-imports" class="btn btn-outline-secondary">Impor Excel</a><% } %>
     <a class="btn btn-primary brand-button" href="/modules/sales/<%= page.slug %>/new">
       <%- include('../partials/icon', { name: 'plus' }) %> Tambah Baru
     </a>

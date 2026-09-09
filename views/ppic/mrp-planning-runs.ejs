@@ -10,6 +10,7 @@
       <h1>Material Requirements Planning</h1>
     </div>
     <div class="mrp-head-actions">
+      <a id="mrp-material-table" class="mrp-outline-action" href="/modules/planning-ppic/mrp?month=<%= initialMonth %>">Tabel Material</a>
       <label class="mrp-search"><%- include('../partials/icon', { name: 'search' }) %><input id="mrp-search" type="search" placeholder="Cari MRP, MPS, revision…" autocomplete="off"></label>
       <select id="mrp-status" data-searchable-disabled aria-label="Filter status"><option value="">Semua status</option></select>
       <button id="mrp-density" class="mrp-view-button" type="button" title="Ubah kerapatan tabel" aria-pressed="false">▦</button>

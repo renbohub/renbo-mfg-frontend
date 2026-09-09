@@ -38,6 +38,7 @@
       },
     });
     const payload = await response.json().catch(() => ({}));
+    if (response.status === 401) { location.replace(`/login?next=${encodeURIComponent(location.pathname)}`); throw new Error("Sesi berakhir."); }
     if (!response.ok) throw new Error(payload.message || "Stock Opname gagal diproses.");
     return payload.data || payload;
   }
@@ -349,10 +350,83 @@
     }
   });
 
+  let scanBusy = false; let scanStream = null; let scanTimer = null; let scanGeneration = 0;
+  function stopScanCamera() {
+    scanGeneration += 1; clearTimeout(scanTimer); scanStream?.getTracks().forEach((track) => track.stop()); scanStream = null;
+    $("sto-scan-video").srcObject = null; $("sto-scan-video").hidden = true; $("sto-scan-stop").hidden = true; $("sto-scan-camera").disabled = false;
+  }
+  function chooseScannedItem(match) {
+    const row = details().find((item) => item.id === match.id);
+    if (!row) { $("sto-scan-message").textContent = "Daftar item sudah berubah. Simpan perubahan lalu refresh progress."; return; }
+    state.filter = "ALL"; state.search = normalize(row.partCode || row.materialCode || row.partNumber);
+    $("sto-item-search").value = row.partCode || row.materialCode || row.partNumber || "";
+    render();
+    const rowElement = [...document.querySelectorAll("[data-count-row]")].find((element) => element.dataset.countRow === match.id);
+    rowElement?.classList.add("is-scan-focus"); rowElement?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const input = rowElement?.querySelector("[data-count-qty]");
+    if (input && !input.disabled) { input.focus({ preventScroll: true }); input.select(); }
+    $("sto-scan-matches").replaceChildren();
+    $("sto-scan-message").textContent = input?.disabled ? "Item ditemukan. Aktifkan sesi member; item yang dihitung member lain tetap terkunci." : "Item dipilih. Isi qty fisik sesuai hitungan lalu Simpan Hitungan.";
+  }
+  async function scanLookup() {
+    if (scanBusy) return;
+    const value = $("sto-scan-reference").value.trim(); if (!value) return;
+    scanBusy = true; $("sto-scan-form").querySelector('[type="submit"]').disabled = true; $("sto-scan-matches").replaceChildren();
+    try {
+      const result = await api(`/modules/api/inventory/stock-opname/${encodeURIComponent(config.stoNo)}/scan?reference=${encodeURIComponent(value)}`);
+      if (result.matches.length === 1) chooseScannedItem(result.matches[0]);
+      else {
+        $("sto-scan-message").textContent = `${result.matches.length} lokasi / lot cocok. Pilih item yang sedang dihitung.`;
+        result.matches.forEach((match) => {
+          const button = document.createElement("button"); button.type = "button"; button.className = "soc-scan-match";
+          button.textContent = `${match.partNumber || match.partCode || match.materialCode} | ${match.warehouseCode} | Rack ${match.rackCode || "-"} | Lot ${match.lotNumber || "-"} | ${match.uomCode || "-"}`;
+          button.addEventListener("click", () => chooseScannedItem(match)); $("sto-scan-matches").append(button);
+        });
+      }
+    } catch (error) { $("sto-scan-message").textContent = error.message; }
+    finally { scanBusy = false; $("sto-scan-form").querySelector('[type="submit"]').disabled = false; }
+  }
+  $("sto-scan-form").addEventListener("submit", (event) => { event.preventDefault(); stopScanCamera(); scanLookup(); });
+  $("sto-scan-stop").addEventListener("click", stopScanCamera);
+  $("sto-scan-camera").addEventListener("click", async () => {
+    if (!("BarcodeDetector" in window) || !navigator.mediaDevices?.getUserMedia) { $("sto-scan-message").textContent = "Kamera barcode tidak didukung browser. Gunakan scanner USB/Bluetooth atau ketik kode item."; return; }
+    const generation = ++scanGeneration; $("sto-scan-camera").disabled = true;
+    try {
+      const formats = (await BarcodeDetector.getSupportedFormats()).filter((format) => ["qr_code", "code_128", "code_39", "ean_13", "ean_8"].includes(format));
+      if (!formats.length) throw new Error("Format barcode belum didukung; gunakan scanner atau ketik kode item.");
+      const detector = new BarcodeDetector({ formats });
+      const acquired = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+      if (generation !== scanGeneration || document.hidden) { acquired.getTracks().forEach((track) => track.stop()); return; }
+      scanStream = acquired; const video = $("sto-scan-video"); video.srcObject = acquired; video.hidden = false; $("sto-scan-stop").hidden = false; await video.play();
+      $("sto-scan-message").textContent = "Arahkan kamera ke label QR opname / barcode item.";
+      const detect = async () => {
+        if (generation !== scanGeneration || !scanStream) return;
+        try { const codes = await detector.detect(video); if (codes[0]?.rawValue) { $("sto-scan-reference").value = codes[0].rawValue; stopScanCamera(); await scanLookup(); return; } } catch { /* Wait until the camera frame is ready. */ }
+        if (generation === scanGeneration) scanTimer = setTimeout(detect, 300);
+      }; detect();
+    } catch (error) { if (generation === scanGeneration) { stopScanCamera(); $("sto-scan-message").textContent = error.name === "NotAllowedError" ? "Izin kamera ditolak. Gunakan scanner atau masukkan kode item." : error.message; } }
+  });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stopScanCamera(); });
+  window.addEventListener("pagehide", stopScanCamera);
+  document.querySelectorAll("[data-sto-document]").forEach((button) => button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      const suffix = button.dataset.stoDocument;
+      if (!["labels.pdf", "report.pdf", "report.xlsx"].includes(suffix)) return;
+      const response = await fetch(`/modules/api/inventory/stock-opname/${encodeURIComponent(config.stoNo)}/${suffix}`, { headers: { Authorization: `Bearer ${token()}` }, cache: "no-store" });
+      if (response.status === 401) { location.replace(`/login?next=${encodeURIComponent(location.pathname)}`); return; }
+      if (!response.ok) { const payload = await response.json().catch(() => ({})); throw new Error(payload.message || "Dokumen opname gagal diunduh."); }
+      const href = URL.createObjectURL(await response.blob()); const anchor = document.createElement("a"); anchor.href = href;
+      anchor.download = response.headers.get("content-disposition")?.match(/filename="?([^";]+)"?/i)?.[1] || `${config.stoNo}-${suffix}`;
+      document.body.appendChild(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(href), 1000);
+    } catch (error) { show(error.message); } finally { button.disabled = false; }
+  }));
+
   load();
-  window.setInterval(() => {
-    if (state.activeMember && !state.dirty.size && !document.hidden && isCounting()) {
+  const refreshTimer = window.setInterval(() => {
+    if (state.activeMember && !state.dirty.size && !document.hidden && !scanBusy && !scanStream && !document.activeElement?.matches("[data-count-qty]") && isCounting()) {
       refreshRecord({ quiet: true }).catch(() => {});
     }
   }, 15000);
+  window.addEventListener("pagehide", () => clearInterval(refreshTimer));
 })();

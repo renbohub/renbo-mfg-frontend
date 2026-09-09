@@ -1,0 +1,62 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules', { activePage: 'home' }) %>
+<div class="home-shell">
+  <main class="home-main">
+    <section class="home-welcome" aria-labelledby="home-title">
+      <div>
+        <h1 id="home-title">Beranda</h1>
+        <p>Selamat datang, <strong id="home-greeting-name">Anda</strong>. Pantau tugas dan pembaruan Anda di sini.</p>
+      </div>
+      <div class="home-welcome-tools">
+        <div class="home-date"><div><span id="home-date-day">Hari ini</span>, <strong id="home-date-value">—</strong></div><small id="home-sync" role="status">Memuat pembaruan…</small></div>
+        <a href="/modules" class="home-workspace-link"><%- include('../partials/icon', { name: 'grid' }) %> Buka workspace</a>
+      </div>
+    </section>
+    <div id="home-alert" class="home-alert" role="alert" hidden></div>
+    <section class="home-metrics" aria-label="Ringkasan pekerjaan. Pilih kategori untuk memfilter daftar.">
+      <% const categories = [{key:'approval',label:'Perlu persetujuan',tab:'Persetujuan',note:'Dokumen menunggu keputusan',icon:'check'},{key:'recovery',label:'Tindak lanjut',tab:'Tindak lanjut',note:'Recovery yang ditugaskan',icon:'activity'},{key:'comment',label:'Komentar terbaru',tab:'Komentar',note:'Diskusi pada halaman Anda',icon:'comment'},{key:'notification',label:'Notifikasi baru',tab:'Notifikasi',note:'Pembaruan belum dibaca',icon:'bell'}]; categories.forEach((item) => { %>
+      <button type="button" class="home-metric home-metric--<%= item.key %>" data-home-filter="<%= item.key %>" aria-pressed="false" aria-controls="home-task-list">
+        <span class="home-metric-top"><span><%= item.label %></span><span class="home-metric-icon"><%- include('../partials/icon',{name:item.icon}) %></span></span>
+        <span class="home-metric-value" data-home-count="<%= item.key %>">—</span>
+        <span class="home-metric-bottom"><%= item.note %><span aria-hidden="true">→</span></span>
+      </button>
+      <% }); %>
+    </section>
+    <section class="home-workspace" aria-label="Tugas dan aktivitas Anda">
+      <div class="home-inbox">
+        <div class="home-section-head">
+          <div><h2>Tugas & aktivitas <span id="home-task-count">—</span></h2><p>Pilih item untuk melihat detail dan tindakan yang tersedia.</p></div>
+          <button type="button" id="home-refresh" class="home-quiet-button"><%- include('../partials/icon',{name:'refresh'}) %> Muat ulang</button>
+        </div>
+        <div class="home-filter-row" role="group" aria-label="Filter jenis tugas">
+          <% [{key:'all',tab:'Semua'}, ...categories].forEach((item) => { %>
+          <button type="button" class="<%= item.key === 'all' ? 'active' : '' %>" data-home-filter="<%= item.key %>" aria-pressed="<%= item.key === 'all' %>" aria-controls="home-task-list"><%= item.tab %></button>
+          <% }); %>
+        </div>
+        <div class="home-list-tools">
+          <label class="home-search"><%- include('../partials/icon',{name:'search'}) %><input id="home-search" type="search" placeholder="Cari tugas, dokumen, atau nama…" aria-label="Cari tugas, dokumen, atau nama"></label>
+          <label class="home-sort" for="home-sort"><span class="visually-hidden">Urutan tugas</span><select id="home-sort" aria-label="Urutan tugas"><option value="priority">Prioritas</option><option value="latest">Terbaru</option><option value="oldest">Terlama</option></select></label>
+        </div>
+        <div class="home-list-caption"><span id="home-list-caption">Memuat tugas Anda…</span><button type="button" id="home-reset-filters" class="home-quiet-button" hidden>Reset filter</button></div>
+        <div id="home-task-list" class="home-task-list" aria-live="polite" aria-busy="true"><% for(let i=0;i<4;i++){ %><div class="home-skeleton"><span></span><div><i></i><i></i></div></div><% } %></div>
+        <div class="home-list-foot"><span id="home-list-foot">Data ditampilkan sesuai akses akun Anda.</span><button type="button" id="home-load-more" class="home-quiet-button" hidden>Tampilkan lebih banyak ↓</button></div>
+      </div>
+      <aside class="home-side">
+        <section class="home-detail" aria-labelledby="home-detail-title">
+          <div class="home-detail-heading"><h2 id="home-detail-title" tabindex="-1">Detail aktivitas</h2><button type="button" id="home-back-to-list" class="home-quiet-button">↑ Kembali ke daftar</button></div>
+          <div id="home-detail-content"><div class="home-detail-empty"><span aria-hidden="true">↗</span><h3>Pilih aktivitas</h3><p>Detail dan tombol tindakan akan muncul di sini.</p></div></div>
+        </section>
+        <section class="home-shortcuts" aria-labelledby="home-shortcuts-title">
+          <h2 id="home-shortcuts-title">Akses cepat</h2>
+          <div class="home-shortcut-links">
+            <a href="/modules"><%- include('../partials/icon',{name:'grid'}) %><span>Semua modul<small>Sales, produksi, stok, dan lainnya</small></span><b aria-hidden="true">→</b></a>
+            <a href="/modules/planning-ppic/mps/recovery-kanban"><%- include('../partials/icon',{name:'activity'}) %><span>Papan tindak lanjut<small>Pantau recovery dan progresnya</small></span><b aria-hidden="true">→</b></a>
+            <a href="/master-data"><%- include('../partials/icon',{name:'database'}) %><span>Master data<small>Kelola part, material, dan mitra</small></span><b aria-hidden="true">→</b></a>
+          </div>
+        </section>
+      </aside>
+    </section>
+  </main>
+</div>
+<script src="/js/home-task-model.js?v=20260909-friendly-1"></script>
+<%- include('../partials/footer') %>

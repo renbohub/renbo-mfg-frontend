@@ -128,8 +128,8 @@ const registry = {
     columns: [column("vendor.vendorName", "Vendor"), column("part.partCode", "Part"), column("category", "Kategori"), column("currencyCode", "Mata Uang"), column("pricingYear", "Tahun")],
     fields: [lookup("vendorId", "Vendor", "vendors", "id", "vendorName"), lookup("partId", "Part", "parts", "id", "partCode"), lookup("customerId", "Customer", "customers", "id", "customerName"), field("category", "Kategori", "text", { required: true }), lookup("currencyCode", "Mata Uang", "currencies", "currencyCode", "currencyName", { required: true }), field("pricingYear", "Tahun Harga", "number"), field("quotationFiles", "File Quotation", "file", { multiple: true }), field("details", "Detail Proses dan Harga", "json", { help: "Array JSON detail vendor price list." }), field("notes", "Catatan", "textarea")]
   }),
-  "part-price-lists": monthlyPriceEntity("part-price-lists", "Harga Part per Bulan", "/api/master-data/part-price-lists", lookup("partId", "Purchase Part", "parts", "id", "partCode", { lookupQuery: { itemType: "RAW", rawType: "PURCHASE_PART" }, labelKeys: ["partCode", "partNumber"], labelSeparator: " — ", help: "Hanya Part Master bertipe Purchase Part yang dapat dipilih." }), [lookup("supplierId", "Supplier", "suppliers", "id", "supplierName", { required: true })]),
-  "material-price-lists": monthlyPriceEntity("material-price-lists", "Harga Material per Bulan", "/api/master-data/material-price-lists", lookup("materialGradeId", "Material Grade + Thickness", "material-grades", "id", "displayName"), [lookup("materialSubstanceId", "Bahan Material", "material-substances", "id", "substanceName", { required: true }), lookup("materialId", "Material SKU (opsional)", "materials", "id", "materialCode"), lookup("supplierId", "Supplier", "suppliers", "id", "supplierName", { required: true }), field("thickness", "Thickness dari Grade", "number", { step: "0.001", help: "Diisi otomatis dari Material Grade saat disimpan." }), field("CSP", "C/S/P (opsional)"), field("partNumberCP", "Part Number CP"), field("partNameCP", "Part Name CP")]),
+  "part-price-lists": monthlyPriceEntity("part-price-lists", "Harga Part per Bulan", "/api/master-data/part-price-lists", lookup("partId", "Purchase Part", "parts", "id", "partCode", { lookupQuery: { itemType: "RAW", rawType: "PURCHASE_PART", pricingScope: "BOM_VENDOR_PART" }, labelKeys: ["partCode", "partNumber"], labelSeparator: " — ", help: "Pilih Purchase Part dengan kategori Vendor pada BOM yang berlaku." }), [lookup("supplierId", "Supplier", "suppliers", "id", "supplierName", { required: true })]),
+  "material-price-lists": monthlyPriceEntity("material-price-lists", "Harga Material per Bulan", "/api/master-data/material-price-lists", lookup("materialGradeId", "Material Grade + Thickness", "material-grades", "id", "displayName"), [lookup("materialSubstanceId", "Bahan Material", "material-substances", "id", "substanceName", { required: true }), lookup("supplierId", "Supplier", "suppliers", "id", "supplierName", { required: true }), field("thickness", "Thickness dari Grade", "number", { step: "0.001", help: "Diisi otomatis dari Material Grade saat disimpan." }), field("CSP", "C/S/P (opsional)"), field("partNumberCP", "Part Number CP"), field("partNameCP", "Part Name CP")]),
   "scrap-price-masters": entity({
     slug: "scrap-price-masters", permission: "materialPriceLists", label: "Harga Scrap per KG", singular: "Harga Scrap", group: "Data Keuangan", icon: "currency", endpoint: "/api/master-data/scrap-price-masters",
     columns: [column("scrapCode", "Kode Scrap"), column("scrapName", "Nama Scrap"), column("materialType", "Jenis Material"), column("partCode", "Khusus Part"), column("pricePerKg", "Harga / KG", { type: "currency" }), column("effectiveFrom", "Berlaku Mulai", { type: "date" }), column("effectiveUntil", "Berlaku Sampai", { type: "date" }), column("isActive", "Status", { type: "active" })],
@@ -252,6 +252,18 @@ const registry = {
   }),
   machines: machineEntity(),
   dies: diesEntity(),
+  "qd-types": entity({
+    slug: "qd-types", permission: "dies", label: "Tipe QD", singular: "Tipe QD", group: "Data Engineering", icon: "layers", endpoint: "/api/master-data/qd-types", detailKey: "typeCode",
+    description: "Ukuran Quick Change Dies. Satu tipe dapat memiliki beberapa unit QD fisik.",
+    columns: [column("typeCode", "Kode Tipe"), column("typeName", "Nama Tipe"), column("dimensions", "Ukuran"), column("preferredClass", "Kelompok Disarankan"), column("unitCount", "Unit Terdaftar", { type: "number" }), column("isActive", "Aktif", { type: "boolean" })],
+    fields: [field("typeCode", "Kode Tipe", "text", { required: true }), field("typeName", "Nama Tipe", "text", { required: true }), field("dimensionA", "Dimensi A", "number", { required: true, min: 0.01, step: "0.01" }), field("dimensionB", "Dimensi B", "number", { required: true, min: 0.01, step: "0.01" }), field("dimensionUnit", "Satuan Dimensi", "select", { required: true, options: option("mm", "cm", "m") }), field("preferredClass", "Kelompok Ukuran Disarankan", "select", { options: option("SMALL", "MEDIUM", "LARGE"), help: "Rekomendasi pengelompokan dies/part. Pengguna menentukan kecocokan fisik setiap dies." }), field("isActive", "Aktif", "checkbox", { defaultChecked: true }), field("notes", "Catatan", "textarea")]
+  }),
+  "qd-units": entity({
+    slug: "qd-units", permission: "dies", label: "Unit QD & Isi Dies", singular: "Unit QD", group: "Data Engineering", icon: "box", endpoint: "/api/master-data/qd-units", detailKey: "qdCode",
+    description: "Daftarkan setiap unit QD dan dies yang dapat dipakai bergantian. Satu dies digunakan pada satu waktu.",
+    columns: [column("qdCode", "Kode QD"), column("qdName", "Nama QD"), column("qdTypeLabel", "Tipe / Ukuran"), column("diesCount", "Jumlah Pilihan Dies", { type: "number" }), column("diesSummary", "Daftar Dies"), column("partSummary", "Part yang Dilayani"), column("status", "Status", { type: "statusText" })],
+    fields: [field("qdCode", "Kode Unit QD", "text", { required: true, help: "Satu kode untuk satu unit fisik, misalnya QD-S-001." }), field("qdName", "Nama QD", "text", { required: true }), field("qdNumber", "Nomor Fisik / Tag"), lookup("qdTypeId", "Tipe / Ukuran QD", "qd-types", "id", "displayName", { required: true }), field("status", "Status", "select", { required: true, options: option("Active", "Maintenance", "Reserved", "Retired", "Scrapped") }), field("location", "Lokasi"), lookup("diesIds", "Dies yang Dapat Dipakai Bergantian", "dies", "id", "diesName", { multiple: true, labelKeys: ["diesCode", "diesName"], help: "Pilih beberapa dies sesuai kecocokan QD. Part mengikuti relasi dies-part. Satu dies digunakan pada satu waktu; cavity dan cycle time tidak dijumlahkan antar-dies." }), field("usageMode", "Cara Pemakaian", "text", { formHidden: true }), field("partSummary", "Part yang Dilayani", "textarea", { formHidden: true }), field("sizeReview", "Tinjauan Ukuran", "textarea", { formHidden: true }), field("notes", "Catatan", "textarea")]
+  }),
   "dies-parts": entity({
     slug: "dies-parts", label: "Relasi Dies-Part", singular: "Relasi Dies-Part", group: "Data Engineering", icon: "layers", endpoint: "/api/master-data/dies-part",
     columns: [column("dies.diesCode", "Dies"), column("part.partCode", "Part"), column("isPrimary", "Primary", { type: "boolean" }), column("isActive", "Status", { type: "active" }), column("expectedOutput", "Output/Shot")],
@@ -309,14 +321,9 @@ registry["product-price-lists"].singular = "Harga Barang";
 
 const materialPriceFields = registry["material-price-lists"].fields;
 materialPriceFields.filter((item) => ["materialGradeId", "materialSubstanceId"].includes(item.name)).forEach((item) => {
-  item.required = false;
-  item.help = "Diisi otomatis bila Material SKU dipilih; wajib hanya untuk harga generik tanpa Material SKU.";
+  item.required = true;
+  item.help = item.name === "materialGradeId" ? "Harga ditentukan berdasarkan bahan, grade, dan thickness." : "Pilih bahan yang sesuai dengan Material Grade.";
 });
-const materialSkuPriceField = materialPriceFields.find((item) => item.name === "materialId");
-if (materialSkuPriceField) {
-  materialSkuPriceField.label = "Material SKU";
-  materialSkuPriceField.help = "Pilih material spesifik, atau kosongkan bila harga berlaku generik per substance/grade/thickness.";
-}
 const materialPriceInsertAt = materialPriceFields.findIndex((item) => item.name === "uomCode");
 materialPriceFields.splice(materialPriceInsertAt, 0,
   field("purchasePackageUomCode", "Bentuk Pembelian Default", "select", {
@@ -345,6 +352,8 @@ function replaceRegistryField(slug, name, replacement) {
 }
 
 replaceRegistryField("parts", "customerCode", lookup("customerCode", "Pelanggan Utama", "customer-codes", "customerCode", "customerName", { showValue: true, detailLink: { entity: "customers" }, help: "Kode diambil langsung dari Master Pelanggan." }));
+replaceRegistryField("parts", "category", field("category", "Kategori", "select", { options: option("PD", "WD", "MD"), help: "Kategori Purchase Part: PD, WD, atau MD." }));
+registry.parts.columns.splice(3, 0, column("category", "Kategori"));
 replaceRegistryField("parts", "customerCodes", lookup("customerCodes", "Daftar Pelanggan", "customer-codes", "customerCode", "customerName", { multiple: true, showValue: true, help: "Pilih satu atau beberapa pelanggan yang menggunakan part ini." }));
 replaceRegistryField("racks", "warehouseCode", lookup("warehouseCode", "Warehouse", "warehouse-codes", "warehouseCode", "warehouseName", { required: true, showValue: true }));
 replaceRegistryField("price-list", "partCode", lookup("partCode", "Part", "part-codes", "partCode", "partName", { showValue: true }));
@@ -373,7 +382,7 @@ registry["vendor-price-lists"].columns = [
 ];
 registry["vendor-price-lists"].fields = [
   lookup("vendorId", "Vendor", "vendors", "id", "vendorName", { required: true }),
-  lookup("partId", "Part", "parts", "id", "partCode", { required: true }),
+  lookup("partId", "Part", "parts", "id", "partCode", { required: true, lookupQuery: { pricingScope: "BOM_VENDOR" }, help: "Pilih part dengan kategori Vendor pada BOM yang berlaku." }),
   lookup("customerId", "Customer", "customers", "id", "customerName"),
   field("category", "Kategori", "select", { required: true, options: option("COATING", "PLATING", "HEAT_TREATMENT", "MACHINING", "WELDING", "ASSEMBLY", "INSPECTION", "OTHER") }),
   lookup("currencyCode", "Mata Uang", "currencies", "currencyCode", "currencyName", { required: true }),
@@ -384,6 +393,23 @@ registry["vendor-price-lists"].fields = [
   field("details", "Detail Proses, Harga & MOQ", "vendor-price-details", { section: "Harga Proses", help: "Pilih proses dan UOM dari master; tidak perlu menulis ID atau JSON." }),
   field("notes", "Catatan", "textarea")
 ];
+
+// Purchasing price maintenance uses the familiar annual Jan-Dec sheet.
+for (const [slug, label] of [["vendor-price-lists", "Harga Vendor per Bulan"], ["material-price-lists", "Harga Material per Bulan"], ["part-price-lists", "Harga Purchase Part per Bulan"]]) {
+  const config = registry[slug]; config.monthlyPricing = true; config.label = label;
+  const main = config.fields.filter((f) => !["unitPrice", "effectiveFrom", "effectiveUntil", "notes", "details"].includes(f.name)).map((f) => ({ ...f, section: "Informasi Utama" }));
+  main.push(field("pricingYear", "Tahun Harga", "number", { required: true, min: 2000, max: 2100, step: "1", section: "Informasi Utama", defaultValue: "currentYear" }));
+  config.fields = [...main, ...(slug === "vendor-price-lists"
+    ? [field("details", "Harga Bulanan per Proses", "vendor-price-details", { section: "Harga Proses", help: "Harga per bulan untuk setiap proses vendor. UOM, MOQ, dan minimum charge tetap dapat diatur." })]
+    : monthlyFields.map((f) => ({ ...f, min: 0 }))), field("notes", "Catatan / Referensi Quotation", "textarea", { section: "Catatan" })];
+  const identityColumns = config.columns.filter((c) => !["unitPrice", "effectiveFrom", "effectiveUntil", "isActive"].includes(c.data));
+  config.columns = [...identityColumns, column("pricingYear", "Tahun"), ...months.map((m,i) => column(m, monthLabels[i], { type: "number", orderable: false })), column("isActive", "Status", { type: "active" })];
+}
+for (const slug of ["part-price-lists", "vendor-price-lists"]) {
+  registry[slug].columns.splice(1, 0, column("priceEligibility.label", "Status BOM", { orderable: false }));
+}
+registry['vendor-price-lists'].formView='master-data/vendor-bom-price-form';
+registry['vendor-price-lists'].formPageScript='/js/vendor-bom-price-form.js?v=20260909-multi-supplier-1';
 
 function partyFields(codeName, nameName, noun) {
   return [field(codeName, `Kode ${noun}`, "text", { required: true, generated: true }), field(nameName, `Nama ${noun}`, "text", { required: true }), field("contact", "Contact Person"), field("phone", "Telepon", "tel"), field("email", "Email", "email"), field("billingAddress", "Alamat Penagihan", "textarea"), field("shippingAddress", "Alamat Pengiriman", "textarea"), field("leadTimeDays", "Lead Time (hari)", "number"), field("taxId", "NPWP/Tax ID"), lookup("mainBusiness", "Bidang Usaha", "main-businesses", "id", "mainBusinessName", { multiple: true, sourceValueKey: "id" }), field("users", "Pengguna/Kategori", "select", { options: option("operational", "engineer", "other"), multiple: true }), field("status", "Status", "select", { options: option("Active", "Inactive") }), field("notes", "Catatan", "textarea")];
@@ -413,8 +439,8 @@ function machineEntity() {
 
 function diesEntity() {
   return entity({ slug: "dies", label: "Data Dies", singular: "Dies", group: "Data Engineering", icon: "box", endpoint: "/api/master-data/dies", detailKey: "diesCode", generateCode: "diesCode", multipart: true,
-    columns: [column("diesCode", "Kode"), column("diesNumber", "Nomor Dies"), column("diesName", "Nama Dies"), column("diesType", "Tipe/QD"), column("ownerType", "Pemilik"), column("shotCounter", "Shot Counter", { type: "number" }), column("status", "Status", { type: "statusText" })],
-    fields: [field("diesCode", "Kode Dies", "text", { required: true, generated: true }), field("diesNumber", "Nomor Dies"), field("diesName", "Nama Dies", "text", { required: true }), field("diesType", "Tipe Dies / QD", "select", { options: option("QD_SMALL", "QD_MEDIUM", "QD_LARGE", "PROGRESSIVE", "SINGLE", "OTHER") }), field("ownerType", "Pemilik", "select", { options: option("Mitsutoyo", "Customer") }), field("customerCode", "Kode Customer"), field("category", "Kategori", "select", { options: option("Dies Only", "Dies & Part") }), field("status", "Status", "select", { options: option("Active", "Maintenance", "Retired", "Scrapped", "Reserved") }), field("location", "Lokasi"), field("warehouseCode", "Kode Gudang"), field("shotCounter", "Shot Counter", "number"), field("maxShotLifetime", "Maksimum Shot", "number"), field("purchaseDate", "Tanggal Pembelian", "date"), field("purchaseCost", "Harga Pembelian", "number", { step: "0.01" }), lookup("currencyCode", "Mata Uang", "currencies", "currencyCode", "currencyName"), field("depreciationRate", "Depresiasi (%)", "number", { step: "0.01" }), field("lastMaintenanceDate", "Maintenance Terakhir", "date"), field("nextMaintenanceDate", "Maintenance Berikutnya", "date"), field("maintenanceInterval", "Interval Maintenance", "number"), field("cavity", "Cavity", "number"), field("tonnage", "Tonnage", "number", { step: "0.01" }), field("cycleTime", "Cycle Time", "number", { step: "0.01" }), field("photos", "Foto", "file", { multiple: true, accept: "image/*" }), field("drawings", "Drawing", "file", { multiple: true }), field("specs", "Spesifikasi", "file", { multiple: true }), field("diesParts", "Relasi Part", "json", { help: "Array JSON relasi dies-part." }), field("notes", "Catatan", "textarea")]
+    columns: [column("diesCode", "Kode"), column("diesNumber", "Nomor Dies"), column("diesName", "Nama Dies"), column("diesType", "Tipe Dies"), column("sizeClass", "Kelompok Ukuran"), column("ownerType", "Pemilik"), column("shotCounter", "Shot Counter", { type: "number" }), column("status", "Status", { type: "statusText" })],
+    fields: [field("diesCode", "Kode Dies", "text", { required: true, generated: true }), field("diesNumber", "Nomor Dies"), field("diesName", "Nama Dies", "text", { required: true }), field("diesType", "Tipe Dies", "select", { options: option("PROGRESSIVE", "SINGLE", "OTHER"), help: "Pengaturan QD terpisah pada menu Unit QD & Isi Dies." }), field("sizeClass", "Kelompok Ukuran Dies / Part", "select", { options: option("SMALL", "MEDIUM", "LARGE"), help: "Diisi berdasarkan ukuran fisik dies/part. Tidak ditentukan dari nomor atau nama part." }), field("ownerType", "Pemilik", "select", { options: option("Mitsutoyo", "Customer") }), field("customerCode", "Kode Customer"), field("category", "Kategori", "select", { options: option("Dies Only", "Dies & Part") }), field("status", "Status", "select", { options: option("Active", "Maintenance", "Retired", "Scrapped", "Reserved") }), field("location", "Lokasi"), field("warehouseCode", "Kode Gudang"), field("shotCounter", "Shot Counter", "number"), field("maxShotLifetime", "Maksimum Shot", "number"), field("purchaseDate", "Tanggal Pembelian", "date"), field("purchaseCost", "Harga Pembelian", "number", { step: "0.01" }), lookup("currencyCode", "Mata Uang", "currencies", "currencyCode", "currencyName"), field("depreciationRate", "Depresiasi (%)", "number", { step: "0.01" }), field("lastMaintenanceDate", "Maintenance Terakhir", "date"), field("nextMaintenanceDate", "Maintenance Berikutnya", "date"), field("maintenanceInterval", "Interval Maintenance", "number"), field("cavity", "Cavity", "number"), field("tonnage", "Tonnage", "number", { step: "0.01" }), field("cycleTime", "Cycle Time", "number", { step: "0.01" }), field("photos", "Foto", "file", { multiple: true, accept: "image/*" }), field("drawings", "Drawing", "file", { multiple: true }), field("specs", "Spesifikasi", "file", { multiple: true }), field("diesParts", "Relasi Part", "json", { help: "Array JSON relasi dies-part." }), field("notes", "Catatan", "textarea")]
   });
 }
 
@@ -430,6 +456,17 @@ function diesUsageEntity() {
     columns: [column("dies.diesCode", "Dies"), column("part.partCode", "Part"), column("usageDate", "Tanggal", { type: "date" }), column("referenceNumber", "Referensi"), column("shotCount", "Shot"), column("qtyGood", "Good"), column("qtyReject", "Reject")],
     fields: [lookup("diesId", "Dies", "dies", "id", "diesCode", { required: true }), lookup("partId", "Part", "parts", "id", "partCode"), field("usageDate", "Tanggal Pemakaian", "date", { required: true }), field("referenceType", "Tipe Referensi", "select", { options: option("SO", "MANUFACTURING_ORDER", "MPS") }), field("referenceNumber", "Nomor Referensi"), field("shotCount", "Jumlah Shot", "number", { required: true }), field("qtyProduced", "Qty Produced", "number", { step: "0.01" }), field("qtyGood", "Qty Good", "number", { step: "0.01" }), field("qtyReject", "Qty Reject", "number", { step: "0.01" }), field("machineCode", "Kode Mesin"), field("operatorName", "Operator"), field("shift", "Shift"), field("startTime", "Mulai", "datetime-local"), field("endTime", "Selesai", "datetime-local"), field("runningMinutes", "Running Minutes", "number", { step: "0.01" }), field("notes", "Catatan", "textarea")]
   });
+}
+
+for (const [slug, label, kind] of [
+  ["ng-reasons", "Master NG", "ng"],
+  ["downtime-reasons", "Master Downtime", "downtime"],
+  ["hmi-areas", "Area HMI", "areas"],
+]) {
+  registry[slug] = entity({ slug, label, singular: label, group: "Data Operasional", icon: "list",
+    permission: "hmiReasonMasters", endpoint: `/api/master-data/hmi-reasons/${kind}`,
+    customView: "master-data/hmi-reasons", pageScript: "/js/hmi-reasons.js?v=20260908-1", hmiKind: kind,
+    fields: [], columns: [column("description", "Nama"),column("isActive","Aktif",{type:"active"})] });
 }
 
 const entityAliases = {

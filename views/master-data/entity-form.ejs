@@ -6,13 +6,13 @@
   const formSections = [...new Set(formFields.map((item) => item.section || 'Informasi Utama'))];
   const sectionSlug = (section) => `form-section-${section.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
 %>
-<main class="entity-form-page transaction-form-page">
+<main class="entity-form-page transaction-form-page <%= config.monthlyPricing ? 'monthly-pricing-page' : '' %>">
   <div class="app-container">
     <%
       const masterFormActions = `<button id="save-button" class="btn btn-primary brand-button" type="submit" form="entity-form"><span>${mode === 'create' ? 'Simpan Data' : 'Simpan Perubahan'}</span><i class="spinner-border spinner-border-sm d-none"></i></button>`;
       const masterFormBreadcrumb = `<a href="/master-data/${config.slug}">${config.label}</a><span>/</span><strong>${mode === 'create' ? 'Tambah Baru' : 'Edit Data'}</strong>`;
     %>
-    <%- include('../partials/document-shell', { documentShell: { variant: 'master', eyebrow: `Master Data · ${config.label}`, number: mode === 'create' ? 'NEW' : (recordKey || 'EDIT'), title: `${mode === 'create' ? 'Tambah' : 'Edit'} ${config.singular}`, subtitle: 'Field bertanda * wajib diisi.', actions: masterFormActions, backHref: `/master-data/${config.slug}`, breadcrumbHtml: masterFormBreadcrumb } }) %>
+    <%- include('../partials/document-shell', { documentShell: { variant: 'master', eyebrow: `Master Data · ${config.label}`, number: mode === 'create' ? 'NEW' : (config.monthlyPricing ? 'HARGA BULANAN' : (recordKey || 'EDIT')), title: `${mode === 'create' ? 'Tambah' : 'Edit'} ${config.singular}`, subtitle: 'Field bertanda * wajib diisi.', actions: masterFormActions, backHref: `/master-data/${config.slug}`, breadcrumbHtml: masterFormBreadcrumb } }) %>
   </div>
   <div class="entity-form-workspace app-container <%= formSections.length > 1 ? 'has-section-nav' : 'single-section' %>">
     <% if (formSections.length > 1) { %>
@@ -29,9 +29,11 @@
     <% } %>
     <form id="entity-form" class="entity-form-card" enctype="multipart/form-data" novalidate data-enterprise-form data-document-form>
       <div id="form-alert" class="alert alert-danger d-none" role="alert"></div>
+      <% if (config.slug === 'parts' && mode === 'edit') { %><div id="purchase-part-routing-link" class="d-none mb-3"><a class="btn btn-outline-primary" href="/master-data/parts/<%= encodeURIComponent(recordKey) %>/routing">Atur Routing Purchase Part</a></div><% } %>
       <% let lastSection = ''; formFields.forEach((item) => { const section = item.section || 'Informasi Utama'; if (section !== lastSection) { if (lastSection) { %></div></section><% } const sectionCount = formFields.filter((field) => (field.section || 'Informasi Utama') === section).length; %>
         <section id="<%= sectionSlug(section) %>" class="form-section <%= section === 'Transaction Permissions' || section === 'Lot Tracking' ? 'permission-section' : '' %>" data-form-section>
           <h2><span></span><b><%= section %></b><small><%= sectionCount %> field</small></h2>
+          <% if (config.monthlyPricing && section === 'Harga Bulanan') { %><div id="monthly-price-toolbar"></div><% } %>
           <div class="form-grid">
       <% lastSection = section; } %>
         <div class="form-field <%= ['textarea','json','file','vendor-price-details'].includes(item.type) ? 'field-wide' : '' %>">
@@ -48,11 +50,11 @@
             <% } else if (item.type === 'select') { %>
               <select class="form-select" id="field-<%= item.name %>" name="<%= item.name %>" <%= item.multiple ? 'multiple' : '' %> <%= item.required ? 'required' : '' %>><% if (!item.multiple) { %><option value="">Pilih <%= item.label.toLowerCase() %></option><% } %><% (item.options || []).forEach(opt => { %><option value="<%= opt.value %>"><%= opt.label %></option><% }) %></select>
             <% } else if (item.type === 'lookup') { %>
-              <select class="form-select lookup-select" id="field-<%= item.name %>" name="<%= item.name %>" data-enterprise-lookup="<%= item.lookup.entity %>" data-lookup="<%= item.lookup.entity %>" data-value-key="<%= item.lookup.valueKey %>" data-label-key="<%= item.lookup.labelKey %>" data-lookup-placeholder="Pilih <%= item.label.toLowerCase() %>" data-show-value="<%= item.showValue ? 'true' : 'false' %>" <%= item.multiple ? 'multiple' : '' %> <%= item.required ? 'required' : '' %>><% if (!item.multiple) { %><option value=""></option><% } %></select>
+              <select class="form-select lookup-select" id="field-<%= item.name %>" name="<%= item.name %>" data-enterprise-lookup="<%= item.lookup.entity %>" data-lookup="<%= item.lookup.entity %>" data-value-key="<%= item.lookup.valueKey %>" data-label-key="<%= item.lookup.labelKey %>" data-lookup-placeholder="Pilih <%= item.label.toLowerCase() %>" data-lookup-query="<%= JSON.stringify(item.lookupQuery || {}) %>" data-show-value="<%= item.showValue ? 'true' : 'false' %>" <%= item.multiple ? 'multiple' : '' %> <%= item.required ? 'required' : '' %>><% if (!item.multiple) { %><option value=""></option><% } %></select>
             <% } else if (item.type === 'file') { %>
               <input class="form-control" id="field-<%= item.name %>" name="<%= item.name %>" type="file" <%= item.multiple ? 'multiple' : '' %> <% if (item.accept) { %>accept="<%= item.accept %>"<% } %> <%= mode === 'create' && item.requiredOnCreate ? 'required' : '' %>>
             <% } else { %>
-              <input class="form-control" id="field-<%= item.name %>" name="<%= item.name %>" type="<%= item.type %>" placeholder="<%= !['date','datetime-local'].includes(item.type) ? (item.type === 'number' ? '0' : `Masukkan ${item.label.toLowerCase()}`) : '' %>" <% if (item.step) { %>step="<%= item.step %>"<% } %> <% if (typeof item.min !== 'undefined') { %>min="<%= item.min %>"<% } %> <%= item.required ? 'required' : '' %> <%= item.readOnly ? 'readonly' : '' %>>
+              <input class="form-control" id="field-<%= item.name %>" name="<%= item.name %>" type="<%= item.type %>" <%= config.monthlyPricing && item.section === 'Harga Bulanan' ? 'data-month-price' : '' %> <% if (typeof item.max !== 'undefined') { %>max="<%= item.max %>"<% } %> placeholder="<%= !['date','datetime-local'].includes(item.type) ? (item.type === 'number' ? '0' : `Masukkan ${item.label.toLowerCase()}`) : '' %>" <% if (item.step) { %>step="<%= item.step %>"<% } %> <% if (typeof item.min !== 'undefined') { %>min="<%= item.min %>"<% } %> <%= item.required ? 'required' : '' %> <%= item.readOnly ? 'readonly' : '' %>>
             <% } %>
             <% if (item.help) { %><small class="form-help"><%= item.help %></small><% } %>
           <% } %>
@@ -64,4 +66,5 @@
   <div class="app-container"><%- include('../partials/document-comments', { documentComments: { recordKey: mode === 'create' ? null : recordKey, showPending: mode === 'create', title: `Komentar ${config.singular}`, variant: 'receipt' } }) %></div>
 </main>
 <script id="entity-config" type="application/json"><%- JSON.stringify({ config, mode, recordId, recordKey }).replace(/</g, '\\u003c') %></script>
+<% if (config.monthlyPricing) { %><link rel="stylesheet" href="/css/monthly-pricing.css?v=20260908-inheritance-1"><script src="/js/monthly-pricing.js?v=20260908-inheritance-1"></script><% } %>
 <%- include('../partials/footer') %>

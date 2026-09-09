@@ -4,48 +4,63 @@
 <%- include('../partials/bom-subnav', { activeBomTab: 'detail', recordKey }) %>
 <main class="bom-table-editor-page transaction-form-page">
   <div class="app-container">
-    <% const bomTableActions = `<a class="bom-toolbar-button" href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(recordKey)}/edit">Edit Canvas</a><button id="bom-table-save" class="btn bom-create-button" type="button">Simpan Perubahan</button>`; %>
-    <%- include('../partials/document-shell', { documentShell: { variant: 'planning', eyebrow: 'Manufacturing BOM · Table Editor', number: recordKey, title: 'Edit Struktur BOM', titleId: 'bom-table-title', subtitle: 'Worksheet revisi BOM, validasi graph, dan costing. Netting tanggal dijalankan oleh OR-Tools saat planning.', actions: bomTableActions, backHref: '/modules/manufacturing-bom/bill-of-materials', breadcrumbHtml: '<a href="/modules/manufacturing-bom/bill-of-materials">BOM List</a><span>/</span><strong>Edit via Table</strong>' } }) %>
+    <% const bomTableActions = `<a class="bom-toolbar-button" href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(recordKey)}/edit">Edit Canvas</a><button id="bom-table-save" class="btn bom-create-button" type="button" disabled>Simpan Perubahan</button>`; %>
+    <%- include('../partials/document-shell', { documentShell: { variant: 'planning', eyebrow: 'Manufacturing BOM · Editor Tabel', number: recordKey, title: 'Edit Struktur BOM', titleId: 'bom-table-title', subtitle: 'Kelola komponen, kebutuhan material, routing, dan biaya dalam satu worksheet.', actions: bomTableActions, backHref: '/modules/manufacturing-bom/bill-of-materials', breadcrumbHtml: '<a href="/modules/manufacturing-bom/bill-of-materials">BOM List</a><span>/</span><strong>Editor Tabel</strong>' } }) %>
   </div>
-  <div id="bom-table-edit-alert" class="alert alert-danger d-none app-container mt-3"></div>
-  <div id="bom-graph-validation" class="alert d-none app-container mt-3" role="status"></div>
   <section class="bom-table-editor-content app-container">
+    <div id="bom-table-edit-alert" class="alert alert-danger d-none" role="alert"></div>
+    <div id="bom-graph-validation" class="alert d-none" role="status"></div>
     <article class="bom-table-header-card">
-      <div><label>Produk Utama</label><strong id="bom-table-root">—</strong></div>
-      <div><label>UOM</label><select id="bom-table-uom" class="form-select"></select></div>
-      <div><label>Revision Saat Ini</label><input id="bom-table-revision" class="form-control" type="number" min="1" readonly></div>
-      <div><label>Cara Simpan</label><select id="bom-table-revision-mode" class="form-select"><option value="newRevision">Buat revisi baru (disarankan)</option><option value="correction">Koreksi revisi ini</option></select></div>
-      <div><label id="bom-table-effective-label">Mulai Berlaku Revisi Baru</label><input id="bom-table-effective" class="form-control" type="date"></div>
-      <div><label>Berakhir</label><input id="bom-table-expiry" class="form-control" type="date"></div>
-      <div class="notes"><label>Catatan Umum BOM</label><input id="bom-table-notes" class="form-control" type="text"></div>
-      <div class="notes"><label>Alasan / Catatan Revisi</label><input id="bom-table-revision-note" class="form-control" type="text" placeholder="Contoh: Qty bracket berubah 1 pcs menjadi 2 pcs" required><small id="bom-table-revision-hint">Akan membuat Rev berikutnya dan menutup periode revisi lama.</small></div>
+      <div class="bom-table-product"><span class="bom-field-label">Produk Utama</span><strong id="bom-table-root">—</strong></div>
+      <div><label for="bom-table-uom">UOM Produk</label><select id="bom-table-uom" class="form-select"></select></div>
+      <div><label for="bom-table-revision">Revisi Saat Ini</label><input id="bom-table-revision" class="form-control" type="number" min="1" readonly></div>
+      <div class="bom-table-save-mode"><label for="bom-table-revision-mode">Revisi otomatis</label><select id="bom-table-revision-mode" class="form-select" disabled><option value="">Memeriksa pemakaian produksi…</option></select></div>
+      <div><label id="bom-table-effective-label" for="bom-table-effective">Mulai Berlaku Revisi Baru</label><input id="bom-table-effective" class="form-control" type="date"></div>
+      <div><label for="bom-table-expiry">Berakhir</label><input id="bom-table-expiry" class="form-control" type="date"></div>
+      <div class="bom-table-notes-field"><label for="bom-table-notes">Catatan Umum BOM</label><input id="bom-table-notes" class="form-control" type="text" placeholder="Catatan tambahan (opsional)"></div>
+      <div class="bom-table-notes-field"><label for="bom-table-revision-note">Alasan / Catatan Revisi</label><input id="bom-table-revision-note" class="form-control" type="text" placeholder="Jelaskan perubahan pada revisi ini" required></div>
+      <small id="bom-table-revision-hint">Memeriksa pemakaian BOM di produksi untuk menentukan revisi saat disimpan.</small>
     </article>
-    <section class="bom-estimate-summary">
-      <article><small>NETTING TIME ENGINE</small><strong id="bom-estimate-lead">OR-TOOLS CP-SAT</strong><span>Demand, capacity, material, kalender, routing, dan vendor dihitung saat planning</span></article>
-      <article><small>TOTAL BOM COST / UNIT</small><strong id="bom-estimate-total">Rp0</strong><span>Material/purchase + vendor + mesin untuk 1 produk utama</span></article>
-      <article><small>PURCHASE + MATERIAL</small><strong id="bom-estimate-material">Rp0</strong><span>Price list bulanan terbaru</span></article>
-      <article><small>PROCESS / VENDOR COST</small><strong id="bom-estimate-process">Rp0</strong><span>Machine cost dan jasa proses vendor</span></article>
-      <article><small>PRICE COVERAGE</small><strong id="bom-estimate-coverage">0 / 0</strong><span id="bom-estimate-warning">Lengkapi master harga bila ada gap</span></article>
+    <section class="bom-estimate-summary" aria-label="Ringkasan biaya BOM">
+      <article class="bom-estimate-total-card"><small>Total Biaya / Unit</small><strong id="bom-estimate-total">Rp0</strong><span>Untuk 1 produk utama</span></article>
+      <article><small>Material & Purchase Part</small><strong id="bom-estimate-material">Rp0</strong><span>Harga sesuai tanggal berlaku</span></article>
+      <article><small>Proses & Vendor</small><strong id="bom-estimate-process">Rp0</strong><span>Biaya mesin dan jasa vendor</span></article>
+      <article><small>Kelengkapan Harga</small><strong id="bom-estimate-coverage">0 / 0</strong><span id="bom-estimate-warning">Lengkapi master harga bila ada gap</span></article>
     </section>
-    <article class="bom-table-grid-card">
-      <div class="bom-table-grid-heading"><div><h1>Edit Struktur BOM via Table</h1><p>Cycle Time berasal dari Routing MBOM. Machine Cost memakai Costing Rate dari <a href="/master-data/machines" target="_blank" rel="noopener">Master Machine</a>. Vendor code dan harga jasa dipilih per proses di Routing.</p><small id="bom-table-owned-note" class="bom-table-owned-note d-none"></small><small id="bom-table-vendor-note" class="bom-table-vendor-note d-none"></small></div><div class="bom-table-grid-actions"><label class="bom-freeze-control">Freeze columns<select id="bom-table-freeze-count" class="form-select" aria-label="Jumlah kolom yang dibekukan"><option value="0">Tidak ada</option><option value="1">1 · Level</option><option value="2">2 · sampai Part</option><option value="3">3 · sampai Part Number</option><option value="4">4 · sampai Qty</option><option value="5">5 · sampai UOM</option><option value="6">6 · sampai Parent</option></select></label><button id="bom-table-add" class="btn btn-outline-primary" type="button">＋ Tambah Baris</button></div></div>
-      <div class="table-responsive bom-edit-grid-scroll"><table id="bom-detail-edit-table" class="table align-middle bom-edit-grid"><thead><tr><th>LVL</th><th>PART</th><th>PART NUMBER</th><th>QTY</th><th>UOM</th><th>PARENT</th><th>KATEGORI</th><th>POLICY</th><th>LEAD TIME / ORDER</th><th>PROSES</th><th>SUMBER MATERIAL / PARTNER</th><th>PRICE QTY</th><th>MBOM TURUNAN COST</th><th>CYCLE TIME / UNIT</th><th>MACHINE COST / SECOND</th><th>PROCESS COST / UNIT</th><th>CATATAN</th><th></th></tr></thead><tbody id="bom-table-edit-rows"><tr><td colspan="18" class="text-center py-4">Memuat BOM...</td></tr></tbody></table></div>
+    <article class="bom-table-grid-card" data-enterprise-table-shell>
+      <div class="bom-table-grid-heading"><div><h2>Komponen BOM <span id="bom-table-row-count" aria-live="polite">Memuat komponen…</span></h2><p>Pilih tampilan sesuai bagian yang ingin diperbarui.</p></div><button id="bom-table-add" class="btn btn-outline-primary" type="button">＋ Tambah Baris</button></div>
+      <div class="bom-table-workspace-tools">
+        <div class="bom-table-view-switch" role="group" aria-label="Tampilan kolom BOM">
+          <button type="button" data-bom-column-view="structure" data-view-label="Struktur" aria-pressed="true">Struktur</button>
+          <button type="button" data-bom-column-view="material" data-view-label="Material & Partner" aria-pressed="false">Material & Partner</button>
+          <button type="button" data-bom-column-view="cost" data-view-label="Routing & Biaya" aria-pressed="false">Routing & Biaya</button>
+          <button type="button" data-bom-column-view="all" data-view-label="Semua Kolom" aria-pressed="false">Semua Kolom</button>
+        </div>
+        <div class="bom-table-grid-actions">
+          <label class="bom-table-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="bom-table-search" type="search" placeholder="Cari kode / nama part…" aria-label="Cari komponen BOM"></label>
+          <label class="bom-freeze-control">Kunci kolom<select id="bom-table-freeze-count" class="form-select" aria-label="Jumlah kolom yang dibekukan"><option value="0">Tidak ada</option><option value="1">Level</option><option value="2">Sampai Part</option><option value="3">Sampai Part Number</option><option value="4">Sampai Qty</option><option value="5">Sampai UOM</option><option value="6">Sampai Parent</option></select></label>
+        </div>
+      </div>
+      <div class="bom-table-context-notes"><small id="bom-table-owned-note" class="bom-table-owned-note d-none"></small><small id="bom-table-vendor-note" class="bom-table-vendor-note d-none"></small></div>
+      <div class="table-responsive bom-edit-grid-scroll" tabindex="0" role="region" aria-label="Worksheet komponen BOM, geser untuk melihat kolom lainnya"><table id="bom-detail-edit-table" class="table align-middle bom-edit-grid"><thead><tr><th>Level</th><th>Part</th><th>Part Number</th><th>Qty</th><th>UOM</th><th>Parent</th><th>Kategori</th><th>Policy</th><th>Lead Time / Order</th><th>Routing</th><th>Sumber Material / Partner</th><th>Qty Harga</th><th>Biaya BOM Turunan</th><th>Cycle Time / Unit</th><th>Rate Mesin / Detik</th><th>Biaya Proses / Unit</th><th>Catatan</th><th>Aksi</th></tr></thead><tbody id="bom-table-edit-rows"><tr><td colspan="18" class="text-center py-4">Memuat BOM...</td></tr></tbody></table></div>
+      <p id="bom-table-search-empty" class="bom-table-search-empty" hidden>Tidak ada komponen yang sesuai. Coba kode atau nama part lain.</p>
+      <footer class="bom-table-grid-footer"><span>Perubahan komponen diterapkan saat Simpan Perubahan.</span><details><summary>Referensi perhitungan biaya</summary><p>Cycle time mengikuti Routing BOM. Rate mesin berasal dari <a href="/master-data/machines" target="_blank" rel="noopener">Master Machine</a>. Vendor dan harga jasanya dipilih per proses melalui tombol Routing.</p></details></footer>
     </article>
     <%- include('../partials/document-comments', { documentComments: { recordKey, title: 'Komentar BOM', variant: 'receipt' } }) %>
   </section>
 </main>
-<dialog id="bom-process-dialog" class="bom-process-dialog">
+<dialog id="bom-process-dialog" class="bom-process-dialog bom-table-workspace-dialog" aria-labelledby="bom-process-title">
   <form method="dialog" class="bom-process-dialog-card">
-    <header><div><small>ROUTING PROCESS</small><h2 id="bom-process-title">Edit Proses</h2></div><button value="cancel" type="submit">×</button></header>
-    <div class="bom-process-vendor-guide"><b>Cara isi proses vendor</b><span>1. Pilih Process</span><span>2. Ubah Mode menjadi Vendor process</span><span>3. Pilih vendor code yang eligible; harga per pcs muncul otomatis</span><a href="/master-data/vendor-processes" target="_blank" rel="noopener">Atur vendor eligible</a><a href="/master-data/vendor-price-lists" target="_blank" rel="noopener">Atur harga vendor</a></div>
+    <header><div><small>Routing Komponen</small><h2 id="bom-process-title">Edit Proses</h2></div><button value="cancel" type="submit" aria-label="Tutup routing">×</button></header>
+    <details class="bom-process-help"><summary>Panduan proses vendor</summary><div class="bom-process-vendor-guide"><span>1. Pilih Process</span><span>2. Pilih mode Vendor process</span><span>3. Pilih vendor; harga per pcs terisi otomatis</span><a href="/master-data/vendor-processes" target="_blank" rel="noopener">Master proses vendor</a><a href="/master-data/vendor-price-lists" target="_blank" rel="noopener">Harga vendor</a></div></details>
     <div class="bom-process-dialog-actions"><p>Cycle time memakai detik untuk in-house. Proses vendor memakai harga per pcs dan tidak dikali cycle time.</p><button id="bom-process-add" class="btn btn-outline-primary" type="button">＋ Tambah Proses</button></div>
     <div class="table-responsive"><table class="table bom-process-edit-table"><thead><tr><th>ROUTING NO.</th><th>ORDER</th><th>PROCESS</th><th>MODE</th><th>MACHINE / VENDOR</th><th>DEFAULT RATE</th><th>CYCLE TIME (DETIK)</th><th>COST BASIS</th><th>PROCESS COST / UNIT</th><th>CATATAN</th><th></th></tr></thead><tbody id="bom-process-edit-rows"></tbody></table></div>
-    <footer><button class="btn btn-primary" value="default" type="submit">Selesai</button></footer>
+    <footer><span>Routing disimpan bersama perubahan BOM.</span><button class="btn btn-primary" value="default" type="submit">Selesai</button></footer>
   </form>
 </dialog>
-<dialog id="bom-material-dialog" class="bom-material-dialog">
+<dialog id="bom-material-dialog" class="bom-material-dialog bom-table-workspace-dialog" aria-labelledby="bom-material-dialog-title">
   <form method="dialog" class="bom-material-dialog-card">
-    <header><div><small>RAW MATERIAL CONSUMPTION</small><h2 id="bom-material-dialog-title">Edit Material</h2></div><button value="cancel" type="submit">×</button></header>
+    <header><div><small>Konsumsi Material</small><h2 id="bom-material-dialog-title">Edit Material</h2></div><button value="cancel" type="submit" aria-label="Tutup material">×</button></header>
     <div class="bom-material-dialog-body">
       <div class="bom-material-master-info"><div><small>MASTER MATERIAL</small><strong id="bom-material-master-name">—</strong></div><a id="bom-material-master-link" href="/master-data/materials">Lihat Master</a></div>
       <label>Skema yang dipakai MRP / Purchase
@@ -76,4 +91,9 @@
   </form>
 </dialog>
 <script id="bom-table-editor-config" type="application/json"><%- JSON.stringify({ recordKey }) %></script>
+<link rel="stylesheet" href="/css/bom-machine-policy.css?v=20260908-executor-1">
+<link rel="stylesheet" href="/css/bom-table-workspace.css?v=20260909-completeness-1">
+<script src="/js/bom-machine-policy.js?v=20260909-dies-1"></script>
+<script src="/js/bom-executor-policy.js?v=20260909-dies-1"></script>
+<script src="/js/bom-table-workspace.js?v=20260907-1"></script>
 <%- include('../partials/footer') %>

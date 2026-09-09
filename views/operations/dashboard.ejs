@@ -2,6 +2,7 @@
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <% const isPurchaseRequisition = module.slug === 'purchasing' && page.slug === 'purchase-requisitions'; %>
+<% if (isPurchaseRequisition) { %><link rel="stylesheet" href="/css/pr-category-filter.css?v=20260907-1"><% } %>
 <% const isDailyWorkQueue = module.slug === 'production' && page.slug === 'daily-production-schedules'; %>
 <main class="entity-page operations-master-list-page <%= isDailyWorkQueue ? 'daily-work-command-page' : '' %>">
   <section class="entity-toolbar operations-master-toolbar app-container">
@@ -15,10 +16,9 @@
     <%- include('../partials/view-switcher', isDailyWorkQueue ? { viewModes: ['gallery', 'table', 'kanban', 'gantt'], viewLabels: { gallery: 'Work Cards', table: 'Table', kanban: 'Status Board', gantt: 'Weekly Gantt' } } : {}) %>
     <button id="ops-refresh" type="button" class="btn btn-outline-secondary">Refresh</button>
     <button id="ops-export" type="button" class="btn btn-export">Export CSV</button>
-    <% if (isPurchaseRequisition && purchaseCategory !== 'vendor-process') { %>
+    <% if (isPurchaseRequisition) { %>
       <a href="/modules/purchasing/purchase-requisitions/new<%= purchaseCategory ? '?category=' + purchaseCategory : '' %>" class="btn btn-primary brand-button"><%- include('../partials/icon', { name: 'plus' }) %> Tambah Baru</a>
-    <% } else if (isPurchaseRequisition) { %>
-      <a href="/modules/planning-ppic/capacity-planning" class="btn btn-primary brand-button">Buka Capacity Planning →</a>
+      <% if (purchaseCategory === 'vendor-process') { %><a href="/modules/planning-ppic/monthly-production-plans" class="btn btn-outline-primary">Buka Monthly Plan →</a><% } %>
     <% } else if (page.createRoute) { %>
       <a href="<%= page.createRoute %>" class="btn btn-primary brand-button"><%- include('../partials/icon', { name: 'plus' }) %> Tambah Baru</a>
     <% } %>
@@ -78,23 +78,7 @@
   <% } %>
 
   <% if (isPurchaseRequisition) { %>
-    <nav class="ops-category-tabs operations-category-tabs app-container" aria-label="Jenis Purchase Requisition">
-      <a class="<%= purchaseCategory === 'material' ? 'active' : '' %>" href="/modules/purchasing/purchase-requisitions?category=material">
-        <span>Material</span><small>SPHC dan Material Master; request PPIC tetap KG</small>
-      </a>
-      <a class="<%= purchaseCategory === 'purchase-part' ? 'active' : '' %>" href="/modules/purchasing/purchase-requisitions?category=purchase-part">
-        <span>Purchase Part</span><small>Purchased part yang memiliki drawing</small>
-      </a>
-      <a class="<%= purchaseCategory === 'universal-purchase-part' ? 'active' : '' %>" href="/modules/purchasing/purchase-requisitions?category=universal-purchase-part">
-        <span>Universal Purchase Part</span><small>Purchased part tanpa drawing / item universal</small>
-      </a>
-      <a class="<%= purchaseCategory === 'vendor-process' ? 'active' : '' %>" href="/modules/purchasing/purchase-requisitions?category=vendor-process">
-        <span>Vendor Process</span><small>Otomatis dari allocation vendor di Capacity Planning</small>
-      </a>
-      <a class="<%= purchaseCategory === 'non-production' ? 'active' : '' %>" href="/modules/purchasing/purchase-requisitions?category=non-production">
-        <span>Non Produksi</span><small>Consumable, service, asset, maintenance, dan umum</small>
-      </a>
-    </nav>
+    <%- include('../partials/pr-category-filter', { purchaseCategory }) %>
   <% } %>
 
   <div id="ops-alert" class="alert alert-warning mx-4 mt-3 d-none" role="alert"></div>

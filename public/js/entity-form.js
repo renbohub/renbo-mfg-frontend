@@ -6,6 +6,10 @@
   const saveButton = document.getElementById("save-button");
   const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
   let loadedRecord = null;
+  const monthly = config.monthlyPricing ? window.MonthlyPricing : null;
+  let monthlyEditor = null;
+  let monthlyRecord = null;
+  let priceEditBlocked = false;
   const vendorDetailState = { rows: [], processes: [], uoms: [] };
 
   function authHeaders(extra = {}) { return { Authorization: `Bearer ${token()}`, ...extra }; }
@@ -66,22 +70,36 @@
     const hidden = form.elements.details;
     if (!editor || !hidden) return;
     vendorDetailState.rows = [...editor.querySelectorAll("[data-vendor-price-row]")].map((row, index) => ({
+      ...(vendorDetailState.rows[index] || {}),
+      ...(monthly ? monthly.read(row) : {}),
       vendorProcessId: row.querySelector("[data-detail-process]").value,
       sequence: index + 1,
-      unitPrice: vendorDetailNumber(row.querySelector("[data-detail-price]").value),
+      unitPrice: monthly ? null : vendorDetailNumber(row.querySelector("[data-detail-price]").value),
       uomCode: row.querySelector("[data-detail-uom]").value || null,
       minimumOrderQty: vendorDetailNumber(row.querySelector("[data-detail-moq]").value),
       orderMultipleQty: vendorDetailNumber(row.querySelector("[data-detail-multiple]").value),
       minimumCharge: vendorDetailNumber(row.querySelector("[data-detail-minimum]").value),
       notes: row.querySelector("[data-detail-notes]").value || null,
-    })).filter((row) => row.vendorProcessId);
-    hidden.value = JSON.stringify(vendorDetailState.rows);
+    }));
+    // Keep empty editing rows in state so adding/removing rows does not move
+    // another process's month overrides. Only selected processes are submitted.
+    hidden.value = JSON.stringify(vendorDetailState.rows.filter((row) => row.vendorProcessId).map(({ monthlyOverrides, monthlyResolved, ...row }) => row));
   }
 
   function renderVendorPriceDetails() {
     const editor = document.getElementById("vendor-price-details-editor");
     if (!editor) return;
     const rows = vendorDetailState.rows.length ? vendorDetailState.rows : [{}];
+    if (monthly) {
+      const vendorId = form.elements.vendorId?.value;
+      editor.innerHTML = rows.map((row,index) => {
+        const eligible = vendorDetailState.processes.filter((p) => !vendorId || (p.vendorIds || (p.vendors || []).map((v) => v.id)).includes(vendorId) || p.id === row.vendorProcessId);
+        const options = (items,key,label,value) => '<option value="">Pilih</option>' + items.map((item) => `<option value="${html(item[key])}" ${String(item[key]) === String(value || "") ? "selected" : ""}>${html(label(item))}</option>`).join("");
+        return `<section class="monthly-vendor-card" data-vendor-price-row><div class="vendor-process-heading"><strong>Proses ${index+1}</strong><button class="btn btn-outline-danger btn-sm" type="button" data-detail-remove="${index}" aria-label="Hapus proses ${index+1}">Hapus</button></div><div class="monthly-vendor-meta"><label>Proses Vendor<select class="form-select" data-searchable-disabled="true" data-detail-process required>${options(eligible,"id",p=>[p.vendorProcessCode,p.vendorProcessName].join(" · "),row.vendorProcessId)}</select></label><label>UOM Harga<select class="form-select" data-searchable-disabled="true" data-detail-uom required>${options(vendorDetailState.uoms,"uomCode",u=>[u.uomCode,u.uomName].join(" · "),row.uomCode)}</select></label><label>MOQ<input class="form-control" data-detail-moq type="number" min="0" step="0.01" value="${html(row.minimumOrderQty ?? "")}"></label><label>Kelipatan Order<input class="form-control" data-detail-multiple type="number" min="0" step="0.01" value="${html(row.orderMultipleQty ?? "")}"></label><label>Minimum Charge<input class="form-control" data-detail-minimum type="number" min="0" step="0.01" value="${html(row.minimumCharge ?? "")}"></label><label class="detail-note">Catatan proses<input class="form-control" data-detail-notes value="${html(row.notes || "")}"></label></div>${monthly.toolbar()}${monthly.grid(row)}</section>`;
+      }).join("");
+      editor.querySelectorAll("[data-vendor-price-row]").forEach((card, index) => monthly.bind(card, rows[index]));
+      syncVendorPriceDetails(); return;
+    }
     editor.innerHTML = rows.map((row, index) => `<div class="master-detail-editor-row" data-vendor-price-row>
       <label><span>Proses Vendor</span><select class="form-select" data-detail-process required><option value="">Pilih proses</option>${vendorDetailState.processes.map((item) => `<option value="${html(item.id)}" ${String(item.id) === String(row.vendorProcessId || row.vendorProcess?.id || "") ? "selected" : ""}>${html([item.vendorProcessCode, item.vendorProcessName].filter(Boolean).join(" — "))}</option>`).join("")}</select></label>
       <label><span>Harga Satuan</span><input class="form-control" data-detail-price type="number" min="0" step="0.01" value="${html(row.unitPrice ?? "")}"></label>
@@ -103,6 +121,7 @@
     document.getElementById("vendor-price-details-editor")?.addEventListener("input", syncVendorPriceDetails);
     document.getElementById("vendor-price-details-editor")?.addEventListener("change", syncVendorPriceDetails);
     document.getElementById("vendor-price-details-editor")?.addEventListener("click", (event) => {
+      if (monthly && event.target.closest("[data-fill-months]")) { monthly.fillEmpty(event.target.closest("[data-vendor-price-row]")); syncVendorPriceDetails(); return; }
       const remove = event.target.closest("[data-detail-remove]"); if (!remove) return;
       syncVendorPriceDetails(); vendorDetailState.rows.splice(Number(remove.dataset.detailRemove), 1); renderVendorPriceDetails();
     });
@@ -129,6 +148,7 @@
   async function applyQueryPrefill() {
     if (mode !== "create") return;
     const params = new URLSearchParams(location.search);
+    if (monthly && params.get("effectiveFrom")) form.elements.pricingYear.value = params.get("effectiveFrom").slice(0,4);
     const tasks = [];
     config.fields.forEach((field) => {
       if (!params.has(field.name)) return;
@@ -148,6 +168,15 @@
 
   async function populate(record) {
     loadedRecord = record;
+    if (monthly) record = record.monthlyPlan ? { ...record, ...record.monthlyPlan } : monthly.project(record);
+    monthlyRecord = record;
+    if (["part-price-lists", "vendor-price-lists"].includes(config.slug) && record.priceEligibility?.eligible === false) {
+      priceEditBlocked = true;
+      alertBox.textContent = record.priceEligibility.reason || "Harga lama ini tidak dapat diubah karena part belum memenuhi routing BOM yang berlaku.";
+      alertBox.classList.remove("d-none");
+      saveButton.disabled = true;
+      saveButton.title = alertBox.textContent;
+    }
     const lookupTasks = [];
     config.fields.forEach((field) => {
       const input = form.elements[field.name]; if (!input || field.type === "file") return;
@@ -165,9 +194,18 @@
       else if (field.type === "json") input.value = hasStructuredValue(value) ? JSON.stringify(value, null, 2) : "";
       else if (field.type === "date") input.value = toInputDate(value, false);
       else if (field.type === "datetime-local") input.value = toInputDate(value, true);
+      else if (((config.slug === "parts" && field.name === "category") || (config.slug === "dies" && field.name === "diesType")) && field.type === "select" && value != null && value !== "") {
+        if (![...input.options].some((option) => option.value === String(value))) {
+          const option = document.createElement("option"); option.value = String(value); option.textContent = `${value} (nilai tersimpan)`; input.appendChild(option);
+        }
+        input.value = value;
+      }
       else input.value = value ?? "";
     });
     await Promise.all(lookupTasks);
+    const routingLink = document.getElementById("purchase-part-routing-link");
+    if (routingLink) routingLink.classList.toggle("d-none", record.itemType !== "RAW" || record.rawType !== "PURCHASE_PART");
+    form.querySelectorAll("select.searchable-select-native").forEach(select=>select.dispatchEvent(new Event("change", { bubbles: true })));
   }
   function focusRequestedField() {
     const focus = new URLSearchParams(location.search).get("focus");
@@ -188,15 +226,16 @@
         .filter(([slug]) => config.slug === slug)
         .forEach(([, name]) => form.elements[name]?.addEventListener("change", () => applyPriceMasterDefaults(name)));
       if (mode === "edit") {
-        const response = await fetch(`/master-data/api/${config.slug}/${encodeURIComponent(recordKey)}`, { headers: authHeaders() });
+        const response = await fetch(`/master-data/api/${config.slug}/${encodeURIComponent(recordKey)}${monthly ? "?monthlyForm=true" : ""}`, { headers: authHeaders() });
         if (response.status === 401) return redirectLogin();
         const payload = await response.json(); if (!response.ok) throw new Error(payload.message || "Data gagal dibuka."); await populate(payload); focusRequestedField();
       } else {
-        const today = toInputDate(new Date(), false);
+        const today = toInputDate((globalThis.erpBusinessNow?.() || new Date()), false);
         config.fields.forEach((field) => {
           const input = form.elements[field.name];
           if (!input || input.value) return;
-          if (field.defaultValue === "today") input.value = today;
+          if (field.defaultValue === "currentYear") input.value = Number(today.slice(0,4));
+          else if (field.defaultValue === "today") input.value = today;
           else if (field.defaultValue !== undefined) input.value = field.defaultValue;
         });
         await applyQueryPrefill();
@@ -204,34 +243,72 @@
         if (config.slug === "part-price-lists") applyPriceMasterDefaults("partId");
         if (config.slug === "product-price-lists") applyPriceMasterDefaults("productId");
       }
+      if (monthly) {
+        if (mode === "edit" && form.elements.pricingYear) {
+          form.elements.pricingYear.readOnly = true;
+          form.elements.pricingYear.title = "Tahun harga tersimpan tidak dapat diubah. Buat daftar harga baru untuk tahun lain.";
+        }
+        const monthSection = document.getElementById("form-section-harga-bulanan");
+        monthlyEditor = monthly.bind(monthSection, monthlyRecord || Object.fromEntries(monthly.months.map((m) => [m, form.elements[m]?.value ?? null])));
+        const heading = document.getElementById("document-shell-title");
+        if (heading) heading.textContent = `${config.label} · ${form.elements.pricingYear.value}`;
+        const toolbar = document.getElementById("monthly-price-toolbar");
+        if (toolbar) { toolbar.innerHTML = monthly.toolbar(); toolbar.addEventListener("click", (event) => { if (event.target.closest("[data-fill-months]")) monthly.fillEmpty(toolbar.closest("section")); }); }
+        const info = document.createElement("div"); info.className = "monthly-price-info";
+        info.textContent = "Pilih tahun, lalu isi harga Januari–Desember. Harga otomatis diteruskan hingga perubahan berikutnya. Biru menandai harga yang berubah atau mengikuti harga sebelumnya; keterangan tiap bulan menunjukkan sumbernya. Panah menunjukkan selisih terhadap harga sebelum perubahan. Kosongkan harga khusus untuk kembali mengikuti. Perubahan diterapkan setelah Simpan.";
+        if (loadedRecord?.monthlyPlan?.sourceCount > 1) info.textContent += ` ${loadedRecord.monthlyPlan.sourceCount} periode harga tahun ini ditampilkan bersama. Saat Simpan, periode tersebut digabung menjadi satu daftar tahunan; record periode lainnya dipindahkan ke arsip.`;
+        form.prepend(info);
+        if (window.jQuery) {
+          window.jQuery(form).on("select2:select.monthlyPrice select2:clear.monthlyPrice", "select[data-enterprise-lookup]", function () { this.dispatchEvent(new Event("change", { bubbles: true })); });
+        }
+        form.elements.vendorId?.addEventListener("change", () => { syncVendorPriceDetails(); renderVendorPriceDetails(); });
+        form.elements.partId?.addEventListener("change", async () => {
+          if (config.slug !== "vendor-price-lists") return;
+          const selected = window.EnterpriseLookup?.getSelected(form.elements.partId); const code = selected?.customerCode;
+          if (code) await resolveLookupOption(config.fields.find(f=>f.name==='customerId'), form.elements.customerId, code);
+        });
+      }
       if (mode === "create" && config.generateCode) {
         const response = await fetch(`/master-data/api/${config.slug}/generate-code`, { headers: authHeaders() });
         const payload = await response.json().catch(() => ({}));
         if (response.ok && payload[config.generateCode] && form.elements[config.generateCode]) form.elements[config.generateCode].value = payload[config.generateCode];
       }
+      form.dispatchEvent(new CustomEvent("document-form:loaded"));
     } catch (error) { alertBox.textContent = error.message; alertBox.classList.remove("d-none"); }
   }
 
   form.addEventListener("submit", async (event) => {
-    event.preventDefault(); if (!form.reportValidity()) return;
+    if (priceEditBlocked) { event.preventDefault(); form.dispatchEvent(new CustomEvent("document-form:error", { detail: { message: alertBox.textContent } })); return; }
+    event.preventDefault(); if (!form.reportValidity()) { form.dispatchEvent(new CustomEvent("document-form:error", { detail: { message: "Lengkapi field wajib sebelum menyimpan." } })); return; }
+    if (monthly) {
+      syncVendorPriceDetails();
+      const rows = config.slug === "vendor-price-lists" ? vendorDetailState.rows.filter(row=>row.vendorProcessId) : [monthlyEditor?.read() || {}];
+      if (!rows.length || rows.some(row=>!monthly.months.some(m=>row[m] !== "" && row[m] != null))) { alertBox.textContent = "Isi minimal satu bulan harga pada setiap item/proses."; alertBox.classList.remove("d-none"); form.dispatchEvent(new CustomEvent("document-form:error", { detail: { message: alertBox.textContent } })); return; }
+      if (config.slug === "vendor-price-lists" && new Set(rows.map(row=>row.vendorProcessId)).size !== rows.length) { alertBox.textContent = "Proses vendor tidak boleh duplikat."; alertBox.classList.remove("d-none"); form.dispatchEvent(new CustomEvent("document-form:error", { detail: { message: alertBox.textContent } })); return; }
+    }
     alertBox.classList.add("d-none"); saveButton.disabled = true; saveButton.querySelector("i").classList.remove("d-none");
     try {
       let body; const headers = authHeaders();
       if (config.multipart) {
         body = new FormData();
+        if (monthly) { body.append("pricingMode", "MONTHLY"); if (loadedRecord?.monthlyPlan) body.append("monthlySourceVersions", JSON.stringify(loadedRecord.monthlyPlan.sourceVersions)); }
         config.fields.forEach((field) => {
           const input = form.elements[field.name]; if (!input) return;
           if (field.type === "file") [...input.files].forEach((file) => body.append(field.name, file));
           else if (field.type === "checkbox") body.append(field.name, input.checked ? "true" : "false");
           else if (field.multiple) body.append(field.name, JSON.stringify([...input.selectedOptions].map((option) => option.value).filter(Boolean)));
+          else if (monthly && monthly.months.includes(field.name)) body.append(field.name, monthlyEditor?.read()[field.name] ?? "");
+          else if (monthly && ["lookup", "textarea"].includes(field.type)) body.append(field.name, input.value);
           else if (input.value !== "") body.append(field.name, input.value);
         });
       } else {
-        const data = {};
+        const data = monthly ? { pricingMode: "MONTHLY", ...(loadedRecord?.monthlyPlan ? { monthlySourceVersions: loadedRecord.monthlyPlan.sourceVersions } : {}) } : {};
         config.fields.forEach((field) => {
           const input = form.elements[field.name]; if (!input || field.type === "file") return;
           if (field.type === "checkbox") data[field.name] = input.checked;
           else if (field.multiple) data[field.name] = [...input.selectedOptions].map((option) => option.value).filter(Boolean);
+          else if (monthly && monthly.months.includes(field.name)) data[field.name] = monthlyEditor?.read()[field.name] ?? null;
+          else if (monthly && input.value === "" && (monthly.months.includes(field.name) || ["lookup", "textarea", "number"].includes(field.type))) data[field.name] = null;
           else if (input.value !== "") {
             if (field.type === "number") data[field.name] = Number(input.value);
             else if (field.type === "json") { try { data[field.name] = JSON.parse(input.value); } catch { throw new Error(`${field.label} harus berupa JSON yang valid.`); } }
@@ -248,7 +325,7 @@
       const returnTo = new URLSearchParams(location.search).get("returnTo");
       location.replace(returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : `/master-data/${config.slug}`);
     } catch (error) { alertBox.textContent = error.message; alertBox.classList.remove("d-none"); form.dispatchEvent(new CustomEvent("document-form:error", { detail: { message: error.message } })); window.scrollTo({ top: 0, behavior: "smooth" }); }
-    finally { saveButton.disabled = false; saveButton.querySelector("i").classList.add("d-none"); }
+    finally { saveButton.disabled = priceEditBlocked; saveButton.querySelector("i").classList.add("d-none"); }
   });
 
   initialize();

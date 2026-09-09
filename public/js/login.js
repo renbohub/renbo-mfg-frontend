@@ -6,7 +6,11 @@
   const buttonText = button.querySelector(".login-button-text");
   const password = document.getElementById("password");
 
-  if (localStorage.getItem("token") || sessionStorage.getItem("token")) window.location.replace(form.dataset.next || "/modules");
+  const destination = (user) => user?.partnerAccess ? '/partner-portal' : form.dataset.next || '/home';
+  if (localStorage.getItem("token") || sessionStorage.getItem("token")) {
+    let storedUser = {}; try { storedUser = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user') || '{}'); } catch (_) {}
+    window.location.replace(destination(storedUser));
+  }
 
   document.getElementById("toggle-password").addEventListener("click", function () {
     const visible = password.type === "text";
@@ -30,7 +34,7 @@
       localStorage.removeItem("token"); localStorage.removeItem("user");
       sessionStorage.removeItem("token"); sessionStorage.removeItem("user");
       storage.setItem("token", payload.token); storage.setItem("user", JSON.stringify(payload.user || {}));
-      window.location.replace(form.dataset.next || "/modules");
+      window.location.replace(destination(payload.user));
     } catch (error) {
       alertBox.textContent = error.message; alertBox.classList.remove("d-none");
     } finally {

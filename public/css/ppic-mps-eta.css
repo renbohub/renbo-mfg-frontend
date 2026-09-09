@@ -1,0 +1,11 @@
+.mwb-eta-source { display:flex; flex-wrap:wrap; align-items:center; gap:12px 24px; border:1px solid #d5ddf8; border-radius:12px; background:var(--surface,#f8faff); padding:16px; margin-block:16px; min-width:0; }
+.mwb-eta-source > div:first-child { flex:1 1 260px; }
+.mwb-eta-source strong { color:var(--text-primary,#253858); }
+.mwb-eta-source p { margin:6px 0 0; color:var(--text-secondary,#64748b); font-size:13px; line-height:1.5; }
+.mwb-eta-source-controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; min-width:0; }
+.mwb-eta-source-controls label { flex-basis:100%; font-size:12px; font-weight:600; }
+.mwb-eta-source select { width:230px; max-width:100%; min-height:40px; padding:8px; border:1px solid #cbd5e1; border-radius:8px; color:var(--text-primary,#253858); background:var(--surface,#fff); font:inherit; }
+.mwb-eta-source select:focus-visible { outline:2px solid #4f46e5; outline-offset:2px; }
+.mwb-eta-source-state { flex-basis:100%; border-top:1px solid #dce4f3; padding-top:10px; }
+.mwb-eta-source [hidden] { display:none !important; }
+@media(max-width:600px) { .mwb-eta-source-controls { width:100%; } .mwb-eta-source select, .mwb-eta-source-controls button, .mwb-eta-source-controls a { flex:1 1 100%; width:100%; justify-content:center; } }

@@ -3,6 +3,14 @@
   font-size: 12px;
 }
 
+.ps-compact-table .ps-ready-date {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
 .ps-compact-table th,
 .ps-compact-table td {
   padding: 7px 8px !important;

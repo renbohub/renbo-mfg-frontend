@@ -11,7 +11,7 @@
     // URL is the navigation contract. Page controls may still contain their
     // server-rendered default when this deferred strip initializes.
     const candidate = query.get("month") || query.get("date")?.slice(0, 7) || monthControl?.value || dateControl?.value?.slice(0, 7);
-    return /^\d{4}-(0[1-9]|1[0-2])$/.test(String(candidate || "")) ? candidate : new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+    return /^\d{4}-(0[1-9]|1[0-2])$/.test(String(candidate || "")) ? candidate : new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit" }).format((globalThis.erpBusinessNow?.() || new Date())).slice(0, 7);
   };
   const stageState = (ready, exists = true) => ready ? "ready" : exists ? "action" : "blocked";
   const buildStages = (data) => {
@@ -25,12 +25,11 @@
     const mpsReady = mps.length > 0 && mps.every((row) => ["Confirmed", "Released", "Completed"].includes(row.status));
     const mrpReady = mrp.some((row) => row.presentationStatus === "APPROVED" || row.status === "Completed");
     const planReady = plans.length > 0 && plans.every((row) => ["Released", "In Progress", "Closed"].includes(row.status) && !row.replanRequired);
-    const capacityReady = allocations.length > 0 && !allocations.some((row) => row.capacityLate);
+    const allocationNeedsReview = !allocations.length || allocations.some((row) => row.capacityLate);
     return [
       { code: "MPS", label: "MPS", count: mps.length, state: stageState(mpsReady, mps.length > 0), copy: mpsReady ? "Demand sudah dikunci" : "Review & lock demand", href: `/modules/planning-ppic/mps/workbench?month=${encodeURIComponent(data.month)}` },
       { code: "MRP", label: "MRP", count: mrp.length, state: stageState(mrpReady, mrp.length > 0), copy: mrpReady ? "Current run tersedia" : "Run atau approve MRP", href: `/modules/planning-ppic/mrp?month=${encodeURIComponent(data.month)}` },
-      { code: "MPP", label: "Monthly Plan", count: plans.length, state: stageState(planReady, plans.length > 0), copy: planReady ? "Plan sudah Released" : "Confirm & release plan", href: `/modules/planning-ppic/monthly-production-plans?month=${encodeURIComponent(data.month)}` },
-      { code: "CAPACITY", label: "Capacity & MO", count: allocations.length, state: stageState(capacityReady, allocations.length > 0), copy: capacityReady ? "Allocation executable" : "Lengkapi slot dan MO", href: `/modules/planning-ppic/capacity-planning?month=${encodeURIComponent(data.month)}` },
+      { code: "MPP", label: "Monthly Plan", count: plans.length, state: stageState(planReady, plans.length > 0), copy: planReady ? "Jadwal mesin sudah Released" : allocationNeedsReview ? "Review alokasi mesin & kesiapan" : "Confirm & release jadwal mesin", href: `/modules/planning-ppic/monthly-production-plans?month=${encodeURIComponent(data.month)}` },
       { code: "DAILY", label: "Daily Plan", count: dailyTotal, state: stageState(dailyReleased > 0, dailyTotal > 0), copy: dailyReleased > 0 ? `${dailyReleased} schedule released` : dailyTotal ? "Draft perlu direlease" : "Belum dipublish", href: `/modules/planning-ppic/daily-production-plans?date=${encodeURIComponent(firstDailyDate)}` },
     ];
   };

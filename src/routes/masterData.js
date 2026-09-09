@@ -97,6 +97,22 @@ router.post("/api/excel-imports/preview", async (req, res) => proxyMutation(req,
 router.post("/api/excel-imports/upload-preview", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST", "/upload-preview"));
 router.post("/api/excel-imports/forecast-preview", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST", "/forecast-preview"));
 router.post("/api/excel-imports/historical-preview", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST", "/historical-preview"));
+router.post("/api/excel-imports/legacy-preview", (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST", "/legacy-preview"));
+router.post("/api/excel-imports/legacy-stage", (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST", "/legacy-stage"));
+router.post("/api/excel-imports/:key/apply-legacy", (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST", `/${encodeURIComponent(req.params.key)}/apply-legacy`));
+for (const [route, endpoint] of [
+  ["/api/excel-imports/:key/legacy-report", req => `/${encodeURIComponent(req.params.key)}/legacy-report`],
+  ["/api/excel-imports/legacy-template/:kind", req => `/legacy-template/${encodeURIComponent(req.params.kind)}`],
+]) router.get(route, async (req, res) => {
+  try {
+    const response = await fetch(`${backendUrl}/api/system/excel-imports${endpoint(req)}`, { headers: authHeader(req), signal: AbortSignal.timeout(30000) });
+    res.status(response.status);
+    for (const name of ["content-type", "content-disposition"]) { const value = response.headers.get(name); if (value) res.setHeader(name, value); }
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.send(Buffer.from(await response.arrayBuffer()));
+  } catch (error) { res.status(502).json({ message: "Template/laporan migrasi belum dapat dimuat." }); }
+});
 router.post("/api/excel-imports", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST"));
 router.patch("/api/excel-imports/:key/approve", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "PATCH", `/${encodeURIComponent(req.params.key)}/approve`));
 router.post("/api/excel-imports/:key/apply-forecast", async (req, res) => proxyMutation(req, res, { endpoint: "/api/system/excel-imports" }, "POST", `/${encodeURIComponent(req.params.key)}/apply-forecast`));
@@ -113,6 +129,25 @@ router.get("/api/foundation/supplier-items", async (req, res) => {
   } catch (error) {
     res.status(503).json({ message: backendOffline(error) ? `Backend belum aktif di ${backendUrl}.` : "Tidak dapat mengambil Supplier Item." });
   }
+});
+
+// Dedicated proxy preserves hierarchy filters and pagination for the two
+// master screens. Backend authorization remains authoritative for each action.
+router.get("/hmi-api/:kind", async (req, res) => {
+  try {
+    const url = new URL(`${backendUrl}/api/master-data/hmi-reasons/${encodeURIComponent(req.params.kind)}`);
+    for (const [key,value] of Object.entries(req.query)) if (typeof value === "string") url.searchParams.set(key,value);
+    const response = await fetch(url, { headers: authHeader(req), signal: AbortSignal.timeout(15000) });
+    const payload = await readBackend(response);
+    if (!response.ok) return sendBackendError(res,response,payload);
+    res.json(payload);
+  } catch (error) { res.status(503).json({ message: backendOffline(error) ? `Backend belum aktif di ${backendUrl}.` : "Master tidak dapat dimuat." }); }
+});
+router.post("/hmi-api/:kind", (req,res) => proxyMutation(req,res,{ endpoint: `/api/master-data/hmi-reasons/${encodeURIComponent(req.params.kind)}` },"POST"));
+router.patch("/hmi-api/:kind/:id", (req,res) => proxyMutation(req,res,{ endpoint: `/api/master-data/hmi-reasons/${encodeURIComponent(req.params.kind)}/${encodeURIComponent(req.params.id)}` },"PATCH"));
+router.post("/hmi-api/:kind/:id/:action", (req,res) => {
+  if (!["archive","restore"].includes(req.params.action)) return res.status(404).json({ message:"Aksi tidak ditemukan." });
+  return proxyMutation(req,res,{ endpoint: `/api/master-data/hmi-reasons/${encodeURIComponent(req.params.kind)}/${encodeURIComponent(req.params.id)}/${req.params.action}` },"POST");
 });
 
 router.get("/api/:entity/generate-code", async (req, res) => {
@@ -175,11 +210,20 @@ router.get("/api/:entity", async (req, res) => {
   }
 });
 
+router.get('/vendor-bom-prices/context/:id', async (req,res) => {
+  try {
+    const response=await fetch(`${backendUrl}/api/master-data/vendor-price-lists/bom-context/${encodeURIComponent(req.params.id)}`,{headers:authHeader(req),signal:AbortSignal.timeout(15000)});
+    const payload=await readBackend(response); if(!response.ok) return sendBackendError(res,response,payload);res.json(payload);
+  } catch(error) {res.status(503).json({message:'Data harga dan BOM belum dapat dimuat.'});}
+});
+router.post('/vendor-bom-prices/preview',(req,res)=>proxyMutation(req,res,{endpoint:'/api/master-data/vendor-price-lists'},'POST','/bom-preview'));
+router.post('/vendor-bom-prices/save',(req,res)=>proxyMutation(req,res,{endpoint:'/api/master-data/vendor-price-lists'},'POST','/bom-save'));
+
 router.get("/api/:entity/:key", async (req, res) => {
   const config = requireConfig(req, res);
   if (!config) return;
   try {
-    const response = await fetch(`${backendUrl}${config.endpoint}/${encodeURIComponent(req.params.key)}`, { headers: authHeader(req), signal: AbortSignal.timeout(10000) });
+    const response = await fetch(`${backendUrl}${config.endpoint}/${encodeURIComponent(req.params.key)}${config.monthlyPricing && req.query.monthlyForm === "true" ? "?monthlyForm=true" : ""}`, { headers: authHeader(req), signal: AbortSignal.timeout(10000) });
     const payload = await readBackend(response);
     if (!response.ok) return sendBackendError(res, response, payload);
     res.json(payload);
@@ -242,13 +286,13 @@ router.delete("/api/:entity/:id", async (req, res) => {
 router.get("/:entity/new", (req, res) => {
   const config = getEntity(req.params.entity);
   if (!config) return res.status(404).render("errors/404", { title: "Modul tidak ditemukan" });
-  res.render(config.formView || "master-data/entity-form", { title: `Tambah ${config.singular}`, config, mode: "create", recordId: "", recordKey: "", pageScript: config.formPageScript || "/js/entity-form.js?v=20260827-master-lookup-1", ...pageData(config) });
+  res.render(config.formView || "master-data/entity-form", { title: `Tambah ${config.singular}`, config, mode: "create", recordId: "", recordKey: "", pageScript: config.formPageScript || "/js/entity-form.js?v=20260908-inheritance-1", ...pageData(config) });
 });
 
 router.get("/:entity/:id/edit", (req, res) => {
   const config = getEntity(req.params.entity);
   if (!config) return res.status(404).render("errors/404", { title: "Modul tidak ditemukan" });
-  res.render(config.formView || "master-data/entity-form", { title: `Edit ${config.singular}`, config, mode: "edit", recordId: req.params.id, recordKey: String(req.query.key || req.params.id), pageScript: config.formPageScript || "/js/entity-form.js?v=20260827-master-lookup-1", ...pageData(config) });
+  res.render(config.formView || "master-data/entity-form", { title: `Edit ${config.singular}`, config, mode: "edit", recordId: req.params.id, recordKey: String(req.query.key || req.params.id), pageScript: config.formPageScript || "/js/entity-form.js?v=20260908-inheritance-1", ...pageData(config) });
 });
 
 router.get("/:entity/:key", (req, res) => {
@@ -269,7 +313,7 @@ router.get("/:entity", (req, res) => {
       ...pageData(config)
     });
   }
-  res.render("master-data/entity-list", { title: config.label, config, pageScript: "/js/entity-list.js", ...pageData(config) });
+  res.render("master-data/entity-list", { title: config.label, config, pageScript: "/js/entity-list.js?v=20260908-plain-pricing-list-1", ...pageData(config) });
 });
 
 module.exports = router;

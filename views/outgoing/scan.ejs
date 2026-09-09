@@ -1,0 +1,17 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/delivery-workflow.css?v=20260908-1">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: page.slug }) %>
+<main class="delivery-scan app-container">
+  <a href="/modules/outgoing/delivery-schedules">Kembali ke Delivery Schedule</a>
+  <h1>Scan Surat Jalan</h1>
+  <p>Pindai QR menggunakan kamera atau scanner. Nomor Delivery Schedule juga dapat diketik.</p>
+  <section class="delivery-scan__panel">
+    <form id="delivery-lookup"><label class="visually-hidden" for="delivery-reference">QR / nomor Delivery Schedule</label><input id="delivery-reference" class="form-control" maxlength="140" placeholder="Scan QR atau masukkan DS-..." autocomplete="off" required><button class="btn btn-primary" type="submit">Cari pengiriman</button></form>
+    <div class="delivery-scan__actions"><button class="btn btn-outline-primary" id="delivery-camera" type="button">Buka kamera</button><button class="btn btn-outline-secondary" id="delivery-camera-stop" type="button" hidden>Hentikan kamera</button></div>
+    <video id="delivery-video" autoplay muted playsinline hidden></video>
+    <p role="status" id="delivery-scan-status" aria-live="polite"></p>
+    <div id="delivery-scan-result"></div>
+  </section>
+</main>
+<%- include('../partials/footer') %>

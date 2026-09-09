@@ -1,0 +1,62 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-master') %>
+<link rel="stylesheet" href="/css/hmi-reasons.css?v=20260908-1">
+<main class="app-container hmi-master-page" data-hmi-master data-kind="<%= config.hmiKind %>" data-slug="<%= config.slug %>">
+  <header class="hmi-master-heading">
+    <div><span class="hmi-eyebrow">MASTER DATA · PRODUKSI</span><h1><%= config.label %></h1><p>Kelola alasan yang dipilih operator pada HMI dan Production Entry.</p></div>
+    <a href="/modules/production/production-logs" class="btn btn-outline-secondary">Production Entries</a>
+  </header>
+  <nav class="hmi-master-tabs" aria-label="Master produksi">
+    <% [['ng-reasons','Master NG'],['downtime-reasons','Master Downtime'],['hmi-areas','Area HMI']].forEach(([slug,label])=>{ %>
+      <a href="/master-data/<%= slug %>" <%- slug===config.slug?'aria-current="page"':'' %>><%= label %></a>
+    <% }); %>
+  </nav>
+  <div id="hmi-alert" class="alert d-none" role="status" aria-live="polite"></div>
+  <section class="hmi-master-filters" aria-label="Filter master">
+    <% if(config.hmiKind!=='areas'){ %><label>Area<select id="hmi-area-filter" class="form-select"><option value="">Semua area</option></select></label><% } %>
+    <label class="hmi-search">Cari nama<input id="hmi-search" type="search" class="form-control" placeholder="Cari reason..."></label>
+    <label>Data<select id="hmi-archive-filter" class="form-select"><option value="false">Aktif dan nonaktif</option><option value="true">Arsip</option></select></label>
+    <button type="button" id="hmi-refresh" class="btn btn-outline-secondary">Muat ulang</button>
+    <button type="button" id="hmi-new" class="btn btn-primary">+ <%= config.hmiKind==='areas'?'Area':'Reason' %></button>
+  </section>
+  <div class="hmi-master-workspace">
+    <section class="hmi-master-card hmi-reason-list" aria-label="Daftar master">
+      <div class="hmi-card-title"><h2><%= config.hmiKind==='areas'?'Daftar area':'Reason utama' %></h2><span id="hmi-count">Memuat...</span></div>
+      <div id="hmi-list" aria-live="polite"></div>
+      <footer class="hmi-pagination"><button type="button" id="hmi-prev" class="btn btn-sm btn-outline-secondary">Sebelumnya</button><span id="hmi-page"></span><button type="button" id="hmi-next" class="btn btn-sm btn-outline-secondary">Berikutnya</button></footer>
+    </section>
+    <section class="hmi-master-card hmi-reason-detail" aria-label="Detail master">
+      <div id="hmi-detail-empty" class="hmi-empty"><h2>Pilih <%= config.hmiKind==='areas'?'area':'reason' %></h2><p>Klik data pada daftar untuk mengedit atau mengelola subreason.</p></div>
+      <div id="hmi-detail" hidden>
+        <div class="hmi-card-title"><h2 id="hmi-detail-title">Detail</h2><span id="hmi-detail-id"></span></div>
+        <form id="hmi-form">
+          <div class="hmi-form-grid">
+            <% if(config.hmiKind==='areas'){ %><label>Kode area *<input id="hmi-code" class="form-control" maxlength="50" required placeholder="Contoh: PRESS"></label><% } else { %><label>Area *<select id="hmi-parent" class="form-select" required><option value="">Pilih area</option></select></label><% } %>
+            <label><%= config.hmiKind==='areas'?'Nama area':'Nama reason' %> *<input id="hmi-description" class="form-control" maxlength="<%= config.hmiKind==='areas'?50:255 %>" required></label>
+            <label>Urutan tampil<input id="hmi-sort" type="number" class="form-control" min="0" max="999999" step="1" value="0" required></label>
+            <% if(config.hmiKind==='downtime'){ %><label>Jenis downtime<select id="hmi-stop-class" class="form-select"><option value="UNPLANNED">Tidak direncanakan</option><option value="PLANNED">Direncanakan</option></select></label><label class="hmi-check"><input id="hmi-loss" type="checkbox" checked> Kategori loss produksi</label><% } %>
+            <label class="hmi-check"><input id="hmi-active" type="checkbox" checked> Aktif untuk pilihan operator</label>
+            <label class="hmi-wide">Catatan<textarea id="hmi-notes" class="form-control" rows="2" maxlength="2000"></textarea></label>
+          </div>
+          <p class="hmi-hint" id="hmi-edit-hint">Data nonaktif tidak muncul pada pilihan baru; histori produksi tetap tersimpan.</p>
+          <div class="hmi-form-actions"><button id="hmi-save" class="btn btn-primary" type="submit">Simpan</button><button id="hmi-archive" class="btn btn-outline-secondary" type="button" hidden>Arsipkan</button><button id="hmi-restore" class="btn btn-outline-secondary" type="button" hidden>Pulihkan</button></div>
+        </form>
+        <% if(config.hmiKind!=='areas'){ %>
+        <section id="hmi-children" hidden>
+          <div class="hmi-card-title"><div><h2>Subreason</h2><small id="hmi-child-count"></small></div><button id="hmi-child-new" class="btn btn-sm btn-outline-primary" type="button">+ Subreason</button></div>
+          <p class="hmi-hint">HMI menampilkan 10 subreason aktif pertama menurut urutan tampil. Production Entry dapat memilih seluruh subreason aktif.</p>
+          <label class="hmi-child-archive"><input type="checkbox" id="hmi-child-archive-filter"> Tampilkan arsip subreason</label>
+          <div id="hmi-child-list"></div>
+          <footer class="hmi-pagination"><button id="hmi-child-prev" class="btn btn-sm btn-outline-secondary" type="button">Sebelumnya</button><span id="hmi-child-page"></span><button id="hmi-child-next" class="btn btn-sm btn-outline-secondary" type="button">Berikutnya</button></footer>
+          <form id="hmi-child-form" hidden>
+            <h3 id="hmi-child-title">Tambah subreason</h3>
+            <div class="hmi-form-grid"><label>Nama subreason *<input id="hmi-child-description" class="form-control" maxlength="255" required></label><label>Urutan tampil<input id="hmi-child-sort" class="form-control" type="number" min="0" max="999999" step="1" required value="0"></label><label class="hmi-check"><input id="hmi-child-active" type="checkbox" checked> Aktif</label></div>
+            <div class="hmi-form-actions"><button class="btn btn-primary btn-sm" id="hmi-child-save" type="submit">Simpan subreason</button><button class="btn btn-outline-secondary btn-sm" id="hmi-child-cancel" type="button">Batal</button></div>
+          </form>
+        </section>
+        <% } %>
+      </div>
+    </section>
+  </div>
+</main>
+<%- include('../partials/footer') %>

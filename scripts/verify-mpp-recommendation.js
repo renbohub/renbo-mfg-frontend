@@ -259,3 +259,30 @@ assert.match(queueHtml, /01 Okt 2026/);
 assert.match(queueHtml, /WIP-PAINT/);
 
 console.log("MPP recommendation projection contract passed.");
+
+const machineEditor = require('../public/js/ppic-monthly-capacity-editor');
+const machineRows = [
+  { key: 'MACHINE:m1', machineId: 'm1', type: 'INHOUSE', days: { '2026-09-01': { qty: 100, minutes: 200, loadMinutes: 200, availableMinutes: 100 } }, children: [{ key: 'PART:A', type: 'PART', partCode: 'A', processCodes: ['PRESS'], monthlyProductionQty: 100, planning: { totalRequirementQty: 150 }, days: { '2026-09-01': { qty: 100, minutes: 200, allocations: [{ allocationId: 'a1', qty: 40, minutes: 160, processCode: 'PRESS', machineId: 'm1' }, { allocationId: 'a2', qty: 60, minutes: 40, processCode: 'PRESS', machineId: 'm1' }] } } }] },
+  { key: 'MACHINE:m2', machineId: 'm2', type: 'INHOUSE', children: [], days: { '2026-09-01': { qty: 0, minutes: 0, loadMinutes: 0, availableMinutes: 100 } } },
+];
+const splitChanges = [20,20].map(qty => ({ type: 'SPLIT_ALLOCATION', allocationId: 'a1', qty, targetMachineId: 'm2', targetRowKey: 'WC:old-cache', targetDate: '2026-09-01' }));
+const splitPreview = machineEditor.projectStagedMatrix(machineRows, splitChanges);
+assert.strictEqual(splitPreview[0].days['2026-09-01'].loadMinutes, 40);
+assert.strictEqual(splitPreview[1].days['2026-09-01'].loadMinutes, 160);
+assert.strictEqual(splitPreview[1].days['2026-09-01'].loadPercent, 160);
+assert.strictEqual(splitPreview[0].children[0].monthlyProductionQty, 60);
+assert.strictEqual(splitPreview[1].children[0].monthlyProductionQty, 40);
+const planningRows = machineEditor.withPlanningTotals(splitPreview);
+assert.strictEqual(machineEditor.getChildPlanningSummary(planningRows[0].children[0]).remaining, '50');
+assert.strictEqual(machineEditor.getChildPlanningSummary(planningRows[1].children[0]).remaining, '50', 'remaining must account for the same part/process on both machines');
+const newPreview = machineEditor.projectStagedMatrix(machineRows, [{ type: 'ALLOCATE_REMAINING', partCode: 'A', processCode: 'PRESS', qty: 5, targetMachineId: 'm2', targetDate: '2026-09-01' }]);
+assert.strictEqual(newPreview[1].children[0].days['2026-09-01'].qty, 5);
+assert.strictEqual(newPreview[0].children[0].days['2026-09-01'].qty, 100);
+const proposedMove = projectRecommendationRows(machineRows, { items: [{ id: 'move-machine', changeType: 'MOVE_ALLOCATION', applyStatus: 'PENDING', sourceAllocationId: 'a1', partCode: 'A', processCode: 'PRESS', proposedValue: { qty: 40, targetMachineId: 'm2', targetRowKey: 'WC:old-cache', targetDate: '2026-09-01', batchDurationMinutes: 160 } }] });
+assert.strictEqual(proposedMove[0].days['2026-09-01'].qty, 60);
+assert.strictEqual(proposedMove[1].days['2026-09-01'].qty, 40);
+assert.strictEqual(proposedMove[1].days['2026-09-01'].loadPercent, 160);
+assert.strictEqual(machineRows[0].days['2026-09-01'].qty, 100, 'official data must be immutable');
+const missingTarget = projectRecommendationRows(machineRows, {items:[{id:'missing',changeType:'MOVE_ALLOCATION',sourceAllocationId:'a1',partCode:'A',proposedValue:{qty:40,targetMachineId:'missing',targetDate:'2026-09-01'}}]});
+assert.strictEqual(missingTarget[0].days['2026-09-01'].qty, 100, 'missing target must not remove source quantity');
+console.log('Machine move/split/new recommendation and global part remaining passed.');

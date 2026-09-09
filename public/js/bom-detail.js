@@ -24,7 +24,7 @@
   function renderDetail(record) {
     const details = (record.details || []).filter((item) => !item.isDeleted);
     field("noReg", record.noReg || "—"); field("parentItem", partLabel(record.part)); field("bomType", details.some((item) => item.category === "inHouse") ? "Production" : "Standard");
-    field("revision", `Rev.${String(record.revision || 1).padStart(2, "0")}`); field("effectiveDate", date(record.effectiveDate)); field("status", record.expiryDate && new Date(record.expiryDate) < new Date() ? "EXPIRED" : "RELEASED");
+    field("revision", `Rev.${String(record.revision || 1).padStart(2, "0")}`); field("effectiveDate", date(record.effectiveDate)); field("status", record.expiryDate && new Date(record.expiryDate) < (globalThis.erpBusinessNow?.() || new Date()) ? "EXPIRED" : "RELEASED");
     field("revisionNote", record.revisionNote || (record.revisionOfMbomId ? "Catatan revisi belum diisi" : "Revisi awal")); field("notes", record.notes || `Bill of Materials untuk ${partLabel(record.part)}.`); field("componentCount", `${details.length} Item${details.length === 1 ? "" : "s"}`); field("updatedAt", date(record.updatedAt, true));
     document.getElementById("bom-detail-rows").innerHTML = details.length ? details.map((item) => {
       const firstProcess = (item.mbomProcesses || []).find((process) => !process.isDeleted); const part = item.part || {};

@@ -7,7 +7,7 @@ router.get("/login", (req, res) => {
   const requestedNext = typeof req.query.next === "string" ? req.query.next : "";
   const nextPath = requestedNext.startsWith("/") && !requestedNext.startsWith("//") && !requestedNext.startsWith("/login")
     ? requestedNext
-    : "/modules";
+    : "/home";
   res.render("auth/login", {
     title: "Masuk",
     nextPath,

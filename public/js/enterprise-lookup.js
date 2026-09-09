@@ -122,7 +122,8 @@
         cache: true,
         data(params) {
           select.dataset.lookupLoading = "true";
-          return { q: model.normalizeQuery(params.term), page: params.page || 1, pageSize: 25, ...parentData(select) };
+          let filters = {}; try { filters = JSON.parse(select.dataset.lookupQuery || "{}"); } catch {}
+          return { ...filters, q: model.normalizeQuery(params.term), page: params.page || 1, pageSize: 25, ...parentData(select) };
         },
         processResults(payload) {
           select.dataset.lookupLoading = "false";

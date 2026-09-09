@@ -107,7 +107,7 @@
     const deliveryText = (delivery) => delivery ? `${date(delivery.date)} | ${qty(delivery.qty)} PCS | ${delivery.scheduleNumber}` : "";
     const headers = ["P/N", "Part Code", "Part Name", ...periods.map((period) => `Delivery ${monthLabel(period.key)}`), "Total Delivered", "Material Available", "WIP On Hand", "FG On Hand", "FG Reserved", "FG Free", "Last Delivery", "Planning Delivery Selanjutnya"];
     const rows = state.rows.map((row) => [row.partNumber, row.partCode, row.partName, ...periods.map((period) => row.history?.[period.key] || 0), row.historyTotalQty, stockText(row.materialAvailable), stockText(row.wipOnHand), stockText(row.fgOnHand), stockText(row.fgReserved), stockText(row.fgFree), deliveryText(row.lastDelivery), deliveryText(row.nextDelivery)]);
-    shared.downloadCsv(`outgoing-delivery-matrix-${elements.client.value}-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+    shared.downloadCsv(`outgoing-delivery-matrix-${elements.client.value}-${(globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10)}.csv`, headers, rows);
   }
 
   async function load() {

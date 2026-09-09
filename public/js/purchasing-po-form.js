@@ -71,7 +71,7 @@
     };
   }
   async function init() {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = (globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10);
     $("po-date").value = today;
     $("po-delivery-date").value = today;
     const suppliers = await api("/master-data/api/suppliers?start=0&length=500&isDeleted=false");

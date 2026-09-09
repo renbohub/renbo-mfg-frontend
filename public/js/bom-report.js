@@ -114,7 +114,7 @@
 
   async function open(noReg = "") {
     await loadOptions();
-    document.getElementById("bom-report-date").value = new Date().toISOString().slice(0, 10);
+    document.getElementById("bom-report-date").value = (globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10);
     modal.show();
     if (noReg) { document.getElementById("bom-report-select").value = noReg; await loadReport(noReg); }
   }

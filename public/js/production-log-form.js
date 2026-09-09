@@ -33,7 +33,7 @@
   const formatDate = (raw) => raw
     ? new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(raw))
     : "-";
-  const localDate = (raw = new Date()) => {
+  const localDate = (raw = (globalThis.erpBusinessNow?.() || new Date())) => {
     const date = new Date(raw);
     const offset = date.getTimezoneOffset() * 60000;
     return new Date(date.getTime() - offset).toISOString().slice(0, 10);
@@ -89,7 +89,7 @@
   }
 
   function masterOptions(rows, selectedId = null) {
-    return `<option value="">Pilih master HMI</option>${rows.map((item) => `<option value="${item.id}" data-description="${escapeHtml(item.description)}" ${String(item.id) === String(selectedId || "") ? "selected" : ""}>${escapeHtml(item.description)}</option>`).join("")}<option value="MANUAL" ${selectedId === "MANUAL" ? "selected" : ""}>Input manual</option>`;
+    return `<option value="">Pilih master ERP</option>${rows.map((item) => `<option value="${item.id}" data-description="${escapeHtml(item.description)}" ${String(item.id) === String(selectedId || "") ? "selected" : ""}>${escapeHtml([item.areaCode, item.description].filter(Boolean).join(" · "))}</option>`).join("")}<option value="MANUAL" ${selectedId === "MANUAL" ? "selected" : ""}>Input manual</option>`;
   }
 
   function childOptions(parent, selectedId = null) {
@@ -618,9 +618,19 @@
       const payload = await api("/modules/api/production/production-logs/hmi-reasons");
       hmiMaster.rejections = Array.isArray(payload.rejections) ? payload.rejections : [];
       hmiMaster.downtimes = Array.isArray(payload.downtimes) ? payload.downtimes : [];
-    } catch (_error) {
+      const notice = element("hmi-master-status");
+      if (notice && !hmiMaster.rejections.length && !hmiMaster.downtimes.length) {
+        notice.textContent = "Master NG dan downtime aktif belum tersedia. Kelola master sebelum memilih reason; input manual tetap tersedia.";
+        notice.classList.remove("d-none");
+      }
+    } catch (error) {
       hmiMaster.rejections = [];
       hmiMaster.downtimes = [];
+      const notice = element("hmi-master-status");
+      if (notice) {
+        notice.textContent = `Master reason ERP gagal dimuat: ${error.message}. Muat ulang halaman sebelum memilih master.`;
+        notice.classList.remove("d-none");
+      }
     }
   }
 

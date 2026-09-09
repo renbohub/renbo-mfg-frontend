@@ -13,7 +13,7 @@
       ? { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }
       : { day: "2-digit", month: "short", year: "numeric" }).format(date);
   };
-  const localDateTimeValue = (date = new Date()) => {
+  const localDateTimeValue = (date = (globalThis.erpBusinessNow?.() || new Date())) => {
     const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
     return local.toISOString().slice(0, 16);
   };
@@ -191,7 +191,7 @@
     $("flow-qc").classList.toggle("is-active", received > 0 && !anyCompletedQc);
     $("flow-release").classList.toggle("is-active", anyCompletedQc);
 
-    if (!$("lotNumber").value) $("lotNumber").value = order.receiveLotNumber || order.vendorLotNumber || `${order.orderNumber}-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}`;
+    if (!$("lotNumber").value) $("lotNumber").value = order.receiveLotNumber || order.vendorLotNumber || `${order.orderNumber}-${(globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10).replace(/-/g, "")}`;
     canReceive = outstanding > 0 && !["Closed", "Cancelled"].includes(order.status);
     $("qtyReceived").value = String(outstanding);
     receiptTable?.setData([{

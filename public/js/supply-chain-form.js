@@ -7,6 +7,8 @@
   const isIncoming = config.module === "incoming";
   let incomingRacks = [];
   let currentSourceRows = [];
+  let partnerNotice = null;
+  let savedReceipt = null;
   const AUTO_CLOSE_SHORTAGE_PERCENT = 5;
   const rackOptions = (warehouseCode, selected = "") => {
     const rows = incomingRacks.filter((rack) => rack.isActive !== false && rack.warehouseCode === warehouseCode);
@@ -134,6 +136,20 @@
         ? incomingLotRow(row, true)
         : `<tr data-source-detail="${esc(row.id)}"><td><b>${esc(row.code)}</b><small class="d-block">${esc(row.name)}</small></td><td>${esc(row.outstanding)} ${esc(row.uom)}</td><td><input data-qty class="form-control form-control-sm" type="number" min="0" max="${esc(row.outstanding)}" step="any" value="${esc(row.outstanding)}"></td><td><input data-line-notes class="form-control form-control-sm" placeholder="Catatan schedule"></td></tr>`).join("") || `<tr><td colspan="${isIncoming ? 7 : 4}" class="ops-muted">Tidak ada qty outstanding.</td></tr>`;
       if (isIncoming) {
+        if (partnerNotice && partnerNotice.poNumber === source) {
+          const seen = new Set();
+          document.querySelectorAll('[data-source-detail]').forEach(row => { row.querySelector('[data-qty]').value = 0; row.querySelector('[data-supplier-lot]').required = false; });
+          for (const line of partnerNotice.details) {
+            const sourceRow = rows.find(row => row.id === line.poDetailId);
+            if (!sourceRow) continue;
+            let row = [...document.querySelectorAll('[data-source-detail]')].find(row => row.dataset.sourceDetail === line.poDetailId);
+            if (seen.has(line.poDetailId)) { row.insertAdjacentHTML('afterend', incomingLotRow(sourceRow, false)); row = row.nextElementSibling; }
+            seen.add(line.poDetailId);
+            row.querySelector('[data-qty]').value = line.qty;
+            row.querySelector('[data-supplier-lot]').value = line.supplierLotNumber;
+            row.querySelector('[data-supplier-lot]').required = true;
+          }
+        }
         rows.forEach((row) => redistributeAllocations(row.id));
         updateReceiptSummary();
       }
@@ -158,14 +174,37 @@
     const body = isIncoming
       ? { poNumber: source, warehouseCode: value("warehouseCode"), deliveryNoteNumber: value("deliveryNoteNumber") || null, notes: value("notes") || null, shortageAction: value("shortageAction") || "AUTO", closeReason: value("closeReason") || null, details: rows.map((row) => ({ poDetailId: row.id, qtyReceived: row.qty, supplierLotNumber: row.supplierLot, rackCode: row.rack, allocations: row.allocations })) }
       : { soNumber: source, plannedDate: value("plannedDate"), deliveryAddress: value("deliveryAddress") || null, shippingMethod: value("shippingMethod") || null, notes: value("notes") || null, details: rows.map((row) => ({ soDetailId: row.id, qty: row.qty, notes: row.notes })) };
+    if (isIncoming && partnerNotice) body.partnerNoticeId = partnerNotice.id;
+    const submitButtons = [...document.querySelectorAll('[type="submit"]')];
     try {
-      const doc = await api(isIncoming ? "/modules/api/incoming/goods-receipts" : "/modules/api/outgoing/delivery-schedules", { method: "POST", body: JSON.stringify(body) });
+      const files = isIncoming ? [...($('incoming-documents')?.files || [])] : [];
+      if (files.length > 10 || files.some(file => file.size > 10 * 1024 * 1024)) throw new Error('Maksimal 10 dokumen, 10 MB per file.');
+      submitButtons.forEach(button => { button.disabled = true; });
+      const doc = savedReceipt || await api(isIncoming ? "/modules/api/incoming/goods-receipts" : "/modules/api/outgoing/delivery-schedules", { method: "POST", body: JSON.stringify(body) });
+      if (isIncoming) savedReceipt = doc;
       const key = isIncoming ? doc.grNumber : doc.scheduleNumber;
+      for (const file of files) {
+        const uploadKey = `${file.name}:${file.size}:${file.lastModified}`;
+        if ((savedReceipt.uploadedFiles || []).includes(uploadKey)) continue;
+        const form = new FormData(); form.append('document', file);
+        const response = await fetch(`/incoming-tools/api/incoming/goods-receipts/${encodeURIComponent(key)}/documents`, { method: 'POST', headers: { Authorization: `Bearer ${token()}` }, body: form });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(`GR ${key} sudah tersimpan; unggah ${file.name} gagal: ${payload.message || 'coba lagi'}. Klik Simpan untuk mencoba ulang unggahan tanpa membuat GR baru.`);
+        savedReceipt.uploadedFiles = [...(savedReceipt.uploadedFiles || []), uploadKey];
+      }
       show(isIncoming ? `Goods Receipt berhasil dibuat dan dialokasikan ke kebutuhan part. Status PO: ${doc.poStatus || "diperbarui"}.` : "Dokumen berhasil dibuat.", "success");
       setTimeout(() => location.assign(`/modules/${config.module}/${config.page}/${encodeURIComponent(key)}`), 550);
-    } catch (error) { show(error.message); }
+    } catch (error) { show(error.message); } finally { submitButtons.forEach(button => { button.disabled = false; }); }
   });
   async function initIncomingLookups() {
+    const noticeId = new URLSearchParams(location.search).get('partnerNoticeId');
+    if (noticeId) {
+      partnerNotice = await api(`/incoming-tools/api/incoming/partner-admin/notices/${encodeURIComponent(noticeId)}`);
+      if (partnerNotice.status !== 'Submitted') throw new Error('Pendaftaran supplier sudah diterima/dibatalkan.');
+      $('deliveryNoteNumber').value = partnerNotice.deliveryNoteNumber;
+      $('deliveryNoteNumber').readOnly = true;
+      const info = $('partner-notice-info'); info.classList.remove('d-none'); info.textContent = `Pendaftaran ${partnerNotice.noticeNumber}: periksa qty fisik dan alokasi. ${partnerNotice.documents.length} dokumen surat jalan akan ditautkan ke GR.`;
+    }
     const [purchaseOrders, warehouses, racks] = await Promise.all([
       api("/modules/api/purchasing/purchase-order?start=0&length=500"),
       api("/modules/api/inventory/warehouses?start=0&length=500"),
@@ -180,11 +219,12 @@
       .filter((warehouse) => warehouse.isActive !== false);
     $("warehouseCode").insertAdjacentHTML("beforeend", activeWarehouses
       .map((warehouse) => `<option value="${esc(warehouse.warehouseCode)}">${esc(warehouse.warehouseCode)} — ${esc(warehouse.warehouseName || "")}</option>`).join(""));
-    const requestedPoNumber = new URLSearchParams(location.search).get("poNumber");
+    const requestedPoNumber = partnerNotice?.poNumber || new URLSearchParams(location.search).get("poNumber");
     if (requestedPoNumber) {
       const matched = eligiblePurchaseOrders.find((po) => po.poNumber === requestedPoNumber);
       if (matched) {
         $("sourceNumber").value = requestedPoNumber;
+        if (partnerNotice) $('sourceNumber').disabled = true;
         await loadSource();
         if (!activeWarehouses.length) show("PO sudah dipilih. Tambahkan Master Warehouse aktif sebelum menyimpan Goods Receipt.", "warning");
       } else {
@@ -241,7 +281,7 @@
     });
     initIncomingLookups().catch((error) => show(error.message));
   } else {
-    const today = new Date();
+    const today = (globalThis.erpBusinessNow?.() || new Date());
     $("plannedDate").value = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   }
 })();

@@ -11,12 +11,12 @@
   const freezeCountInput = document.getElementById("bom-table-freeze-count");
   const freezeStorageKey = "bom.tableEditor.freezeColumns";
   const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
-  const state = { record: null, graphValidation: null, parts: [], uoms: [], processes: [], machines: [], machineCostRates: [], materialForms: [], partPrices: [], materialPrices: [], vendorPrices: [], vendorProcesses: [], suppliers: [], customers: [], vendors: [], currencies: [], rows: [], omittedRows: [], editingProcessKey: null, editingMaterialKey: null, bomByNoReg: new Map() };
+  const state = { record: null, graphValidation: null, parts: [], uoms: [], processes: [], machines: [], dies: [], machineCostRates: [], materialForms: [], partPrices: [], materialPrices: [], vendorPrices: [], vendorProcesses: [], suppliers: [], customers: [], vendors: [], currencies: [], rows: [], omittedRows: [], editingProcessKey: null, editingMaterialKey: null, bomByNoReg: new Map() };
   const keyOf = (row) => row.id || row.clientKey;
   const escapeHtml = (value) => { const element = document.createElement("div"); element.textContent = value ?? ""; return element.innerHTML; };
   const escapeAttr = (value) => escapeHtml(value).replaceAll('"', "&quot;");
-  const dateInput = (value) => value ? new Date(value).toISOString().slice(0, 10) : "";
-  const todayInput = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+  const dateInput = (value) => value ? new Date(value).toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" }) : "";
+  const todayInput = () => (globalThis.erpBusinessNow?.() || new Date()).toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
   const newKey = () => `table_${window.crypto?.randomUUID ? window.crypto.randomUUID() : Date.now() + "_" + Math.random().toString(16).slice(2)}`;
   const money = (value) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value || 0));
   const moneyPerSecond = (value) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
@@ -38,12 +38,12 @@
   function categoryOptions(selected) { return [["inHouse", "Buat internal"], ["Purchase", "Beli material / part"], ["Vendor", "Proses outsource"]].map(([value, label]) => option(value, label, selected)).join(""); }
   function machineSpecifications() { const specs = new Map(); state.machines.forEach((machine) => { const code = machine.machineSpecificationCode; if (!code || specs.has(code)) return; const assets = state.machines.filter((item) => item.machineSpecificationCode === code); specs.set(code, { code, name: machine.machineSpecificationName || code, assets }); }); return [...specs.values()].sort((a, b) => a.code.localeCompare(b.code)); }
   function machineSpecificationOptions(selected) { return `<option value="">Pilih specification</option>${machineSpecifications().map((spec) => option(spec.code, `${spec.code} — ${spec.name} (${spec.assets.length} mesin)`, selected)).join("")}`; }
-  function representativeMachine(process) { const code = process.machineSpecificationCode || process.machine?.machineSpecificationCode; return state.machines.find((item) => item.machineSpecificationCode === code && item.status === "Active") || state.machines.find((item) => item.machineSpecificationCode === code) || state.machines.find((item) => item.id === process.machineId) || process.machine || {}; }
+  function representativeMachine(process) { const code = process.machineSpecificationCode || process.machine?.machineSpecificationCode; return state.machines.find((item) => item.id === process.machinePlanningPolicy?.primaryMachineId) || state.machines.find((item) => item.machineSpecificationCode === code && item.status === "Active") || state.machines.find((item) => item.machineSpecificationCode === code) || state.machines.find((item) => item.id === process.machineId) || process.machine || {}; }
   function descendantsOf(parentKey) { const found = new Set(); let changed = true; while (changed) { changed = false; state.rows.forEach((row) => { if (!found.has(keyOf(row)) && (row.parentDetailId === parentKey || found.has(row.parentDetailId))) { found.add(keyOf(row)); changed = true; } }); } return found; }
   function parentOptions(row) { const forbidden = descendantsOf(keyOf(row)); return `<option value="">Produk Utama (Root)</option>${state.rows.filter((candidate) => keyOf(candidate) !== keyOf(row) && !forbidden.has(keyOf(candidate))).map((candidate) => { const part = state.parts.find((item) => item.id === candidate.partId) || candidate.part || {}; return option(keyOf(candidate), `${part.partCode || "—"} — ${part.partName || ""}`, row.parentDetailId); }).join("")}`; }
   function levelOf(row) { let level = 1; let parent = state.rows.find((item) => keyOf(item) === row.parentDetailId); const visited = new Set([keyOf(row)]); while (parent && !visited.has(keyOf(parent))) { visited.add(keyOf(parent)); level += 1; parent = state.rows.find((item) => keyOf(item) === parent.parentDetailId); } return level; }
   function linkedBom(row, recordNoReg = state.record?.noReg) { return (row.part?.mbomHeaders || []).find((bom) => bom.noReg !== recordNoReg && !bom.isDeleted) || null; }
-  function costingDate() { const value = document.getElementById("bom-table-effective")?.value || state.record?.effectiveDate; const parsed = value ? new Date(value) : new Date(); return Number.isNaN(parsed.getTime()) ? new Date() : parsed; }
+  function costingDate() { const value = document.getElementById("bom-table-effective")?.value || state.record?.effectiveDate; const parsed = value ? new Date(value) : (globalThis.erpBusinessNow?.() || new Date()); return Number.isNaN(parsed.getTime()) ? (globalThis.erpBusinessNow?.() || new Date()) : parsed; }
   function priceValue(record) { const direct = Number(record?.unitPrice); if (Number.isFinite(direct) && direct >= 0 && record?.unitPrice !== null) return direct; const at = costingDate(); for (let index = at.getMonth(); index >= 0; index -= 1) { const value = Number(record?.[MONTHS[index]]); if (value > 0) return value; } return 0; }
   function toIdr(value, currencyCode) { if (!value) return 0; if (!currencyCode || currencyCode === "IDR") return Number(value); const currency = state.currencies.find((item) => item.currencyCode === currencyCode); return Number(value) * Number(currency?.exchangeRate || 1); }
   function latest(records) { const at = costingDate(); const temporal = records.filter((row) => row.effectiveFrom && row.isActive !== false && new Date(row.effectiveFrom) <= at && (!row.effectiveUntil || new Date(row.effectiveUntil) >= at)).sort((a, b) => new Date(b.effectiveFrom) - new Date(a.effectiveFrom) || new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0)); if (temporal.length) return temporal[0]; return records.filter((row) => row.isActive !== false && !row.effectiveFrom && Number(row.pricingYear || 0) <= at.getFullYear()).sort((a, b) => Number(b.pricingYear || 0) - Number(a.pricingYear || 0) || new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0)).find((row) => priceValue(row) > 0 || (row.details || []).some((detail) => priceValue(detail) > 0)); }
@@ -125,7 +125,7 @@
     }
     const params = new URLSearchParams({
       ...Object.fromEntries(Object.entries(info.prefill || {}).filter(([, value]) => value !== "" && value != null)),
-      effectiveFrom: document.getElementById("bom-table-effective")?.value || new Date().toISOString().slice(0, 10),
+      effectiveFrom: document.getElementById("bom-table-effective")?.value || (globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10),
       returnTo: location.pathname,
       source: "BOM",
     });
@@ -270,7 +270,91 @@
     };
     const total = emptyEstimate(); (byParent.get(null) || []).forEach((rootRow) => { const result = estimateNode(rootRow); total.total += result.total; total.material += result.material; total.process += result.process; total.vendor += result.vendor; total.lines += result.lines; total.covered += result.covered; result.rowCosts.forEach((value, key) => total.rowCosts.set(key, value)); }); return total;
   }
-  function updateEstimateSummary(estimate) { document.getElementById("bom-estimate-lead").textContent = "OR-TOOLS CP-SAT"; document.getElementById("bom-estimate-total").textContent = money(estimate.total); document.getElementById("bom-estimate-material").textContent = money(estimate.material); document.getElementById("bom-estimate-process").textContent = money(estimate.process); document.getElementById("bom-estimate-coverage").textContent = `${estimate.covered} / ${estimate.lines}`; const warning = document.getElementById("bom-estimate-warning"); warning.textContent = estimate.lines > estimate.covered ? `${estimate.lines - estimate.covered} harga/rate belum tersedia di master data` : "Seluruh harga dan machine rate tersedia"; warning.classList.toggle("complete", estimate.lines === estimate.covered); }
+  function updateEstimateSummary(estimate) { document.getElementById("bom-estimate-total").textContent = money(estimate.total); document.getElementById("bom-estimate-material").textContent = money(estimate.material); document.getElementById("bom-estimate-process").textContent = money(estimate.process); document.getElementById("bom-estimate-coverage").textContent = `${estimate.covered} / ${estimate.lines}`; const warning = document.getElementById("bom-estimate-warning"); warning.textContent = estimate.lines > estimate.covered ? `${estimate.lines - estimate.covered} harga/rate belum tersedia di master data` : "Seluruh harga dan machine rate tersedia"; warning.classList.toggle("complete", estimate.lines === estimate.covered); }
+
+  function updateCompletenessMarkers() {
+    if (!state.record) return;
+    const gaps = { structure: [], material: [], cost: [] };
+    const add = (group, label, text) => gaps[group].push(`${label}: ${text}`);
+    const positive = value => Number.isFinite(Number(value)) && Number(value) > 0;
+    if (!state.rows.length) add('structure', 'BOM', 'belum ada komponen');
+    if (!document.getElementById('bom-table-uom').value) add('structure', 'BOM', 'UOM produk belum dipilih');
+    for (const issue of localGraphValidation().errors) gaps[issue.code === 'BOM_PROCESS_SEQUENCE_AMBIGUOUS' ? 'cost' : 'structure'].push(issue.message);
+    function checkInhouse(route, row, label) {
+      const policy = route.machinePlanningPolicy || {};
+      const spec = route.machineSpecificationCode || route.machine?.machineSpecificationCode;
+      const primary = policy.primaryMachineId;
+      if (!primary) add('cost', label, 'mesin utama belum dipilih');
+      const resources = [...(policy.resources || [])];
+      if (primary && !resources.some(r => r.machineId === primary)) resources.push({ machineId: primary, diesId: route.diesId, cycleTimeSeconds: route.cycleTime });
+      const tooling = policy.requiresTooling || policy.mode === 'PARALLEL' || /PRESS/i.test(spec || '');
+      const allowedDies = window.BomMachinePolicy.eligibleDies(state.dies, row.partId);
+      if (!positive(route.cycleTime)) add('cost', label, 'cycle time dasar belum diisi');
+      if (tooling && !resources.length) add('cost', label, 'dies / jig belum dipilih');
+      for (const resource of resources) {
+        const machine = state.machines.find(m => m.id === resource.machineId && m.status === 'Active' && !m.isDeleted && (!spec || m.machineSpecificationCode === spec));
+        const name = machine?.machineName || resource.machineId;
+        if (!machine) add('cost', label, 'mesin tidak aktif atau tidak sesuai spesifikasi');
+        if (!positive(resource.cycleTimeSeconds ?? route.cycleTime)) add('cost', label, `cycle time ${name} belum diisi`);
+        const diesId = resource.diesId || (resource.machineId === primary ? route.diesId : null);
+        if (tooling && !diesId) add('cost', label, `dies / jig ${name} belum dipilih`);
+        else if (diesId && !allowedDies.some(d => d.id === diesId)) add('cost', label, `dies / jig ${name} tidak berelasi aktif dengan child part`);
+      }
+      if (policy.mode === 'PARALLEL' && (!policy.approvalReference?.trim() || resources.length < 2 || Number(policy.maxParallelMachines) < resources.length)) add('cost', label, 'aturan atau persetujuan paralel belum lengkap');
+    }
+    for (const row of state.rows) {
+      const part = row.part || state.parts.find(p => p.id === row.partId) || {};
+      const label = part.partCode || 'Komponen baru';
+      if (!row.partId) add('structure', label, 'part belum dipilih');
+      if (!positive(row.qty)) add('structure', label, 'qty harus lebih dari 0');
+      if (!row.uomCode) add('structure', label, 'UOM belum dipilih');
+      if (!row.category) add('structure', label, 'kategori belum dipilih');
+      if (!row.partId) continue;
+      const childBom = linkedBom(row);
+      if (!childBom && row.category === 'Purchase') {
+        if (isCustomerSupplied(row)) {
+          if (!row.supplyCustomerId) add('material', label, 'customer pemilik material belum dipilih');
+        } else if (!(row.supplierId || part.supplierId)) add('material', label, 'supplier belum dipilih');
+        if (!directPrice(row).found) add('material', label, 'harga material / purchase part belum tersedia');
+        if (isRawMaterial(row)) {
+          if (!row.materialFormId) add('material', label, 'material form belum dipilih');
+          if (!positive(row.materialPitch) || !positive(row.materialCavity) || !positive(row.grossWeight)) add('material', label, 'pitch, cavity, atau gross weight belum lengkap');
+          if (row.materialScheme === 'ALTERNATIVE' && (!row.alternateMaterialFormId || !positive(row.alternateMaterialPitch) || !positive(row.alternateMaterialCavity))) add('material', label, 'skema material alternatif belum lengkap');
+        }
+      }
+      const routes = row.mbomProcesses || [];
+      if (!childBom && ['inHouse', 'Vendor'].includes(row.category) && !routes.length) add('cost', label, 'routing proses belum ditambahkan');
+      for (const route of routes) {
+        const routeLabel = `${label} · ${processMaster(route).processCode || 'Proses'}`;
+        if (!route.processId || !positive(route.sequence)) add('cost', routeLabel, 'proses atau urutan belum lengkap');
+        if (route.routingMode === 'VENDOR') {
+          if (!eligibleVendors(route, row).some(v => v.vendor.id === route.vendorId)) add('cost', routeLabel, 'vendor belum dipilih atau belum dikualifikasi');
+        } else checkInhouse(route, row, routeLabel);
+        if (!machineProcessCost(route, row).found) add('cost', routeLabel, 'harga vendor / rate mesin atau cycle time belum lengkap');
+        const execution = route.machinePlanningPolicy?.execution;
+        if (route.routingMode === 'VENDOR' && execution?.allowedModes?.includes('INHOUSE')) checkInhouse(execution.inhouse || {}, row, `${routeLabel} (alternatif in-house)`);
+      }
+    }
+    for (const key of Object.keys(gaps)) gaps[key] = [...new Set(gaps[key])];
+    gaps.all = [...new Set([...gaps.structure, ...gaps.material, ...gaps.cost])];
+    document.querySelectorAll('[data-bom-column-view]').forEach(button => {
+      const issues = gaps[button.dataset.bomColumnView] || [];
+      const label = button.dataset.viewLabel;
+      button.classList.toggle('has-incomplete', issues.length > 0);
+      button.innerHTML = `${escapeHtml(label)}${issues.length ? `<span class="bom-view-gap-badge" aria-hidden="true">! ${issues.length}</span>` : ''}`;
+      button.setAttribute('aria-label', issues.length ? `${label}, ${issues.length} hal belum lengkap` : label);
+      button.title = issues.length ? issues.join('\n') : label;
+    });
+    let panel = document.getElementById('bom-view-incomplete');
+    if (!panel) {
+      panel = document.createElement('details'); panel.id = 'bom-view-incomplete'; panel.className = 'bom-view-incomplete';
+      document.querySelector('.bom-table-workspace-tools').insertAdjacentElement('afterend', panel);
+    }
+    const selected = detailTable.dataset.bomView || 'structure';
+    const issues = gaps[selected] || gaps.all;
+    panel.hidden = !issues.length;
+    panel.innerHTML = `<summary>${issues.length} hal perlu dilengkapi pada tampilan ini</summary><ul>${issues.map(text => `<li>${escapeHtml(text)}</li>`).join('')}</ul>`;
+  }
 
   function localGraphValidation() {
     const errors = []; const warnings = []; const byKey = new Map(state.rows.map((row) => [String(keyOf(row)), row])); const edges = new Set();
@@ -292,7 +376,9 @@
     const node = document.getElementById("bom-graph-validation"); if (!node) return; const issues = [...(validation.errors || []), ...(validation.warnings || [])];
     node.classList.remove("d-none", "alert-danger", "alert-warning", "alert-success");
     node.classList.add(validation.valid ? (issues.length ? "alert-warning" : "alert-success") : "alert-danger");
-    node.innerHTML = `<strong>${validation.valid ? "Struktur BOM dapat di-explode" : "Explode BOM diblokir"}</strong> · ${issues.length ? `${issues.length} temuan` : "tidak ada struktur ambigu"}${issues.length ? `<ul class="mb-0 mt-2">${issues.slice(0, 8).map((issue) => `<li><b>${escapeHtml(issue.code)}</b> · ${escapeHtml(issue.message)}</li>`).join("")}</ul>` : ""}`;
+    const summary = `<span class="bom-validation-summary"><strong>${validation.valid ? "Struktur BOM siap dihitung" : "Struktur BOM perlu diperbaiki"}</strong><span class="bom-validation-count">${issues.length ? `${issues.length} catatan validasi` : "Tidak ada masalah struktur"}</span></span>`;
+    const wasOpen = node.querySelector("details")?.open;
+    node.innerHTML = issues.length ? `<details ${!validation.valid || wasOpen ? "open" : ""}><summary>${summary}</summary><ul class="mb-0 mt-2">${issues.map((issue) => `<li>${escapeHtml(issue.message)} <code>${escapeHtml(issue.code)}</code></li>`).join("")}</ul></details>` : summary;
   }
 
   function childBomCostCell(row, estimateCache) {
@@ -309,11 +395,20 @@
     const count = Math.max(0, Math.min(Number(freezeCountInput.value || 0), 6)); const headerCells = [...detailTable.tHead?.rows?.[0]?.cells || []];
     detailTable.querySelectorAll(".bom-frozen-column, .bom-frozen-edge").forEach((cell) => { cell.classList.remove("bom-frozen-column", "bom-frozen-edge"); cell.style.removeProperty("--bom-frozen-left"); });
     let left = 0;
-    headerCells.slice(0, count).forEach((headerCell, index) => {
+    const maxFrozenWidth = Math.max(0, detailTable.closest(".bom-edit-grid-scroll").clientWidth - 160);
+    let frozenWidth = 0;
+    const visibleHeaders = headerCells.slice(0, count).filter(cell => {
+      const width = cell.getBoundingClientRect().width;
+      if (!width || frozenWidth + width > maxFrozenWidth) return false;
+      frozenWidth += width;
+      return true;
+    });
+    visibleHeaders.forEach((headerCell, visibleIndex) => {
+      const index = headerCells.indexOf(headerCell);
       const cells = [headerCell, ...[...detailTable.tBodies].flatMap((body) => [...body.rows].map((row) => row.cells[index]).filter(Boolean))];
       cells.forEach((cell) => { cell.classList.add("bom-frozen-column"); cell.style.setProperty("--bom-frozen-left", `${left}px`); });
       left += headerCell.getBoundingClientRect().width;
-      if (index === count - 1) cells.forEach((cell) => cell.classList.add("bom-frozen-edge"));
+      if (visibleIndex === visibleHeaders.length - 1) cells.forEach((cell) => cell.classList.add("bom-frozen-edge"));
     });
   }
   function scheduleFrozenColumns() { window.requestAnimationFrame(applyFrozenColumns); }
@@ -331,9 +426,25 @@
   }
 
   function renderRows() {
+    updateCompletenessMarkers();
     assignRoutingNumbers();
     assignOccurrenceCodes();
-    queueMicrotask(() => { rowsTarget.querySelectorAll("tr[data-row-key]").forEach((rowElement) => { const row = state.rows.find((item) => String(keyOf(item)) === rowElement.dataset.rowKey); const summary = row ? materialConsumptionSummary(row) : ""; if (summary) rowElement.children[1]?.insertAdjacentHTML("beforeend", summary); }); scheduleFrozenColumns(); });
+    queueMicrotask(() => {
+      const fieldLabels = { materialSupplyType: "Sumber material", supplierId: "Supplier harga default", supplyCustomerId: "Customer pemilik material", leadTime: "Lead time", leadTimeUnit: "Satuan lead time" };
+      rowsTarget.querySelectorAll("tr[data-row-key]").forEach((rowElement) => {
+        const row = state.rows.find((item) => String(keyOf(item)) === rowElement.dataset.rowKey);
+        const summary = row ? materialConsumptionSummary(row) : "";
+        if (summary) rowElement.children[1]?.insertAdjacentHTML("beforeend", summary);
+        rowElement.querySelectorAll("[data-field]").forEach(input => {
+          const columnLabel = detailTable.tHead.rows[0].cells[input.closest("td").cellIndex]?.textContent.replace(/Ubah lebar.*$/, "").replace(/↕/g, "").trim();
+          const label = fieldLabels[input.dataset.field] || columnLabel || input.dataset.field;
+          input.setAttribute("aria-label", `${label} · ${row?.part?.partCode || "komponen baru"}`);
+          if (input.matches('[data-field="partId"], [data-field="parentDetailId"]')) input.title = input.selectedOptions[0]?.textContent || "";
+        });
+      });
+      detailTable.dispatchEvent(new CustomEvent("bom-table:rows-rendered", { bubbles: true }));
+      scheduleFrozenColumns();
+    });
     const estimate = estimateRecord(state.record); const childEstimateCache = new Map(); updateEstimateSummary(estimate); renderGraphValidation();
     rowsTarget.innerHTML = state.rows.length ? state.rows.map((row) => {
       const childBom = linkedBom(row); const processes = row.mbomProcesses || []; const routing = processEstimate(row); const part = row.part || state.parts.find((item) => item.id === row.partId) || {};
@@ -368,12 +479,12 @@
 
   async function initialize() {
     try {
-      const urls = ["parts", "uom", "processes", "machines", "machine-cost-rates", "material-forms", "part-price-lists", "material-price-lists", "vendor-price-lists", "vendor-processes", "suppliers", "customers", "vendors", "currencies"];
+      const urls = ["parts", "uom", "processes", "machines", "machine-cost-rates", "material-forms", "part-price-lists", "material-price-lists", "vendor-price-lists", "vendor-processes", "suppliers", "customers", "vendors", "currencies", "dies"];
       const [record, ...payloads] = await Promise.all([fetchJson(`/modules/api/manufacturing-bom/bill-of-materials/${encodeURIComponent(config.recordKey)}`), ...urls.map((slug, index) => index < 4 ? fetchJson(`/master-data/api/${slug}?start=0&length=500&isDeleted=false`) : optionalList(`/master-data/api/${slug}?start=0&length=500&isDeleted=false`))]);
-      [state.parts, state.uoms, state.processes, state.machines, state.machineCostRates, state.materialForms, state.partPrices, state.materialPrices, state.vendorPrices, state.vendorProcesses, state.suppliers, state.customers, state.vendors, state.currencies] = payloads.map((payload) => payload.data || payload.items || []); state.parts = state.parts.filter((part) => part.canUseInBom !== false); state.customers = state.customers.filter((customer) => customer.status !== "Inactive" && customer.isDeleted !== true); state.record = record; state.graphValidation = record.graphValidation || null;
+      [state.parts, state.uoms, state.processes, state.machines, state.machineCostRates, state.materialForms, state.partPrices, state.materialPrices, state.vendorPrices, state.vendorProcesses, state.suppliers, state.customers, state.vendors, state.currencies, state.dies] = payloads.map((payload) => payload.data || payload.items || []); state.parts = state.parts.filter((part) => part.canUseInBom !== false); state.customers = state.customers.filter((customer) => customer.status !== "Inactive" && customer.isDeleted !== true); state.record = record; state.graphValidation = record.graphValidation || null;
       const sourceRows = (record.details || []).filter((detail) => !detail.isDeleted).map((detail) => ({ ...detail, materialSupplyType: detail.materialSupplyType || "SUPPLIER_PURCHASE", supplierId: detail.supplierId || detail.part?.supplierId || null, clientKey: detail.id || newKey(), mbomProcesses: detail.mbomProcesses || [] })); const migratedVendorRows = normalizeLegacyVendorRows(sourceRows); const sourceByKey = new Map(sourceRows.map((row) => [keyOf(row), row])); const boundaryKeys = new Set(sourceRows.filter((row) => row.part?.itemType === "FG" || (row.part?.mbomHeaders || []).some((bom) => bom.noReg !== record.noReg && !bom.isDeleted)).map(keyOf)); const ownedByChildBom = (row) => { let parent = sourceByKey.get(row.parentDetailId); const visited = new Set(); while (parent && !visited.has(keyOf(parent))) { visited.add(keyOf(parent)); if (boundaryKeys.has(keyOf(parent))) return true; parent = sourceByKey.get(parent.parentDetailId); } return false; };
       state.rows = sourceRows.filter((row) => !ownedByChildBom(row)); state.omittedRows = sourceRows.filter(ownedByChildBom); const ownedNote = document.getElementById("bom-table-owned-note"); if (state.omittedRows.length) { ownedNote.textContent = `${state.omittedRows.length} detail turunan dikelola oleh MBOM FG/sub-assembly masing-masing dan tidak diedit dari parent.`; ownedNote.classList.remove("d-none"); } const vendorNote = document.getElementById("bom-table-vendor-note"); if (migratedVendorRows) { vendorNote.textContent = `${migratedVendorRows} baris vendor format lama sudah dipindahkan ke Routing Process pada draft revisi ini. Periksa vendor code dan harga sebelum simpan.`; vendorNote.classList.remove("d-none"); }
-      document.getElementById("bom-table-title").textContent = record.noReg; document.getElementById("bom-table-root").textContent = `${record.part?.partCode || "—"} — ${record.part?.partName || ""}`; document.getElementById("bom-table-uom").innerHTML = uomOptions(record.uomCode); document.getElementById("bom-table-revision").value = record.revision || 1; document.getElementById("bom-table-effective").value = todayInput(); document.getElementById("bom-table-expiry").value = ""; document.getElementById("bom-table-notes").value = record.notes || ""; document.getElementById("bom-table-revision-note").value = ""; syncRevisionMode();
+      document.querySelector("#bom-table-title .document-shell__number").textContent = record.noReg; document.getElementById("bom-table-root").textContent = `${record.part?.partCode || "—"} — ${record.part?.partName || ""}`; document.getElementById("bom-table-uom").innerHTML = uomOptions(record.uomCode); document.getElementById("bom-table-revision").value = record.revision || 1; document.getElementById("bom-table-effective").value = todayInput(); document.getElementById("bom-table-expiry").value = ""; document.getElementById("bom-table-notes").value = record.notes || ""; document.getElementById("bom-table-revision-note").value = ""; syncRevisionMode();
       await loadLinkedBoms(record); renderRows(); if (state.graphValidation?.issueCount) renderGraphValidation(state.graphValidation);
     } catch (error) { alertBox.textContent = error.message; alertBox.classList.remove("d-none"); }
   }
@@ -381,17 +492,21 @@
   document.getElementById("bom-table-add").addEventListener("click", () => { state.rows.push({ clientKey: newKey(), parentDetailId: null, partId: "", part: {}, qty: 1, uomCode: state.record?.uomCode || "", category: "Purchase", materialSupplyType: "SUPPLIER_PURCHASE", supplyCustomerId: null, assemblyPolicyOverride: "DEFAULT", leadTime: 0, leadTimeUnit: "HOUR", notes: "", mbomProcesses: [] }); renderRows(); });
   document.getElementById("bom-table-effective")?.addEventListener("change", renderRows);
   function syncRevisionMode() {
-    const isNewRevision = document.getElementById("bom-table-revision-mode")?.value !== "correction";
+    const policy = state.record?.revisionPolicy;
+    const mode = document.getElementById("bom-table-revision-mode");
+    const save = document.getElementById("bom-table-save");
+    save.disabled = !policy || !policy.isLatest;
+    if (!policy) throw new Error("Status pemakaian produksi belum tersedia. Muat ulang sebelum menyimpan.");
+    const isNewRevision = policy.mode === "newRevision";
+    mode.innerHTML = option(policy.mode, isNewRevision ? `Otomatis: revisi baru ${policy.nextRevision}` : `Otomatis: tetap revisi ${state.record.revision || 1}`, policy.mode);
+    mode.disabled = true;
     const effective = document.getElementById("bom-table-effective");
     const expiry = document.getElementById("bom-table-expiry");
     const note = document.getElementById("bom-table-revision-note");
-    const currentRevision = Number(state.record?.revision || 1);
-    document.getElementById("bom-table-effective-label").textContent = isNewRevision ? `Mulai Berlaku Rev ${currentRevision + 1}` : "Mulai Berlaku Rev Ini";
-    document.getElementById("bom-table-revision-hint").textContent = isNewRevision
-      ? `Rev ${currentRevision + 1} dibuat sebagai record baru; Rev ${currentRevision} otomatis berakhir sesaat sebelum tanggal ini.`
-      : "Koreksi hanya untuk metadata/typo. Struktur yang sudah dipakai MPS wajib dibuat sebagai revisi baru.";
+    document.getElementById("bom-table-effective-label").textContent = isNewRevision ? `Mulai Berlaku Rev ${policy.nextRevision}` : "Mulai Berlaku Rev Ini";
+    document.getElementById("bom-table-revision-hint").textContent = policy.isLatest ? policy.reason : `Revisi historis hanya untuk dilihat. Buka ${policy.latestNoReg} untuk mengedit revisi terbaru.`;
     note.required = isNewRevision;
-    if (isNewRevision && !effective.value) effective.value = todayInput();
+    if (isNewRevision) { effective.value = policy.nextEffectiveDate; expiry.value = ""; }
     if (!isNewRevision) {
       effective.value = dateInput(state.record?.effectiveDate);
       expiry.value = dateInput(state.record?.expiryDate);
@@ -399,9 +514,15 @@
   }
   document.getElementById("bom-table-revision-mode")?.addEventListener("change", syncRevisionMode);
   if (freezeCountInput) {
-    const savedFreezeCount = Number(localStorage.getItem(freezeStorageKey)); freezeCountInput.value = String(Number.isInteger(savedFreezeCount) && savedFreezeCount >= 0 && savedFreezeCount <= 6 ? savedFreezeCount : 3);
+    const savedFreezeRaw = localStorage.getItem(freezeStorageKey); const savedFreezeCount = Number(savedFreezeRaw); freezeCountInput.value = String(savedFreezeRaw !== null && Number.isInteger(savedFreezeCount) && savedFreezeCount >= 0 && savedFreezeCount <= 6 ? savedFreezeCount : 2);
     freezeCountInput.addEventListener("change", () => { localStorage.setItem(freezeStorageKey, freezeCountInput.value); applyFrozenColumns(); });
     window.addEventListener("resize", scheduleFrozenColumns);
+    detailTable.addEventListener("bom-table:view-change", scheduleFrozenColumns);
+    if (window.ResizeObserver) {
+      const freezeObserver = new ResizeObserver(scheduleFrozenColumns);
+      freezeObserver.observe(detailTable);
+      [...detailTable.tHead.rows[0].cells].slice(0, 6).forEach(cell => freezeObserver.observe(cell));
+    }
   }
   function updateRow(event) {
     const field = event.target.dataset.field;
@@ -412,6 +533,7 @@
     row[field] = ["qty", "leadTime"].includes(field) ? Number(event.target.value) : event.target.value || (nullableFields.includes(field) ? null : "");
     if (field === "partId") {
       row.part = state.parts.find((part) => part.id === row.partId) || {};
+      (row.mbomProcesses || []).forEach((route) => window.BomMachinePolicy.clearUnrelatedDies(route, state.dies, row.partId));
       row.supplierId = row.part.supplierId || null;
       row.supplyCustomerId = null;
       row.materialSupplyType = "SUPPLIER_PURCHASE";
@@ -470,29 +592,37 @@
       const vendorMaster = vendorProcessMaster(item); const vendorCandidates = eligibleVendors(item, row);
       const resource = vendorMode
         ? `<select class="form-select" data-process-field="vendorId">${eligibleVendorOptions(item, row)}</select><small class="${vendorCandidates.length ? "bom-hour-unit" : "bom-cost-missing"}">${vendorMaster ? `${vendorCandidates.length} vendor aktif eligible untuk ${escapeHtml(vendorMaster.vendorProcessCode)}` : "Kode proses ini belum dibuat di Master Kode Proses Vendor"}</small>${vendorMaster ? '<a class="bom-cost-source-link" href="/master-data/vendor-processes" target="_blank" rel="noopener">Atur vendor eligible</a>' : '<a class="bom-cost-source-link" href="/master-data/vendor-processes/new" target="_blank" rel="noopener">+ Buat Kode Proses Vendor</a>'}`
-        : `<select class="form-select" data-process-field="machineSpecificationCode">${machineSpecificationOptions(item.machineSpecificationCode)}</select><small class="bom-hour-unit">${eligibleCount} mesin aktif eligible</small>`;
+        : `<select class="form-select" data-process-field="machineSpecificationCode">${machineSpecificationOptions(item.machineSpecificationCode)}</select><small class="bom-hour-unit">${eligibleCount} mesin sesuai spesifikasi</small>`;
       const standardRate = vendorMode
         ? `<strong class="bom-machine-rate">${vendorRate.found ? money(vendorRate.value) : "—"}</strong><small class="bom-hour-unit">harga proses / pcs</small>${vendorRate.source?.id ? `<a class="bom-cost-source-link" href="/master-data/vendor-price-lists/${encodeURIComponent(vendorRate.source.id)}/edit?key=${encodeURIComponent(vendorRate.source.id)}" target="_blank" rel="noopener">Buka Vendor Price List</a>` : `<small class="bom-cost-missing">Harga untuk kombinasi part + vendor + proses belum ada</small>${item.vendorId ? `<a class="bom-cost-source-link" href="/master-data/vendor-price-lists/new?vendorId=${encodeURIComponent(item.vendorId)}&partId=${encodeURIComponent(row?.partId || "")}&effectiveFrom=${encodeURIComponent(document.getElementById("bom-table-effective")?.value || todayInput())}" target="_blank" rel="noopener">+ Tambah harga vendor</a>` : ""}`}`
         : `<strong class="bom-machine-rate">${rate.found ? money(rate.value) : "—"}</strong><small class="bom-hour-unit">${rate.found ? `${rate.unit} · referensi ${machine.machineCode || "-"}` : "Rate belum ada"}</small>${machineMasterLink(machine, "Buka Master Machine")}`;
       const basis = vendorMode
         ? `<strong class="bom-machine-rate">PER PCS</strong><small class="bom-hour-unit">Tidak dikali cycle time</small>`
         : `<strong class="bom-machine-rate">${moneyPerSecond(perSecond.value)}</strong>${perSecond.found ? '<small class="bom-hour-unit">Rate dikonversi ke detik</small>' : '<small class="bom-cost-missing">Rate belum lengkap</small>'}`;
-      return `<tr data-process-index="${index}"><td><strong class="bom-routing-number">${escapeHtml(item.routingNumber || "-")}</strong></td><td><input class="form-control" data-process-field="sequence" type="number" min="1" value="${Number(item.sequence || (index + 1) * 10)}"></td><td><select class="form-select" data-process-field="processId">${processOptions(item.processId)}</select><small class="bom-process-occurrence-inline">${escapeHtml(item.occurrenceCode || "")}</small></td><td><select class="form-select" data-process-field="routingMode">${option("INHOUSE", "In-house", item.routingMode || "INHOUSE")}${option("VENDOR", "Vendor process", item.routingMode)}</select></td><td>${resource}</td><td>${standardRate}</td><td><input class="form-control" data-process-field="cycleTime" type="number" min="0" step="0.01" value="${Number(item.cycleTime || 0)}" ${vendorMode ? "disabled" : ""}><small class="bom-hour-unit">${vendorMode ? "Tidak digunakan untuk harga vendor" : "Sumber: Routing MBOM ini"}</small></td><td>${basis}</td><td><strong class="bom-machine-cost">${money(estimate.value)}</strong>${estimate.found ? `<small class="bom-hour-unit">${vendorMode ? "Harga vendor / pcs" : "Cycle Time × Cost / Second"}</small>` : '<small class="bom-cost-missing">Harga / rate belum lengkap</small>'}</td><td><input class="form-control" data-process-field="notes" value="${escapeAttr(item.notes || "")}"></td><td><button class="bom-table-row-delete" type="button" data-delete-process>×</button></td></tr>`;
+      return `<tr data-process-index="${index}"><td><strong class="bom-routing-number">${escapeHtml(item.routingNumber || "-")}</strong></td><td><input class="form-control" data-process-field="sequence" type="number" min="1" value="${Number(item.sequence || (index + 1) * 10)}"></td><td><select class="form-select" data-process-field="processId">${processOptions(item.processId)}</select><small class="bom-process-occurrence-inline">${escapeHtml(item.occurrenceCode || "")}</small></td><td><select class="form-select" data-process-field="routingMode">${option("INHOUSE", "In-house", item.routingMode || "INHOUSE")}${option("VENDOR", "Vendor process", item.routingMode)}</select></td><td>${resource}</td><td>${standardRate}</td><td><input class="form-control" data-process-field="cycleTime" type="number" min="0" step="0.01" value="${Number(item.cycleTime || 0)}" ${vendorMode ? "disabled" : ""}><small class="bom-hour-unit">${vendorMode ? "Tidak digunakan untuk harga vendor" : "Sumber: Routing MBOM ini"}</small></td><td>${basis}</td><td><strong class="bom-machine-cost">${money(estimate.value)}</strong>${estimate.found ? `<small class="bom-hour-unit">${vendorMode ? "Harga vendor / pcs" : "Cycle Time × Cost / Second"}</small>` : '<small class="bom-cost-missing">Harga / rate belum lengkap</small>'}</td><td><input class="form-control" data-process-field="notes" value="${escapeAttr(item.notes || "")}"></td><td><button class="bom-table-row-delete" type="button" data-delete-process>×</button></td></tr><tr class="bom-policy-row" data-process-index="${index}"><td colspan="11">${vendorMode ? "" : window.BomMachinePolicy.render(item, state.machines, state.dies, row?.partId)}${window.BomExecutorPolicy.render(item, state.machines, state.dies, vendorCandidates, row?.partId)}</td></tr>`;
     }).join("") : '<tr><td colspan="11" class="text-center py-4">Belum ada routing process.</td></tr>';
   }
   renderProcessRows = renderSpecificationProcessRows;
+  processRows.addEventListener("change", (event) => {
+    const item = editingRow()?.mbomProcesses?.[Number(event.target.closest("tr")?.dataset.processIndex)];
+    if (item && (window.BomExecutorPolicy.update(item, event.target) || window.BomMachinePolicy.update(item, event.target))) renderProcessRows();
+  });
   document.getElementById("bom-process-add").addEventListener("click", () => { const row = editingRow(); if (!row) return; const max = Math.max(0, ...(row.mbomProcesses || []).map((item) => Number(item.sequence || 0))); row.mbomProcesses.push({ sequence: Math.floor(max / 10) * 10 + 10, processId: "", routingMode: "INHOUSE", vendorId: null, machineId: null, machineSpecificationCode: "", alternativeMachineIds: [], cycleTime: 0, notes: "" }); renderProcessRows(); });
-  processRows.addEventListener("change", (event) => { const row = editingRow(); const index = Number(event.target.closest("tr")?.dataset.processIndex); const item = row?.mbomProcesses?.[index]; const field = event.target.dataset.processField; if (!item || !field) return; item[field] = field === "alternativeMachineIds" ? [...event.target.selectedOptions].map((option) => option.value).filter((machineId) => machineId && machineId !== item.machineId) : ["sequence", "cycleTime"].includes(field) ? Number(event.target.value) : event.target.value || null; if (field === "processId") { item.process = state.processes.find((process) => process.id === item.processId) || null; autoSelectEligibleVendor(item, row); } if (field === "machineId") { item.machine = state.machines.find((machine) => machine.id === item.machineId) || null; item.alternativeMachineIds = (item.alternativeMachineIds || []).filter((machineId) => machineId !== item.machineId); } if (field === "vendorId") item.vendor = state.vendors.find((vendor) => vendor.id === item.vendorId) || null; if (field === "routingMode") { if (item.routingMode === "VENDOR") { item.machineId = null; item.machine = null; item.machineSpecificationCode = ""; item.cycleTime = 0; autoSelectEligibleVendor(item, row); } else { item.vendorId = null; item.vendor = null; } } renderProcessRows(); });
-  processRows.addEventListener("change", (event) => { if (event.target.dataset.processField !== "machineSpecificationCode") return; const item = editingRow()?.mbomProcesses?.[Number(event.target.closest("tr")?.dataset.processIndex)]; if (!item) return; const representative = representativeMachine(item); item.machineId = representative?.id || null; item.machine = representative || null; item.alternativeMachineIds = []; renderProcessRows(); });
+  processRows.addEventListener("change", (event) => { const row = editingRow(); const index = Number(event.target.closest("tr")?.dataset.processIndex); const item = row?.mbomProcesses?.[index]; const field = event.target.dataset.processField; if (!item || !field) return; if (field === "routingMode") window.BomExecutorPolicy.changeDefault(item, event.target.value); else item[field] = field === "alternativeMachineIds" ? [...event.target.selectedOptions].map((option) => option.value).filter((machineId) => machineId && machineId !== item.machineId) : ["sequence", "cycleTime"].includes(field) ? Number(event.target.value) : event.target.value || null; if (field === "processId") { item.process = state.processes.find((process) => process.id === item.processId) || null; autoSelectEligibleVendor(item, row); } if (field === "machineId") { item.machine = state.machines.find((machine) => machine.id === item.machineId) || null; item.alternativeMachineIds = (item.alternativeMachineIds || []).filter((machineId) => machineId !== item.machineId); } if (field === "vendorId") item.vendor = state.vendors.find((vendor) => vendor.id === item.vendorId) || null; if (field === "routingMode") { if (item.routingMode === "VENDOR") { autoSelectEligibleVendor(item, row); } else { item.vendorId = null; item.vendor = null; } } renderProcessRows(); });
+  processRows.addEventListener("change", (event) => { if (event.target.dataset.processField !== "machineSpecificationCode") return; const item = editingRow()?.mbomProcesses?.[Number(event.target.closest("tr")?.dataset.processIndex)]; if (!item) return; const representative = representativeMachine(item); item.machineId = representative?.id || null; item.machine = representative || null; item.alternativeMachineIds = []; window.BomExecutorPolicy.resetMachines(item); item.diesId = null; renderProcessRows(); });
   processRows.addEventListener("click", (event) => { const button = event.target.closest("[data-delete-process]"); if (!button) return; const row = editingRow(); const index = Number(button.closest("tr").dataset.processIndex); row.mbomProcesses.splice(index, 1); renderProcessRows(); });
   processDialog.addEventListener("close", renderRows);
   document.getElementById("bom-table-save").addEventListener("click", async function () {
+    if (!state.record?.revisionPolicy?.isLatest) return;
     alertBox.classList.add("d-none"); const invalid = state.rows.find((row) => !row.partId || !(Number(row.qty) > 0)); if (invalid) { alertBox.textContent = "Semua baris wajib memiliki Part dan Qty lebih dari 0."; alertBox.classList.remove("d-none"); return; } const invalidProcess = state.rows.find((row) => (row.mbomProcesses || []).some((item) => !item.processId || !(Number(item.sequence) > 0))); if (invalidProcess) { alertBox.textContent = "Setiap routing wajib memiliki Process dan Sequence lebih dari 0."; alertBox.classList.remove("d-none"); return; } const vendorCategoryWithoutRoute = state.rows.find((row) => row.category === "Vendor" && !(row.mbomProcesses || []).some((item) => String(item.routingMode || "INHOUSE").toUpperCase() === "VENDOR")); if (vendorCategoryWithoutRoute) { alertBox.textContent = "Kategori Proses outsource wajib memiliki minimal satu routing mode Vendor."; alertBox.classList.remove("d-none"); return; } const invalidVendorRoute = state.rows.flatMap((row) => (row.mbomProcesses || []).map((item) => ({ row, item }))).find(({ row, item }) => { if (String(item.routingMode || "INHOUSE").toUpperCase() !== "VENDOR") return false; return !item.vendorId || !eligibleVendors(item, row).some(({ vendor }) => vendor.id === item.vendorId); }); if (invalidVendorRoute) { const code = processMaster(invalidVendorRoute.item).processCode || "terpilih"; alertBox.textContent = `Vendor routing ${code} belum dipilih atau tidak terdaftar di Master Kode Proses Vendor.`; alertBox.classList.remove("d-none"); return; }
     this.disabled = true; this.textContent = "Menyimpan...";
     try {
       const missingCustomer = state.rows.find((row) => isCustomerSupplied(row) && !row.supplyCustomerId);
       if (missingCustomer) throw new Error(`Customer pemilik material wajib dipilih untuk ${missingCustomer.part?.partCode || "raw material"}.`);
-      const details = state.rows.map((row) => ({ id: row.id || undefined, clientKey: keyOf(row), parentDetailId: row.parentDetailId || null, levelComponent: levelOf(row), partId: row.partId, materialSupplyType: canChooseMaterialSource(row) ? row.materialSupplyType || "SUPPLIER_PURCHASE" : "SUPPLIER_PURCHASE", supplyCustomerId: isCustomerSupplied(row) ? row.supplyCustomerId || null : null, supplierId: row.category === "Purchase" && !isCustomerSupplied(row) ? row.supplierId || null : null, vendorId: null, qty: Number(row.qty), uomCode: row.uomCode || null, category: row.category || "Purchase", assemblyPolicyOverride: row.assemblyPolicyOverride || "DEFAULT", leadTime: Math.max(0, Number(row.leadTime || 0)), leadTimeUnit: row.leadTimeUnit || "HOUR", materialThickness: row.materialThickness ?? null, materialWidth: row.materialWidth ?? null, materialPitch: row.materialPitch ?? null, materialCavity: row.materialCavity ?? null, materialDensity: row.materialDensity ?? null, materialFormId: row.materialFormId || null, materialScheme: row.materialScheme || "DEFAULT", defaultGrossWeight: Number(row.defaultGrossWeight ?? row.grossWeight ?? 0), alternateMaterialFormId: row.alternateMaterialFormId || null, alternateMaterialPitch: row.alternateMaterialPitch ?? null, alternateMaterialCavity: row.alternateMaterialCavity ?? null, alternateGrossWeight: row.alternateGrossWeight ?? null, grossWeight: Number(row.grossWeight || 0), notes: row.notes || null, mbomProcesses: row.mbomProcesses || [] })); const revisionMode = document.getElementById("bom-table-revision-mode").value; const revisionNote = document.getElementById("bom-table-revision-note").value.trim(); if (revisionMode === "newRevision" && !revisionNote) throw new Error("Catatan revisi wajib diisi agar perubahan dapat diaudit."); const header = { partId: state.record.partId, uomCode: document.getElementById("bom-table-uom").value || null, effectiveDate: document.getElementById("bom-table-effective").value || null, expiryDate: document.getElementById("bom-table-expiry").value || null, notes: document.getElementById("bom-table-notes").value || null, revisionNote, revisionMode, expirePreviousRevision: true }; const response = await fetch(`/modules/api/manufacturing-bom/bill-of-materials/${encodeURIComponent(state.record.id)}`, { method: "PATCH", headers: headers(true), body: JSON.stringify({ revisionMode, header, details }) }); const payload = await response.json().catch(() => ({})); if (response.status === 401) return location.replace(`/login?next=${encodeURIComponent(location.pathname)}`); if (!response.ok) throw new Error(payload.message || payload.detail || "BOM gagal disimpan."); location.replace(`/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(payload.noReg || state.record.noReg)}`); } catch (error) { alertBox.textContent = error.message; alertBox.classList.remove("d-none"); this.disabled = false; this.textContent = "Simpan Perubahan"; }
+      const details = [...state.rows, ...(state.record.revisionPolicy.mode === "correction" ? state.omittedRows : [])].map((row) => ({ id: row.id || undefined, clientKey: keyOf(row), parentDetailId: row.parentDetailId || null, levelComponent: levelOf(row), partId: row.partId, materialSupplyType: canChooseMaterialSource(row) ? row.materialSupplyType || "SUPPLIER_PURCHASE" : "SUPPLIER_PURCHASE", supplyCustomerId: isCustomerSupplied(row) ? row.supplyCustomerId || null : null, supplierId: row.category === "Purchase" && !isCustomerSupplied(row) ? row.supplierId || null : null, vendorId: null, qty: Number(row.qty), uomCode: row.uomCode || null, category: row.category || "Purchase", assemblyPolicyOverride: row.assemblyPolicyOverride || "DEFAULT", leadTime: Math.max(0, Number(row.leadTime || 0)), leadTimeUnit: row.leadTimeUnit || "HOUR", materialThickness: row.materialThickness ?? null, materialWidth: row.materialWidth ?? null, materialPitch: row.materialPitch ?? null, materialCavity: row.materialCavity ?? null, materialDensity: row.materialDensity ?? null, materialFormId: row.materialFormId || null, materialScheme: row.materialScheme || "DEFAULT", defaultGrossWeight: Number(row.defaultGrossWeight ?? row.grossWeight ?? 0), alternateMaterialFormId: row.alternateMaterialFormId || null, alternateMaterialPitch: row.alternateMaterialPitch ?? null, alternateMaterialCavity: row.alternateMaterialCavity ?? null, alternateGrossWeight: row.alternateGrossWeight ?? null, grossWeight: Number(row.grossWeight || 0), notes: row.notes || null, mbomProcesses: row.mbomProcesses || [] })); const revisionMode = document.getElementById("bom-table-revision-mode").value; const revisionNote = document.getElementById("bom-table-revision-note").value.trim(); if (revisionMode === "newRevision" && !revisionNote) throw new Error("Catatan revisi wajib diisi agar perubahan dapat diaudit."); const header = { partId: state.record.partId, uomCode: document.getElementById("bom-table-uom").value || null, effectiveDate: document.getElementById("bom-table-effective").value || null, expiryDate: document.getElementById("bom-table-expiry").value || null, notes: document.getElementById("bom-table-notes").value || null, revisionNote, revisionMode, expirePreviousRevision: true }; const response = await fetch(`/modules/api/manufacturing-bom/bill-of-materials/${encodeURIComponent(state.record.id)}`, { method: "PATCH", headers: headers(true), body: JSON.stringify({ revisionMode, header, details }) }); const payload = await response.json().catch(() => ({})); if (response.status === 401) return location.replace(`/login?next=${encodeURIComponent(location.pathname)}`); if (!response.ok) throw new Error(payload.message || payload.detail || "BOM gagal disimpan."); location.replace(`/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(payload.noReg || state.record.noReg)}`); } catch (error) { alertBox.textContent = error.message; alertBox.classList.remove("d-none"); this.disabled = false; this.textContent = "Simpan Perubahan"; }
   });
+  detailTable.addEventListener("bom-table:view-change", updateCompletenessMarkers);
+  processRows.addEventListener("change", updateCompletenessMarkers);
+  document.getElementById("bom-table-uom").addEventListener("change", updateCompletenessMarkers);
   initialize();
 })();

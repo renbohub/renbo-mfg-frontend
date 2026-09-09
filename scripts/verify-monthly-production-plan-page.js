@@ -11,9 +11,9 @@ assert.match(view, /id="mpp-recommendation-generate"[^>]*>✦ Auto Allocation</,
 assert.match(script, /OR-Tools mengoptimasi…/);
 const style = fs.readFileSync(path.join(root, "public/css/ppic-monthly-production-plan.css"), "utf8");
 
-assert.match(route, /req\.query\.tab === "mpp"[^\n]+monthly-production-plans/, "tab MPP lama harus redirect ke halaman terpisah");
+assert.match(route, /redirectPlanningWorkspace[\s\S]*monthly-production-plans/, "workspace lama harus diarahkan ke Monthly Plan");
 assert.match(route, /res\.render\("ppic\/monthly-production-plan"/, "Monthly Production Plan harus memakai view khusus");
-assert.match(route, /ppic-monthly-production-plan\.js\?v=20260826-allocation-health-1/,
+assert.match(route, /ppic-monthly-production-plan\.js\?v=20260908-[\w-]+/,
   "asset page harus memakai versi baru agar browser tidak menjalankan handler lama dari cache");
 assert.match(view, /Capacity Overload/, "KPI capacity tidak boleh mencampur proposed allocation");
 assert.match(view, /mpp-health-proposed-value/, "status proposed harus terpisah dari capacity overload");
@@ -31,8 +31,8 @@ assert.match(route, /monthly-plan\/:key\/recommendations[^\n]+120000/,
   "generate recommendation harus memberi waktu cukup untuk fallback/runtime tanpa memutus backend pada 30 detik");
 assert.match(route, /function isTimeout\(error\)/,
   "proxy harus membedakan timeout perhitungan dari backend yang benar-benar offline");
-assert.match(route, /Perhitungan backend melewati batas waktu\. Backend tetap aktif/,
-  "timeout tidak boleh lagi dilaporkan sebagai backend tidak aktif");
+assert.match(route, /Respons backend melewati batas waktu\. Status proses belum terkonfirmasi/,
+  "timeout tidak boleh mengklaim status backend atau proses yang belum terkonfirmasi");
 assert.match(route, /monthly-plan\/recommendations\/:scenarioId\/apply/, "frontend harus mem-proxy apply scenario ke Capacity Editor");
 assert.match(view, /Monthly Production Plan/);
 assert.match(view, /mpp-month-thead/);
@@ -117,4 +117,15 @@ assert.match(script, /Alokasi s\/d Target/,
 assert.doesNotMatch(script, /<th>Alokasi Sebelum Target<\/th>/,
   "label lama tidak boleh menyembunyikan allocation pada hari yang sama");
 
-console.log("Monthly Production Plan page contract passed.");
+for (const id of ["mpp-month-search", "mpp-month-type", "mpp-month-expand", "mpp-month-refresh", "mpp-editor-plan", "mpp-editor-scope", "mpp-editor-start", "mpp-recommendation-generate"]) {
+  assert.equal(view.split(`id="${id}"`).length - 1, 1, `${id} harus tetap unik setelah toolbar dipisah`);
+}
+assert.match(view, /mpp-planning-toolbar[\s\S]*mpp-editor-start[\s\S]*mpp-recommendation-generate[\s\S]*mpp-release-rail/, "aksi alokasi harus berada di toolbar jadwal tersendiri");
+assert.match(view, /mpp-matrix-toolbar[\s\S]*mpp-month-search[\s\S]*mpp-month-type[\s\S]*mpp-month-expand[\s\S]*mpp-month-scroll/, "filter dan collapse harus berada di dekat matrix");
+assert.match(view, /<details class="mpp-settings">[\s\S]*Master data produksi/, "tautan master harus tetap dapat diakses melalui menu pengaturan");
+assert.match(view, /aria-label="Cari mesin, work center, atau part"/, "pencarian harus memiliki nama aksesibel");
+assert.match(view, /ppic-monthly-production-plan\.css\?v=20260907-machine-matrix-2/, "CSS toolbar baru harus memperbarui cache");
+assert.match(style, /\.mpp-month-page \[hidden\]/, "layout flex tidak boleh memunculkan kontrol tersembunyi");
+assert.match(style, /\.mpp-primary-button:disabled/, "tombol nonaktif harus terlihat jelas");
+assert.match(style, /\.mpp-outline-button:focus-visible/, "tombol harus memiliki indikator fokus keyboard");
+console.log("Monthly Production Plan page and toolbar contracts passed.");

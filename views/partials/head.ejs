@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#4f46e5">
   <script>
+    window.ERP_DEMO_DATE = <%- JSON.stringify(typeof demoDate !== 'undefined' ? demoDate : null) %>;
+    window.erpBusinessNow = () => window.ERP_DEMO_DATE ? new Date(window.ERP_DEMO_DATE + 'T00:00:00.000Z') : new Date();
+  </script>
+  <script>
     (() => {
       const theme = localStorage.getItem('nexgen-ui-theme');
       const language = localStorage.getItem('nexgen-ui-language');
@@ -43,7 +47,7 @@
   <link rel="stylesheet" href="/css/fg-receipt.css">
   <link rel="stylesheet" href="/css/system-master.css">
   <link rel="stylesheet" href="/css/gallery-view.css">
-  <link rel="stylesheet" href="/css/shared-ui.css?v=20260810-4">
+  <link rel="stylesheet" href="/css/shared-ui.css?v=20260907-pr-responsive-1">
   <link rel="stylesheet" href="/css/interaction-ux.css?v=20260817-1">
   <link rel="stylesheet" href="/css/enterprise-lookup.css?v=20260828-1">
   <link rel="stylesheet" href="/css/document-shell.css?v=20260827-vendor-process-2">
@@ -54,6 +58,7 @@
   <link rel="stylesheet" href="/css/maintenance.css?v=20260825-source-reset-1">
   <link rel="stylesheet" href="/css/executive-dashboard.css">
   <link rel="stylesheet" href="/css/ui-preferences.css?v=20260810-3">
+  <link rel="stylesheet" href="/css/simple-navbar.css?v=20260908-1">
   <% if (typeof requiresAuth !== 'undefined' && requiresAuth) { %>
   <script>
     if (!localStorage.getItem('token') && !sessionStorage.getItem('token')) {

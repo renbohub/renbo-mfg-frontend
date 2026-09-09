@@ -51,7 +51,7 @@
     show(`Revisi DPP ${doc.scheduleNumber} · status ${doc.status}. Qty tidak boleh lebih kecil dari aktual ${Number(doc.actualQty || 0)} ${doc.uomCode || ""}.`, "warning");
   }
 
-  const today = new Date();
+  const today = (globalThis.erpBusinessNow?.() || new Date());
   $("scheduleDate").value = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   $("production-schedule-form").addEventListener("submit", async (event) => {
     event.preventDefault();

@@ -42,7 +42,21 @@ vendor("/vendor/mqtt", "mqtt/dist");
 
 app.get("/health", (_req, res) => res.json({ ok: true, service: "frontend" }));
 app.get("/", (_req, res) => res.redirect("/login"));
+app.use(require("./src/businessClock").clockMiddleware);
+app.patch("/demo-date", async (req, res, next) => {
+  try {
+    const backend = (process.env.BACKEND_URL || "http://localhost:5017").replace(/\/$/, "");
+    const response = await fetch(`${backend}/api/system/settings/current-date`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", Authorization: req.get("authorization") || "" },
+      body: JSON.stringify({ demoDate: req.body.demoDate }), signal: AbortSignal.timeout(10000),
+    });
+    res.status(response.status).type("json").send(await response.text());
+  } catch (error) { res.status(502).json({ message: "Gagal menghubungi server. Tanggal belum diubah." }); }
+});
 app.use(authRoutes);
+app.use(require("./src/routes/partner-portal"));
+app.use(require("./src/routes/home"));
+app.use(require("./src/routes/part-routing"));
 app.use("/modules", modulesRoutes);
 app.use("/master-data", masterDataRoutes);
 app.use("/page-context/api", pageContextRoutes);

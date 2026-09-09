@@ -103,3 +103,92 @@
 .mpp-workflow-dialog{width:min(540px,calc(100vw - 24px))}.mpp-workflow-dialog form{margin:0}.mpp-workflow-dialog-summary{display:grid;gap:4px;padding:12px;border:1px solid #dbe4f3;border-left:3px solid #315bd0;border-radius:5px;background:#f7f9ff}.mpp-workflow-dialog-summary b{color:#172554;font-size:11px}.mpp-workflow-dialog-summary span{color:#526174;font-size:9px;line-height:15px}.mpp-workflow-confirm{display:grid;grid-template-columns:17px minmax(0,1fr);align-items:flex-start;gap:8px;margin-top:12px;padding:10px;border:1px solid #e2e8f0;border-radius:5px;background:#fff;cursor:pointer}.mpp-workflow-confirm input{width:15px;height:15px;margin:0;accent-color:#2449bd}.mpp-workflow-confirm span{color:#334155;font-size:9px;line-height:14px}
 @media(max-width:980px){.mpp-release-rail{grid-template-columns:minmax(210px,.8fr) minmax(0,1.2fr)}.mpp-release-actions{grid-column:1/-1;justify-content:flex-start;padding-top:8px;border-top:1px solid #e2e8f0}}
 @media(max-width:640px){.mpp-release-rail{grid-template-columns:1fr;gap:10px}.mpp-release-state{padding:10px 0 0;border-top:1px solid #e2e8f0;border-left:0}.mpp-release-actions{display:grid;grid-template-columns:1fr 1fr}.mpp-release-actions button{grid-column:1/-1;width:100%}.mpp-release-actions a{width:100%}}
+
+/* Monthly Plan command hierarchy: navigation, planning actions, then matrix filters. */
+.mpp-month-page .document-shell{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;padding:20px 0;margin-bottom:0}
+.mpp-month-page .document-shell__identity{flex:1 1 340px;min-width:0}
+.mpp-month-page .document-shell__command{flex:0 1 auto;width:auto;min-width:0;max-width:100%;margin:0}
+.mpp-month-page .document-shell__actions{margin:0;min-width:0;max-width:100%}
+.mpp-header-actions,.mpp-month-page .mpp-month-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;min-width:0}
+.mpp-outline-button,.mpp-primary-button{
+  box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  min-height:42px;height:auto;max-width:100%;padding:10px 14px;border-radius:8px;
+  font-family:inherit;font-size:12px;font-weight:650;line-height:20px;text-align:center;
+  text-decoration:none;white-space:normal;cursor:pointer;transition:background .15s,border-color .15s;
+}
+.mpp-outline-button:visited{color:#334155}
+.mpp-outline-button:hover,.mpp-primary-button:hover{text-decoration:none}
+.mpp-primary-button,.mpp-primary-button.mpp-recommendation-generate{border-color:#2449bd;background:#2449bd;color:#fff;box-shadow:0 2px 3px #1e3a8a12}
+.mpp-primary-button:hover:not(:disabled){background:#1e3a8a;border-color:#1e3a8a;color:#fff}
+.mpp-outline-button:focus-visible,.mpp-primary-button:focus-visible,.mpp-settings a:focus-visible{outline:3px solid #93c5fd;outline-offset:3px}
+.mpp-outline-button:disabled,.mpp-primary-button:disabled,.mpp-release-actions button:disabled{
+  opacity:1;border-color:#dbe3ef;background:#f1f5f9;color:#64748b;box-shadow:none;cursor:not-allowed;
+}
+.mpp-month-page [hidden],.mpp-editor-queue [hidden]{display:none!important}
+.mpp-settings{position:relative}
+.mpp-settings summary{list-style:none;user-select:none}
+.mpp-settings summary::-webkit-details-marker{display:none}
+.mpp-settings[open] summary{border-color:#93a9e0;background:#eef3ff;color:#1e3a8a}
+.mpp-settings nav{position:absolute;top:calc(100% + 6px);right:0;z-index:40;width:205px;padding:6px;border:1px solid #dbe3ef;border-radius:10px;background:#fff;box-shadow:0 12px 28px #0f172a20}
+.mpp-settings a{display:flex;align-items:center;justify-content:space-between;min-height:44px;padding:10px;border-radius:6px;color:#334155;font-size:12px;text-decoration:none}
+.mpp-settings a:hover{background:#eff4ff;color:#2449bd}
+.mpp-planning-toolbar.app-container{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:14px;padding:14px 16px!important;border:1px solid #dbe3ef;border-radius:10px;background:#f8faff}
+.mpp-toolbar-heading strong,.mpp-toolbar-heading span{display:block}
+.mpp-toolbar-heading strong{font-size:13px;color:#172554}
+.mpp-toolbar-heading span{margin-top:3px;font-size:11px;color:#64748b}
+.mpp-month-page .mpp-month-actions select,.mpp-matrix-toolbar select{
+  box-sizing:border-box;min-width:0;width:auto;max-width:100%;height:42px;padding:0 32px 0 12px;
+  border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;font-family:inherit;font-size:12px;
+}
+.mpp-month-page .mpp-month-actions select{max-width:300px;text-overflow:ellipsis}
+.mpp-month-page .mpp-month-actions select:disabled{background:#f1f5f9;color:#64748b}
+.mpp-release-rail.app-container{padding:14px 16px!important;border-radius:10px;box-shadow:none}
+.mpp-release-plan>span,.mpp-release-state small{font-size:9px}
+.mpp-release-plan select{height:42px;font-size:12px;border-radius:8px}
+.mpp-release-plan>b{font-size:9px;min-height:26px}
+.mpp-release-state strong{font-size:13px;line-height:19px}
+.mpp-release-state span{font-size:11px;line-height:16px}
+.mpp-release-actions{gap:8px;flex-wrap:wrap}
+.mpp-release-actions a,.mpp-release-actions button{height:auto;min-height:42px;padding:10px 14px;font-size:12px;line-height:20px}
+.mpp-matrix-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 0 16px}
+.mpp-matrix-toolbar .mpp-month-search{display:block;flex:0 1 340px;width:auto;height:42px;margin:0;min-width:0}
+.mpp-matrix-toolbar .mpp-month-search input{box-sizing:border-box;height:42px;border-radius:8px;font-size:12px}
+.mpp-matrix-toolbar .mpp-month-search svg{top:13px}
+.mpp-matrix-toolbar>button{margin-left:auto}
+.mpp-matrix-toolbar select:focus-visible,.mpp-month-period input:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+.mpp-recommendation-actions button,.mpp-editor-queue-actions button{height:auto;min-height:42px;padding:10px 12px;font-size:12px;line-height:20px}
+.mpp-recommendation-actions select{height:42px;font-size:12px;border-radius:8px;max-width:230px}
+.mpp-dialog-actions{flex-wrap:wrap;gap:10px;padding:16px}
+.mpp-dialog-head>button{display:inline-flex;align-items:center;justify-content:center;min-width:42px;min-height:42px;border-radius:8px;cursor:pointer}
+.mpp-dialog-head>button:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+@media(max-width:1100px){
+  .mpp-planning-toolbar{align-items:flex-start}
+  .mpp-month-page .mpp-month-actions{justify-content:flex-start;flex:1 1 100%}
+  .mpp-release-rail{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .mpp-release-actions{grid-column:1/-1;padding-top:12px;border-top:1px solid #e2e8f0;justify-content:flex-end}
+}
+@media(max-width:680px){
+  .mpp-month-page .document-shell{gap:14px;padding:16px 0}
+  .mpp-month-page .document-shell__command,.mpp-month-page .document-shell__actions{width:100%}
+  .mpp-header-actions{justify-content:flex-start;width:100%;gap:6px}
+  .mpp-header-actions>*,.mpp-header-actions summary{flex:1 1 auto}
+  .mpp-header-actions .mpp-outline-button{padding:10px;font-size:11px}
+  .mpp-settings nav{right:auto;left:0}
+  .mpp-month-period{padding:12px 0;flex-wrap:wrap;gap:10px}
+  .mpp-month-period>div{flex-wrap:wrap}
+  .mpp-month-flow{display:none}
+  .mpp-month-page .mpp-month-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
+  .mpp-month-page .mpp-month-actions select{grid-column:1/-1;width:100%;max-width:none}
+  .mpp-month-page .mpp-month-actions button{width:100%;min-width:0}
+  .mpp-release-rail{grid-template-columns:minmax(0,1fr)}
+  .mpp-release-state{padding:10px 0 0;border-left:0;border-top:1px solid #e2e8f0}
+  .mpp-release-actions{display:flex;justify-content:flex-start}
+  .mpp-release-actions button{flex:1 1 100%}
+  .mpp-month-board-head{align-items:flex-start;flex-direction:column;gap:10px;padding:16px 0 0}
+  .mpp-matrix-toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+  .mpp-matrix-toolbar .mpp-month-search{grid-column:1/-1;width:100%}
+  .mpp-matrix-toolbar select{width:100%}
+  .mpp-matrix-toolbar>button{margin:0}
+  .mpp-dialog-actions>*{flex:1 1 auto}
+}
+.mpp-workflow-issues{grid-column:1/-1;border-top:1px solid #e2e8f0;padding-top:10px;font-size:12px;color:#475569}.mpp-workflow-issues summary{cursor:pointer;font-weight:700;color:#334155}.mpp-workflow-issues ul{margin:10px 0 0;padding-left:20px}.mpp-workflow-issues li{margin:8px 0}.mpp-workflow-issues li span{display:block;overflow-wrap:anywhere}

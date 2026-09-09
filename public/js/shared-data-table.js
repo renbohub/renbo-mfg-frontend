@@ -174,7 +174,8 @@
   }
 
   function getScrollHost(table) {
-    return table.closest(".dt-layout-cell")
+    return table.closest(".dt-scroll-body")
+      || table.closest(".dt-layout-table > .dt-layout-cell, .dt-layout-table > .col-12")
       || table.closest(".list-table-view")
       || table.closest(".table-responsive")
       || table.parentElement;
@@ -697,6 +698,7 @@
       const body = document.createElement("tbody");
       bodyRows.forEach((row, rowIndex) => {
         const clonedRow = document.createElement("tr");
+        clonedRow.hidden = row.hidden;
         clonedRow.dataset.sourceRow = String(rowIndex);
         indexes.forEach((index) => {
           const source = row.cells[index];

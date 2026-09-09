@@ -2,8 +2,15 @@
   const raw = localStorage.getItem("user") || sessionStorage.getItem("user");
   let user = {};
   try { user = raw ? JSON.parse(raw) : {}; } catch { user = {}; }
+  if (user.partnerAccess) { location.replace('/partner-portal'); return; }
   const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9*]/g, "");
   const pageAliases = {
+    "outgoing/scan": "delivery-schedules",
+    "incoming/documents": "goods-receipts",
+    "incoming/inspections": "incoming-inspections",
+    "incoming/partner-administration": "goods-receipts",
+    "inventory/stock-policy": "stock-balances",
+    "production/oee-monitoring": "production-report",
     "planning-ppic/mps": "master-production-schedule",
     "planning-ppic/mrp": "material-requirements-planning",
     "planning-ppic/consume-forecast": "consume-forecast",
@@ -11,6 +18,7 @@
   };
 
   function hasPermission(moduleCode, pageCode, action = "read", resourceCode = "") {
+    if (user.partnerAccess) return false;
     if (user.isSuperAdmin) return true;
     const permissions = Array.isArray(user.effectivePermissions) ? user.effectivePermissions : [];
     if (Array.isArray(user.roles) && user.roles.length > 0) {
@@ -36,6 +44,9 @@
   }
 
   function routePermission(pathname) {
+    // Department inbox: the API limits records and feedback to assigned accounts.
+    // Opening it does not grant access to MPS workbench or approval actions.
+    if (pathname === "/modules/planning-ppic/mps/recovery-kanban") return null;
     const parts = pathname.split("/").filter(Boolean);
     if (parts[0] === "master-data" && parts[1] && parts[1] !== "api") {
       const action = parts[2] === "new" ? "create" : parts[3] === "edit" ? "update" : "read";
@@ -93,6 +104,7 @@
         user = profile;
         const storage = localStorage.getItem("token") ? localStorage : sessionStorage;
         storage.setItem("user", JSON.stringify(user));
+        if (user.partnerAccess) { location.replace('/partner-portal'); return; }
         window.ERP_PERMISSIONS = { has: hasPermission, user: () => user };
         updateIdentity();
         hideRestrictedLinks();

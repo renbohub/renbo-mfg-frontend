@@ -9,7 +9,7 @@
   const monthLabel = (value) => new Intl.DateTimeFormat("id-ID", { month: "short", day: "numeric" }).format(new Date(`${value}T00:00:00`));
   const weekday = (value) => new Intl.DateTimeFormat("id-ID", { weekday: "short" }).format(new Date(`${value}T00:00:00`));
   const todayKey = () => {
-    const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts((globalThis.erpBusinessNow?.() || new Date()));
     const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
     return `${values.year}-${values.month}-${values.day}`;
   };
@@ -355,7 +355,7 @@
     try { await loadCapacityFlowRule(planNumber); } catch (error) { fillCapacityFlowRule(); $("capacity-flow-save-state").textContent = error.message; $("capacity-flow-save-state").className = "capacity-flow-save-state warning"; }
   }
   function setDefaultRange() {
-    const now = new Date();
+    const now = (globalThis.erpBusinessNow?.() || new Date());
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     const local = (value) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;

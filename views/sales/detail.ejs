@@ -4,11 +4,23 @@
 <main class="entity-detail-page app-container sales-page sales-detail-page transaction-detail-page">
   <%
     let salesDetailActions = page.salesType === 'forecast' ? '<button id="submit-forecast" data-action="submit" class="btn btn-success d-none">Submit Forecast</button><button id="approve-forecast" data-action="approve" class="btn btn-success d-none">Approve Forecast</button><button id="forecast-planning-tool" class="btn btn-primary">Tarik Planning</button>' : '';
-    salesDetailActions += '<button id="make-to-so" class="btn btn-success d-none">Make to SO</button><button id="confirm-sales-order" class="btn btn-success d-none">Confirm SO</button>';
+    salesDetailActions += '<button id="make-to-so" class="btn btn-success d-none">Make to SO</button><button id="confirm-sales-order" data-action="approve" class="btn btn-success d-none">Setujui Tahap SO</button>';
+    if (page.salesType === 'sales-order') salesDetailActions += '<button id="submit-sales-order" data-action="update" class="btn btn-primary d-none">Ajukan Approval SO</button><button id="reject-sales-order" data-action="approve" class="btn btn-outline-danger d-none">Kembalikan untuk Revisi</button><button id="withdraw-sales-order" data-action="update" class="btn btn-outline-secondary d-none">Tarik Pengajuan</button>';
     salesDetailActions += `<div class="dropdown enterprise-more-actions sales-more-actions"><button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">More Actions</button><div class="dropdown-menu dropdown-menu-end">${page.salesType === 'forecast' ? '<button id="revise-forecast" class="dropdown-item d-none" type="button">Buat Revisi</button>' : ''}${page.salesType === 'sales-order' ? '<button id="revise-sales-order" class="dropdown-item d-none" type="button">Buat Revisi</button>' : ''}<a id="edit-document" class="dropdown-item" href="/modules/sales/${page.slug}/${encodeURIComponent(recordKey)}/edit">Edit Dokumen</a><button id="delete-document" class="dropdown-item dropdown-item-danger" type="button">Hapus Dokumen</button></div></div>`;
   %>
   <%- include('../partials/document-shell', { documentShell: { variant: 'transaction', eyebrow: `Sales · ${page.label}`, number: recordKey, title: page.label, titleId: 'document-number', subtitle: `Memuat detail ${page.label}...`, subtitleId: 'document-caption', status: '...', statusId: 'document-status', actions: salesDetailActions, backHref: `/modules/sales/${page.slug}`, breadcrumbHtml: `<a href="/modules/sales/${page.slug}">${page.label}</a><span>/</span><strong id="document-breadcrumb">${recordKey}</strong>` } }) %>
   <div id="sales-alert" class="alert d-none" role="alert"></div>
+  <% if (page.salesType === 'sales-order') { %>
+  <section class="sales-workspace-section mt-3" aria-label="Lampiran PO pelanggan">
+    <h2>Lampiran PO Pelanggan</h2><p class="text-muted">PDF, DOCX, atau XLSX. Maksimal 10 MB per file dan 20 lampiran. Lampiran terkunci selama dan setelah approval.</p>
+    <form id="so-attachment-form" class="d-flex flex-wrap gap-2"><input id="so-attachment-file" class="form-control" style="max-width:420px" type="file" accept=".pdf,.docx,.xlsx" required aria-label="Pilih lampiran PO"><button class="btn btn-outline-primary" type="submit">Unggah Lampiran</button></form>
+    <div id="so-attachments" class="mt-3" aria-live="polite"></div>
+  </section>
+  <section class="sales-workspace-section mt-3" aria-label="Riwayat persetujuan"><h2>Approval Bertingkat SO</h2><div id="so-approval-history" aria-live="polite">Memuat approval...</div></section>
+  <% } %>
+  <% if (page.salesType === 'forecast') { %>
+  <section class="sales-workspace-section mt-3"><h2>Perbandingan Revisi Forecast</h2><p>Qty dan perubahan terhadap versi sebelumnya, dipisahkan per part, bulan, dan UOM. Versi lama dipertahankan untuk penelusuran.</p><div id="forecast-version-history" aria-live="polite">Memuat histori...</div></section>
+  <% } %>
   <section class="sales-record-overview" aria-labelledby="sales-record-overview-title">
     <header class="sales-record-overview__head">
       <p>Document overview</p>

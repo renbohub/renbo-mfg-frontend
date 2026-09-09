@@ -30,8 +30,9 @@
 
   function createBoard(root) {
     const kind = root.dataset.kind || "incoming";
-    const state = { mode: "date", scope: "purchase", anchor: atStart(new Date()), rows: [], query: "", requestId: 0 };
+    const state = { mode: "date", scope: "purchase", anchor: atStart((globalThis.erpBusinessNow?.() || new Date())), rows: [], query: "", requestId: 0 };
     const node = (selector) => root.querySelector(selector);
+    let boardLoading = false;
 
     function period() {
       if (state.mode === "hour") {
@@ -62,7 +63,7 @@
           key: localKey(cursor),
           label: state.mode === "week" ? dateLabel(cursor, { weekday: "short" }) : String(cursor.getDate()),
           sublabel: state.mode === "week" ? dateLabel(cursor, { day: "numeric", month: "short" }) : dateLabel(cursor, { weekday: "short" }),
-          today: localKey(cursor) === localKey(new Date()),
+          today: localKey(cursor) === localKey((globalThis.erpBusinessNow?.() || new Date())),
         });
       }
       return days;
@@ -155,7 +156,7 @@
     }
 
     function rowStatus(events) {
-      const today = localKey(new Date());
+      const today = localKey((globalThis.erpBusinessNow?.() || new Date()));
       const complete = (event) => /received|completed|closed|delivered/i.test(event.status || "") || number(event.outstandingQty) <= .000001;
       if (events.some((event) => {
         const eventDate = parseDate(event.eventAt);
@@ -236,14 +237,17 @@
       node("[data-board-matrix]").innerHTML = groups.length ? `<table class="schedule-board__table schedule-board__table--outgoing"><thead><tr>${tableHead}</tr></thead><tbody>${matrixBody}</tbody></table>` : `<div class="schedule-board__empty">Tidak ada jadwal pada periode dan filter ini.</div>`;
     }
 
-    async function load() {
+    async function load({ quiet = false } = {}) {
+      if (quiet && boardLoading) return;
+      boardLoading = true;
       const requestId = ++state.requestId;
       const error = node("[data-board-error]");
       error.classList.add("d-none");
-      node("[data-board-matrix]").innerHTML = '<div class="schedule-board__loading">Memuat jadwal...</div>';
+      if (!quiet) node("[data-board-matrix]").innerHTML = '<div class="schedule-board__loading">Memuat jadwal...</div>';
       try {
-        const response = await fetch(endpoint(), { headers: { Authorization: `Bearer ${token()}` } });
+        const response = await fetch(endpoint(), { headers: { Authorization: `Bearer ${token()}` }, ...(kind === "outgoing" ? { signal: AbortSignal.timeout(12000) } : {}) });
         const payload = await response.json().catch(() => ({}));
+        if (response.status === 401) { location.replace(`/login?next=${encodeURIComponent(location.pathname)}`); return; }
         if (!response.ok) throw new Error(payload.message || "Jadwal gagal dimuat.");
         if (requestId !== state.requestId) return;
         const data = payload.data || payload;
@@ -251,11 +255,10 @@
         render();
       } catch (loadError) {
         if (requestId !== state.requestId) return;
-        state.rows = [];
-        render();
+        if (!quiet) { state.rows = []; render(); }
         error.textContent = loadError.message;
         error.classList.remove("d-none");
-      }
+      } finally { if (requestId === state.requestId) boardLoading = false; }
     }
 
     root.addEventListener("click", (event) => {
@@ -283,12 +286,19 @@
         return;
       }
       if (event.target.closest("[data-board-today]")) {
-        state.anchor = atStart(new Date());
+        state.anchor = atStart((globalThis.erpBusinessNow?.() || new Date()));
         load();
       }
     });
     node("[data-board-search]").addEventListener("input", (event) => { state.query = event.target.value || ""; render(); });
     load();
+    if (kind === "outgoing") {
+      const refresh = () => { if (!document.hidden && !boardLoading && !document.querySelector("dialog[open]")) load({ quiet: true }); };
+      const timer = setInterval(refresh, 15000);
+      document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+      window.addEventListener("pagehide", () => clearInterval(timer));
+      const freshness = document.createElement("small"); freshness.textContent = "Status pengiriman diperbarui otomatis setiap 15 detik."; root.append(freshness);
+    }
   }
 
   document.querySelectorAll("[data-schedule-board]").forEach(createBoard);

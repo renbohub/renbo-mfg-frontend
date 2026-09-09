@@ -16,6 +16,13 @@
   if (stockColumnHeading) { stockColumnHeading.textContent = "Usable"; stockColumnHeading.title = "qtyAvailable; rincian On Hand, Reserved, Allocated, QC Hold, dan Blocked ada di modal"; }
   const state = { page: 1, pageSize: 25, data: null, loading: false, action: null, rowItem: null, phaseAction: null, recoveryAction: null, recoveryPayload: null, recoverySourcePayload: null, recoveryBusy: false, bufferItem: null, rccpRun: null, planningPreview: null, planningMode: null, planningBusy: false, modalMode: "sync", zoom: 1, drawerFullscreen: false, detailRequestId: 0, expanded: new Set(), expandedBatches: new Set(), feasibilityLineId: null, feasibilityDetail: null, feasibilityFilter: "all", feasibilityOrigin: null };
   const apiBase = "/modules/api/planning-ppic/mps";
+  const etaControls = window.MpsEtaControls.create({ request, reload: () => load({ quiet: true }), notify: showAlert });
+  let checklistRecovery = null;
+  let checklistRecoveryError = "";
+  let feasibilityLoadVersion = 0;
+  let checklistRequestBusy = false;
+  const checkpointCodes = { "Master Data": "MASTER_DATA", "Production Capacity": "PRODUCTION_CAPACITY", "Material Supply": "MATERIAL_SUPPLY", "Vendor Process": "VENDOR_PROCESS", "Delivery Schedule": "DELIVERY_SCHEDULE" };
+  const auditModel = window.PpicMpsAuditModel;
   const esc = (value) => String(value ?? "").replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
   const number = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
   const num = (value) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 }).format(Number(value) || 0);
@@ -52,15 +59,16 @@
   const assessmentSummary = (assessment = {}) => assessment.summary || assessment.checklistSummary || assessment;
   const assessmentBadge = (assessment = {}) => {
     const summary = assessmentSummary(assessment); const meta = assessmentStatus(summary.status);
-    const subtext = summary.primaryConstraint?.impact || summary.primaryConstraint?.label || (summary.status === "NOT_EVALUATED" ? `${num(summary.notCheckedCount)} parameter belum dicek` : "");
+    const subtext = summary.primaryConstraint?.impact || summary.primaryConstraint?.label || (summary.status === "NOT_EVALUATED" ? `${num(summary.notCheckedCount)} parameter perlu data` : "");
     return `<span class="mwb-feasibility-status ${meta.tone}" title="${esc(subtext || meta.label)}"><span><i aria-hidden="true">${meta.icon}</i>${esc(meta.label)}</span>${subtext ? `<small>${esc(subtext)}</small>` : ""}</span>`;
   };
   const checklistCell = (assessment = {}, lineId = "") => {
     const summary = assessmentSummary(assessment); const meta = assessmentStatus(summary.status);
     lineId = lineId || summary.lineId || "";
     if (!lineId && !summary.totalCount) return '<span class="mwb-dash">—</span>';
-    const counts = `${num(summary.failCount)} gagal · ${num(summary.warningCount)} risiko · ${num(summary.notCheckedCount)} belum dicek`;
-    return `<button type="button" class="mwb-checklist-summary ${meta.tone}" data-feasibility-line="${esc(lineId)}" title="${esc(counts)}" aria-label="Buka checklist kelayakan: ${num(summary.okCount)}/${num(summary.totalCount)} OK, ${esc(counts)}"><span><i aria-hidden="true">${meta.icon}</i><b>${num(summary.okCount)}/${num(summary.totalCount)} OK</b></span><small>${esc(counts)}</small></button>`;
+    const counts = `${num(summary.okCount)} lolos · ${num(summary.failCount)} gagal · ${num(summary.warningCount)} risiko · ${num(summary.missingDataCount ?? summary.notCheckedCount)} data kurang`;
+    const progress = summary.checkedCount != null ? `${num(summary.checkedCount)}/${num(summary.totalCount)} diperiksa` : `${num(summary.okCount)}/${num(summary.totalCount)} lolos`;
+    return `<button type="button" class="mwb-checklist-summary ${meta.tone}" data-feasibility-line="${esc(lineId)}" title="${esc(counts)}" aria-label="Buka checklist kelayakan: ${esc(progress)}, ${esc(counts)}"><span><i aria-hidden="true">${meta.icon}</i><b>${esc(progress)}</b></span><small>${esc(counts)}</small></button>`;
   };
   const assessmentSummaryCell = (summary = {}) => {
     return checklistCell(summary, "__TOTAL__");
@@ -82,7 +90,7 @@
   function showAlert(message, success = false) { els.alert.hidden = !message; els.alert.textContent = message || ""; els.alert.classList.toggle("success", success); }
   const checkMeta = {
     PASS: { label: "OK", icon: "✓", tone: "success" }, WARNING: { label: "Risiko", icon: "!", tone: "warning" },
-    FAIL: { label: "Gagal", icon: "×", tone: "danger" }, NOT_CHECKED: { label: "Belum Dicek", icon: "?", tone: "neutral" },
+    FAIL: { label: "Gagal", icon: "×", tone: "danger" }, NOT_CHECKED: { label: "Data Kurang", icon: "?", tone: "neutral" },
     NA: { label: "Tidak Berlaku", icon: "—", tone: "muted" },
   };
   const checkStatusMeta = (value) => checkMeta[String(value || "NOT_CHECKED").toUpperCase()] || checkMeta.NOT_CHECKED;
@@ -110,11 +118,9 @@
     return `<details class="mwb-feasibility-check ${meta.tone}" data-check-issue="${issue ? "1" : "0"}"><summary><span class="mwb-check-icon" aria-hidden="true">${meta.icon}</span><div><b>${esc(check.label)}</b><small>${esc(check.description || "")}</small></div>${check.critical ? '<em>Critical</em>' : ""}<strong>${meta.label}</strong></summary><div class="mwb-check-detail"><div class="mwb-check-values"><div><span>Requirement</span><b>${displayMeasure(check.requirement)}</b></div><div><span>Actual</span><b>${displayMeasure(check.actual)}</b></div><div><span>Gap</span><b>${displayMeasure(check.gap)}</b></div></div><p><b>Alasan:</b> ${esc(check.reason || "—")}</p><p><b>Rekomendasi:</b> ${esc(check.recommendation || "Tidak ada tindakan tambahan.")}</p>${evidence.length ? `<details class="mwb-check-evidence"><summary>Evidence &amp; sumber data (${evidence.length})</summary><pre>${esc(JSON.stringify(evidence, null, 2))}</pre></details>` : '<p class="mwb-no-evidence">Tidak ada evidence tambahan.</p>'}</div></details>`;
   }
   const checkpointDefinitions = [
-    { name: "Master Data", dept: "PPIC", recovery: "Correct Master Data", codes: ["MASTER_DATA_READY", "LOT_BATCH_YIELD_VALID", "BUFFER_POLICY_MET"] },
-    { name: "Production Capacity", dept: "Production", recovery: "Add Overtime / Change Production Line", codes: ["CAPACITY_AVAILABLE", "RESOURCE_CALENDAR_AVAILABLE", "ROUTING_SEQUENCE_VALID"] },
-    { name: "Material Supply", dept: "Purchasing", recovery: "Expedite Material", codes: ["FG_COVERAGE_AT_DUE_DATE", "MATERIAL_READY_BY_START"] },
-    { name: "Vendor Process", dept: "Purchasing", recovery: "Expedite Vendor", codes: ["FIRM_SUPPLY_ON_TIME", "QUALITY_RELEASE_READY"] },
-    { name: "Delivery Schedule", dept: "Sales", recovery: "Change Delivery Target", codes: ["LEAD_TIME_AND_FINISH_FIT", "DELIVERY_SLOT_AVAILABLE"] },
+    { name: "Material Supply", dept: "Purchasing", recovery: "Pemenuhan material / percepatan pembelian", codes: ["MPS_MATERIAL"] },
+    { name: "Production Capacity", dept: "Production", recovery: "Overtime / alternatif line", codes: ["MPS_CAPACITY"] },
+    { name: "Vendor Process", dept: "Purchasing", recovery: "Percepatan proses / alternatif vendor", codes: ["MPS_VENDOR"] },
   ];
   function checkpointRows(checks = []) {
     const rank = { FAIL: 3, NOT_CHECKED: 2, WARNING: 1, PASS: 0, NA: -1 };
@@ -122,7 +128,7 @@
       const details = definition.codes.map((code) => checks.find((check) => check.code === code)).filter(Boolean);
       const applicable = details.filter((check) => check.status !== "NA");
       const worst = [...applicable].sort((a, b) => (rank[b.status] ?? 2) - (rank[a.status] ?? 2))[0];
-      const rawStatus = worst?.status || "PASS";
+      const rawStatus = worst?.status || (details.length ? "PASS" : "NOT_CHECKED");
       const status = rawStatus === "FAIL" ? "NOT_OK" : ["WARNING", "NOT_CHECKED"].includes(rawStatus) ? "WARNING" : "OK";
       return { ...definition, details, status, recovery: status === "OK" ? "—" : definition.recovery, feedbackStatus: status === "OK" ? "—" : "Open" };
     });
@@ -170,7 +176,7 @@
   }
   function renderVendorDecision(row, support = {}) {
     const processes = support.processes || [];
-    if (!processes.length) return '<section class="mwb-decision-block vendor"><p class="mwb-decision-empty"><b>Tidak ada proses vendor pada routing.</b> Checkpoint ini tidak menjadi blocker.</p></section>';
+    if (!processes.length) return '<section class="mwb-decision-block vendor"><p class="mwb-decision-empty"><b>Tidak ada proses vendor pada routing.</b> Konfirmasi supply dan quality release tetap mengikuti hasil rule teknis di bawah.</p></section>';
     return `<section class="mwb-decision-block vendor"><div class="mwb-decision-copy"><div><small>MASALAH</small><b>${num(support.totalLeadTimeDays)} hari total lead time vendor terdaftar.</b></div><div><small>SOLUSI · PURCHASING</small><b>${esc(support.actionLabel || "Request percepatan proses vendor")}</b></div></div>${decisionTable(["Process", "Vendor", "Lead Time", "Tindak Lanjut"], processes.map((item) => `<tr><td><b>${esc(item.processName || item.processCode || "—")}</b><small>${esc(item.componentPartCode || "")}</small></td><td>${esc(item.vendorName || item.vendorCode || "Belum ditentukan")}</td><td>${num(item.vendorLeadTimeDays)} hari</td><td><strong>Request Purchasing</strong></td></tr>`).join(""))}</section>`;
   }
   function renderDeliveryDecision(row, support = {}, upstreamOpen) {
@@ -189,7 +195,12 @@
     const support = detail.decisionSupport || {};
     const rows = checkpointRows(detail.checks || []).map((row) => ({ ...row }));
     const vendorRow = rows.find((row) => row.name === "Vendor Process");
-    if (vendorRow && !(support.vendor?.processes || []).length) Object.assign(vendorRow, { status: "OK", recovery: "—", feedbackStatus: "—" });
+    // Missing vendor routing must not hide a failed supplier or quality check.
+    for (const row of rows) {
+      const saved = (checklistRecovery?.items || []).filter((item) => item.checkpointCode === checkpointCodes[row.name]);
+      if (saved.length) row.feedbackStatus = label(saved[0].feedbackStatus);
+      else if (row.status !== "OK") row.feedbackStatus = "Belum diminta";
+    }
     const upstreamOpen = rows.slice(0, 4).some((row) => row.status !== "OK");
     const deliveryRow = rows.find((row) => row.name === "Delivery Schedule");
     if (deliveryRow?.status !== "OK" && upstreamOpen) deliveryRow.recovery = "Ditahan — recovery upstream";
@@ -198,43 +209,130 @@
     const body = rows.map((row) => {
       const meta = row.status === "OK" ? { label: "OK", tone: "success", icon: "✓" } : row.status === "NOT_OK" ? { label: "Not OK", tone: "danger", icon: "●" } : { label: "Warning", tone: "warning", icon: "●" };
       const issue = row.status !== "OK";
-      return `<details class="mwb-checkpoint-row ${meta.tone}" data-check-issue="${issue ? "1" : "0"}" ${issue ? "open" : ""}><summary><span class="mwb-checkpoint-name">${esc(row.name)}</span><span class="mwb-checkpoint-status ${meta.tone}"><i>${meta.icon}</i>${meta.label}</span><span class="mwb-checkpoint-recovery">${esc(row.recovery)}</span><span class="mwb-checkpoint-feedback ${issue ? "open" : ""}">${esc(row.feedbackStatus)}</span><span class="mwb-checkpoint-dept">${esc(row.dept)}</span><i class="mwb-checkpoint-expand" aria-hidden="true">⌄</i></summary><div class="mwb-checkpoint-detail">${renderDecisionSupport(row, support, upstreamOpen)}<details class="mwb-technical-rules"><summary>Detail rule teknis (${row.details.length})</summary>${row.details.map(renderCheck).join("") || '<span class="mwb-no-evidence">Tidak ada rule teknis yang berlaku.</span>'}</details></div></details>`;
+      return `<details class="mwb-checkpoint-row ${meta.tone}" data-check-issue="${issue ? "1" : "0"}" ${issue ? "open" : ""}><summary><span class="mwb-checkpoint-name">${esc(row.name)}</span><span class="mwb-checkpoint-status ${meta.tone}"><i>${meta.icon}</i>${meta.label}</span><span class="mwb-checkpoint-recovery">${esc(row.recovery)}</span><span class="mwb-checkpoint-feedback ${issue ? "open" : ""}">${esc(row.feedbackStatus)}</span><span class="mwb-checkpoint-dept">${esc(row.dept)}</span><i class="mwb-checkpoint-expand" aria-hidden="true">⌄</i></summary><div class="mwb-checkpoint-detail">${renderDecisionSupport(row, support, upstreamOpen)}${renderChecklistRecovery(row)}<details class="mwb-technical-rules"><summary>Detail rule teknis (${row.details.length})</summary>${row.details.map(renderCheck).join("") || '<span class="mwb-no-evidence">Tidak ada rule teknis yang berlaku.</span>'}</details></div></details>`;
     }).join("");
     return `<section class="mwb-feasibility-section mwb-checkpoint-section"><header><div><small>5 CHECKPOINT MPS · PROBLEM → SOLUTION</small><h3>Checklist Kelayakan &amp; Recovery</h3></div><a href="/modules/planning-ppic/mps/recovery-kanban?month=${encodeURIComponent(els.month.value)}">Buka Recovery Kanban →</a></header><div class="mwb-checkpoint-table"><div class="mwb-checkpoint-head"><span>Checkpoint</span><span>Status</span><span>Recovery</span><span>Feedback Status</span><span>Dept</span><i></i></div>${body}</div><footer class="mwb-checkpoint-summary ${overall.tone}"><b>MPS Status: <span>${overall.icon} ${overall.label}</span></b><strong>${okCount} / 5 Checkpoints OK</strong><strong>${openCount} Recovery Actions Open</strong></footer></section>`;
+  }
+  function renderProductionEvidence(check) {
+    const rows = check.evidence || [];
+    if (!rows.length) return "";
+    const quantity = (value, unit) => value == null ? "—" : `${num(value)} ${esc(unit || "")}`;
+    const batch = (row) => row.batchLabel ? `<small>${esc(row.batchLabel)}</small>` : "";
+    const table = (headers, body) => `<div class="mwb-production-evidence"><table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
+    if (check.code === "MPS_MATERIAL") return table(["Material", "Perlu", "Stok + firm on-time", "Kurang", "Dibutuhkan", "Batas ajukan beli", "Kesimpulan"], rows.map((r) => `<tr><td><b>${esc(r.partName || r.partCode || "—")}</b><small>${esc(r.partCode || "")}</small>${batch(r)}</td><td>${quantity(r.requiredQty, r.uomCode)}</td><td>${quantity(r.availableQty, r.uomCode)}</td><td>${quantity(r.shortageQty, r.uomCode)}</td><td>${date(r.requiredDate)}</td><td>${date(r.latestPurchaseAt)}</td><td>${esc(r.purchase || "—")}</td></tr>`).join(""));
+    if (check.code === "MPS_VENDOR") return table(["Proses / vendor", "Lead time BOM", "Batas kembali", "Hasil CP-SAT", "Status"], rows.map((r) => `<tr><td><b>${esc(r.processName || r.processCode || "—")}</b><small>${esc(r.vendorName || r.vendorCode || "Vendor belum ditentukan")}</small>${batch(r)}</td><td>${quantity(r.vendorLeadTimeDays, "hari")}</td><td>${date(r.latestReturnAt)}</td><td>${date(r.projectedReturnAt)}</td><td>${esc(checkStatusMeta(r.status).label)}</td></tr>`).join(""));
+    if (check.code === "MPS_CAPACITY") return table(["Work center", "Periode", "Beban", "Tersedia"], rows.map((r) => `<tr><td>${esc(r.workCenter || "—")}${batch(r)}</td><td>${date(r.bucketStart)} – ${date(r.bucketEnd)}</td><td>${quantity(r.requiredHours, "jam")}</td><td>${quantity(r.availableHours, "jam")}</td></tr>`).join(""));
+    return "";
+  }
+  function renderAuditFact(check) {
+    const fact = auditModel.facts(check); const meta = checkStatusMeta(check.status);
+    return `<article class="mwb-audit-fact" data-check-issue="${["PASS", "NA"].includes(check.status) ? "0" : "1"}"><header><h4>${esc(fact.label)}</h4><span class="mwb-audit-pill ${meta.tone}">${esc(meta.label)}</span></header><div class="mwb-audit-values"><div><span>Data saat ini</span><b>${esc(fact.actual)}</b></div><div class="is-target"><span>Seharusnya</span><b>${esc(fact.expected)}</b></div><div><span>Selisih</span><b>${esc(fact.gap)}</b></div></div><p><b>Kenapa:</b> ${esc(fact.reason)}</p>${renderProductionEvidence(check)}</article>`;
+  }
+  function renderDeliveryLastResort(detail) {
+    const suggestion = detail.deliverySuggestion;
+    if (!suggestion?.eligible) return "";
+    const check = { code: "MPS_DELIVERY_REVIEW", status: "FAIL", label: "Review delivery", actual: { display: date(suggestion.suggestedDeliveryDate) }, requirement: { display: date(suggestion.requestedDeliveryDate) }, reason: suggestion.reason, recommendation: "Minta Sales meninjau perubahan delivery karena recovery terkait tidak memungkinkan." };
+    const row = { name: "Delivery Schedule", dept: "Sales", status: "NOT_OK", details: [check] };
+    return `<section class="mwb-audit-card mwb-checkpoint-row warning" data-delivery-last-resort><div class="mwb-checkpoint-detail"><h3>Opsi terakhir · review delivery</h3><p>Target ${date(suggestion.requestedDeliveryDate)} → usulan ${date(suggestion.suggestedDeliveryDate)}</p><p>${esc(suggestion.reason)}</p>${renderChecklistRecovery(row)}<small>Pengajuan review tidak mengubah jadwal secara otomatis.</small></div></section>`;
+  }
+  function renderFocusedCheckpoints(detail = {}) {
+    const names = { "Production Capacity": "Kapasitas produksi", "Material Supply": "Material & waktu pembelian", "Vendor Process": "Lead time proses vendor" };
+    const rows = checkpointRows(detail.checks || []).map((row) => {
+      const rawStatus = auditModel.groupedStatus(row.details);
+      return { ...row, rawStatus, status: rawStatus === "PASS" ? "OK" : rawStatus === "NA" ? "NA" : rawStatus === "FAIL" ? "NOT_OK" : "WARNING" };
+    });
+    const issueRows = rows.filter((row) => !["NA", "OK"].includes(row.status));
+    const firstOpen = issueRows[0] || rows.find((row) => row.status !== "NA");
+    const body = rows.map((row) => {
+      const meta = checkStatusMeta(row.rawStatus); const issue = !["NA", "OK"].includes(row.status);
+      return `<details class="mwb-audit-card mwb-checkpoint-row ${meta.tone}" data-check-issue="${issue ? "1" : "0"}" ${row === firstOpen ? "open" : ""}><summary><b>${esc(names[row.name])}</b><small>${esc(row.dept)}</small><span class="mwb-audit-pill ${meta.tone}">${esc(meta.label)}</span></summary><div class="mwb-checkpoint-detail">${row.status === "NA" ? `<p>${esc(row.details[0]?.reason || "Tidak berlaku")}</p>` : row.details.map(renderAuditFact).join("") || "<p>Hasil penilaian belum tersedia.</p>"}${renderChecklistRecovery(row)}${row.status !== "NA" ? `<details class="mwb-audit-more"><summary>Data sumber &amp; detail teknis</summary>${row.name === "Production Capacity" ? renderCapacityDecision(row, detail.decisionSupport?.capacity) : ""}${row.details.map(renderCheck).join("")}</details>` : ""}</div></details>`;
+    }).join("");
+    return `<section class="mwb-audit-checkpoints"><header class="mwb-audit-head"><h3>${issueRows.length ? `${issueRows.length} area perlu ditindaklanjuti` : "Hasil pemeriksaan produksi"}</h3><a href="/modules/planning-ppic/mps/recovery-kanban?month=${encodeURIComponent(els.month.value)}">Recovery Kanban →</a></header><div class="mwb-audit-note" data-audit-empty hidden>Tidak ada masalah pada pemeriksaan yang berlaku.</div>${body}${renderDeliveryLastResort(detail)}</section>`;
+  }
+  function renderChecklistRecovery(row) {
+    const code = checkpointCodes[row.name];
+    const records = (checklistRecovery?.items || []).filter((item) => item.checkpointCode === code);
+    const history = records.map((item) => `<p class="mwb-audit-history"><a href="/modules/planning-ppic/mps/recovery-kanban?month=${encodeURIComponent(item.planningMonth)}&request=${encodeURIComponent(item.id)}">Recovery · ${esc(item.departmentName)} · ${esc(label(item.feedbackStatus))} · rev ${num(item.mpsRevision)} →</a>${item.feedbackNotes ? `<small>${esc(item.feedbackNotes)}</small>` : ""}</p>`).join("");
+    if (["OK", "NA"].includes(row.status)) return history;
+    if (records.some((item) => item.mpsRevision === state.feasibilityDetail?.identity?.mpsRevision)) return history;
+    if (checklistRecoveryError) return `<p role="alert">${esc(checklistRecoveryError)} <button type="button" data-feasibility-retry>Muat ulang recovery</button></p>`;
+    if (!checklistRecovery) return '<p role="status">Memuat departemen dan feedback…</p>';
+    if (!checklistRecovery.canRequest) return `${history}<p class="mwb-audit-note">Minta PPIC mengajukan recovery (perlu akses update MPS).</p>`;
+    const choices = checklistRecovery.departments || [];
+    if (!choices.length) return `${history}<div class="mwb-audit-unavailable"><span>Akun penerima belum terhubung ke departemen.</span><button type="button" disabled title="Hubungkan akun ke karyawan aktif dan departemen terlebih dahulu">Minta recovery</button></div>`;
+    const aliases = { PPIC: /ppic|planning/i, Production: /production|produksi/i, Purchasing: /purchas|pembelian|procurement/i, Sales: /sales|marketing|penjualan/i };
+    const suggested = choices.find((dept) => aliases[row.dept]?.test(`${dept.code} ${dept.name}`));
+    const issue = row.details.find((check) => check.status === "FAIL") || row.details.find((check) => !["PASS", "NA"].includes(check.status));
+    const fact = auditModel.facts(issue);
+    const requestNote = `${fact.action}\nSaat ini: ${fact.actual}. Target: ${fact.expected}.`;
+    return `${history}<details class="mwb-audit-recovery"><summary>Minta recovery · ${esc(suggested?.name || row.dept)}</summary><div class="mwb-checkpoint-request"><label>Kirim ke<select data-request-department>${!suggested ? '<option value="">Pilih departemen</option>' : ""}${choices.map((dept) => `<option value="${esc(dept.id)}" ${dept.id === suggested?.id ? "selected" : ""}>${esc(dept.name)} (${num(dept.recipientCount)} akun)</option>`).join("")}</select></label><label>Target feedback<input type="date" data-request-date></label><label class="mwb-request-notes">Tindakan yang diminta<textarea data-request-notes maxlength="4000" rows="2">${esc(requestNote)}</textarea></label><button type="button" class="btn btn-primary" data-checkpoint-request="${code}" ${checklistRequestBusy ? "disabled" : ""}>Kirim request recovery</button><p data-request-message role="status"></p></div></details>`;
+  }
+  async function submitChecklistRecovery(button) {
+    if (checklistRequestBusy) return;
+    const form = button.closest(".mwb-checkpoint-request");
+    const message = form.querySelector("[data-request-message]");
+    const lineId = state.feasibilityLineId;
+    const loadVersion = feasibilityLoadVersion;
+    const departmentId = form.querySelector("[data-request-department]").value;
+    const notes = form.querySelector("[data-request-notes]").value.trim();
+    if (!departmentId || !notes) { message.textContent = "Pilih departemen dan isi permintaan recovery."; return; }
+    checklistRequestBusy = true; button.disabled = true; message.textContent = "Mengirim permintaan…";
+    try {
+      const result = await request(`${apiBase}/workbench/lines/${encodeURIComponent(lineId)}/recovery-requests`, { method: "POST", body: JSON.stringify({ month: els.month.value, checkpointCode: button.dataset.checkpointRequest, departmentId, notes, targetDate: form.querySelector("[data-request-date]").value || null }) });
+      if (state.feasibilityLineId !== lineId || loadVersion !== feasibilityLoadVersion || !checklistRecovery) return;
+      checklistRecovery.items = [result.item, ...(checklistRecovery.items || []).filter((item) => item.id !== result.item.id)];
+      message.textContent = result.message;
+      const summary = form.closest(".mwb-checkpoint-row")?.querySelector(".mwb-checkpoint-feedback");
+      if (summary) summary.textContent = label(result.item.feedbackStatus);
+      button.textContent = "Permintaan tersimpan — lihat Recovery Kanban";
+    } catch (error) { message.textContent = error.message; button.disabled = false; }
+    finally { checklistRequestBusy = false; }
   }
   function renderFeasibilityDetail(detail) {
     state.feasibilityDetail = detail;
     const identity = detail.identity || {}; const summary = detail.summary || {}; const meta = assessmentStatus(summary.status);
     els.feasibilityMeta.textContent = `${identity.partNumber || "MPS"} · ${identity.partName || ""} · ${identity.batchLabel || identity.rowType || ""} · ${identity.period || els.month.value} · MPS ${num(identity.mpsQty)}`;
-    const cards = [[`${num(summary.okCount)}/${num(summary.totalCount)} OK`, "Parameter lolos"], [`${num(summary.failCount)} Gagal`, "Critical/non-critical"], [`${num(summary.warningCount)} Risiko`, "Perlu perhatian"], [`${num(summary.notCheckedCount)} Belum Dicek`, "Data belum tersedia"], [date(identity.requiredDeliveryAt), "Required Delivery"], [date(summary.earliestFeasibleDeliveryAt), "Earliest Feasible"], [summary.lateByWorkingDays === null || summary.lateByWorkingDays === undefined ? "—" : `${num(summary.lateByWorkingDays)} hari`, "Late Days"], [summary.primaryConstraint?.impact || summary.primaryConstraint?.label || "—", "Primary Constraint"]];
-    els.feasibilityBody.innerHTML = `<div class="mwb-feasibility-overall ${meta.tone}"><span aria-hidden="true">${meta.icon}</span><div><small>OVERALL STATUS</small><b>${esc(meta.label)}</b></div></div><div class="mwb-feasibility-cards">${cards.map(([main, sub]) => `<article><b>${esc(main)}</b><span>${esc(sub)}</span></article>`).join("")}</div>${renderOperationalCheckpointTable(detail)}${renderMpsCalculation(detail.mpsCalculation || {})}`;
-    els.feasibilityFooterMeta.textContent = `Last evaluated ${displayDateTime(summary.evaluatedAt)} · Source as of ${displayDateTime(summary.sourceDataAsOf)} · ${summary.rulesVersion || "—"} · ${summary.formulaVersion || "—"}`;
-    applyFeasibilityFilter();
-    return;
-    const grouped = (detail.checks || []).reduce((map, item) => { (map[item.group] ||= []).push(item); return map; }, {});
-    els.feasibilityBody.innerHTML = `<div class="mwb-feasibility-overall ${meta.tone}"><span aria-hidden="true">${meta.icon}</span><div><small>OVERALL STATUS</small><b>${esc(meta.label)}</b></div></div><div class="mwb-feasibility-cards">${cards.map(([main, sub]) => `<article><b>${esc(main)}</b><span>${esc(sub)}</span></article>`).join("")}</div>${renderMpsCalculation(detail.mpsCalculation || {})}<section class="mwb-feasibility-section"><header><div><small>12 RULES · ${esc(detail.summary?.rulesVersion || "")}</small><h3>Checklist Parameter</h3></div></header><div class="mwb-check-groups">${Object.entries(grouped).map(([group, checks]) => `<section><h4>${esc(group)}</h4>${checks.map(renderCheck).join("")}</section>`).join("") || '<div class="mwb-feasibility-empty">Tidak ada parameter yang berlaku.</div>'}</div></section>`;
-    els.feasibilityFooterMeta.textContent = `Last evaluated ${displayDateTime(summary.evaluatedAt)} · Source as of ${displayDateTime(summary.sourceDataAsOf)} · ${summary.rulesVersion || "—"} · ${summary.formulaVersion || "—"}`;
+    const isBuffer = identity.rowType === "BUFFER";
+    const heading = meta.label;
+    const scope = `${isBuffer ? "Produksi buffer · " : ""}${num(summary.failCount)} gagal · ${num(summary.warningCount)} perlu recovery · ${num(summary.missingDataCount ?? summary.notCheckedCount)} data kurang`;
+    els.feasibilityBody.innerHTML = `<div class="mwb-audit-overview"><div><strong>${esc(heading)}</strong><p>${esc(scope)}</p></div><span class="mwb-audit-count">${num(summary.okCount)} / ${num(summary.totalCount)} sesuai</span></div>${renderFocusedCheckpoints(detail)}<details class="mwb-audit-more"><summary>Rumus &amp; perhitungan MPS</summary>${renderMpsCalculation(detail.mpsCalculation || {})}</details><p class="mwb-audit-note">Feedback selesai → perbarui data sumber → Periksa Checksheet. Bukan approval otomatis.</p>`;
+    els.feasibilityFooterMeta.textContent = `Diperiksa ${displayDateTime(summary.evaluatedAt)}`;
+    els.feasibilityFooterMeta.title = `Source as of ${displayDateTime(summary.sourceDataAsOf)} · ${summary.rulesVersion || "—"} · ${summary.formulaVersion || "—"}`;
     applyFeasibilityFilter();
   }
   function applyFeasibilityFilter() {
     els.feasibilityModal?.querySelectorAll("[data-feasibility-filter]").forEach((button) => button.classList.toggle("active", button.dataset.feasibilityFilter === state.feasibilityFilter));
     els.feasibilityBody?.querySelectorAll("[data-check-issue]").forEach((node) => { node.hidden = state.feasibilityFilter === "issues" && node.dataset.checkIssue !== "1"; });
+    const empty = els.feasibilityBody?.querySelector("[data-audit-empty]");
+    if (empty) empty.hidden = state.feasibilityFilter !== "issues" || (state.feasibilityDetail?.checks || []).some((check) => !["PASS", "NA"].includes(check.status));
   }
   function renderAggregateFeasibility() {
     const summary = state.data?.feasibilitySummary || {}; const meta = assessmentStatus(summary.status);
     els.feasibilityMeta.textContent = `Total baris planning yang terlihat · ${state.data?.pagination?.filtered || 0} FG`;
-    els.feasibilityBody.innerHTML = `<div class="mwb-feasibility-overall ${meta.tone}"><span aria-hidden="true">${meta.icon}</span><div><small>OVERALL VISIBLE ROWS</small><b>${esc(meta.label)}</b></div></div><div class="mwb-feasibility-cards"><article><b>${num(summary.okCount)}/${num(summary.totalCount)} OK</b><span>Parameter applicable</span></article><article><b>${num(summary.failCount)} Gagal</b><span>Perlu tindakan</span></article><article><b>${num(summary.warningCount)} Risiko</b><span>Perlu perhatian</span></article><article><b>${num(summary.notCheckedCount)} Belum Dicek</b><span>Data belum lengkap</span></article></div><section class="mwb-feasibility-section"><header><div><small>VISIBLE PLANNING ROWS</small><h3>Ringkasan per FG</h3></div></header><div class="mwb-feasibility-part-list">${(state.data?.items || []).map((item) => `<button type="button" data-feasibility-line="${esc(item.lineId || item.id)}"><span><b>${esc(item.partNumber || item.partCode)}</b><small>${esc(item.partName || "")}</small></span>${assessmentBadge(item.checklistSummary || item.feasibilityAssessment)}</button>`).join("")}</div></section>`;
+    els.feasibilityBody.innerHTML = `<div class="mwb-feasibility-overall ${meta.tone}"><span aria-hidden="true">${meta.icon}</span><div><small>OVERALL VISIBLE ROWS</small><b>${esc(meta.label)}</b></div></div><div class="mwb-feasibility-cards"><article><b>${num(summary.okCount)}/${num(summary.totalCount)} OK</b><span>Parameter applicable</span></article><article><b>${num(summary.failCount)} Gagal</b><span>Perlu tindakan</span></article><article><b>${num(summary.warningCount)} Risiko</b><span>Perlu perhatian</span></article><article><b>${num(summary.notCheckedCount)} Data Kurang</b><span>Data belum lengkap</span></article></div><section class="mwb-feasibility-section"><header><div><small>VISIBLE PLANNING ROWS</small><h3>Ringkasan per FG</h3></div></header><div class="mwb-feasibility-part-list">${(state.data?.items || []).map((item) => `<button type="button" data-feasibility-line="${esc(item.lineId || item.id)}"><span><b>${esc(item.partNumber || item.partCode)}</b><small>${esc(item.partName || "")}</small></span>${assessmentBadge(item.checklistSummary || item.feasibilityAssessment)}</button>`).join("")}</div></section>`;
     els.feasibilityFooterMeta.textContent = "Total hanya menjumlah parameter applicable pada planning rows yang terlihat; NA tidak masuk denominator.";
   }
   async function openFeasibility(lineId, origin) {
+    const loadVersion = ++feasibilityLoadVersion;
+    checklistRecovery = null; checklistRecoveryError = "";
     state.feasibilityOrigin = origin || document.activeElement; state.feasibilityLineId = lineId; state.feasibilityFilter = "all";
-    els.feasibilityModal.setAttribute("aria-hidden", "false"); els.feasibilityTitle.textContent = "Checklist Kelayakan Schedule & Delivery";
+    els.feasibilityModal.setAttribute("aria-hidden", "false"); els.feasibilityTitle.textContent = "Checksheet Kelayakan Produksi";
     if (lineId === "__TOTAL__") { renderAggregateFeasibility(); els.feasibilityModal.querySelector("[data-close-feasibility-modal]")?.focus(); return; }
     els.feasibilityMeta.textContent = "Memuat evaluasi…"; els.feasibilityBody.innerHTML = '<div class="mwb-feasibility-loading">Memuat rincian feasibility…</div>';
     try {
       const detail = await request(`${apiBase}/workbench/lines/${encodeURIComponent(lineId)}/feasibility?month=${encodeURIComponent(els.month.value)}`);
-      if (state.feasibilityLineId === lineId) renderFeasibilityDetail(detail);
+      if (state.feasibilityLineId === lineId && loadVersion === feasibilityLoadVersion) {
+        renderFeasibilityDetail(detail);
+        let context = null; let contextError = "";
+        try { context = await request(`${apiBase}/workbench/lines/${encodeURIComponent(lineId)}/recovery-requests?month=${encodeURIComponent(els.month.value)}`); }
+        catch (error) { contextError = error.message; }
+        if (state.feasibilityLineId === lineId && loadVersion === feasibilityLoadVersion) {
+          checklistRecovery = context; checklistRecoveryError = contextError;
+          renderFeasibilityDetail(detail);
+        }
+      }
     } catch (error) {
+      if (state.feasibilityLineId !== lineId || loadVersion !== feasibilityLoadVersion) return;
       els.feasibilityBody.innerHTML = `<div class="mwb-feasibility-error"><b>Rincian gagal dimuat.</b><p>${esc(error.message)}</p><button type="button" class="btn btn-primary" data-feasibility-retry>Ulangi</button></div>`;
     }
     els.feasibilityModal.querySelector("[data-close-feasibility-modal]")?.focus();
@@ -254,17 +352,20 @@
       const children = phases.length ? phases.map((phase, phaseIndex) => {
         const phaseQty = number(phase.plannedProductionQty ?? phase.qty);
         const isBufferBatch = phase.sourceType === "BUFFER";
+        const isInternalProduction = isBufferBatch || ["CARRYOVER", "PLANNED_BALANCE"].includes(phase.sourceType);
         const phaseStatus = isBufferBatch ? { label: "Buffer", tone: "info" } : phase.feasibility;
         const phaseAssessment = phase.feasibilityAssessment || {};
         const batchKey = `${item.id}::${phase.id || phaseIndex}`;
         const batchOpen = state.expandedBatches.has(batchKey);
-        const phaseDecision = isBufferBatch ? null : deliveryStatus.phaseAction(phaseStatus);
-        const phaseAction = isBufferBatch
+        const phaseDecision = isInternalProduction ? null : deliveryStatus.phaseAction(phaseStatus);
+        const phaseAction = isInternalProduction
           ? `<button class="mwb-batch-action is-detail" type="button" data-detail="${esc(item.id)}" aria-label="Lihat detail netting buffer" title="Detail buffer">${actionButtonContent("buffer")}</button>`
           : phaseDecision.mode === "handle"
             ? `<button class="mwb-batch-action is-handle" type="button" data-phase-menu="${esc(item.id)}" data-phase-id="${esc(phase.id || String(phaseIndex))}" aria-haspopup="menu" aria-label="Tangani delivery ${esc(phase.sourceNumber || `Batch ${phaseIndex + 1}`)}" title="Tangani delivery"><span aria-hidden="true">${esc(phaseDecision.icon)}</span></button>`
             : `<button class="mwb-batch-action ${phaseDecision.mode === "recheck" ? "is-recheck" : "is-safe"}" type="button" data-phase-detail-direct="${esc(phase.deliveryTargetId || "")}" aria-label="Lihat hasil: ${esc(phaseDecision.label)}" title="Hasil dihitung otomatis saat MPS dibuat atau dihitung ulang"><span aria-hidden="true">${esc(phaseDecision.icon)}</span></button>`;
-        const phaseSupplyNote = isBufferBatch
+        const phaseSupplyNote = phase.sourceType === "PLANNED_BALANCE" ? `Sisa produksi resmi untuk ending stock · ${num(phaseQty)} · bukan delivery customer`
+          : phase.sourceType === "CARRYOVER" ? `Kebutuhan produksi carryover M-1 · ${num(phaseQty)}`
+          : isBufferBatch
           ? `${esc(phase.sourceNumber || "Demand phase")} · ${components.length} child part${number(phase.bufferAllocatedQty) > 0 ? ` · buffer ${num(phase.bufferAllocatedQty)}` : ""}`
           : `${esc(phase.sourceNumber || "Demand phase")} · demand ${num(phase.qty)} · stock FG dipakai ${num(phase.stockUsedQty)} · produksi ${num(phaseQty)}`;
         const phaseRow = `<tr class="mwb-batch-row ${isBufferBatch ? "is-buffer" : ""} ${batchOpen ? "is-expanded" : ""}"><td class="mwb-toggle-col"><button class="mwb-batch-toggle" type="button" data-toggle-batch="${esc(batchKey)}" aria-expanded="${batchOpen}" aria-label="${batchOpen ? "Tutup" : "Buka"} child part batch ${phaseIndex + 1}">${batchOpen ? "▼" : "▶"}</button></td><td></td><td class="mwb-batch-name"><b>${isBufferBatch ? "Batch Buffer Akhir Bulan" : `Batch ${phaseIndex + 1}`} — ${date(phase.fgRequiredDate)}</b><small>${phaseSupplyNote}</small></td><td class="mwb-type">${isBufferBatch ? "BUFFER" : "—"}</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-mps-value ${phaseQty > 0 ? "has-mps" : ""}">${mpsNumberCell(phaseQty, "phase", item.id, phase.id || String(phaseIndex))}</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td class="mwb-dash">—</td><td>${phaseAction}</td><td>${checklistCell(phaseAssessment)}</td><td>${assessmentBadge(phaseAssessment)}</td></tr>`;
@@ -439,6 +540,13 @@
     } finally { setRecoveryBusy(false); }
   }
   function renderFlow(data) {
+    etaControls.render(data);
+    const etaGate = data.etaGate;
+    const etaBanner = document.getElementById("mwb-eta-gate");
+    if (etaBanner) {
+      etaBanner.hidden = !data.mps;
+      etaBanner.innerHTML = `<span>${etaGate ? `ETA (${etaGate.mode === "BOM" ? "Explode lead time BOM" : "Konfirmasi ETA"}): ${etaGate.confirmed}/${etaGate.total} siap${etaGate.pending ? ` · ${etaGate.pending} perlu tindakan sebelum release` : ""}` : "ETA belum diperiksa"}</span>`;
+    }
     const mps = data.mps;
     const rccp = data.rccp;
     const mrp = data.mrp;
@@ -470,8 +578,9 @@
     // The authoritative approval checks are the active RCCP result and
     // Delivery Gate. A stale lifecycle label must not hide an otherwise valid
     // MPS approval action; the backend revalidates both gates on submit.
-    els.confirmMps.disabled = !mps || mps.replanRequired || !data.summary.partCount || !rccp?.approvalAllowed || !deliveryAllowed;
+    els.confirmMps.disabled = !mps || mps.replanRequired || !data.summary.partCount || !rccp?.approvalAllowed || !deliveryAllowed || !etaGate?.ready;
     els.runMrp.disabled = !mps || !data.summary.partCount || mrpRunning || mps?.replanRequired;
+    if (els.evaluateChecksheet) els.evaluateChecksheet.disabled = !mps || state.checksheetBusy || ["Released", "Completed", "Superseded", "Cancelled"].includes(mps.status);
     els.runMrp.textContent = mrp && !mrpRunning ? "Hitung Revision MRP" : "Hitung MRP";
     els.openMrp.hidden = !mrp;
     els.openMrp.href = `/modules/planning-ppic/mrp?month=${encodeURIComponent(data.period)}`;
@@ -881,6 +990,44 @@
     }
   }
   function closeDrawer() { state.detailRequestId += 1; els.drawer.setAttribute("aria-hidden", "true"); toggleDrawerFullscreen(false); }
+  async function loadModalBomSelections() {
+    const requestId = state.bomSelectionRequestId = (state.bomSelectionRequestId || 0) + 1;
+    const month = els.month.value;
+    let panel = $("mwb-bom-selections");
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.id = "mwb-bom-selections";
+      els.modalMessage.after(panel);
+    }
+    panel.hidden = false;
+    panel.textContent = "Memuat pilihan revisi BOM…";
+    state.bomSelectionsReady = false;
+    els.modalSubmit.disabled = true;
+    try {
+      const payload = await request(`${apiBase}/mbom-revision-options?months=${encodeURIComponent(month)}&planningAnchorMonth=${encodeURIComponent(month)}`);
+      if (requestId !== state.bomSelectionRequestId) return;
+      const items = payload.items;
+      if (!Array.isArray(items)) throw new Error("Respons pilihan revisi BOM tidak valid");
+      panel.innerHTML = '<h3>Revisi BOM untuk MRP</h3><p>Pilih revisi yang berlaku sepanjang kebutuhan produksi.</p>' + items.map((item) => {
+        const automatic = item.revisions.find((revision) => revision.id === item.autoSelectedId);
+        const options = [`<option value="">${esc(automatic ? `Otomatis · Rev ${automatic.revision} · ${automatic.noReg}` : "Otomatis · belum ada BOM aktif")}</option>`, ...item.revisions.map((revision) =>
+          `<option value="${esc(revision.id)}">Rev ${esc(revision.revision)} · ${esc(revision.noReg)} · ${esc(date(revision.effectiveDate))} – ${revision.expiryDate ? esc(date(revision.expiryDate)) : "seterusnya"}</option>`)].join("");
+        return `<label class="mwb-field"><span>${esc(item.partCode)} · ${esc(item.month)}</span><select class="form-select" data-mwb-bom-key="${esc(item.key)}">${options}</select></label>`;
+      }).join("");
+      state.bomSelectionsReady = true;
+      els.modalSubmit.disabled = false;
+    } catch (error) {
+      if (requestId !== state.bomSelectionRequestId) return;
+      panel.textContent = `Pilihan BOM gagal dimuat: ${error.message}. Tutup lalu buka kembali untuk mencoba ulang.`;
+    }
+  }
+  function readModalBomSelections() {
+    const selections = {};
+    els.modalForm.querySelectorAll("[data-mwb-bom-key]").forEach((select) => {
+      if (select.value) selections[select.dataset.mwbBomKey] = select.value;
+    });
+    return selections;
+  }
   function openModal(mode = "sync") {
     state.modalMode = mode;
     els.confirm.checked = false;
@@ -901,8 +1048,14 @@
       els.modalSubmit.textContent = recalculatingExistingMps ? "Hitung Ulang & Simpan" : "Hitung & simpan Draft";
     }
     els.modal.setAttribute("aria-hidden", "false");
+    if (mode === "sync") loadModalBomSelections();
+    else {
+      state.bomSelectionRequestId = (state.bomSelectionRequestId || 0) + 1;
+      if ($("mwb-bom-selections")) $("mwb-bom-selections").hidden = true;
+      els.modalSubmit.disabled = false;
+    }
   }
-  function closeModal() { els.modal.setAttribute("aria-hidden", "true"); }
+  function closeModal() { state.bomSelectionRequestId = (state.bomSelectionRequestId || 0) + 1; els.modal.setAttribute("aria-hidden", "true"); }
   function closeFormulaModal() { els.formulaModal.setAttribute("aria-hidden", "true"); }
   function openFormulaModal(button) {
     const item = state.data?.items.find((row) => row.id === button.dataset.itemId);
@@ -1010,15 +1163,26 @@
     els.formulaBody.innerHTML = `<div class="mwb-formula-equation">${esc(equation)}</div><dl>${rows.map(([name, value]) => `<div><dt>${esc(name)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl>`;
     els.formulaModal.setAttribute("aria-hidden", "false");
   }
+  function rccpMachineCount(row) {
+    if (["OUTSOURCE", "VENDOR"].includes(String(row?.resourceType || "").toUpperCase())) return "— (vendor)";
+    const count = row?.resourceCount;
+    return count !== null && count !== undefined && count !== "" && Number.isInteger(Number(count)) && Number(count) >= 0
+      ? `${num(count)} mesin` : "—";
+  }
+  function rccpMachineList(row) {
+    const basis = (row?.partBreakdown || []).find(part => part.capacityBasis?.type === "WORK_CENTER")?.capacityBasis;
+    return (basis?.machines || []).map(machine => machine.machineCode).join(", ");
+  }
   function renderRccpWeekly(run) {
     const buckets = run?.timeBuckets || [];
     const weeks = [...new Map(buckets.map((row) => [String(row.bucketStart).slice(0, 10), row])).entries()];
     const resources = [...new Set(buckets.map((row) => row.resourceCode))];
     if (!weeks.length) { els.rccpWeekly.innerHTML = '<p class="mwb-empty">Weekly bucket belum tersedia.</p>'; return; }
-    els.rccpWeekly.innerHTML = `<table class="mwb-rccp-table mwb-rccp-weekly-table" data-enterprise-table="off"><thead><tr><th>Resource</th>${weeks.map(([, row]) => `<th class="${row.isPreviousMonth ? "is-offset" : ""}"><span>Minggu ${date(row.bucketStart)}</span><small>s.d. ${date(row.bucketEnd)} · ${row.isPreviousMonth ? "M-1" : "M"}</small></th>`).join("")}<th>Status</th></tr></thead><tbody>${resources.map((resourceCode) => {
+    els.rccpWeekly.innerHTML = `<table class="mwb-rccp-table mwb-rccp-weekly-table" data-enterprise-table="off"><thead><tr><th>Work Center / Resource</th><th title="Jumlah mesin pada profil kapasitas saat RCCP dihitung">Jumlah Mesin</th>${weeks.map(([, row]) => `<th class="${row.isPreviousMonth ? "is-offset" : ""}"><span>Minggu ${date(row.bucketStart)}</span><small>s.d. ${date(row.bucketEnd)} · ${row.isPreviousMonth ? "M-1" : "M"}</small></th>`).join("")}<th>Status</th></tr></thead><tbody>${resources.map((resourceCode) => {
       const rows = buckets.filter((row) => row.resourceCode === resourceCode);
+      const resourceLoad = (run.loads || []).find(load => load.resourceCode === resourceCode) || rows[0];
       const status = rows.filter((row) => number(row.currentMpsLoad) > 0).sort((a, b) => number(b.loadPercentage) - number(a.loadPercentage))[0]?.status || "FEASIBLE";
-      return `<tr><td><b>${esc(resourceCode)}</b><small>${esc(rows[0]?.resourceType || "INTERNAL")}</small></td>${weeks.map(([key]) => {
+      return `<tr><td><b>${esc(resourceLoad.resourceName || resourceCode)}</b><small>${esc(rows[0]?.resourceType || "INTERNAL")}</small></td><td title="Jumlah mesin yang dipakai dalam perhitungan RCCP">${esc(rccpMachineCount(resourceLoad))}<small>${esc(rccpMachineList(resourceLoad))}</small></td>${weeks.map(([key]) => {
         const row = rows.find((item) => String(item.bucketStart).slice(0, 10) === key);
         const contributions = row ? rccpBucketContributions(run, resourceCode, key) : [];
         const content = `<b>${row ? `${num(row.loadPercentage)}%` : "—"}</b><small>${row ? `${num(row.currentMpsLoad)} / ${num(row.availableCapacity)} h` : ""}</small>${contributions.length ? `<em>${num(contributions.length)} sumber · lihat audit</em>` : ""}`;
@@ -1062,11 +1226,12 @@
     renderRccpTimeline(run);
     renderRccpRecommendations(run);
     els.rccpBody.innerHTML = loads.length ? loads.map((row) => `<tr>
-      <td><b>${esc(row.resourceCode)}</b><small>${esc(row.resourceName || row.resourceCode)}</small></td>
+      <td><b>${esc(row.resourceName || row.resourceCode)}</b><small>${esc([...new Set((row.partBreakdown || []).map(part => part.originalResourceCode).filter(Boolean))].join(' · ') || row.resourceCode)}</small></td>
+      <td title="Jumlah mesin yang dipakai dalam perhitungan RCCP">${esc(rccpMachineCount(row))}<small>${esc(rccpMachineList(row))}</small></td>
       <td>${num(row.currentMpsLoad)} h</td><td>${num(row.existingLoad)} h</td><td><b>${num(row.totalLoad)} h</b></td>
       <td>${num(row.availableCapacity)} h<small>${num(row.workingDays)} hari × ${num(row.shiftsPerDay)} shift</small></td>
       <td><b>${num(row.loadPercentage)}%</b></td><td><span class="mwb-capacity-pill ${capacityTone(row.status)}">${esc(label(row.status))}</span></td>
-    </tr>`).join("") : `<tr><td colspan="7">${run ? "Tidak ada critical resource pada hasil ini." : "Belum ada hasil RCCP."}</td></tr>`;
+    </tr>`).join("") : `<tr><td colspan="8">${run ? "Tidak ada critical resource pada hasil ini." : "Belum ada hasil RCCP."}</td></tr>`;
     const needsReason = run && ((run.status === "WARNING" && !run.acknowledgedAt) || run.status === "OVERLOAD");
     els.rccpReasonField.hidden = !needsReason;
     els.rccpReason.value = "";
@@ -1087,7 +1252,7 @@
     els.rccpResults.hidden = false;
     els.rccpMeta.textContent = "Memuat hasil RCCP otomatis…";
     els.rccpSummary.innerHTML = "";
-    els.rccpBody.innerHTML = '<tr><td colspan="7">Memuat RCCP…</td></tr>';
+    els.rccpBody.innerHTML = '<tr><td colspan="8">Memuat RCCP…</td></tr>';
     els.rccpReasonField.hidden = true;
     els.rccpExceptions.hidden = true;
     els.rccpActions.innerHTML = '<button type="button" class="btn btn-outline-secondary" data-close-rccp-modal>Kembali ke MPS</button>';
@@ -1100,7 +1265,7 @@
     } catch (error) {
       state.rccpRun = null;
       els.rccpMeta.textContent = error.message;
-      els.rccpBody.innerHTML = '<tr><td colspan="7">RCCP belum tersedia.</td></tr>';
+      els.rccpBody.innerHTML = '<tr><td colspan="8">RCCP belum tersedia.</td></tr>';
       els.rccpExceptions.innerHTML = rccpExceptionMarkup(error.payload?.exceptions || [{ message: error.message }]);
       els.rccpExceptions.hidden = false;
     }
@@ -1204,11 +1369,13 @@
     event.preventDefault();
     if (!els.confirm.checked) return;
     const isRecalculate = state.modalMode === "recalculate";
+    if (!isRecalculate && !state.bomSelectionsReady) return;
     els.modalSubmit.disabled = true;
     els.modalSubmit.textContent = isRecalculate ? "Menerapkan PO+…" : "Menghitung…";
     try {
       const endpoint = isRecalculate ? "recalculate" : "monthly-sync";
-      const result = await request(`${apiBase}/${endpoint}`, { method: "POST", body: JSON.stringify({ months: [els.month.value], planningAnchorMonth: els.month.value }) });
+      const etaOptions = etaControls.creationOptions();
+      const result = await request(`${apiBase}/${endpoint}`, { method: "POST", body: JSON.stringify({ months: [els.month.value], planningAnchorMonth: els.month.value, ...(!isRecalculate ? { mbomSelections: readModalBomSelections(), ...etaOptions } : {}) }) });
       closeModal();
       const solverEvidence = result.solverRun?.runNumber
         ? ` · ${result.solverRun.runNumber} · ${num(result.solverRun.targetCount)} target`
@@ -1230,6 +1397,7 @@
     els.actionSubmit.textContent = action === "confirm" ? "Mengonfirmasi…" : "Menghitung MRP…";
     try {
       const mpsNumber = state.data.mps.mpsNumber;
+      etaControls.creationOptions();
       const result = action === "confirm"
         ? await request(`${apiBase}/${encodeURIComponent(mpsNumber)}/approve`, { method: "PATCH", body: "{}" })
         : await request("/modules/api/planning-ppic/mrp/run", { method: "POST", body: JSON.stringify({ mpsNumber, planningMode: "OFFICIAL" }) });
@@ -1290,8 +1458,29 @@
   els.zoomLabel.addEventListener("click", () => setDrawerZoom(1));
   els.fullscreen.addEventListener("click", () => toggleDrawerFullscreen());
   setDrawerZoom(1);
+  els.evaluateChecksheet = document.createElement("button");
+  els.evaluateChecksheet.type = "button";
+  els.evaluateChecksheet.className = "mwb-outline-action";
+  els.evaluateChecksheet.textContent = "Periksa Checksheet";
+  els.evaluateChecksheet.title = "Hitung ulang material, kapasitas mingguan dan vendor tanpa mengubah qty MPS atau approval.";
+  els.confirmMps.before(els.evaluateChecksheet);
+  els.evaluateChecksheet.addEventListener("click", async () => {
+    if (!state.data?.mps || state.checksheetBusy) return;
+    state.checksheetBusy = true;
+    els.evaluateChecksheet.disabled = true;
+    els.evaluateChecksheet.textContent = "Memeriksa…";
+    try {
+      const result = await request(`${apiBase}/${encodeURIComponent(state.data.mps.mpsNumber)}/checksheet/evaluate`, { method: "POST", body: "{}" });
+      const issues = (result.items || []).flatMap((item) => [item.rccp, item.productionEvidence, item.checklist].filter((step) => step?.completed === false).map((step) => step.message));
+      await load({ quiet: true });
+      showAlert(`${result.message}${issues.length ? ` ${issues.join(" · ")}` : ""}`, !issues.length);
+    } catch (error) { showAlert(error.message); }
+    finally { state.checksheetBusy = false; els.evaluateChecksheet.disabled = !state.data?.mps || ["Released", "Completed", "Superseded", "Cancelled"].includes(state.data.mps.status); els.evaluateChecksheet.textContent = "Periksa Checksheet"; }
+  });
   els.sync.addEventListener("click", () => openModal("sync")); if (els.bulkAcceptLate) els.bulkAcceptLate.addEventListener("click", runBulkAcceptLate); els.confirmMps.addEventListener("click", () => openActionModal("confirm")); els.runMrp.addEventListener("click", () => openActionModal("mrp")); if (els.deliveryGateDetails) els.deliveryGateDetails.addEventListener("click", () => openGateDrawer()); document.querySelectorAll("[data-close-modal]").forEach((node) => node.addEventListener("click", closeModal)); document.querySelectorAll("[data-close-action-modal]").forEach((node) => node.addEventListener("click", closeActionModal)); document.querySelectorAll("[data-close-planning-modal]").forEach((node) => node.addEventListener("click", closePlanningModal)); document.querySelectorAll("[data-close-formula-modal]").forEach((node) => node.addEventListener("click", closeFormulaModal)); document.querySelectorAll("[data-close-feasibility-modal]").forEach((node) => node.addEventListener("click", closeFeasibilityModal)); document.querySelectorAll("[data-close-buffer-modal]").forEach((node) => node.addEventListener("click", closeBufferModal)); document.querySelectorAll("[data-close-rccp-modal]").forEach((node) => node.addEventListener("click", closeRccpModal)); document.querySelectorAll("[data-close-drawer]").forEach((node) => node.addEventListener("click", closeDrawer)); document.querySelectorAll("[data-close-gate-drawer]").forEach((node) => node.addEventListener("click", closeGateDrawer)); document.querySelectorAll("[data-close-recovery-drawer]").forEach((node) => node.addEventListener("click", closeRecoveryDrawer));
   els.feasibilityModal?.addEventListener("click", (event) => {
+    const recoveryRequest = event.target.closest("[data-checkpoint-request]");
+    if (recoveryRequest) { event.preventDefault(); submitChecklistRecovery(recoveryRequest); return; }
     const filter = event.target.closest("[data-feasibility-filter]");
     if (filter) { state.feasibilityFilter = filter.dataset.feasibilityFilter; applyFeasibilityFilter(); return; }
     const retry = event.target.closest("[data-feasibility-retry]");

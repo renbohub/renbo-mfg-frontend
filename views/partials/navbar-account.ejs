@@ -1,0 +1,21 @@
+<div class="navbar-account dropdown">
+  <button class="navbar-account-trigger" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-controls="navbar-account-menu" aria-label="Buka menu akun" title="Menu akun">
+    <span class="navbar-account-avatar" data-user-avatar aria-hidden="true">U</span>
+    <svg class="navbar-account-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+  </button>
+  <div class="dropdown-menu dropdown-menu-end navbar-account-menu" id="navbar-account-menu">
+    <div class="navbar-account-identity"><strong data-user-name>Pengguna</strong><small data-user-role>ERP User</small></div>
+    <label class="navbar-account-setting ui-language-control">
+      <span>Bahasa</span>
+      <select data-ui-language aria-label="Bahasa" data-searchable-disabled="true"><option value="id">Indonesia</option><option value="en">English</option><option value="ja">日本語</option></select>
+    </label>
+    <button class="navbar-account-setting dropdown-item" type="button" data-ui-theme-toggle aria-label="Ganti tema" aria-pressed="false">
+      <span data-navbar-theme-label>Tema gelap</span><span class="navbar-theme-icon" aria-hidden="true"><span class="ui-theme-toggle__light">&#9728;</span><span class="ui-theme-toggle__dark">&#9790;</span></span>
+    </button>
+    <button class="navbar-account-action dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#demo-date-modal">
+      <%- include('icon', { name: 'calendar' }) %><span>Tanggal Demo<small><%= typeof demoClockUnavailable !== 'undefined' && demoClockUnavailable ? 'Tanggal tidak tersedia' : typeof demoDate !== 'undefined' && demoDate ? demoDate : 'Mengikuti tanggal aktual' %></small></span>
+    </button>
+    <div class="dropdown-divider"></div>
+    <button class="navbar-account-action navbar-account-logout dropdown-item" type="button" data-logout><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M10 17v3H4V4h6v3M8 12h13m-4-4 4 4-4 4"/></svg><span>Keluar</span></button>
+  </div>
+</div>

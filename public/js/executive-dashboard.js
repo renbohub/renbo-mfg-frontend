@@ -13,7 +13,7 @@
   };
 
   function createDashboard(root) {
-    const state = { payload: null, metric: null, actualBasis: "BOOKED", chart: null };
+    const state = { payload: null, metric: null, actualBasis: "BOOKED", chart: null, request: 0, controller: null };
     const module = root.dataset.module || "system";
     const node = (selector) => root.querySelector(selector);
 
@@ -85,7 +85,7 @@
       const tables = state.payload?.detailTables || [];
       node("[data-executive-details]").innerHTML = tables.map((item, tableIndex) => `<article class="executive-detail-card">
         <div class="executive-dashboard__panel-head"><div><small>RECONCILIATION</small><h3>${escapeHtml(item.title)}</h3></div>${item.note ? `<span>${escapeHtml(item.note)}</span>` : ""}</div>
-        <div class="table-responsive"><table><thead><tr>${(item.columns || []).map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}</tr></thead><tbody>${(item.rows || []).map((row) => `<tr>${(item.columns || []).map((column) => `<td class="${column.format && column.format !== "text" ? "text-end" : ""}">${escapeHtml(column.format ? format(row[column.key], column.format) : row[column.key])}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${item.columns?.length || 1}" class="text-center">Belum ada data.</td></tr>`}</tbody></table></div>
+        <div class="table-responsive"><table data-enterprise-links="off"><thead><tr>${(item.columns || []).map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}</tr></thead><tbody>${(item.rows || []).map((row) => `<tr>${(item.columns || []).map((column) => `<td class="${column.format && column.format !== "text" ? "text-end" : ""}">${escapeHtml(column.format ? format(row[column.key], column.format) : row[column.key])}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${item.columns?.length || 1}" class="text-center">Belum ada data.</td></tr>`}</tbody></table></div>
         <button type="button" class="executive-detail-card__export" data-executive-export-table="${tableIndex}">Export tabel</button>
       </article>`).join("");
     }
@@ -170,24 +170,40 @@
     }
 
     async function load() {
+      const request = ++state.request;
+      state.controller?.abort();
+      state.controller = new AbortController();
+      const controller = state.controller;
+      let timedOut = false;
+      const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 35000);
       setError("");
       root.classList.add("is-loading");
       try {
         const year = node("[data-executive-year]").value;
         const params = new URLSearchParams({ year, actualBasis: state.actualBasis });
+        if (node("[data-executive-customer]")) params.set("customerCode", node("[data-executive-customer]").value);
+        if (node("[data-executive-group]")) params.set("period", node("[data-executive-group]").value);
         const response = await fetch(`/modules/api/dashboard/executive/${encodeURIComponent(module)}?${params.toString()}`, {
           headers: { Authorization: `Bearer ${token()}` },
+          signal: state.controller.signal,
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.message || "Dashboard gagal dimuat.");
+        if (request !== state.request) return;
         state.payload = payload;
         state.actualBasis = payload.actualBasis || state.actualBasis;
         state.metric = payload.metricOptions?.some((item) => item.value === state.metric) ? state.metric : payload.defaultMetric || payload.metricOptions?.[0]?.value;
         render();
+        const freshness = node("[data-executive-freshness]");
+        if (freshness) freshness.textContent = `Diperbarui ${new Date(payload.generatedAt).toLocaleTimeString('id-ID')} · pembaruan otomatis setiap 30 detik saat halaman aktif.`;
       } catch (error) {
-        setError(error.message);
+        if (request !== state.request || (error.name === "AbortError" && !timedOut)) return;
+        setError(timedOut ? "Pembaruan terlalu lama. Silakan coba kembali." : error.message);
+        const freshness = node("[data-executive-freshness]");
+        if (freshness) freshness.textContent = "Pembaruan gagal. Data yang masih tampil adalah hasil pembaruan sebelumnya.";
       } finally {
-        root.classList.remove("is-loading");
+        clearTimeout(timeout);
+        if (request === state.request) root.classList.remove("is-loading");
       }
     }
 
@@ -207,6 +223,21 @@
       if (tableExport) exportTables(Number(tableExport.dataset.executiveExportTable));
     });
     node("[data-executive-year]").addEventListener("change", load);
+    node("[data-executive-customer]")?.addEventListener("change", load);
+    node("[data-executive-group]")?.addEventListener("change", load);
+    async function loadCustomers() {
+      const select = node("[data-executive-customer]");
+      if (!select) return;
+      try {
+        const response = await fetch('/modules/api/dashboard/executive/sales/customers', { headers: { Authorization: `Bearer ${token()}` }, signal: AbortSignal.timeout(15000) });
+        const rows = await response.json();
+        if (!response.ok) throw new Error(rows.message || "Daftar customer gagal dimuat.");
+        select.innerHTML = '<option value="">Semua customer</option>' + rows.map(row => `<option value="${escapeHtml(row.customerCode)}">${escapeHtml(row.customerCode)} — ${escapeHtml(row.customerName)}</option>`).join('');
+      } catch (error) { select.title = error.message; setError(error.message); }
+    }
+    loadCustomers();
+    const refreshTimer = setInterval(() => { if (!document.hidden && !root.closest('[data-dashboard-panel][hidden]') && !root.classList.contains('is-loading')) load(); }, 30000);
+    window.addEventListener('pagehide', () => { clearInterval(refreshTimer); state.controller?.abort(); }, { once: true });
     node("[data-executive-basis]").addEventListener("change", (event) => { state.actualBasis = event.target.value || "BOOKED"; load(); });
     root.addEventListener("executive-dashboard:activate", () => {
       if (state.payload) renderChart();

@@ -22,7 +22,7 @@
         </section>
         <label class="span-2"><span>Catatan</span><textarea id="notes" rows="3" placeholder="Tujuan reservasi / catatan PPIC atau Inventory"></textarea></label>
       <% } else if (page.slug === 'stock-movements') { %>
-        <label><span>Movement Type *</span><select id="movementType" required><option value="IN">IN</option><option value="OUT">OUT</option><option value="TRANSFER">TRANSFER</option><option value="ADJUSTMENT">ADJUSTMENT</option></select></label>
+        <label><span>Movement Type *</span><select id="movementType" required><option value="IN">IN</option><option value="OUT">OUT</option><option value="TRANSFER">TRANSFER</option></select><small>Koreksi selisih stok dilakukan melalui <a href="/modules/inventory/stock-opname/new">Stock Opname dan approval supervisor</a>.</small></label>
         <label><span>Input Quantity *</span><select id="inputMode"><option value="DIRECT">Direct sesuai UOM stok</option><option value="MATERIAL_FROM_PART_PCS">Raw Material dari Part PCS</option></select></label>
         <label><span>Warehouse *</span><select id="warehouseCode" required><option value="">Pilih warehouse</option></select></label>
         <label><span>Rack</span><select id="rackCode"><option value="">Tanpa rack</option></select></label>

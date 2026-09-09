@@ -12,6 +12,10 @@ const css = [
 const checks = [
   [compactJs.includes("ps-compact-table"), "main table uses compact purchase-suggestion contract"],
   [compactJs.includes("Purchase Max"), "main table exposes latest purchase date"],
+  [compactJs.includes("Target Tiba") && !compactJs.includes("<th>Delivery Need</th>"), "arrival target is not mislabeled customer delivery"],
+  [baseJs.includes('class="table ps-suggestion-table" data-enterprise-table="off"'), "generic table enhancer cannot offset compact columns"],
+  [baseJs.includes('const purchaseDate =') && baseJs.includes('timeZone: "UTC"'), "milestone dates do not depend on browser timezone"],
+  [compactJs.includes("ps-ready-date") && css.includes(".ps-ready-date"), "production need has a separate second line"],
   [compactJs.includes("Current Stock"), "main table exposes current stock"],
   [compactJs.includes("data-ps-kind=\"material\""), "material rows expose their automatic type"],
   [compactJs.includes("data-ps-kind=\"purchase-part\""), "purchase-part rows expose their automatic type"],

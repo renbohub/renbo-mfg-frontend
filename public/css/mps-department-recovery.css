@@ -1,0 +1,11 @@
+.mwb-checkpoint-request { display:grid; grid-template-columns:2fr 1fr; gap:12px; padding:16px; margin:12px 0; border:1px solid #cbd5e1; border-radius:8px; background:var(--bs-body-bg,#fff); }
+.mwb-checkpoint-request label,.mrk-feedback-form label { display:flex; flex-direction:column; gap:5px; font-size:12px; }
+.mwb-checkpoint-request select,.mwb-checkpoint-request input,.mwb-checkpoint-request textarea,.mrk-feedback-form input,.mrk-feedback-form textarea { width:100%; border:1px solid #94a3b8; border-radius:5px; padding:8px; color:inherit; background:transparent; }
+.mwb-checkpoint-request .mwb-request-notes,.mwb-checkpoint-request>p,.mwb-checkpoint-request>small { grid-column:1/-1; margin:0; white-space:pre-wrap; }
+.mwb-checkpoint-request p small { display:block; }
+.mrk-feedback-form { display:grid; gap:10px; margin:12px 0; }
+.mrk-feedback-form small { font-size:10px; }
+.mrk-card.is-requested { outline:2px solid #2563eb; outline-offset:2px; }
+.mrk-card-footer button { padding:6px; border:1px solid #2563eb; border-radius:5px; background:#2563eb; color:white; font-size:11px; }
+.mrk-card-footer { flex-wrap:wrap; }
+@media(max-width:640px) { .mwb-checkpoint-request { grid-template-columns:1fr; } }

@@ -11,9 +11,7 @@
       <a href="/maintenance">Maintenance</a>
     </nav>
     <%- include('context-navbar-actions') %>
-    <div class="user-tools d-none d-lg-flex">
-      <span class="tool-divider"></span><div class="avatar" data-user-avatar>U</div><div><strong data-user-name>Pengguna</strong><small data-user-role>ERP User</small></div><button class="logout-button" type="button" data-logout>Keluar</button>
-    </div>
+    <%- include('navbar-account') %>
   </div>
   <% const visibleMasterSubnav = typeof subnavItems === 'undefined' ? [] : subnavItems; %>
   <% if (visibleMasterSubnav.length) { %>

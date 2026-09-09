@@ -37,8 +37,6 @@
     'mps-recovery': { label: 'MPS Recovery', href: '/modules/planning-ppic/mps/recovery-kanban' },
     'material-requirements-planning': { label: 'MRP Planning Runs', href: '/modules/planning-ppic/mrp' },
     'monthly-production-plans': { label: 'Production Plans', href: '/modules/planning-ppic/monthly-production-plans' },
-    'control-tower': { label: 'Execution Cockpit', href: '/modules/planning-ppic/control-tower' },
-    'planned-orders': { label: 'Planned Order Workbench', href: '/modules/planning-ppic/control-tower?tab=orders' }
   } : {};
   const moduleNavigationItems = (module.pages || []).filter(item => !item.navHidden).map(item => ({
     slug: item.slug,
@@ -47,7 +45,6 @@
     apiReady: item.apiReady !== false,
     icon: navigationIcon(item)
   }));
-  if (module.slug === 'planning-ppic') moduleNavigationItems.push({ slug: 'tutorial', label: 'Tutorial', href: '/modules/planning-ppic/tutorial', apiReady: true, icon: 'book' });
 %>
 <nav class="module-subnav module-subnav--<%= module.color %>" aria-label="Menu <%= module.label %>">
   <div class="app-container module-subnav-inner">

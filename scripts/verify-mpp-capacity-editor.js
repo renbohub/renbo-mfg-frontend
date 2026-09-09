@@ -320,7 +320,8 @@ assert.deepStrictEqual(replaceStagedChange([
 ], "koreksi dropdown harus mengganti draft yang sama tanpa menambah allocation baru");
 
 const moveFixture = [{
-  key: "WC:WELD",
+  key: "MACHINE:machine-1",
+  machineId: "machine-1",
   type: "INHOUSE",
   days: {
     "2026-09-01": { qty: 100, minutes: 50, allocations: [] },
@@ -346,7 +347,7 @@ const moveFixture = [{
       "2026-09-03": { qty: 0, minutes: 0, allocations: [] },
     },
   }],
-}];
+}, { key: "MACHINE:machine-2", machineId: "machine-2", type: "INHOUSE", days: {}, children: [] }];
 const movePreview = projectStagedMatrix(moveFixture, [{
   type: "SPLIT_ALLOCATION",
   allocationId: "allocation-weld-1",
@@ -358,9 +359,11 @@ const movePreview = projectStagedMatrix(moveFixture, [{
 }]);
 assert.strictEqual(movePreview[0].children[0].days["2026-09-01"].qty, 60,
   "applied recommendation split must subtract quantity from its source allocation");
-assert.strictEqual(movePreview[0].children[0].days["2026-09-03"].qty, 40,
+assert.strictEqual(movePreview[1].children[0].days["2026-09-03"].qty, 40,
   "applied recommendation split must appear at the target date");
-assert.strictEqual(movePreview[0].children[0].days["2026-09-03"].staged, true);
+assert.strictEqual(movePreview[1].children[0].days["2026-09-03"].staged, true);
+assert.strictEqual(movePreview[0].children[0].days["2026-09-03"].qty, 0,
+  "split to another machine must not stay on its original machine");
 assert.strictEqual(moveFixture[0].children[0].days["2026-09-01"].qty, 100,
   "staged move projection must keep official matrix immutable for Cancel");
 

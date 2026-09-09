@@ -42,9 +42,9 @@
         <th>Material/Part</th>
         <th>Part No</th>
         <th>Status</th>
-        <th>Delivery Need</th>
+        <th title="Tanggal kebutuhan material / komponen dari hasil MRP">Delivery Need · MRP</th>
         <th>Lead Time</th>
-        <th>Purchase Max</th>
+        <th title="Delivery Need MRP dikurangi lead time supplier dalam hari kalender">Purchase Max</th>
         <th class="text-end">Current Stock</th>
         <th class="text-end">Demand</th>
         <th>Supplier</th>
@@ -90,7 +90,7 @@
         <td class="ps-compact-identity"><a href="${esc(itemHref)}"><b>${esc(identity)}</b><span>${esc(description)}</span></a></td>
         <td><span class="ps-part-number">${esc(partNo)}</span></td>
         <td><span class="ps-simple-status ${statusTone}">${esc(statusLabel)}</span></td>
-        <td><b>${esc(compactDateLabel(textOf(cells[3].querySelector("b"), textOf(cells[3]))))}</b></td>
+        <td title="${esc(cells[3].getAttribute("title") || "")}"><b>${esc(compactDateLabel(textOf(cells[3].querySelector("b"), textOf(cells[3]))))}</b><small class="ps-ready-date">Kebutuhan hasil MRP</small></td>
         <td><span class="ps-lead-time">${esc(leadTime)}</span></td>
         <td><div class="ps-due-primary"><b>${esc(purchaseMaxLabel)}</b>${htmlOf(dueHelp, "")}</div></td>
         <td class="text-end"><b>${esc(stock)}</b></td>

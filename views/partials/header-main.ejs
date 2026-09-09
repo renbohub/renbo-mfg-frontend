@@ -12,12 +12,8 @@
           <a class="nav-link" href="#">Finance</a><a class="nav-link" href="#">HR</a><a class="nav-link" href="#">Settings</a>
         </div>
       </div>
-      <div class="user-tools d-none d-lg-flex">
-        <button class="icon-button" aria-label="Cari"><%- include('icon', { name: 'search' }) %></button>
-        <button class="icon-button" aria-label="Notifikasi"><%- include('icon', { name: 'bell' }) %></button>
-        <span class="tool-divider"></span>
-        <div class="avatar" data-user-avatar>U</div><div><strong data-user-name>Pengguna</strong><small data-user-role>ERP User</small></div><button class="logout-button" type="button" data-logout>Keluar</button>
-      </div>
+      <%- include('context-navbar-actions') %>
+      <%- include('navbar-account') %>
     </div>
   </nav>
 </header>

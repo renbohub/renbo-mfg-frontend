@@ -1,0 +1,100 @@
+/* MPS only: keep both header tiers above the frozen body cells. */
+.mwb-table-scroll:has(> .mwb-demand-table) {
+  isolation: isolate;
+  background: #fff;
+}
+.mwb-demand-table {
+  --mwb-left-pn: 36px;
+  --mwb-left-name: 182px;
+  --mwb-right-action: 344px;
+  --mwb-right-checklist: 152px;
+  --mwb-group-height: 34px;
+  background: #fff;
+}
+.mwb-demand-table .mwb-group-head th { z-index: 20; }
+.mwb-demand-table .mwb-sub-head th {
+  position: sticky;
+  top: var(--mwb-group-height);
+  z-index: 19;
+}
+.mwb-demand-table .mwb-group-head .mwb-group-identity,
+.mwb-demand-table .mwb-group-head .mwb-group-name,
+.mwb-demand-table .mwb-group-head .mwb-group-type {
+  background: #f8fafc;
+  color: #475569;
+  border: 0;
+  border-bottom: 1px solid #cbd5e1;
+}
+.mwb-demand-table .mwb-group-head .mwb-group-identity { left: 0; z-index: 30; }
+.mwb-demand-table .mwb-group-head .mwb-group-name {
+  left: var(--mwb-left-name);
+  z-index: 30;
+  box-shadow: 1px 0 #cbd5e1;
+}
+.mwb-demand-table .mwb-sub-head th:nth-child(-n+3) { z-index: 29; }
+.mwb-demand-table .mwb-sub-head th:nth-child(2),
+.mwb-demand-table tbody td:nth-child(2) { left: var(--mwb-left-pn); }
+.mwb-demand-table .mwb-sub-head th:nth-child(3),
+.mwb-demand-table tbody td:nth-child(3) { left: var(--mwb-left-name); }
+.mwb-demand-table .mwb-group-head .mwb-group-action,
+.mwb-demand-table .mwb-sub-head th:nth-child(19),
+.mwb-demand-table tbody td:nth-child(19) { right: var(--mwb-right-action); }
+.mwb-demand-table .mwb-group-head .mwb-group-checklist,
+.mwb-demand-table .mwb-sub-head th:nth-child(20),
+.mwb-demand-table tbody td:nth-child(20) { right: var(--mwb-right-checklist); }
+.mwb-demand-table .mwb-group-head .mwb-group-action,
+.mwb-demand-table .mwb-group-head .mwb-group-checklist,
+.mwb-demand-table .mwb-group-head .mwb-group-status { z-index: 30; }
+.mwb-demand-table .mwb-sub-head th:nth-child(n+19) { z-index: 29; }
+
+/* Hover used to inherit a transparent TR background. Touch devices can retain
+   that hover state after tapping; every frozen cell needs its own opaque paint. */
+.mwb-demand-table tbody tr { --mwb-row-surface: #fff; }
+.mwb-demand-table tbody tr:hover { --mwb-row-surface: #f8fafc; }
+.mwb-demand-table tbody tr.is-expanded { --mwb-row-surface: #eef4ff; }
+.mwb-demand-table tbody tr.mwb-batch-row { --mwb-row-surface: #f4f7fc; }
+.mwb-demand-table tbody tr.mwb-total-row { --mwb-row-surface: #edf2f8; }
+.mwb-demand-table tbody tr td:nth-child(-n+3),
+.mwb-demand-table tbody tr td:nth-child(n+19),
+.mwb-demand-table tbody tr:hover td,
+.mwb-demand-table tbody tr td.mwb-current-efd,
+.mwb-demand-table tbody tr td.mwb-buffer-value {
+  background-color: var(--mwb-row-surface);
+}
+.mwb-demand-table tbody tr td:nth-child(-n+3),
+.mwb-demand-table tbody tr td:nth-child(n+19),
+.mwb-demand-table tbody tr td.mwb-current-efd,
+.mwb-demand-table tbody tr td.mwb-buffer-value {
+  background-color: var(--mwb-row-surface) !important;
+}
+/* Empty/loading messages span columns and must not inherit nth-child freezing. */
+.mwb-demand-table tbody td[colspan] { position: static; left: auto; right: auto; }
+
+@media (max-width: 760px) {
+  .mwb-demand-table .mwb-group-head .mwb-group-name,
+  .mwb-demand-table .mwb-sub-head th:nth-child(3) {
+    position: sticky;
+    left: auto;
+    z-index: 19;
+    box-shadow: none;
+  }
+  .mwb-demand-table .mwb-group-head .mwb-group-name { z-index: 20; }
+  .mwb-demand-table tbody td:nth-child(3) { position: static; left: auto; box-shadow: none; }
+}
+@media (max-width: 640px) {
+  .mwb-demand-table .mwb-group-head .mwb-group-checklist,
+  .mwb-demand-table .mwb-group-head .mwb-group-status,
+  .mwb-demand-table .mwb-sub-head th:nth-child(20),
+  .mwb-demand-table .mwb-sub-head th:nth-child(21) {
+    position: sticky;
+    right: auto;
+    z-index: 19;
+  }
+  .mwb-demand-table .mwb-group-head .mwb-group-checklist,
+  .mwb-demand-table .mwb-group-head .mwb-group-status { z-index: 20; }
+  .mwb-demand-table tbody td:nth-child(20),
+  .mwb-demand-table tbody td:nth-child(21) { position: static; right: auto; }
+  .mwb-demand-table .mwb-group-head .mwb-group-action,
+  .mwb-demand-table .mwb-sub-head th:nth-child(19),
+  .mwb-demand-table tbody td:nth-child(19) { right: 0; }
+}

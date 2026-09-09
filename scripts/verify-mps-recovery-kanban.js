@@ -11,9 +11,10 @@ const script = read("public", "js", "ppic-mps-recovery-kanban.js");
 const workbench = read("public", "js", "ppic-mps-workbench.js");
 const routes = read("src", "routes", "modules.js");
 const registry = read("src", "moduleRegistry.js");
-const backendRoutes = read("..", "backend", "src", "prisma", "routes", "planning", "demand-planning.js");
-const controller = read("..", "backend", "src", "prisma", "controllers", "planning", "DemandPlanningController.js");
-const workbenchService = read("..", "backend", "src", "prisma", "services", "planning", "mpsWorkbenchService.js");
+const backendDir = fs.existsSync(path.join(root, "..", "renbo-mfg-backend")) ? "renbo-mfg-backend" : "backend";
+const backendRoutes = read("..", backendDir, "src", "prisma", "routes", "planning", "demand-planning.js");
+const controller = read("..", backendDir, "src", "prisma", "controllers", "planning", "DemandPlanningController.js");
+const workbenchService = read("..", backendDir, "src", "prisma", "services", "planning", "mpsWorkbenchService.js");
 
 for (const status of ["OPEN", "IN_PROGRESS", "WAITING", "DONE"]) {
   assert.match(view + script + controller, new RegExp(status));

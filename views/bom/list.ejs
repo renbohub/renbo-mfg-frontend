@@ -13,12 +13,20 @@
   </section>
   <div id="bom-list-alert" class="alert alert-warning d-none mx-4 mt-3"></div>
   <section class="bom-figma-content app-container">
-    <div id="bom-table-view" class="bom-figma-table"><div class="table-responsive"><table id="bom-table" class="table align-middle w-100"><thead><tr><th></th><th>KODE BOM</th><th>PARENT ITEM</th><th>PART NO</th><th>BOM TYPE</th><th>REVISION</th><th>TOTAL KOMPONEN</th><th>EFFECTIVE DATE</th><th>STATUS</th><th>AKSI</th></tr></thead></table></div></div>
+    <p class="small text-muted mb-2">Satu BOM terbaru per part. Revisi terdahulu disimpan untuk histori dokumen.</p>
+    <div id="bom-table-view" class="bom-figma-table"><div class="table-responsive"><table id="bom-table" class="table align-middle w-100"><thead><tr><th></th><th>KODE BOM</th><th>PARENT ITEM</th><th>PART NO</th><th>BOM TYPE</th><th>REVISION</th><th>TOTAL KOMPONEN</th><th>EFFECTIVE DATE</th><th>KELENGKAPAN DATA</th><th>MASA BERLAKU</th><th>AKSI</th></tr></thead></table></div></div>
     <div id="bom-kanban-view" class="bom-alt-view d-none"></div>
     <div id="bom-gallery-view" class="bom-alt-view d-none"></div>
     <div id="bom-heatmap-view" class="bom-alt-view d-none"></div>
   </section>
 </main>
+<div class="modal fade" id="bom-governance-modal" tabindex="-1" aria-labelledby="bom-governance-title" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content bom-governance-dialog">
+    <div class="modal-header"><div><h2 class="modal-title fs-5" id="bom-governance-title">Riwayat Revisi BOM</h2><p id="bom-governance-subtitle" class="small text-muted mb-0 mt-1"></p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup riwayat dan kelengkapan"></button></div>
+    <div id="bom-governance-body" class="modal-body"></div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Tutup</button></div>
+  </div></div>
+</div>
 <div class="modal fade" id="bom-report-modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content bom-report-dialog">
     <div class="modal-header"><div><small class="text-uppercase text-primary fw-bold">Management Report</small><h2 class="modal-title fs-5">Export Bill of Materials</h2><p class="mb-0 text-muted small">Struktur, part number, price list, cost, routing, dan cycle time.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button></div>
@@ -31,4 +39,5 @@
   </div></div>
 </div>
 <script defer src="/js/bom-report.js?v=20260812-2"></script>
+<link rel="stylesheet" href="/css/bom-governance.css?v=20260907-1">
 <%- include('../partials/footer') %>

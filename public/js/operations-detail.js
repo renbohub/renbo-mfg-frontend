@@ -41,6 +41,20 @@
   const isDailySchedulePage = () => config.module === "production" && config.page.slug === "daily-production-schedules";
   const isNgDispositionPage = () => config.module === "qc" && config.page.slug === "ng-dispositions";
   const isQualityInspectionPage = () => config.module === "qc" && config.page.slug === "quality-inspections";
+  const isDeliveryPage = () => config.module === "outgoing" && ["delivery-schedules", "delivery-schedule"].includes(config.page.slug);
+  let deliveryToolsPromise = null;
+  let deliveryActionPending = false;
+  let detailLoading = false;
+  let deliveryPolling = null;
+  function deliveryTools() {
+    if (!deliveryToolsPromise) deliveryToolsPromise = new Promise((resolve, reject) => {
+      if (window.DeliveryWorkflow) { resolve(window.DeliveryWorkflow); return; }
+      const script = document.createElement("script"); script.src = "/js/delivery-workflow.js?v=20260908-1";
+      script.onload = () => resolve(window.DeliveryWorkflow); script.onerror = () => { deliveryToolsPromise = null; reject(new Error("Form pengiriman gagal dimuat. Coba kembali.")); };
+      document.head.appendChild(script);
+    });
+    return deliveryToolsPromise;
+  }
   let currentRecord = null;
   let supplierLookupRows = [];
   let supplierLookupPromise = null;
@@ -82,6 +96,7 @@
     `<select class="${classes}" ${attribute}>${supplierLookupOptions(value)}</select>`;
   function showAlert(message, kind = "danger") { const box = $("ops-detail-alert"); box.textContent = message; box.className = `alert alert-${kind}`; }
   function isInternalKey(key) {
+    if (isDeliveryPage() && ["receivedSignature", "podUrl"].includes(key)) return true;
     return /^(id|createdAt|updatedAt|deletedAt|isDeleted)$/i.test(String(key || ""))
       || /(^|[_-])id$/i.test(String(key || ""))
       || /Id$/.test(String(key || ""));
@@ -428,7 +443,7 @@
     $("ops-detail-fields").innerHTML = `<div class="po-overview-kpis">
       <article class="amount"><span>Total PO</span><strong>${esc(purchaseOrderMoney(record.totalAmount, record))}</strong><small>${esc(record.currencyCode || "IDR")}</small></article>
       <article class="supplier"><span>Supplier</span><strong>${supplierValue}</strong></article>
-      <article><span>Target Delivery</span><strong>${esc(format(record.deliveryDate, "date"))}</strong><small>${record.deliveryDate && new Date(record.deliveryDate) < new Date() && !/completed|cancelled/i.test(record.status || "") ? "Lewat target" : "Tanggal penerimaan"}</small></article>
+      <article><span>Target Delivery</span><strong>${esc(format(record.deliveryDate, "date"))}</strong><small>${record.deliveryDate && new Date(record.deliveryDate) < (globalThis.erpBusinessNow?.() || new Date()) && !/completed|cancelled/i.test(record.status || "") ? "Lewat target" : "Tanggal penerimaan"}</small></article>
       <article><span>Progress Receipt</span><strong>${completeLines} / ${details.length} line</strong><small>${esc(receiptState)}</small></article>
     </div><div class="po-overview-meta">${meta.map(([name, value]) => `<div><span>${esc(name)}</span><strong>${esc(value)}</strong></div>`).join("")}</div>${record.notes ? `<div class="po-overview-notes"><span>Catatan PO</span><p>${esc(record.notes)}</p></div>` : ""}`;
   }
@@ -528,11 +543,11 @@
       const name = row.materialName || row.partName || row.description || "Item PR";
       const process = [row.vendorProcessCode, row.vendorProcessName].filter(Boolean).join(" · ");
       const dateRows = isVendorProcess
-        ? `<div class="pr-vendor-dates"><span><small>Kirim ke vendor</small><b>${esc(format(row.vendorSendDates, "date"))}</b></span><i>→</i><span><small>Target kembali</small><b>${esc(format(row.vendorReturnDates || row.sourcingDeliveryDates, "date"))}</b></span></div>`
+        ? `<div class="pr-vendor-dates"><span><small>Kirim ke vendor</small><b>${esc(format(row.vendorSendDates, "date"))}</b></span><i>→</i><span><small>Target kembali</small><b>${esc(format(row.vendorReturnDates || row.sourcingDeliveryDates || record.requiredDate, "date"))}</b></span></div>`
         : `<span class="pr-line-due">Due ${esc(format(row.sourcingDeliveryDates || record.requiredDate, "date"))}</span>`;
       return `<tr class="${isVendorProcess ? "is-vendor-process" : ""}">
         <td class="pr-select-cell"><input type="checkbox" class="form-check-input pr-po-line" data-pr-detail-id="${esc(row.id || "")}" data-line-number="${esc(row.lineNumber || "")}" data-supplier-code="${esc(proposed)}" data-partner-type="${isVendorProcess ? "vendor" : "supplier"}" data-outstanding="${esc(outstanding)}" data-required-date="${esc(String(record.requiredDate || "").slice(0, 10))}" data-request-uom="${esc(String(row.uomCode || "PCS").toUpperCase())}" data-raw-material="${row.materialCode ? "true" : "false"}" data-package-uom="${esc(row.purchasePackageUomCode || "")}" ${outstanding > 0 ? "checked" : "disabled"}></td>
-        <td class="pr-line-item"><span class="pr-line-no">${num(row.lineNumber, 0)}</span><div><b>${esc(identity)}</b><strong>${esc(name)}</strong><small>${esc([row.partNumber && `Part No. ${row.partNumber}`, row.materialType, process].filter(Boolean).join(" · ") || "Tanpa spesifikasi tambahan")}</small></div></td>
+        <td class="pr-line-item"><span class="pr-line-no">${num(row.lineNumber, 0)}</span><div><b>${esc(identity)}</b><strong>${esc(name)}</strong><small>${esc([row.partNumber && `Part No. ${row.partNumber}`, row.materialType, process, row.spec, row.thickness != null && `T ${row.thickness} mm`, row.width != null && `W ${row.width} mm`].filter(Boolean).join(" · ") || "Tanpa spesifikasi tambahan")}</small>${row.notes ? `<small class="pr-line-notes" style="white-space:pre-wrap">Catatan: ${esc(row.notes)}</small>` : ""}</div></td>
         <td><span class="pr-category-pill ${isVendorProcess ? "vendor" : ""}">${esc(purchaseRequisitionCategory(row.procurementCategory))}</span><small class="pr-partner-line">${esc(isVendorProcess ? `Vendor ${proposed || "belum dipilih"}` : `Supplier ${proposed || "belum dipilih"}`)}</small></td>
         <td class="pr-line-quantity"><b>${qty(row.qty,row.uomCode)} ${esc(row.uomCode || "")}</b><small>Ordered ${qty(row.orderedQty,row.uomCode)} · Sisa ${qty(outstanding,row.uomCode)}</small><i><em style="width:${progress}%"></em></i></td>
         <td>${dateRows}</td>
@@ -540,7 +555,7 @@
         <td class="pr-line-trace">${purchaseRequisitionTrace(row)}${row.sourceCapacityAllocationIds ? `<small>Allocation ${esc(row.sourceCapacityAllocationIds)}</small>` : ""}</td>
       </tr>`;
     }).join("");
-    return `<section class="ops-detail-card pr-lines-workspace"><div class="ops-collection-head"><div><h2>Item yang Diminta</h2><p>${isVendorProcess ? "Qty, vendor, dan tanggal berasal dari Production Capacity. Harga membaca Vendor Price List." : "Pilih item yang akan diputuskan suppliernya atau dibuat ke PO."}</p></div><span>${num(rows.length, 0)} item</span></div>
+    return `<section class="ops-detail-card pr-lines-workspace"><div class="ops-collection-head"><div><h2>Item yang Diminta</h2><p>${isVendorProcess ? (record.sourceType === "MANUAL" ? "Permintaan proses vendor manual. Periksa part, proses, vendor, harga estimasi, dan tanggal kebutuhan." : "Qty, vendor, dan tanggal berasal dari Production Capacity. Harga membaca Vendor Price List.") : "Pilih item yang akan diputuskan suppliernya atau dibuat ke PO."}</p></div><span>${num(rows.length, 0)} item</span></div>
       <div class="pr-lines-help"><b>Urutan kerja:</b><span>1. Periksa qty & due date</span><i>→</i><span>2. Konfirmasi ${isVendorProcess ? "vendor" : "supplier"}</span><i>→</i><span>3. Submit approval</span><i>→</i><span>4. Move to PO</span></div>
       <div class="table-responsive"><table class="table ops-collection-table pr-friendly-table"><thead><tr><th><span class="visually-hidden">Pilih</span></th><th>Item / Proses</th><th>Jenis / Partner</th><th>Quantity</th><th>${isVendorProcess ? "Jadwal Vendor" : "Required Date"}</th><th>Estimasi</th><th>Planning Trace</th></tr></thead><tbody>${body || '<tr><td colspan="7" class="text-center py-4">Belum ada item Purchase Requisition.</td></tr>'}</tbody></table></div></section>`;
   }
@@ -788,6 +803,8 @@
     "Alternative Delivery Date", "Confirmed",
   ].includes(status);
   const dateInputValue = (value) => value ? String(value).slice(0, 10) : "";
+  // Purchasing milestones are calendar dates, never browser-local timestamps.
+  const purchaseDate = (value) => value ? new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value)) : "—";
   const optionalInputNumber = (input) => {
     const value = String(input?.value ?? "").trim();
     return value === "" ? null : number(value);
@@ -871,7 +888,7 @@
       setSupplierMasterCaption(container, `[data-${prefix}-moq-source]`, "MOQ master", null, false);
     }
     try {
-      const query = new URLSearchParams({ supplierCode, asOf: new Date().toISOString() });
+      const query = new URLSearchParams({ supplierCode, asOf: (globalThis.erpBusinessNow?.() || new Date()).toISOString() });
       const master = await api(`/modules/api/purchasing-suggestions/${encodeURIComponent(config.recordKey)}/items/${encodeURIComponent(editor.dataset.itemId)}/supplier-master?${query}`);
       if (container.dataset.supplierMasterRequest !== requestToken || supplier?.value?.trim() !== supplierCode) return;
       applySupplierMasterValues(container, master, { force: options.force, clearMissing: options.clearMissing !== false });
@@ -1097,8 +1114,8 @@
       </header>
       <div class="ps-modal-context">
         <div><small>Customer</small><b>${esc(customerCodes)}</b></div>
-        <div><small>Customer Delivery</small><b>${esc(format(row.customerDeliveryDate, "date"))}</b></div>
-        <div><small>Material Required</small><b>${esc(format(row.materialRequiredDate, "date"))}</b></div>
+        <div><small>Customer Delivery</small><b>${esc(purchaseDate(row.customerDeliveryDate))}</b></div>
+        <div><small>Material Required</small><b>${esc(purchaseDate(row.materialRequiredDate))}</b></div>
         <div><small>Order Paling Lambat</small><b>${esc(format(row.calculatedPurchaseDueDate || row.recommendedOrderDate, "date"))}</b></div>
         <div><small>Net Requirement</small><b>${num(row.netRequirement)} ${esc(row.uomCode || "")}</b></div>
         <div><small>Recommended Purchase</small><b>${num(row.recommendedPurchaseQty)} ${esc(row.uomCode || "")}</b></div>
@@ -1127,77 +1144,27 @@
 
   function openDueCalculationModal(row) {
     const identity = row.materialCode || row.partCode || "Material / Part";
-    const salesOrders = Array.isArray(row.salesOrderNumbers) ? row.salesOrderNumbers : [];
-    const forecasts = Array.isArray(row.forecastNumbers) ? row.forecastNumbers : [];
-    const sourceLabels = [
-      salesOrders.length ? `SO ${salesOrders.join(", ")}` : null,
-      forecasts.length ? `Forecast ${forecasts.join(", ")}` : null,
-    ].filter(Boolean);
-    const productionHours = number(row.productionLeadTimeHours);
-    const breakdown = row.productionLeadTimeBreakdown || {};
-    const leadDays = number(breakdown.effectivePurchasingLeadTimeDays ?? row.confirmedLeadTimeDays ?? row.purchasingLeadTimeDays);
-    const masterLeadDays = number(breakdown.masterPurchasingLeadTimeDays ?? row.confirmedLeadTimeDays ?? row.purchasingLeadTimeDays);
-    const procurement = breakdown.procurementSchedule || {};
-    const policy = procurement.leadTimeBreakdown || breakdown.procurementPolicy || {};
-    const effectiveProductionHours = breakdown.totalProductionLeadTimeHours != null
-      ? number(breakdown.totalProductionLeadTimeHours)
-      : productionHours;
-    const workingHoursPerDay = number(breakdown.workingHoursPerDay) || 8;
-    const effectiveProductionDays = breakdown.totalProductionLeadTimeDays != null
-      ? number(breakdown.totalProductionLeadTimeDays)
-      : effectiveProductionHours / workingHoursPerDay;
-    const exactProductionDays = breakdown.exactProductionLeadTimeDays != null
-      ? number(breakdown.exactProductionLeadTimeDays)
-      : effectiveProductionHours / workingHoursPerDay;
-    const scheduledProductionDays = number(breakdown.scheduledProductionLeadTimeDays) || Math.ceil(effectiveProductionDays);
-    const productionDueDate = row.calculatedProductionDueDate || row.materialRequiredDate;
-    const purchaseDueDate = row.calculatedPurchaseDueDate || row.recommendedOrderDate;
-    const supplierArrivalDate = row.supplierRequiredArrivalDate || procurement.supplierRequiredArrivalDate || productionDueDate;
-    const latestPrDate = row.calculatedLatestPrDate || procurement.latestPrDate || row.latestPrDate;
-    const processPath = Array.isArray(breakdown.processPath) ? breakdown.processPath : [];
-    const vendorPlanningRows = Array.isArray(breakdown.planningEvidence?.vendorProcesses)
-      ? breakdown.planningEvidence.vendorProcesses.filter((process) => process.adjustmentApplied)
-      : [];
-    const vendorPlanningHtml = vendorPlanningRows.length
-      ? `<div class="ps-lead-breakdown"><div><span>Vendor process confirmed</span><b>${vendorPlanningRows.map((process) => `${esc(process.processCode || process.processName || "Vendor")} ${num(number(process.adjustedDurationHours) / 8)} hari`).join(" · ")}</b></div><small>${vendorPlanningRows.map((process) => `${esc(process.vendorCode || process.vendorName || "Vendor")} master ${num(number(process.masterDurationHours) / 8)} hari → planning ${num(number(process.adjustedDurationHours) / 8)} hari${process.reason ? ` (${esc(process.reason)})` : ""}`).join("; ")}. Konfirmasi ini berasal dari Demand Planning/SO dan dipakai oleh Purchase Suggestion serta Auto Allocation.</small></div>`
-      : "";
-    const processPathHtml = processPath.length ? `<div class="ps-process-path"><header><div><span>Critical Path MBOM</span><b>${esc(breakdown.mbomNumber || "-")}</b></div><small>Setiap proses dibulatkan ke atas. Proses berikutnya menunggu proses sebelumnya selesai; cabang paralel menunggu jalur terlama.</small></header><ol>${processPath.map((step, index) => `<li class="${step.mode === "VENDOR" ? "is-vendor" : ""}"><span>${index + 1}</span><div><small>Level ${num(step.level, 0)} · Seq ${num(step.sequence, 0)} · ${esc(step.mode)}</small><b>${esc(step.detailCode || "-")} · ${esc(step.processName || step.processCode || "Process")}</b><em>${step.mode === "VENDOR" ? `Vendor ${esc(step.vendorCode || step.vendorName || "-")} · ${num(step.rawElapsedDays ?? step.vendorLeadTimeDays)} hari` : `${num(step.cycleTimeSeconds)} detik × ${num(step.qty)} qty ÷ 3.600 = ${num(step.cycleLoadHours)} jam ÷ ${num(workingHoursPerDay, 0)} = ${num(step.rawElapsedDays ?? number(step.elapsedHours) / workingHoursPerDay)} hari`} → dibulatkan ${num(step.elapsedDays ?? Math.ceil(number(step.elapsedHours) / workingHoursPerDay), 0)} hari</em></div></li>`).join("")}</ol></div>` : "";
-    const leadTimeFormula = breakdown.legacyDetected
-      ? `<div class="ps-lead-breakdown is-warning"><div><span>Kenapa tersimpan ${num(breakdown.storedProductionLeadTimeHours)} jam?</span><b>${num(breakdown.summedComponentLeadHours)} jam lead komponen + ${num(breakdown.legacyCycleLoadHours)} jam cycle + ${num(breakdown.setupHours)} jam setup/run + ${num(breakdown.queueBufferHours)} jam queue = ${num(breakdown.legacyTotalHours)} jam</b></div><small>Cycle lama: ${num(breakdown.cycleTimeSeconds)} detik × ${num(breakdown.legacyAccumulatedQty)} qty ÷ 3.600. Qty ${num(breakdown.legacyAccumulatedQty)} berasal dari qty MPS ${num(breakdown.scheduleQty)} yang terakumulasi pada ${num(breakdown.legacyRequirementCount, 0)} requirement. Ini terdeteksi sebagai hitung ganda pada dokumen lama.</small><em>Metode baru: hitungan mentah critical path <b>${num(exactProductionDays)} hari</b>. Karena setiap proses dibulatkan ke atas, in-house menjadi ${num(breakdown.inhouseScheduledDays, 0)} hari + vendor ${num(breakdown.vendorScheduledDays ?? breakdown.vendorLeadTimeDays, 0)} hari = <b>${num(scheduledProductionDays, 0)} hari aman</b>.</em></div>`
-      : breakdown.totalProductionLeadTimeHours != null
-        ? `<div class="ps-lead-breakdown"><div><span>Sumber lead time proses</span><b>MBOM ${esc(breakdown.mbomNumber || "-")} · qty MPS ${num(breakdown.scheduleQty)}</b></div><small>Hitungan mentah ${num(exactProductionDays)} hari. Setiap proses dibulatkan ke atas: in-house ${num(breakdown.inhouseScheduledDays, 0)} hari + vendor ${num(breakdown.vendorScheduledDays ?? breakdown.vendorLeadTimeDays, 0)} hari = scheduler ${num(scheduledProductionDays, 0)} hari.</small></div>`
-        : "";
+    const needDate = row.calculatedProductionDueDate || row.materialRequiredDate;
+    const purchaseMax = row.calculatedPurchaseDueDate || row.recommendedOrderDate;
+    const leadDays = row.productionLeadTimeBreakdown?.procurementSchedule?.totalLeadTimeDays ?? Math.ceil(number(row.confirmedLeadTimeDays ?? row.purchasingLeadTimeDays));
     const overlay = document.createElement("div");
     overlay.className = "ops-modal-backdrop";
     overlay.innerHTML = `<section class="ops-modal ps-due-modal" role="dialog" aria-modal="true" aria-labelledby="ps-due-title">
-      <header><div><p class="ops-eyebrow">Backward Scheduling</p><h2 id="ps-due-title">Perhitungan Due Date</h2><p>${esc(identity)} · tanggal maksimal yang masih memenuhi delivery customer.</p></div><button type="button" class="btn-close" data-due-close aria-label="Tutup"></button></header>
+      <header><div><p class="ops-eyebrow">MRP Delivery Need</p><h2 id="ps-due-title">Perhitungan Purchase Max</h2><p>${esc(identity)}</p></div><button type="button" class="btn-close" data-due-close aria-label="Tutup"></button></header>
       <div class="ops-modal-body">
-        <div class="ps-due-source"><span>Sumber demand</span><b>${esc(sourceLabels.join(" + ") || "MRP / Planned Order")}</b><small>${sourceLabels.length > 1 ? "Jika ada beberapa jadwal, sistem memakai delivery customer yang paling awal agar semua demand aman." : "Tanggal delivery customer diambil dari jadwal demand yang terhubung ke MPS/MRP."}</small></div>
-        ${leadTimeFormula}
-        ${vendorPlanningHtml}
-        ${processPathHtml}
+        <div class="ps-due-source"><span>Sumber tanggal</span><b>Kebutuhan material / komponen dari hasil explode BOM di MRP</b><small>Jika satu item menggabungkan beberapa kebutuhan MRP, gunakan tanggal kebutuhan paling awal. Tambahan MOQ tidak mengubah tanggal kebutuhan asal.</small></div>
         <div class="ps-due-flow">
-          <div><span>1</span><small>Due Date Delivery</small><b>${esc(format(row.customerDeliveryDate, "date"))}</b><em>Jadwal SO/Forecast paling awal</em></div>
-          <i>−</i>
-          <div><span>2</span><small>Lead Time Proses BOM</small><b>${num(scheduledProductionDays, 0)} hari</b><em>Mentah ${num(exactProductionDays)} hari · setiap proses dibulatkan ke atas</em></div>
-          <i>=</i>
-          <div><span>3</span><small>Material Ready / Mulai Produksi</small><b>${esc(format(productionDueDate, "date"))}</b><em>Tanggal paling lambat produksi boleh dimulai</em></div>
-          <i>−</i>
-          <div><span>4</span><small>Supplier Harus Tiba</small><b>${esc(format(supplierArrivalDate, "date"))}</b><em>QC ${num(policy.receivingQcDays)} hari · safety ${num(policy.safetyLeadTimeDays)} hari${number(policy.receivingQcDays) === 0 && number(policy.safetyLeadTimeDays) === 0 ? " (di-waive PPIC)" : ""}</em></div>
-          <i>=</i>
-          <div><span>5</span><small>Latest PO Release</small><b>${esc(format(purchaseDueDate, "date"))}</b><em>Supplier ${num(leadDays)} hari${leadDays !== masterLeadDays ? ` · master ${num(masterLeadDays)} hari` : ""}</em></div>
-          <i>−</i>
-          <div class="is-result"><span>6</span><small>Latest PR Approval</small><b>${esc(format(latestPrDate, "date"))}</b><em>PR ${num(policy.prApprovalDays)} hari · proses PO ${num(policy.poProcessingDays)} hari</em></div>
+          <div><span>1</span><small>Delivery Need · MRP</small><b>${esc(purchaseDate(needDate))}</b></div><i>−</i>
+          <div><span>2</span><small>Lead Time Supplier</small><b>${num(leadDays)} hari kalender</b><em>Lead time konfirmasi supplier, atau master jika belum dikonfirmasi</em></div><i>=</i>
+          <div class="is-result"><span>3</span><small>Purchase Max · PO dikirim</small><b>${esc(purchaseDate(purchaseMax))}</b></div>
         </div>
-        <div class="alert ${breakdown.legacyDetected ? "alert-warning" : "alert-info"} mb-0"><b>${breakdown.legacyDetected ? "Dokumen lama:" : "Logika:"}</b> ${breakdown.legacyDetected ? "Jalankan ulang MRP dan buat Purchase Suggestion terbaru agar tanggal memakai qty MPS unik dan critical path BOM yang sudah diperbaiki." : "Delivery customer dikurangi critical path proses dalam hari kerja. Dari material-ready, sistem memisahkan supplier arrival, latest PO, dan latest PR—tidak lagi menyebut tanggal PR sebagai tanggal PO."}</div>
-      </div>
-      <footer><button class="btn btn-primary" type="button" data-due-close>Mengerti</button></footer>
-    </section>`;
+        <div class="alert alert-info mb-0">Purchase Max = Delivery Need MRP − lead time supplier. Contoh: 20 September − 5 hari = 15 September.</div>
+      </div><footer><button class="btn btn-primary" type="button" data-due-close>Mengerti</button></footer></section>`;
     document.body.appendChild(overlay);
     document.body.classList.add("modal-open");
     const close = () => { overlay.remove(); if (!document.querySelector(".ops-modal-backdrop")) document.body.classList.remove("modal-open"); };
-    overlay.querySelectorAll("[data-due-close]").forEach((button) => button.addEventListener("click", close));
-    overlay.addEventListener("click", (event) => { if (event.target === overlay) close(); });
+    overlay.querySelectorAll("[data-due-close]").forEach(button => button.addEventListener("click", close));
+    overlay.addEventListener("click", event => { if (event.target === overlay) close(); });
   }
 
   function purchaseSuggestionReferences(row, record = {}) {
@@ -1268,7 +1235,7 @@
       return `<article class="ps-item-card" data-ps-card data-ps-status="${esc(row.status || "Draft")}" data-ps-search="${esc(search)}">
         <header class="ps-item-head"><div class="ps-item-identity"><span class="ps-kind">${row.materialCode ? "MATERIAL" : "PURCHASE PART"}</span><h3>${esc(identity)}</h3><p>${esc(description)}${row.partNumber ? ` · PN ${esc(row.partNumber)}` : ""}</p></div><div class="ps-item-status">${badge(row.status)}<small>${badge(row.confirmationStatus)}</small></div></header>
         <div class="ps-source-strip"><span>Demand</span>${sources.length ? sources.map((source) => `<b>${esc(source)}</b>`).join("") : "<b>MRP</b>"}${(row.customerCodes || []).map((customer) => `<b>Customer ${esc(customer)}</b>`).join("")}</div>
-        <div class="ps-timeline"><div><small>Delivery Customer</small><b>${esc(format(row.customerDeliveryDate, "date"))}</b></div><span>←</span><div><small>Mulai Produksi</small><b>${esc(format(row.plannedProductionStart, "date"))}</b></div><span>←</span><div><small>Material Dibutuhkan</small><b>${esc(format(row.materialRequiredDate, "date"))}</b></div><span>←</span><div><small>Order Maksimal</small><b>${esc(format(row.recommendedOrderDate, "date"))}</b></div></div>
+        <div class="ps-timeline"><div><small>Delivery Customer</small><b>${esc(purchaseDate(row.customerDeliveryDate))}</b></div><span>←</span><div><small>Delivery Need · MRP</small><b>${esc(purchaseDate(row.calculatedProductionDueDate || row.plannedProductionStart))}</b></div><span>←</span><div><small>Target Tiba</small><b>${esc(purchaseDate(row.supplierRequiredArrivalDate))}</b></div><span>←</span><div><small>Purchase Max</small><b>${esc(purchaseDate(row.calculatedPurchaseDueDate || row.recommendedOrderDate))}</b></div></div>
         <div class="ps-metric-grid"><div><small>Gross Requirement</small><b>${num(row.grossRequirement)} ${esc(row.uomCode || "")}</b></div><div><small>Available + Open PO</small><b>${num(number(row.availableStock) + number(row.openPoQty))}</b><em>OH ${num(row.onHandStock)} · RSV ${num(row.reservedStock)}</em></div><div><small>Net Requirement</small><b>${num(row.netRequirement)}</b></div><div class="ps-recommended"><small>Recommended Purchase</small><b>${num(row.recommendedPurchaseQty)} ${esc(row.uomCode || "")}</b><em>MOQ ${num(row.moq)} · Multiple ${num(row.orderMultiple)}</em></div><div><small>Excess / Projected</small><b>${num(row.excessQty)} / ${num(row.projectedStockAfterOrder)}</b></div><div><small>Shortage</small><b class="${shortage > 0 ? "text-danger" : "text-success"}">${num(shortage)}</b></div></div>
         <footer class="ps-item-footer"><div><small>Suggested Supplier</small><b>${esc(row.suggestedSupplierCode || "Belum ditentukan")}</b><span>${num(row.purchasingLeadTimeDays, 0)} hari lead time</span></div><button class="btn ${/ready|converted/i.test(row.status || "") ? "btn-outline-primary" : "btn-primary"}" type="button" data-open-suggestion-editor>${/ready|converted/i.test(row.status || "") ? "Lihat / Ubah Konfirmasi" : "Konfirmasi Supplier"}</button></footer>
         ${suggestionEditor(row)}
@@ -1301,14 +1268,17 @@
       const category = row.materialCode ? "Material" : "Purchase Part";
       const prCategory = row.materialCode ? "PR-Raw_Material" : "PR-Purchase-Part";
       const sources = [...new Set([...(row.salesOrderNumbers || []), ...(row.forecastNumbers || []), ...(row.productionOrderNumbers || []), row.plannedOrderNumber].filter(Boolean))];
-      const search = [identity, description, row.partNumber, row.suggestedSupplierCode, row.suggestedSupplierName, row.status, ...sources].filter(Boolean).join(" ").toLowerCase();
+      const effectiveSupplierCode = row.effectiveSupplierCode || row.alternativeSupplierCode || row.suggestedSupplierCode || null;
+      const effectiveSupplierName = row.effectiveSupplierName || (row.alternativeSupplierCode ? row.alternativeSupplierCode : row.suggestedSupplierName || row.suggestedSupplierCode);
+      const search = [identity, description, row.partNumber, effectiveSupplierCode, effectiveSupplierName, row.status, ...sources].filter(Boolean).join(" ").toLowerCase();
       const productionDueDate = row.calculatedProductionDueDate || row.materialRequiredDate;
       const purchaseDueDate = row.calculatedPurchaseDueDate || row.recommendedOrderDate;
       const due = dueParts(purchaseDueDate);
+      const targetArrivalDate = row.supplierRequiredArrivalDate || row.productionLeadTimeBreakdown?.procurementSchedule?.supplierRequiredArrivalDate;
       const confirmedAllocations = (row.supplierAllocations || []).filter((allocation) => allocation.status === "Confirmed");
       const confirmedMoq = number(row.confirmedMoq ?? row.moq);
       const orderMultiple = number(row.orderMultiple);
-      const primarySupplierCode = row.alternativeSupplierCode || row.suggestedSupplierCode || null;
+      const primarySupplierCode = effectiveSupplierCode;
       const primarySupplierConfirmed = ["Available", "Partially Available", "Alternative Quantity Offered", "Alternative Delivery Date", "Confirmed"].includes(row.confirmationStatus) || Boolean(row.bypassConfirmationReason);
       const primarySupplierAllocation = primarySupplierCode && primarySupplierConfirmed
         ? {
@@ -1348,12 +1318,12 @@
         <td class="ps-freeze-select"><input class="form-check-input" type="checkbox" data-ps-select ${eligible ? "" : "disabled"} aria-label="Pilih ${esc(identity)} untuk PR" title="${eligible ? "Pilih untuk satu Draft PR" : "Konfirmasi supplier lebih dahulu"}"></td>
         <td class="ps-freeze-item"><a class="ps-item-link" href="${esc(materialHref)}"><b>${esc(identity)}</b><span>${esc(description)}</span><small>${row.partNumber ? `PN ${esc(row.partNumber)} · ` : ""}${esc(row.uomCode || "-")}</small></a></td>
         <td><span class="ps-category ${slug(category)}">${esc(prCategory)}</span></td>
-        <td class="ps-date-cell"><b>${esc(format(row.customerDeliveryDate, "date"))}</b><small>SO / Forecast</small></td>
-        <td class="ps-date-cell"><div class="ps-due-primary"><b>${esc(format(purchaseDueDate, "date"))}</b><button class="ps-due-help" type="button" data-due-calculation aria-label="Lihat perhitungan due date ${esc(identity)}" title="Lihat perhitungan maksimal due date">?</button></div><span>Produksi ${esc(format(productionDueDate, "date"))}</span><small>${esc(row.procurementWindow || "UNCLASSIFIED")} · ${esc(row.scheduleSource === "OR_TOOLS_WASM_CP_SAT" ? "OR-Tools CP-SAT" : row.scheduleSource || "Solver schedule")}</small><small>Supplier LT ${num(row.confirmedLeadTimeDays ?? row.purchasingLeadTimeDays, 0)} hari${number(row.atRiskSupplyQty) > 0 ? ` · At risk ${num(row.atRiskSupplyQty)}` : ""}</small></td>
+        <td class="ps-date-cell" title="Delivery customer ${esc(purchaseDate(row.customerDeliveryDate))}"><b>${esc(purchaseDate(targetArrivalDate))}</b><small>Kebutuhan hasil MRP</small></td>
+        <td class="ps-date-cell"><div class="ps-due-primary"><b>${esc(purchaseDate(purchaseDueDate))}</b><button class="ps-due-help" type="button" data-due-calculation aria-label="Lihat perhitungan due date ${esc(identity)}" title="Lihat perhitungan maksimal due date">?</button></div><span>Produksi ${esc(purchaseDate(productionDueDate))}</span><small>${esc(row.procurementWindow || "UNCLASSIFIED")} · MRP − lead time supplier</small><small>Supplier LT ${num(row.productionLeadTimeBreakdown?.procurementSchedule?.totalLeadTimeDays ?? Math.ceil(number(row.confirmedLeadTimeDays ?? row.purchasingLeadTimeDays)), 0)} hari kalender${number(row.atRiskSupplyQty) > 0 ? ` · At risk ${num(row.atRiskSupplyQty)}` : ""}</small></td>
         <td class="ps-reference-cell"><button class="ps-reference-trigger" type="button" data-reference-popup aria-label="Lihat full reference ${esc(identity)}" title="Lihat semua dokumen terhubung"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg><span>${num(purchaseSuggestionReferences(row, record).length, 0)}</span></button></td>
         <td class="ps-qty-cell" title="Net / Gross / Rekomendasi"><b>${num(row.netRequirement)} ${esc(row.uomCode || "")}</b><span>G ${num(row.grossRequirement)}</span><small>R ${num(row.recommendedPurchaseQty)}</small>${pulledFutureQty > 0 ? `<small class="ps-moq-pull">MOQ allocation ${num(pulledFutureQty)} ke kebutuhan berikutnya</small>` : ""}</td>
         <td class="ps-qty-cell" title="Total supply / Available / Open PO"><b>${num(number(row.availableStock) + number(row.openPoQty))}</b><span>A ${num(row.availableStock)}</span><small>PO ${num(row.openPoQty)}</small></td>
-        <td class="ps-supplier-cell">${supplierHref ? `<a href="${esc(supplierHref)}"><b>${esc(supplierCode)}</b><span>${esc(row.suggestedSupplierName || "Supplier")}</span></a>` : '<b class="text-danger">Belum ditentukan</b>'}<small>Tersedia ${num(supplierAvailability)} · LT ${num(row.confirmedLeadTimeDays ?? row.purchasingLeadTimeDays, 0)} hari</small></td>
+        <td class="ps-supplier-cell">${supplierHref ? `<a href="${esc(supplierHref)}"><b>${esc(supplierCode)}</b><span>${esc(effectiveSupplierName || supplierCode)}</span></a>` : '<b class="text-danger">Belum ditentukan</b>'}<small>Tersedia ${num(supplierAvailability)} · LT ${num(row.confirmedLeadTimeDays ?? row.purchasingLeadTimeDays, 0)} hari</small></td>
         <td class="ps-custom-qty"><input class="form-control form-control-sm" data-ps-custom-qty type="number" min="${esc(minimumQty)}" max="${esc(supplierAvailability)}" step="${esc(step)}" value="${esc(selectedQty)}" disabled><small>Maks. supplier: ${num(supplierAvailability)} ${esc(row.uomCode || "")}</small></td>
         <td class="ps-status-cell">${badge(row.status)}<span>${badge(row.confirmationStatus)}</span><small class="ps-readiness-hint">${esc(readinessHint)}</small><button class="btn btn-sm btn-outline-primary" type="button" data-open-suggestion-editor>${esc(confirmationAction)}</button></td>
       </tr>`;
@@ -1361,7 +1331,7 @@
     const replanBanner = record.status === "Replan Required" ? `<div class="alert alert-warning mb-0"><b>Demand berubah.</b> Purchase Suggestion ini tidak dapat dibuat menjadi PR. Hitung ulang MPS lalu jalankan MRP kembali untuk memperoleh rekomendasi terbaru.</div>` : "";
     return `<section class="ps-workspace">${replanBanner}<div class="ps-review-flow"><header><div><span>ALUR KERJA PURCHASING</span><b>Dari suggestion sampai Draft PR</b></div><small>Mulai dari item yang perlu konfirmasi. Item baru dapat dipilih setelah komitmen supplier lengkap.</small></header><ol><li class="is-current"><i>1</i><div><b>Review kebutuhan</b><small>${num(pendingConfirmationCount, 0)} item perlu tindakan</small></div></li><li><i>2</i><div><b>Konfirmasi supplier</b><small>Qty, delivery, MOQ, harga</small></div></li><li class="${totals.ready ? "is-ready" : ""}"><i>3</i><div><b>Pilih item siap</b><small>${num(totals.ready, 0)} item siap PR</small></div></li><li class="${convertedCount ? "is-ready" : ""}"><i>4</i><div><b>Buat Draft PR</b><small>${num(convertedCount, 0)} item sudah diproses</small></div></li></ol></div><div class="ps-summary-grid"><div><small>Total Item</small><b>${num(rows.length, 0)}</b></div><div><small>Net Requirement</small><b>${num(totals.net)}</b></div><div><small>Recommended Qty</small><b>${num(totals.recommended)}</b></div><div><small>Excess Qty</small><b>${num(totals.excess)}</b></div><div><small>Siap PR</small><b>${num(totals.ready, 0)} / ${num(rows.length, 0)}</b></div></div>
       <div class="ps-toolbar"><label class="ps-search-field"><span>Cari item</span><input class="form-control" data-ps-search-input placeholder="Material, part, supplier, SO, forecast..."></label><label><span>Jenis item</span><select class="form-select" data-ps-category-filter><option value="">Semua jenis</option>${categories.map((category) => `<option>${esc(category)}</option>`).join("")}</select></label><label><span>Kesiapan PR</span><select class="form-select" data-ps-status-filter><option value="">Semua kesiapan</option>${statusOptions.map((status) => `<option>${esc(status)}</option>`).join("")}</select></label><label><span>Konfirmasi supplier</span><select class="form-select" data-ps-confirmation-filter><option value="">Semua konfirmasi</option>${confirmationOptions.map((status) => `<option>${esc(status)}</option>`).join("")}</select></label><label><span>Kelompok due date</span><select class="form-select" data-ps-due-group><option value="day">Per tanggal</option><option value="week">Per minggu</option><option value="month">Per bulan</option><option value="">Tanpa grouping</option></select></label><b data-ps-result>${num(rows.length, 0)} item</b><button class="btn btn-primary btn-sm ps-auto-confirm-button" type="button" data-auto-confirm-suppliers title="Cari supplier terkait yang mempunyai harga aktif, gunakan qty suggestion, dan isi lead time aktual 2 hari" ${record.status === "Replan Required" || pendingConfirmationCount === 0 ? "disabled" : ""}>Auto Konfirmasi Supplier</button></div>
-      <div class="ps-table-shell"><table class="table ps-suggestion-table"><thead><tr><th class="ps-freeze-select"><label title="Pilih semua item siap PR yang terlihat"><input class="form-check-input" type="checkbox" data-ps-select-all aria-label="Pilih semua item yang siap"><span>Select All</span></label></th><th class="ps-freeze-item">Material / Part</th><th>PR Category</th><th>Due Date Delivery</th><th>Due Date Pembelian <span class="ps-head-help" title="Klik ikon ? pada setiap baris untuk melihat perhitungannya">?</span></th><th>Full Reference</th><th>Demand</th><th>Stock Supply</th><th>Supplier & Availability</th><th>Qty untuk PR</th><th>Status / Action</th></tr></thead><tbody>${tableRows || '<tr><td colspan="11" class="text-center text-muted p-4">Tidak ada item suggestion.</td></tr>'}</tbody></table></div>
+      <div class="ps-table-shell"><table class="table ps-suggestion-table" data-enterprise-table="off"><thead><tr><th class="ps-freeze-select"><label title="Pilih semua item siap PR yang terlihat"><input class="form-check-input" type="checkbox" data-ps-select-all aria-label="Pilih semua item yang siap"><span>Select All</span></label></th><th class="ps-freeze-item">Material / Part</th><th>PR Category</th><th>Delivery Need · MRP</th><th>Purchase Max <span class="ps-head-help" title="Klik ikon ? pada setiap baris untuk melihat perhitungannya">?</span></th><th>Full Reference</th><th>Demand</th><th>Stock Supply</th><th>Supplier & Availability</th><th>Qty untuk PR</th><th>Status / Action</th></tr></thead><tbody>${tableRows || '<tr><td colspan="11" class="text-center text-muted p-4">Tidak ada item suggestion.</td></tr>'}</tbody></table></div>
       <div class="ps-selection-bar"><div><b data-ps-selected-count>0 item dipilih</b><span data-ps-selected-qty>Total qty 0</span></div><small>Draft PR otomatis dipisah berdasarkan <b>PR Category × Supplier</b>. Qty tetap dapat disesuaikan sampai batas supplier.</small><button class="btn btn-primary" type="button" data-workflow-action="convert-suggestion-to-pr" disabled data-ps-create-pr>Buat Draft PR</button></div></section>`;
   }
 
@@ -3489,7 +3459,7 @@
                 ${vendorProcessPr ? "" : `<td>${rawMaterial ? `<select class="form-select form-select-sm" data-po-form><option value="SHEET" ${initialForm === "SHEET" ? "selected" : ""}>SHEET</option><option value="COIL" ${initialForm === "COIL" ? "selected" : ""}>COIL</option><option value="PCS" ${initialForm === "PCS" ? "selected" : ""}>PCS</option></select>` : '<span class="ops-muted">Sesuai PR</span>'}</td>
                 <td>${rawMaterial ? `<input class="form-control form-control-sm" data-po-width type="number" min="0.001" step="0.001" value="${esc(allocation?.materialWidth ?? detail?.width ?? "")}" required>` : "-"}</td>
                 <td>${rawMaterial ? `<div data-sheet-length-field class="${initialForm === "SHEET" ? "" : "d-none"}"><input class="form-control form-control-sm" data-po-length type="number" min="0.001" step="0.001" value="${esc(allocation?.materialLength ?? detail?.materialLength ?? "")}" placeholder="mm" ${initialForm === "SHEET" ? "required" : ""}></div>` : "-"}</td>`}
-                <td><input class="form-control form-control-sm" data-po-delivery-date type="date" value="${esc(String(allocation?.deliveryDate || checkbox.dataset.requiredDate || new Date().toISOString().slice(0, 10)).slice(0, 10))}" required></td>
+                <td><input class="form-control form-control-sm" data-po-delivery-date type="date" value="${esc(String(allocation?.deliveryDate || checkbox.dataset.requiredDate || (globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10)).slice(0, 10))}" required></td>
                 <td><input class="form-control form-control-sm" data-po-unit-price type="number" min="0" step="any" value="${allocation?.unitPrice ?? ""}" placeholder="Opsional"></td>
               </tr>`;
             }).join("")}
@@ -4051,8 +4021,8 @@
     if (prEditLink) {
       const editableStatus = ["draft", "revision-required", "rejected"].includes(slug(record.status));
       const vendorProcessPr = String(record.procurementCategory || record.procurementGroup || "").toUpperCase() === "VENDOR_PROCESS";
-      prEditLink.classList.toggle("d-none", !editableStatus || vendorProcessPr);
-      const categorySlug = ({ MATERIAL: "material", PURCHASE_PART: "purchase-part", UNIVERSAL_PURCHASE_PART: "universal-purchase-part", NON_PRODUCTION: "non-production" })[String(record.procurementCategory || record.procurementGroup || "").toUpperCase()];
+      prEditLink.classList.toggle("d-none", !editableStatus || (vendorProcessPr && record.sourceType !== "MANUAL"));
+      const categorySlug = ({ MATERIAL: "material", PURCHASE_PART: "purchase-part", UNIVERSAL_PURCHASE_PART: "universal-purchase-part", VENDOR_PROCESS: "vendor-process", NON_PRODUCTION: "non-production" })[String(record.procurementCategory || record.procurementGroup || "").toUpperCase()];
       if (categorySlug) prEditLink.href = `/modules/purchasing/purchase-requisitions/${encodeURIComponent(record.prNumber || config.recordKey)}/edit?category=${encodeURIComponent(categorySlug)}`;
     }
     const productionLogEditLink = $("production-log-edit-link");
@@ -4116,16 +4086,31 @@
     }
     renderMeta(record);
     $("ops-workflow-actions").innerHTML = workflowActions(record);
+    if (isDeliveryPage()) {
+      $("ops-workflow-actions").insertAdjacentHTML("beforeend", `<button type="button" class="btn btn-outline-primary" data-delivery-download="note.pdf">Unduh Surat Jalan + QR</button><a class="btn btn-outline-secondary" href="/modules/outgoing/scan">Scan Surat Jalan</a>${String(record.podUrl || "").startsWith("private-delivery:") ? '<button type="button" class="btn btn-outline-secondary" data-delivery-download="evidence/pod">Unduh Bukti POD</button>' : ""}${String(record.receivedSignature || "").startsWith("private-delivery:") ? '<button type="button" class="btn btn-outline-secondary" data-delivery-download="evidence/signature">Unduh Tanda Tangan</button>' : ""}<small class="delivery-live" id="delivery-live-status">Diperbarui ${esc(new Date().toLocaleTimeString("id-ID"))} · otomatis setiap 15 detik</small>`);
+    }
+    if (config.module === "inventory" && config.page.slug === "stock-opname") {
+      $("ops-workflow-actions").insertAdjacentHTML("beforeend", '<button type="button" class="btn btn-outline-primary" data-opname-download="report.pdf">Laporan Opname PDF</button><button type="button" class="btn btn-outline-primary" data-opname-download="report.xlsx">Laporan Opname Excel</button><button type="button" class="btn btn-outline-secondary" data-opname-download="labels.pdf">Cetak Label QR</button>');
+    }
+    if (isStockBalancePage()) $("ops-workflow-actions").insertAdjacentHTML("beforeend", `<a class="btn btn-outline-primary" href="/modules/inventory/stock-policy/${encodeURIComponent(record.id || config.recordKey)}">Atur Minimum Stok & Reorder</a>`);
+    if (isIncomingInspectionPage()) $("ops-workflow-actions").insertAdjacentHTML("beforeend", `<a class="btn btn-outline-primary" href="/modules/incoming/inspections/${encodeURIComponent(record.inspectionNumber || config.recordKey)}/checklist">Checklist Pemeriksaan & Laporan</a>`);
+    if ((config.module === "incoming" || config.module === "purchasing") && config.page.slug === "goods-receipts") $("ops-workflow-actions").insertAdjacentHTML("beforeend", `<a class="btn btn-outline-primary" href="/modules/incoming/documents/${encodeURIComponent(record.grNumber || config.recordKey)}">Dokumen Surat Jalan Supplier</a>`);
     $("ops-detail-loading").classList.add("d-none"); $("ops-detail-shell").classList.remove("d-none");
     requestAnimationFrame(() => { if (isStockBalancePage()) initializeGoodsReceiptWorkspace(); else initializeTransactionWorkspace(); });
     if (config.module === "purchasing" && config.page.slug === "purchase-suggestions") filterPurchaseSuggestionCards();
   }
-  async function load() {
+  async function load({ quiet = false } = {}) {
+    if (isDeliveryPage() && detailLoading) return;
+    detailLoading = true;
     try {
       if (config.module === "purchasing" && config.page.slug === "purchase-suggestions") loadSupplierLookup().catch(() => {});
-      const record = await api(`/modules/api/${config.module}/${config.page.slug}/${encodeURIComponent(config.recordKey)}`);
-      render(record);
-    } catch (error) { $("ops-detail-loading").classList.add("d-none"); showAlert(error.message); }
+      const record = await api(`/modules/api/${config.module}/${config.page.slug}/${encodeURIComponent(config.recordKey)}`, isDeliveryPage() ? { signal: AbortSignal.timeout(12000) } : {});
+      if (!quiet || (!deliveryActionPending && !document.querySelector("dialog[open]"))) render(record);
+    } catch (error) {
+      $("ops-detail-loading").classList.add("d-none");
+      if (quiet && $("delivery-live-status")) $("delivery-live-status").textContent = "Pembaruan tertunda; mencoba lagi dalam 15 detik.";
+      else showAlert(error.message);
+    } finally { detailLoading = false; }
   }
   async function refreshPurchaseSuggestionAfterConfirmation() {
     const tableShell = document.querySelector(".ps-table-shell");
@@ -4525,7 +4510,7 @@
           saveState.classList.remove("d-none");
           saveState.querySelector("b").textContent = `${updatedItem.materialCode || updatedItem.partCode || "Item"} tersimpan.`;
         }
-        if (liveState) liveState.innerHTML = `<i></i> Tersimpan ${new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit" }).format(new Date())}`;
+        if (liveState) liveState.innerHTML = `<i></i> Tersimpan ${new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit" }).format((globalThis.erpBusinessNow?.() || new Date()))}`;
         saveSuggestionButton.textContent = "Tersimpan";
         showAlert("Konfirmasi supplier tersimpan. Dialog tetap terbuka dan tabel sudah diperbarui.", "success");
       } catch (error) { showAlert(error.message); }
@@ -4533,6 +4518,38 @@
         saveSuggestionButton.disabled = false;
         if (saveSuggestionButton.textContent === "Menyimpan...") saveSuggestionButton.textContent = originalSaveLabel;
       }
+      return;
+    }
+    const deliveryDownload = event.target.closest("[data-delivery-download]");
+    if (deliveryDownload && isDeliveryPage()) {
+      deliveryDownload.disabled = true;
+      try {
+        const suffix = deliveryDownload.dataset.deliveryDownload;
+        if (!["note.pdf", "evidence/pod", "evidence/signature"].includes(suffix)) return;
+        const response = await fetch(`/modules/api/outgoing/delivery-schedules/${encodeURIComponent(config.recordKey)}/${suffix}`, { headers: { Authorization: `Bearer ${token()}` }, cache: "no-store" });
+        if (response.status === 401) { location.replace(`/login?next=${encodeURIComponent(location.pathname)}`); return; }
+        if (!response.ok) { const payload = await response.json().catch(() => ({})); throw new Error(payload.message || "Dokumen pengiriman gagal diunduh."); }
+        const href = URL.createObjectURL(await response.blob());
+        const anchor = document.createElement("a"); anchor.href = href;
+        anchor.download = response.headers.get("content-disposition")?.match(/filename="?([^";]+)"?/i)?.[1] || `Surat-Jalan-${config.recordKey}.pdf`;
+        document.body.appendChild(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(href), 1000);
+      } catch (error) { showAlert(error.message); }
+      finally { deliveryDownload.disabled = false; }
+      return;
+    }
+    const opnameDownload = event.target.closest("[data-opname-download]");
+    if (opnameDownload && config.module === "inventory" && config.page.slug === "stock-opname") {
+      opnameDownload.disabled = true;
+      try {
+        const suffix = opnameDownload.dataset.opnameDownload;
+        if (!["report.pdf", "report.xlsx", "labels.pdf"].includes(suffix)) return;
+        const response = await fetch(`/modules/api/inventory/stock-opname/${encodeURIComponent(config.recordKey)}/${suffix}`, { headers: { Authorization: `Bearer ${token()}` }, cache: "no-store" });
+        if (response.status === 401) { location.replace(`/login?next=${encodeURIComponent(location.pathname)}`); return; }
+        if (!response.ok) { const payload = await response.json().catch(() => ({})); throw new Error(payload.message || "Dokumen opname gagal diunduh."); }
+        const href = URL.createObjectURL(await response.blob()); const anchor = document.createElement("a"); anchor.href = href;
+        anchor.download = response.headers.get("content-disposition")?.match(/filename="?([^";]+)"?/i)?.[1] || `${config.recordKey}-${suffix}`;
+        document.body.appendChild(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(href), 1000);
+      } catch (error) { showAlert(error.message); } finally { opnameDownload.disabled = false; }
       return;
     }
     const pdfButton = event.target.closest("[data-po-pdf]");
@@ -4671,11 +4688,11 @@
     } else if (action === "pay" && config.page.slug === "purchase-invoices") {
       const amount = await window.formPrompt("Jumlah payment:", "", { title: "Payment" });
       if (!amount || number(amount) <= 0) return;
-      const paymentDate = await window.formPrompt("Tanggal payment (YYYY-MM-DD):", new Date().toISOString().slice(0, 10), { title: "Payment" });
+      const paymentDate = await window.formPrompt("Tanggal payment (YYYY-MM-DD):", (globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10), { title: "Payment" });
       if (!paymentDate) return;
       requestBody = { amount: number(amount), paymentDate };
     } else if (action === "dispatch-daily") {
-      const date = await window.formPrompt("Tanggal Daily Plan (YYYY-MM-DD):", new Date().toISOString().slice(0, 10), { title: "Dispatch Daily Plan" });
+      const date = await window.formPrompt("Tanggal Daily Plan (YYYY-MM-DD):", (globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10), { title: "Dispatch Daily Plan" });
       if (!date) return;
       const shift = await window.formPrompt("Shift:", "1", { title: "Dispatch Daily Plan" });
       if (!shift) return;
@@ -4729,10 +4746,14 @@
       requestBody.decisions = [...document.querySelectorAll("[data-iqc-disposition-detail]")].map((row) => ({ inspectionDetailId: row.dataset.iqcDispositionDetail, rejectedDisposition: row.querySelector("[data-iqc-disposition]")?.value, dispositionReference: row.querySelector("[data-iqc-disposition-reference]")?.value?.trim() || null }));
       if (!requestBody.decisions.length) { showAlert("Tidak ada reject yang menunggu disposition."); return; }
       if (requestBody.decisions.some((row) => row.rejectedDisposition === "HOLD")) { showAlert("Pilih disposition final: Return to Supplier atau Scrap."); return; }
-    } else if (action === "ship") {
-      requestBody = { trackingNumber: "E2E-TRK-20260801", vehicle: "Truck-E2E" };
-    } else if (action === "pod") {
-      requestBody = { receivedBy: "E2E Receiver", podUrl: "E2E-POD-20260801" };
+    } else if (["ship", "pod"].includes(action) && isDeliveryPage()) {
+      if (deliveryActionPending) return;
+      deliveryActionPending = true; button.disabled = true;
+      try {
+        const workflow = await deliveryTools();
+        requestBody = await workflow.collect(action, currentRecord);
+        if (!requestBody) { deliveryActionPending = false; button.disabled = false; return; }
+      } catch (error) { deliveryActionPending = false; button.disabled = false; showAlert(error.message); return; }
     } else if (action === "fail") {
       const failureReason = await window.formPrompt("Alasan gagal kirim:", "", { title: "Shipment gagal" }); if (!failureReason || !failureReason.trim()) return;
       requestBody = { failureReason: failureReason.trim() };
@@ -4880,7 +4901,16 @@
         await load();
       }
     } catch (error) { showAlert(error.message); }
-    finally { button.disabled = false; }
+    finally { button.disabled = false; deliveryActionPending = false; }
   });
   load();
+  if (isDeliveryPage()) {
+    const refreshDelivery = () => {
+      if (document.hidden || deliveryActionPending || detailLoading || document.querySelector("dialog[open]") || document.querySelector("[data-workflow-action]:disabled")) return;
+      load({ quiet: true });
+    };
+    deliveryPolling = setInterval(refreshDelivery, 15000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshDelivery(); });
+    window.addEventListener("pagehide", () => clearInterval(deliveryPolling));
+  }
 })();

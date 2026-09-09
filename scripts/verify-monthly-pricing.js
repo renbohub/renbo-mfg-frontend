@@ -1,0 +1,35 @@
+const assert = require('node:assert/strict');
+const p = require('../public/js/monthly-pricing');
+const { getEntity } = require('../src/masterDataRegistry');
+const old = {unitPrice:45,effectiveFrom:'2026-08-28T00:00:00.000Z',effectiveUntil:null};
+const converted=p.project(old);
+assert.equal(converted.pricingYear,2026);assert.equal(converted.july,null);assert.equal(converted.august,45);assert.equal(converted.december,45);assert.equal(old.august,undefined);
+assert.equal(p.project({...old,effectiveUntil:'2026-09-10T00:00:00.000Z'}).october,null);
+const monthly=p.project({pricingYear:2026,unitPrice:null,january:100,september:125});
+assert.equal(monthly.february,100);assert.equal(monthly.september,125);
+assert.equal(monthly.monthlyOverrides.february,false);assert.equal(p.overrides(monthly).february,null,'display projection does not fabricate form anchors');
+const vendor=p.project({...old,unitPrice:undefined,details:[{vendorProcessId:'p',unitPrice:45},{vendorProcessId:'q',unitPrice:5}]});
+assert.equal(vendor.august,50);assert.equal(vendor.details[0].august,45);
+for(const slug of ['vendor-price-lists','material-price-lists','part-price-lists']) {
+ const config=getEntity(slug);assert.equal(config.monthlyPricing,true);
+ assert.equal(config.fields.some(f=>f.name==='effectiveFrom'||f.name==='unitPrice'),false);
+ assert.ok(config.fields.some(f=>f.name==='pricingYear'&&f.required));
+ for(const month of p.months) assert.ok(config.columns.some(c=>c.data===month));
+ if(slug!=='vendor-price-lists') assert.equal(config.fields.filter(f=>p.months.includes(f.name)).length,12);
+}
+const effective = (anchors) => p.resolve(anchors).map(m=>m.value);
+assert.deepEqual(effective({january:100}),Array(12).fill(100),'January flows through December');
+assert.deepEqual(effective({january:100,june:120,september:90}),[100,100,100,100,100,120,120,120,90,90,90,90]);
+assert.deepEqual(effective({january:110,june:null,september:90}),[110,110,110,110,110,110,110,110,90,90,90,90],'clear inherits while preserving future anchor');
+assert.deepEqual(effective({january:0,june:100}),[0,0,0,0,0,100,100,100,100,100,100,100],'zero is a valid anchor');
+assert.deepEqual(effective({june:0}),[null,null,null,null,null,0,0,0,0,0,0,0],'no backward fill or prior-year inference');
+const dense = Object.fromEntries(p.months.map((m,i)=>[m,i<5?100:i<8?120:90]));
+assert.deepEqual(p.overrides(dense),Object.fromEntries(p.months.map(m=>[m,({january:100,june:120,september:90})[m]??null])));
+const flagged = {...dense,monthlyOverrides:Object.fromEntries(p.months.map(m=>[m,['january','june','july','september'].includes(m)]))};
+assert.equal(p.overrides(flagged).july,120,'explicit same-value future anchor is preserved when API flag exists');
+assert.equal(p.overrides({january:100,july:100}).july,100,'sparse same-price anchors retained');
+assert.equal(p.changeText(p.resolve({january:100,june:120})[5]),'↑ 20 (20%)');
+assert.equal(p.changeText(p.resolve({january:100,june:80})[6]),'↓ 20 (20%) · sejak Juni');
+assert.equal(p.changeText(p.resolve({january:0,june:20})[5]),'↑ 20 (dari 0)');
+assert.equal(p.changeText(p.resolve({january:100,june:100})[5]),'');
+console.log('Monthly pricing model passed: three forms, 12 months, legacy transitions, sparse anchors, future overrides, clearing, zero, and delta indicators.');

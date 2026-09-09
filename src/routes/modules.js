@@ -1,16 +1,19 @@
+const { businessNow } = require("../businessClock");
 const express = require("express");
+const { randomUUID } = require("node:crypto");
 const { modules, getModule, getPage } = require("../moduleRegistry");
 
 const router = express.Router();
 const backendUrl = (process.env.BACKEND_URL || "http://localhost:5017").replace(/\/$/, "");
+const MONTHLY_PLAN_CREATE_TIMEOUT_MS = 120000;
 
 function common(activeModule = "") {
   return { requiresAuth: true, modules, activeModule, socketUrl: process.env.SOCKET_URL || "http://localhost:5017", mqttUrl: process.env.MQTT_URL || "" };
 }
-function jakartaDateKey(value = new Date()) {
+function jakartaDateKey(value = businessNow()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(value);
 }
-function jakartaMonthKey(value = new Date()) { return jakartaDateKey(value).slice(0, 7); }
+function jakartaMonthKey(value = businessNow()) { return jakartaDateKey(value).slice(0, 7); }
 function addMonthKey(month, offset) {
   const [year, monthNumber] = String(month).split("-").map(Number);
   return new Date(Date.UTC(year, monthNumber - 1 + offset, 1)).toISOString().slice(0, 7);
@@ -23,6 +26,7 @@ function authHeader(req) {
   });
   return headers;
 }
+router.use(require("./step1-proxy")({ backendUrl, authHeader, common, getModule, getPage }));
 function findConfig(req, res) {
   const module = getModule(req.params.module);
   const page = getPage(req.params.module, req.params.page);
@@ -30,8 +34,17 @@ function findConfig(req, res) {
   return { module, page };
 }
 async function readBackend(response) { const value = await response.text(); if (!value) return {}; try { return JSON.parse(value); } catch { return { message: value }; } }
-function isOffline(error) { return error?.cause?.code === "ECONNREFUSED"; }
-function isTimeout(error) { return error?.name === "TimeoutError" || error?.name === "AbortError"; }
+function backendErrorChain(error, seen = new Set()) {
+  if (!error || typeof error !== "object" || seen.has(error)) return [];
+  seen.add(error);
+  return [error, ...backendErrorChain(error.cause, seen),
+    ...(Array.isArray(error.errors) ? error.errors.flatMap((child) => backendErrorChain(child, seen)) : [])];
+}
+function isOffline(error) { return backendErrorChain(error).some((item) => item.code === "ECONNREFUSED"); }
+function isTimeout(error) {
+  return backendErrorChain(error).some((item) => ["TimeoutError", "AbortError"].includes(item.name)
+    || ["ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT"].includes(item.code));
+}
 function nestedValue(object, path) { return String(path || "").split(".").reduce((value, key) => value == null ? undefined : value[key], object); }
 function requestedSort(query, columns = []) {
   const index = Number(query["order[0][column]"]);
@@ -81,6 +94,7 @@ async function proxyBomMutation(req, res, method, suffix = "") {
 }
 
 async function proxyPageMutation(req, res, endpoint, method, suffix = "", timeoutMs = 30000) {
+  const startedAt = Date.now();
   try {
     const url = new URL(`${backendUrl}${endpoint}${suffix}`);
     if (method === "GET") {
@@ -98,10 +112,22 @@ async function proxyPageMutation(req, res, endpoint, method, suffix = "", timeou
     if (!response.ok) return res.status(response.status).json({ message: payload.message || `Backend merespons ${response.status}.`, code: payload.code, details: payload.details, errors: payload.errors, capacity: payload.capacity });
     res.status(response.status).json(payload);
   } catch (error) {
+    const errorId = randomUUID();
+    const codes = [...new Set(backendErrorChain(error).map((item) => item.code).filter((code) => typeof code === "string" && /^[A-Z0-9_]+$/.test(code)))];
+    // Log transport diagnostics only: never authorization, request body, or raw errors.
+    console.error("[backend-proxy]", JSON.stringify({ errorId, method, endpoint, route: req.route?.path, elapsedMs: Date.now() - startedAt, timeoutMs, codes }));
     if (isTimeout(error)) {
-      return res.status(504).json({ code: "BACKEND_TIMEOUT", message: "Perhitungan backend melewati batas waktu. Backend tetap aktif; refresh status sebelum mencoba ulang." });
+      return res.status(504).json({ code: "BACKEND_TIMEOUT", errorId, message: `Respons backend melewati batas waktu. Status proses belum terkonfirmasi; periksa daftar atau status plan sebelum mencoba ulang. Referensi: ${errorId}` });
     }
-    res.status(503).json({ message: isOffline(error) ? `Backend belum aktif di ${backendUrl}.` : "Perubahan gagal dikirim ke backend." });
+    if (isOffline(error)) {
+      return res.status(503).json({ code: "BACKEND_UNAVAILABLE", errorId, message: `Koneksi ke backend ditolak. Periksa service backend dan konfigurasi BACKEND_URL. Referensi: ${errorId}` });
+    }
+    const disconnected = codes.some((code) => ["ECONNRESET", "EPIPE", "UND_ERR_SOCKET"].includes(code));
+    return res.status(502).json({
+      code: disconnected ? "BACKEND_CONNECTION_LOST" : "BACKEND_CONNECTION_ERROR",
+      errorId,
+      message: `${disconnected ? "Koneksi backend terputus sebelum respons selesai." : "Respons backend tidak berhasil diterima."} Status penyimpanan belum terkonfirmasi; periksa daftar atau status plan sebelum mencoba ulang. Referensi: ${errorId}`,
+    });
   }
 }
 
@@ -166,6 +192,10 @@ router.get("/api/planning-ppic/mps/workbench/lines/:lineId/feasibility", (req, r
   `/api/planning/mps/workbench/lines/${encodeURIComponent(req.params.lineId)}/feasibility`,
   "Detail checklist kelayakan schedule gagal dimuat.",
 ));
+router.get("/api/planning-ppic/mps/workbench/lines/:lineId/recovery-requests", (req, res) => proxyReadWithQuery(req, res, `/api/planning/mps/workbench/lines/${encodeURIComponent(req.params.lineId)}/recovery-requests`, "Recovery checklist gagal dimuat."));
+router.post("/api/planning-ppic/mps/workbench/lines/:lineId/recovery-requests", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "POST", `/workbench/lines/${encodeURIComponent(req.params.lineId)}/recovery-requests`));
+router.get("/api/planning-ppic/mps/recovery-requests", (req, res) => proxyReadWithQuery(req, res, "/api/planning/mps/recovery-requests", "Inbox recovery gagal dimuat."));
+router.patch("/api/planning-ppic/mps/recovery-requests/:requestId/feedback", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "PATCH", `/recovery-requests/${encodeURIComponent(req.params.requestId)}/feedback`));
 router.get("/api/planning-ppic/mps/mbom-revision-options", (req, res) => {
   const query = new URLSearchParams();
   if (req.query.months) query.set("months", String(req.query.months));
@@ -198,7 +228,7 @@ router.get("/api/planning-ppic/consume-forecast/monthly/:month", (req, res) => p
 router.get("/api/dashboard/executive/:module", async (req, res) => {
   try {
     const url = new URL(`${backendUrl}/api/dashboard/executive/${encodeURIComponent(req.params.module)}`);
-    if (req.query.year) url.searchParams.set("year", String(req.query.year));
+    ["year", "customerCode", "period", "actualBasis"].forEach(key => { if (req.query[key]) url.searchParams.set(key, String(req.query[key])); });
     const response = await fetch(url, { headers: authHeader(req), signal: AbortSignal.timeout(30000) });
     const payload = await readBackend(response);
     if (!response.ok) return res.status(response.status).json({ message: payload.message || `Backend merespons ${response.status}.` });
@@ -241,6 +271,7 @@ router.post("/api/planning-ppic/daily-plan/revisions/:revisionId/items/:schedule
 router.post("/api/planning-ppic/daily-plan/revisions/:revisionId/validate", (req, res) => proxyPageMutation(req, res, "/api/planning/daily-plan-revisions", "POST", `/${encodeURIComponent(req.params.revisionId)}/validate`));
 router.post("/api/planning-ppic/daily-plan/revisions/:revisionId/release", (req, res) => proxyPageMutation(req, res, "/api/planning/daily-plan-revisions", "POST", `/${encodeURIComponent(req.params.revisionId)}/release`));
 router.get("/api/production/production-logs/hmi-reasons", (req, res) => proxyReadWithQuery(req, res, "/api/production/production-logs/hmi-reasons", "Master reason HMI gagal dimuat."));
+router.get("/api/production/oee-monitoring", (req, res) => proxyReadWithQuery(req, res, "/api/production/production-reports/oee-monitoring", "Data monitoring OEE belum dapat dimuat."));
 router.patch("/api/production/fg-receipts/:inspectionNumber/receive", (req, res) => proxyPageMutation(req, res, "/api/production/quality-inspections", "PATCH", `/${encodeURIComponent(req.params.inspectionNumber)}/receive-fg`));
 router.patch("/api/production/fg-receipts/:movementNumber/rollback", (req, res) => proxyPageMutation(req, res, "/api/production/quality-inspections/fg-receipts", "PATCH", `/${encodeURIComponent(req.params.movementNumber)}/rollback`));
 
@@ -282,6 +313,38 @@ router.get("/api/outgoing/delivery-board", (req, res) => {
   return proxyPageMutation(req, res, "/api/outgoing/delivery-board", "GET", query ? `?${query}` : "");
 });
 
+// Dedicated customer-owned material workflow (never routed to purchase PO).
+router.get("/api/incoming/customer-supplies", (req, res) => proxyPageMutation(req, res, "/api/incoming/customer-supplies", "GET", `?${new URLSearchParams(req.query)}`));
+router.get("/api/incoming/customer-supplies/options", (req, res) => proxyPageMutation(req, res, "/api/incoming/customer-supplies", "GET", "/options"));
+router.get("/api/incoming/customer-supplies/mrp/:runNumber", (req, res) => proxyPageMutation(req, res, "/api/incoming/customer-supplies", "GET", `/mrp/${encodeURIComponent(req.params.runNumber)}`));
+router.post("/api/incoming/customer-supplies", (req, res) => proxyPageMutation(req, res, "/api/incoming/customer-supplies", "POST"));
+router.post("/api/incoming/customer-supplies/from-mrp", (req, res) => proxyPageMutation(req, res, "/api/incoming/customer-supplies", "POST", "/from-mrp"));
+router.post("/api/incoming/customer-supplies/:id/shipments", (req, res) => proxyPageMutation(req, res, "/api/incoming/customer-supplies", "POST", `/${encodeURIComponent(req.params.id)}/shipments`));
+router.post("/api/incoming/customer-supplies/:id/cancel", (req, res) => proxyPageMutation(req, res, "/api/incoming/customer-supplies", "POST", `/${encodeURIComponent(req.params.id)}/cancel`));
+router.post("/api/incoming/customer-supplies/:id/:kind/:childId/:action", (req, res) => {
+  const { id, kind, childId, action } = req.params;
+  if (!({ shipments: ["confirm", "cancel", "receive", "reschedule"], receipts: ["inspect", "issue"] }[kind] || []).includes(action)) return res.status(404).json({ message: "Aksi tidak tersedia." });
+  return proxyPageMutation(req, res, "/api/incoming/customer-supplies", "POST", `/${encodeURIComponent(id)}/${kind}/${encodeURIComponent(childId)}/${action}`);
+});
+router.get("/incoming/customer-supplies", (req, res) => res.redirect(302, `/modules/purchasing/customer-supplies${req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : ""}`));
+router.get("/purchasing/customer-supplies", (_req, res) => {
+  const module = getModule("purchasing"), page = getPage("purchasing", "customer-supplies");
+  res.render("incoming/customer-supplies", { title: "Suplai Material Customer", module, page, pageScript: "/js/customer-supplies.js?v=20260906-3", ...common(module.slug) });
+});
+router.get("/api/purchasing/eta-monitor/:source", (req, res) => {
+  if (!["mps", "suggestions", "orders", "vendor-plans", "vendor-orders", "customer"].includes(req.params.source)) return res.status(404).json({ message: "Sumber ETA tidak tersedia." });
+  return proxyReadWithQuery(req, res, `/api/purchasing/eta-monitor/${req.params.source}`, "Data ETA gagal dimuat.");
+});
+router.post("/api/purchasing/eta-monitor/:source/confirm", (req, res) => {
+  if (!["mps", "suggestions", "orders", "vendor-plans", "vendor-orders", "customer"].includes(req.params.source)) return res.status(404).json({ message: "Sumber ETA tidak tersedia." });
+  return proxyPageMutation(req, res, "/api/purchasing/eta-monitor", "POST", `/${encodeURIComponent(req.params.source)}/confirm`, 45000);
+});
+router.get("/purchasing/eta-monitor", (req, res) => {
+  const module = getModule("purchasing"), page = getPage("purchasing", "eta-monitor");
+  const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(req.query.month || "") ? req.query.month : jakartaMonthKey();
+  res.render("purchasing/eta-monitor", { title: "Konfirmasi ETA MPS", module, page, initialMonth, pageScript: "/js/purchasing-eta.js?v=20260907-mps-source-1", ...common(module.slug) });
+});
+
 router.get("/api/:module/:page", async (req, res) => {
   const config = findConfig(req, res); if (!config) return;
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -299,6 +362,10 @@ router.get("/api/:module/:page", async (req, res) => {
     url.searchParams.set("limit", String(fetchLength));
     const search = String(req.query["search[value]"] || req.query.q || "").trim();
     if (search) { url.searchParams.set("q", search); url.searchParams.set("search", search); }
+    if (pageConfig.slug === "bill-of-materials" && req.query.revisionScope === "LATEST") {
+      url.searchParams.set("revisionScope", "LATEST");
+    }
+    if (pageConfig.slug === "bill-of-materials" && req.query.includeCompleteness === "true") url.searchParams.set("includeCompleteness", "true");
     ["partId", "partCode", "customerCode", "fgPartCode", "historyMonths", "isDeleted", "isActive", "includeDetails", "status", "type", "sourceType", "referenceType", "warehouseCode", "stockType", "lowStock", "poType", "category", "prCategory", "sourceModule", "startDate", "endDate", "month", "year", "machineCode", "lineCode", "dateScope", "scheduleDate", "shift"].forEach((key) => {
       if (req.query[key] !== undefined && req.query[key] !== "") url.searchParams.set(key, String(req.query[key]));
     });
@@ -353,6 +420,7 @@ router.post("/api/manufacturing-bom/bill-of-materials", (req, res) => proxyBomMu
 router.patch("/api/manufacturing-bom/bill-of-materials/:id", (req, res) => proxyBomMutation(req, res, "PATCH", `/${encodeURIComponent(req.params.id)}`));
 router.delete("/api/manufacturing-bom/bill-of-materials/:noReg", (req, res) => proxyBomMutation(req, res, "DELETE", `/${encodeURIComponent(req.params.noReg)}`));
 router.get("/api/manufacturing-bom/bill-of-materials/:noReg/report", (req, res) => proxyReadWithQuery(req, res, `/api/mbom/mbom/${encodeURIComponent(req.params.noReg)}/report`, "Report BOM gagal dimuat."));
+router.get("/api/manufacturing-bom/bill-of-materials/:noReg/history", (req, res) => proxyReadWithQuery(req, res, `/api/mbom/mbom/${encodeURIComponent(req.params.noReg)}/history`, "Riwayat BOM gagal dimuat."));
 router.get("/api/manufacturing-bom/bill-of-materials/drafts", (req, res) => proxyBomMutation(req, res, "GET", "/drafts"));
 router.get("/api/manufacturing-bom/bill-of-materials/drafts/:id", (req, res) => proxyBomMutation(req, res, "GET", `/drafts/${encodeURIComponent(req.params.id)}`));
 router.post("/api/manufacturing-bom/bill-of-materials/drafts", (req, res) => proxyBomMutation(req, res, "POST", "/drafts"));
@@ -384,6 +452,8 @@ router.post("/api/planning-ppic/forecasts/:key/close", (req, res) => proxyPageMu
 
 router.post("/api/planning-ppic/mps/from-forecast", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "POST", "/from-forecast"));
 router.post("/api/planning-ppic/mps/monthly-sync", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "POST", "/monthly-sync"));
+router.patch("/api/planning-ppic/mps/:key/eta-mode", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "PATCH", `/${encodeURIComponent(req.params.key)}/eta-mode`, 15000));
+router.post("/api/planning-ppic/mps/:key/checksheet/evaluate", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "POST", `/${encodeURIComponent(req.params.key)}/checksheet/evaluate`, 300000));
 router.post("/api/planning-ppic/mps/baseline/preview", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "POST", "/baseline/preview"));
 router.post("/api/planning-ppic/mps/baseline/generate", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "POST", "/baseline/generate"));
 router.post("/api/planning-ppic/mps/delta/preview", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "POST", "/delta/preview"));
@@ -413,8 +483,13 @@ router.get("/api/planning-ppic/mrp/:key/customer-pegging-view", (req, res) => pr
 router.patch("/api/planning-ppic/mrp/:key/requirements/order-percent", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "PATCH", `/${encodeURIComponent(req.params.key)}/requirements/order-percent`));
 router.patch("/api/planning-ppic/mrp/:key/planned-orders/procurement", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "PATCH", `/${encodeURIComponent(req.params.key)}/planned-orders/procurement`));
 router.post("/api/planning-ppic/mrp/:key/output/purchase-suggestions", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "POST", `/${encodeURIComponent(req.params.key)}/output/purchase-suggestions`));
-router.post("/api/planning-ppic/mrp/:key/output/production-plan", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "POST", `/${encodeURIComponent(req.params.key)}/output/production-plan`));
+router.post("/api/planning-ppic/mrp/:key/output/production-plan", (req, res) => proxyPageMutation(req, res, "/api/planning/mrp", "POST", `/${encodeURIComponent(req.params.key)}/output/production-plan`, MONTHLY_PLAN_CREATE_TIMEOUT_MS));
 router.get("/api/planning-ppic/monthly-plan/from-mps/preview", (req, res) => proxyReadWithQuery(req, res, "/api/planning/monthly-production-plans/from-mps/preview", "Preview Production Plan gagal dimuat."));
+router.get("/api/planning-ppic/monthly-production-plans/:key/executor-options", (req, res) => proxyReadWithQuery(req, res, `/api/planning/monthly-production-plans/${encodeURIComponent(req.params.key)}/executor-options`, "Pilihan pelaksana gagal dimuat."));
+router.get("/api/planning-ppic/monthly-production-plans/:key/executor-changes", (req, res) => proxyReadWithQuery(req, res, `/api/planning/monthly-production-plans/${encodeURIComponent(req.params.key)}/executor-changes`, "Riwayat pelaksana gagal dimuat."));
+router.post("/api/planning-ppic/monthly-production-plans/:key/executor-changes/preview", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/executor-changes/preview`, 60000));
+router.post("/api/planning-ppic/monthly-production-plans/:key/executor-changes", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/executor-changes`, 60000));
+router.post("/api/planning-ppic/monthly-production-plans/:key/executor-changes/:changeId/cancel", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/executor-changes/${encodeURIComponent(req.params.changeId)}/cancel`, 60000));
 router.get("/api/planning-ppic/monthly-plan/matrix/:month", (req, res) => proxyReadWithQuery(req, res, `/api/planning/monthly-production-plans/matrix/${encodeURIComponent(req.params.month)}`, "Monthly Production Plan gagal dimuat."));
 router.get("/api/planning-ppic/monthly-plan/matrix", (req, res) => proxyReadWithQuery(req, res, "/api/planning/monthly-production-plans/matrix", "Monthly Production Plan gagal dimuat."));
 router.get("/api/planning-ppic/monthly-plan/:key", (req, res) => proxyReadWithQuery(req, res, `/api/planning/monthly-production-plans/${encodeURIComponent(req.params.key)}`, "Detail Monthly Production Plan gagal dimuat."));
@@ -430,7 +505,9 @@ router.get("/api/planning-ppic/monthly-plan/capacity-editor/:sessionId/preview",
 router.post("/api/planning-ppic/monthly-plan/capacity-editor/:sessionId/cancel", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/capacity-editor/${encodeURIComponent(req.params.sessionId)}/cancel`));
 router.post("/api/planning-ppic/monthly-plan/capacity-editor/:sessionId/undo", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/capacity-editor/${encodeURIComponent(req.params.sessionId)}/undo`));
 router.post("/api/planning-ppic/monthly-plan/capacity-editor/:sessionId/commit", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/capacity-editor/${encodeURIComponent(req.params.sessionId)}/commit`));
-router.post("/api/planning-ppic/monthly-plan/from-mps", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", "/from-mps"));
+// Creation also synchronizes MPS details and calculates capacity recommendations.
+// Give it the same computation budget as the standalone recommendation route.
+router.post("/api/planning-ppic/monthly-plan/from-mps", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", "/from-mps", MONTHLY_PLAN_CREATE_TIMEOUT_MS));
 router.post("/api/planning-ppic/monthly-plan/:key/confirm", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/confirm`));
 router.post("/api/planning-ppic/monthly-plan/:key/release", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/release`));
 router.post("/api/planning-ppic/monthly-plan/:key/daily-plans", (req, res) => proxyPageMutation(req, res, "/api/planning/monthly-production-plans", "POST", `/${encodeURIComponent(req.params.key)}/daily-plans`));
@@ -568,12 +645,20 @@ function renderSales(res, req, view, mode = "") {
   if (page.kind === "report") {
     return res.render("modules/report", { title: page.label, module, page, pageScript: "/js/module-report.js?v=20260818-inventory-matrix-8", ...common(module.slug) });
   }
-  return res.render(view, { title: page.label, module, page, mode, recordKey: req.params.key || "", pageScript: `/js/sales-${view.split("/").pop()}.js${view === "sales/form" ? "?v=20260827-workspace-2" : view === "sales/detail" ? "?v=20260827-workspace-1" : ""}`, ...common(module.slug) });
+  return res.render(view, { title: page.label, module, page, mode, recordKey: req.params.key || "", pageScript: `/js/sales-${view.split("/").pop()}.js${view === "sales/form" ? "?v=20260909-delivery-phases-1" : view === "sales/detail" ? "?v=20260909-delivery-phases-1" : ""}`, ...common(module.slug) });
 }
 router.get("/sales/:page/new", (req, res) => renderSales(res, req, "sales/form", "create"));
 router.get("/sales/:page/:key/edit", (req, res) => renderSales(res, req, "sales/form", "edit"));
 router.get("/sales/:page/:key", (req, res) => renderSales(res, req, "sales/detail"));
 router.get("/sales/:page", (req, res) => renderSales(res, req, "sales/list"));
+
+function redirectPlanningWorkspace(req, res, destination = "monthly-production-plans") {
+  const query = new URLSearchParams();
+  const month = String(req?.query?.month || req?.query?.date || req?.query?.startDate || "").slice(0, 7);
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) query.set("month", month);
+  if (destination === "monthly-production-plans" && typeof req?.query?.planNumber === "string" && req.query.planNumber) query.set("planNumber", req.query.planNumber);
+  return res.redirect(302, `/modules/planning-ppic/${destination}${query.size ? `?${query}` : ""}`);
+}
 
 function renderPpic(res, tab = "mrp", req = null) {
   const module = getModule("planning-ppic");
@@ -581,8 +666,8 @@ function renderPpic(res, tab = "mrp", req = null) {
   if (tab === "dashboard") return res.render("modules/executive-dashboard", { title: "Planning Performance", module, ...common(module.slug) });
   const ppicTabs = { mrp: "MRP Planning Run", mps: "Rolling MPS", "demand-planning": "Demand Planning", "capacity-planning": "Capacity Planning", "daily-production-plans": "Daily Production Plan", "control-tower": "Control Tower", "planned-orders": "Planned Orders", "monthly-production-plans": "Production Plans" };
   if (!ppicTabs[tab]) return res.status(404).render("errors/404", { title: "Menu PPIC tidak ditemukan" });
-  if (tab === "demand-planning") return res.render("ppic/yearly-demand", { title: "Demand Planning", module, activePpicTab: tab, currentYear: new Date().getFullYear(), pageScript: "/js/ppic-yearly-demand.js?v=20260821-efd-1", ...common(module.slug) });
-  if (tab === "capacity-planning") return res.render("ppic/capacity", { title: ppicTabs[tab], module, activePpicTab: tab, pageScript: "/js/ppic-capacity.js?v=20260827-shift-overtime-1", ...common(module.slug) });
+  if (tab === "demand-planning") return res.render("ppic/yearly-demand", { title: "Demand Planning", module, activePpicTab: tab, currentYear: businessNow().getFullYear(), pageScript: "/js/ppic-yearly-demand.js?v=20260821-efd-1", ...common(module.slug) });
+  if (tab === "capacity-planning") return redirectPlanningWorkspace(req, res);
   if (["control-tower", "planned-orders", "monthly-production-plans", "daily-production-plans"].includes(tab)) return renderOperationsDashboard(res, { params: { page: tab }, query: req?.query || {} }, "planning-ppic", tab);
   return res.render("ppic/dashboard", { title: ppicTabs[tab], module, activePpicTab: tab, pageScript: tab === "demand-planning" ? "/js/ppic-demand-planning.js?v=20260812-1" : "/js/ppic-dashboard.js?v=20260812-1", ...common(module.slug) });
 }
@@ -592,7 +677,7 @@ function renderPpicDetail(res, req) {
   const ppicTabs = { mrp: "MRP Planning Run", mps: "Rolling MPS", "demand-planning": "Demand Planning", "daily-production-plans": "Daily Production Plan", "control-tower": "Control Tower", "planned-orders": "Planned Orders", "monthly-production-plans": "Production Plans" };
   if (!ppicTabs[tab]) return res.status(404).render("errors/404", { title: "Menu PPIC tidak ditemukan" });
   if (["control-tower", "planned-orders", "monthly-production-plans", "daily-production-plans"].includes(tab)) return renderOperationsDetail(res, { params: { ...req.params, page: tab }, query: req.query || {} }, "planning-ppic");
-  if (tab === "mrp") return res.render("ppic/mrp-detail-simple", { title: "MRP Planning Run", module, activePpicTab: tab, recordKey: req.params.key, pageScript: "/js/ppic-mrp-detail-simple.js?v=20260827-auto-accept-late-1", ...common(module.slug) });
+  if (tab === "mrp") return res.render("ppic/mrp-detail-simple", { title: "MRP Planning Run", module, activePpicTab: tab, recordKey: req.params.key, pageScript: "/js/ppic-mrp-detail-simple.js?v=20260906-categories", ...common(module.slug) });
   return res.render("ppic/detail", { title: `${ppicTabs[tab]} Detail`, module, activePpicTab: tab, recordKey: req.params.key, pageScript: "/js/ppic-detail.js?v=20260813-management-matrix-2", ...common(module.slug) });
 }
 router.get("/planning-ppic", (_req, res) => res.redirect(308, "/modules/planning-ppic/demand-planning"));
@@ -627,38 +712,32 @@ router.get("/planning-ppic/mps/workbench", (req, res) => {
   const module = getModule("planning-ppic");
   const nextMonth = addMonthKey(jakartaMonthKey(), 1);
   const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : nextMonth;
-  return res.render("ppic/mps-workbench", { title: "Master Production Schedule", module, activePpicTab: "mps", initialMonth, pageScript: "/js/ppic-mps-workbench.js?v=20260904-auto-evaluation-1", ...common(module.slug) });
+  return res.render("ppic/mps-workbench", { title: "Master Production Schedule", module, activePpicTab: "mps", initialMonth, pageScript: "/js/ppic-mps-workbench.js?v=20260907-mps-source-1", ...common(module.slug) });
 });
 router.get("/planning-ppic/mps/recovery-kanban", (req, res) => {
   const module = getModule("planning-ppic");
   const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : jakartaMonthKey();
-  return res.render("ppic/mps-recovery-kanban", { title: "MPS Recovery Kanban", module, activePpicTab: "mps-recovery", initialMonth, pageScript: "/js/ppic-mps-recovery-kanban.js?v=20260904-1", ...common(module.slug) });
+  return res.render("ppic/mps-recovery-kanban", { title: "MPS Recovery Kanban", module, activePpicTab: "mps-recovery", initialMonth, pageScript: "/js/ppic-mps-recovery-kanban.js?v=20260905-production-recovery", ...common(module.slug) });
 });
-router.get("/planning-ppic/tutorial", (_req, res) => {
-  const module = getModule("planning-ppic");
-  return res.render("ppic/tutorial", { title: "Tutorial PPIC Baru", module, activePpicTab: "tutorial", pageScript: "/js/ppic-tutorial.js?v=20260818-1", ...common(module.slug) });
-});
+router.get("/planning-ppic/tutorial", (req, res) => redirectPlanningWorkspace(req, res));
 router.get("/planning-ppic/control-tower", (req, res) => {
-  if (req.query.tab === "mrp") return res.redirect(308, `/modules/planning-ppic/mrp?month=${encodeURIComponent(req.query.month || jakartaMonthKey())}`);
-  if (req.query.tab === "mpp") return res.redirect(308, `/modules/planning-ppic/monthly-production-plans?month=${encodeURIComponent(req.query.month || jakartaMonthKey())}`);
-  const module = getModule("planning-ppic");
-  const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : jakartaMonthKey();
-  return res.render("ppic/execution-cockpit", { title: "PPIC Execution & Closing", module, activePpicTab: "control-tower", initialMonth, pageScript: "/js/ppic-execution-cockpit.js?v=20260823-mrp-history-2", ...common(module.slug) });
+  return redirectPlanningWorkspace(req, res, ["mrp", "orders"].includes(req.query.tab) ? "mrp" : "monthly-production-plans");
 });
-router.get("/planning-ppic/dashboard", (_req, res) => res.redirect(308, "/modules/planning-ppic/control-tower"));
+router.get("/planning-ppic/dashboard", (req, res) => redirectPlanningWorkspace(req, res));
 router.get("/planning-ppic/mps", (req, res) => res.redirect(308, `/modules/planning-ppic/mps/workbench${req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : ""}`));
 router.get("/planning-ppic/master-production-schedule", (req, res) => res.redirect(308, `/modules/planning-ppic/mps/workbench${req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : ""}`));
 router.get("/planning-ppic/mrp", (req, res) => {
   const module = getModule("planning-ppic");
   const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : jakartaMonthKey();
-  return res.render("ppic/mrp-planning-runs", { title: "MRP Planning Runs", module, activePpicTab: "mrp", initialMonth, pageScript: "/js/ppic-mrp-planning-runs.js?v=20260825-clean-1", ...common(module.slug) });
+  if (req.query.view === "runs") return res.render("ppic/mrp-planning-runs", { title: "MRP Planning Runs", module, activePpicTab: "mrp", initialMonth, pageScript: "/js/ppic-mrp-planning-runs.js?v=20260906-monthly", ...common(module.slug) });
+  return res.render("ppic/mrp-detail-simple", { title: "Material Requirements Planning", module, activePpicTab: "mrp", initialMonth, monthlyMode: true, selectedRun: typeof req.query.run === "string" ? req.query.run : "", recordKey: "", pageScript: "/js/ppic-mrp-detail-simple.js?v=20260906-categories", ...common(module.slug) });
 });
 router.get("/planning-ppic/material-requirements-planning", (req, res) => res.redirect(308, `/modules/planning-ppic/mrp${req.query.month ? `?month=${encodeURIComponent(req.query.month)}` : ""}`));
-router.get("/planning-ppic/planned-orders", (req, res) => res.redirect(308, `/modules/planning-ppic/control-tower?tab=orders${req.query.month ? `&month=${encodeURIComponent(req.query.month)}` : ""}`));
+router.get("/planning-ppic/planned-orders", (req, res) => redirectPlanningWorkspace(req, res, "mrp"));
 router.get("/planning-ppic/monthly-production-plans", (req, res) => {
   const module = getModule("planning-ppic");
   const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : jakartaMonthKey();
-  return res.render("ppic/monthly-production-plan", { title: "Monthly Production Plan", module, activePpicTab: "monthly-production-plans", initialMonth, pageScript: "/js/ppic-monthly-production-plan.js?v=20260826-allocation-health-1", ...common(module.slug) });
+  return res.render("ppic/monthly-production-plan", { title: "Monthly Production Plan", module, activePpicTab: "monthly-production-plans", initialMonth, pageScript: "/js/ppic-monthly-production-plan.js?v=20260908-executor-1", ...common(module.slug) });
 });
 router.get("/planning-ppic/monthly-production-plans/:key", (req, res) => res.redirect(308, `/modules/planning-ppic/monthly-production-plans?planNumber=${encodeURIComponent(req.params.key)}`));
 router.get("/planning-ppic/daily-production-plans", (req, res) => {
@@ -674,22 +753,22 @@ router.get("/planning-ppic/:tab", (req, res) => renderPpic(res, req.params.tab, 
 
 router.get("/manufacturing-bom/bill-of-materials/new", (_req, res) => {
   const module = getModule("manufacturing-bom"); const page = getPage("manufacturing-bom", "bill-of-materials");
-  res.render("bom/editor", { title: "BOM Generator", module, page, mode: "create", recordKey: "", pageScript: "/js/bom-editor.js?v=20260828-pan-5", ...common(module.slug) });
+  res.render("bom/editor", { title: "BOM Generator", module, page, mode: "create", recordKey: "", pageScript: "/js/bom-editor.js?v=20260909-dies-1", ...common(module.slug) });
 });
 
 router.get("/manufacturing-bom/bill-of-materials/drafts/:id/edit", (req, res) => {
   const module = getModule("manufacturing-bom"); const page = getPage("manufacturing-bom", "bill-of-materials");
-  res.render("bom/editor", { title: "Draft BOM Canvas", module, page, mode: "draft", recordKey: req.params.id, pageScript: "/js/bom-editor.js?v=20260828-pan-5", ...common(module.slug) });
+  res.render("bom/editor", { title: "Draft BOM Canvas", module, page, mode: "draft", recordKey: req.params.id, pageScript: "/js/bom-editor.js?v=20260909-dies-1", ...common(module.slug) });
 });
 
 router.get("/manufacturing-bom/bill-of-materials/:key/edit", (req, res) => {
   const module = getModule("manufacturing-bom"); const page = getPage("manufacturing-bom", "bill-of-materials");
-  res.render("bom/editor", { title: "Edit BOM Canvas", module, page, mode: "edit", recordKey: req.params.key, pageScript: "/js/bom-editor.js?v=20260828-pan-5", ...common(module.slug) });
+  res.render("bom/editor", { title: "Edit BOM Canvas", module, page, mode: "edit", recordKey: req.params.key, pageScript: "/js/bom-editor.js?v=20260909-dies-1", ...common(module.slug) });
 });
 
 router.get("/manufacturing-bom/bill-of-materials/:key/edit-table", (req, res) => {
   const module = getModule("manufacturing-bom"); const page = getPage("manufacturing-bom", "bill-of-materials");
-  res.render("bom/table-editor", { title: "Edit BOM Table", module, page, recordKey: req.params.key, pageScript: "/js/bom-table-editor.js?v=20260902-material-supply-source-1", ...common(module.slug) });
+  res.render("bom/table-editor", { title: "Edit BOM Table", module, page, recordKey: req.params.key, pageScript: "/js/bom-table-editor.js?v=20260909-completeness-1", ...common(module.slug) });
 });
 
 router.get("/manufacturing-bom/bill-of-materials/:key/processes", (req, res) => {
@@ -704,7 +783,7 @@ router.get("/manufacturing-bom/bill-of-materials/:key", (req, res) => {
 
 router.get("/manufacturing-bom/bill-of-materials", (_req, res) => {
   const module = getModule("manufacturing-bom"); const page = getPage("manufacturing-bom", "bill-of-materials");
-  res.render("bom/list", { title: "Bill of Materials", module, page, pageScript: "/js/bom-list.js", ...common(module.slug) });
+  res.render("bom/list", { title: "Bill of Materials", module, page, pageScript: "/js/bom-list.js?v=20260908-governance-1", ...common(module.slug) });
 });
 
 function renderOperationsDashboard(res, req, moduleSlug, defaultPage) {
@@ -738,7 +817,7 @@ function renderOperationsDetail(res, req, moduleSlug) {
   const isPurchaseRequisition = moduleSlug === "purchasing" && page.slug === "purchase-requisitions";
   const supportedPurchaseCategories = new Set(["material", "purchase-part", "universal-purchase-part", "vendor-process", "non-production"]);
   const purchaseCategory = isPurchaseRequisition ? (supportedPurchaseCategories.has(requestedCategory) ? requestedCategory : "purchase-part") : null;
-  return res.render("operations/detail", { title: `Detail ${page.label}`, module, page, recordKey: req.params.key, purchaseCategory, pageScript: "/js/operations-detail.js?v=20260828-mi-reserved-1", ...common(module.slug) });
+  return res.render("operations/detail", { title: `Detail ${page.label}`, module, page, recordKey: req.params.key, purchaseCategory, pageScript: "/js/operations-detail.js?v=20260908-step1", ...common(module.slug) });
 }
 
 router.get("/inventory", (req, res) => renderOperationsDashboard(res, req, "inventory", "stock-balances"));
@@ -756,7 +835,7 @@ function renderStockOpnameCountForm(req, res) {
     module,
     page,
     stoNo: req.params.stoNo,
-    pageScript: "/js/stock-opname-count.js?v=20260826-multi-member-2",
+    pageScript: "/js/stock-opname-count.js?v=20260908-step1",
     ...common(module.slug),
   });
 }
@@ -771,6 +850,19 @@ router.get("/inventory/stock-opname/:stoNo/count", renderStockOpnameCountForm);
 router.get("/inventory/:page/:key", (req, res) => renderOperationsDetail(res, req, "inventory"));
 router.get("/inventory/:page", (req, res) => renderOperationsDashboard(res, req, "inventory", "stock-balances"));
 router.get("/production", (req, res) => renderOperationsDashboard(res, req, "production", "daily-production-schedules"));
+function renderOeeMonitoring(req, res) {
+  const module = getModule("production");
+  const page = getPage("production", "oee-monitoring");
+  const requestedDate = String(req.query.date || "");
+  const initialDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : jakartaDateKey();
+  return res.render("production/oee-monitoring", {
+    title: req.params.machineId ? "Detail Mesin · Monitoring OEE" : "Monitoring OEE",
+    module, page, initialDate, machineId: req.params.machineId || "",
+    pageScript: "/js/oee-monitoring.js?v=20260908-2", ...common(module.slug)
+  });
+}
+router.get("/production/oee-monitoring", renderOeeMonitoring);
+router.get("/production/oee-monitoring/:machineId", renderOeeMonitoring);
 const legacyQcTarget = (req, page, suffix = "") => {
   const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
   return `/modules/qc/${page}${suffix}${query}`;
@@ -792,7 +884,7 @@ function renderProductionForm(res, req, mode) {
   const shared = new Set([...editableProductionPages, "vendor-process-orders"]);
   if (!page || !["production-logs", "daily-production-schedules", ...shared].includes(page.slug)) return res.status(404).render("errors/404", { title: "Form production tidak ditemukan" });
   if (page.slug === "daily-production-schedules") return res.render("production/schedule-form", { title: `${mode === "edit" ? "Revisi" : "Buat"} Daily Production Schedule`, module, page, mode, recordKey: req.params.key || "", pageScript: "/js/production-schedule-form.js", ...common(module.slug) });
-  if (page.slug === "production-logs") return res.render("production/log-form", { title: `${mode === "edit" ? "Edit" : "Buat"} Production Entry`, module, page, mode, recordKey: req.params.key || "", pageScript: "/js/production-log-form.js?v=20260826-machine-gate-1", ...common(module.slug) });
+  if (page.slug === "production-logs") return res.render("production/log-form", { title: `${mode === "edit" ? "Edit" : "Buat"} Production Entry`, module, page, mode, recordKey: req.params.key || "", pageScript: "/js/production-log-form.js?v=20260908-erp-masters-1", ...common(module.slug) });
   return res.render("production/shared-form", { title: `${mode === "edit" ? "Edit" : "Buat"} ${page.label}`, module, page, mode, recordKey: req.params.key || "", pageScript: "/js/production-shared-form.js", ...common(module.slug) });
 }
 router.get("/production/:page/new", (req, res) => renderProductionForm(res, req, "create"));
@@ -815,7 +907,7 @@ function renderPurchaseRequisitionForm(res, req, mode) {
   const module = getModule("purchasing");
   const page = getPage("purchasing", "purchase-requisitions");
   const requestedCategory = String(req.query.category || "").toLowerCase();
-  const supportedPurchaseCategories = new Set(["material", "purchase-part", "universal-purchase-part", "non-production"]);
+  const supportedPurchaseCategories = new Set(["material", "purchase-part", "universal-purchase-part", "vendor-process", "non-production"]);
   const purchaseCategory = supportedPurchaseCategories.has(requestedCategory) ? requestedCategory : "purchase-part";
   return res.render("purchasing/pr-form", {
     title: mode === "edit" ? "Edit Purchase Requisition" : "Buat Purchase Requisition",
@@ -824,7 +916,7 @@ function renderPurchaseRequisitionForm(res, req, mode) {
     mode,
     recordKey: req.params.key || "",
     purchaseCategory,
-      pageScript: "/js/purchasing-pr-form.js?v=20260826-mps-style-2",
+      pageScript: "/js/purchasing-pr-form.js?v=20260908-pr-reference-1",
     ...common(module.slug),
   });
 }

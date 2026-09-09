@@ -49,6 +49,6 @@
     const query = new URLSearchParams({ start: "0", length: "500", q: document.getElementById("module-search").value });
     const response = await fetch(`/modules/api/${config.module}/${config.slug}?${query}`, { headers: { Authorization: `Bearer ${token()}` } });
     const payload = await response.json(); if (!response.ok) return window.alert(payload.message || "Export gagal.");
-    shared.downloadCsv(`${config.slug}-${new Date().toISOString().slice(0, 10)}.csv`, config.columns.map((column) => column.label), payload.data.map((row) => config.columns.map((column) => get(row, column.data) ?? "")));
+    shared.downloadCsv(`${config.slug}-${(globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10)}.csv`, config.columns.map((column) => column.label), payload.data.map((row) => config.columns.map((column) => get(row, column.data) ?? "")));
   });
 })();

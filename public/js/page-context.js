@@ -229,4 +229,8 @@
   window.addEventListener("error", (event) => reportClientError(event.message, event.error?.stack));
   window.addEventListener("unhandledrejection", (event) => reportClientError(event.reason?.message || String(event.reason), event.reason?.stack));
   load();
+  if (new URLSearchParams(location.search).get("openComments") === "1") {
+    activateTab("comments");
+    bootstrap.Offcanvas.getOrCreateInstance(panel).show();
+  }
 })();

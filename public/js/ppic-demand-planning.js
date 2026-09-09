@@ -10,7 +10,7 @@
     const parsed = new Date(value); if (Number.isNaN(parsed.getTime())) return "-";
     return new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(parsed);
   };
-  const currentAnchor = () => { const now = new Date(); if (now.getDate() < 20) now.setMonth(now.getMonth() - 1); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`; };
+  const currentAnchor = () => { const now = (globalThis.erpBusinessNow?.() || new Date()); if (now.getDate() < 20) now.setMonth(now.getMonth() - 1); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`; };
   const mpsWindowLabel = (anchor) => { const [year, month] = String(anchor || currentAnchor()).split("-").map(Number), end = new Date(year, month + 1, 1); return `${anchor || currentAnchor()} → ${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}`; };
   let rows = [];
   let selected = null;

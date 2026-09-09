@@ -5,7 +5,7 @@
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
   const get = (object, path) => String(path || "").split(".").reduce((value, key) => value?.[key], object);
   const today = () => {
-    const now = new Date();
+    const now = (globalThis.erpBusinessNow?.() || new Date());
     return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   };
   const lookup = (url, valueKey, labelKeys) => ({ type: "lookup", url, valueKey, labelKeys });

@@ -4,6 +4,8 @@
   else root.MppRecommendation = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
+  const matrixEditor = typeof module === "object" && module.exports
+    ? require("./ppic-monthly-capacity-editor") : globalThis.MppCapacityEditor;
 
   const copy = (value) => JSON.parse(JSON.stringify(value));
   const number = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
@@ -169,9 +171,9 @@
   }
 
   function removeFromOrigin(source, movedQty) {
-    const sourceQty = Math.max(number(source.allocation.qty), number(source.day.qty), movedQty);
+    const sourceQty = number(source.allocation.qty);
     const ratio = sourceQty > 0 ? Math.min(movedQty / sourceQty, 1) : 0;
-    const minutesDelta = -number(source.day.minutes) * ratio;
+    const minutesDelta = -number(source.allocation.minutes ?? source.day.minutes) * ratio;
     adjustDay(source.day, -movedQty, minutesDelta);
     adjustDay(source.row.days?.[source.date], -movedQty, minutesDelta);
     source.day.recommendationMoved = true;
@@ -179,7 +181,10 @@
       source.row.days[source.date].recommendationMoved = true;
     }
     const remainingAllocationQty = Math.max(number(source.allocation.qty) - movedQty, 0);
-    if (remainingAllocationQty > 0) source.allocation.qty = remainingAllocationQty;
+    if (remainingAllocationQty > 0) {
+      source.allocation.qty = remainingAllocationQty;
+      source.allocation.minutes = Math.max(number(source.allocation.minutes ?? (-minutesDelta / ratio)) + minutesDelta, 0);
+    }
     else {
       source.day.allocations = (source.day.allocations || []).filter(
         (entry) => entry !== source.allocation,
@@ -193,16 +198,13 @@
 
   function addToTarget(rows, item, movedQty) {
     const value = item.proposedValue || {};
-    const row = rows.find((candidate) => candidate.key === value.targetRowKey);
-    const child = row?.children?.find(
-      (candidate) => candidate.key === value.targetChildKey,
-    );
+    const { row, child } = matrixEditor.resolveMatrixTarget(rows, value, item.partCode, item.processCode) || {};
     if (!row || !child || !value.targetDate) return false;
     const targetDay = (child.days[value.targetDate] ||= makeDay());
     const parentDay = (row.days[value.targetDate] ||= makeDay());
     const proposalQty = Math.max(number(value.qty), movedQty);
     const minutes = proposalQty > 0
-      ? number(value.minutes) * Math.min(movedQty / proposalQty, 1)
+      ? number(value.minutes ?? value.batchDurationMinutes) * Math.min(movedQty / proposalQty, 1)
       : 0;
     adjustDay(targetDay, movedQty, minutes);
     adjustDay(parentDay, movedQty, minutes);
@@ -211,6 +213,9 @@
       sourceAllocationId: item.sourceAllocationId || null,
       recommendationItemId: item.id,
       qty: movedQty,
+      minutes,
+      machineId: value.targetMachineId || null,
+      vendorId: value.vendorId || null,
       scheduleDate: value.targetDate,
       partCode: item.partCode || null,
       processCode: item.processCode || null,
@@ -242,6 +247,8 @@
     const value = item.proposedValue || {};
     let movedQty = Math.max(number(value.qty), 0);
     if (movedQty <= 0) return;
+    // Resolve the destination before touching the origin, including previously idle machines.
+    if (!value.targetDate || !matrixEditor.resolveMatrixTarget(rows, value, item.partCode, item.processCode)) return;
     if (
       item.sourceAllocationId &&
       ["MOVE_ALLOCATION", "SPLIT_ALLOCATION"].includes(item.changeType)
@@ -258,7 +265,7 @@
   function projectRecommendationRows(rows, scenario) {
     const projected = copy(rows || []);
     for (const item of scenario?.items || []) applyProposalToRows(projected, item);
-    return projected;
+    return matrixEditor.refreshProjectedTotals(projected);
   }
 
   function renderScenarioBadge(scenario) {

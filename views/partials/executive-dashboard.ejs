@@ -15,6 +15,10 @@
         <% } %>
       </select></label>
       <label data-executive-basis-wrap hidden><span>Actual</span><select data-executive-basis class="form-select form-select-sm"></select></label>
+      <% if (['sales', 'system'].includes(dashboardModule)) { %>
+      <label><span>Customer (Sales)</span><select data-executive-customer class="form-select form-select-sm"><option value="">Semua customer</option></select></label>
+      <label><span>Periode</span><select data-executive-group class="form-select form-select-sm"><option value="MONTH">Bulanan</option><option value="QUARTER">Kuartalan</option><option value="YEAR">Tahunan</option></select></label>
+      <% } %>
       <div class="executive-dashboard__metric-toggle" data-executive-metrics></div>
       <button type="button" data-executive-export class="executive-dashboard__export">Export CSV</button>
       <button type="button" data-executive-refresh class="executive-dashboard__refresh" aria-label="Refresh dashboard">&#8635;</button>
@@ -22,6 +26,7 @@
   </header>
 
   <div class="executive-dashboard__error d-none" data-executive-error></div>
+  <p class="small text-muted" data-executive-freshness role="status">Memuat waktu pembaruan...</p>
   <div class="executive-dashboard__kpis" data-executive-kpis>
     <% for (let index = 0; index < 4; index += 1) { %>
       <article class="executive-kpi executive-kpi--loading"><small>Memuat</small><strong>&mdash;</strong><span></span></article>
@@ -52,4 +57,4 @@
 
   <section class="executive-dashboard__details" data-executive-details></section>
 </section>
-<script defer src="/js/executive-dashboard.js"></script>
+<script defer src="/js/executive-dashboard.js?v=20260908-step1"></script>

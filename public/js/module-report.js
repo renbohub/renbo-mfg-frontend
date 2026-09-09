@@ -431,7 +431,7 @@
       valuationMissingRows: rows.filter((row) => horizontalValue(row).missing).length,
     };
   }
-  const inventorySubtitle = (fg) => `${fg.fgPartCode} | ${[fg.fgPartNumber, fg.fgPartName].filter(Boolean).join(" - ")} | BOM ${fg.mbomNoReg || "-"} Rev ${fg.mbomRevision ?? "-"} | Snapshot ${new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeStyle: "short" }).format(new Date())}`;
+  const inventorySubtitle = (fg) => `${fg.fgPartCode} | ${[fg.fgPartNumber, fg.fgPartName].filter(Boolean).join(" - ")} | BOM ${fg.mbomNoReg || "-"} Rev ${fg.mbomRevision ?? "-"} | Snapshot ${new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeStyle: "short" }).format((globalThis.erpBusinessNow?.() || new Date()))}`;
   function inventorySummary(fg) {
     const lines = fg.traceLines || [];
     return [
@@ -455,7 +455,7 @@
     return {
       title: `Inventory Detail - ${fg.fgPartCode}`,
       subtitle: inventorySubtitle(fg),
-      fileName: `inventory-detail-${fg.fgPartCode}-${new Date().toISOString().slice(0, 10)}`,
+      fileName: `inventory-detail-${fg.fgPartCode}-${(globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10)}`,
       headers: detail.headers,
       rows: detail.rows,
       summary: inventorySummary(fg),
@@ -474,11 +474,11 @@
     const groupHeaders = [{ label: "WIP On Hand", start: 8, span: matrix.stages.length }, { label: "Finished Goods", start: 8 + matrix.stages.length, span: 3 }, { label: "Horizontal Total", start: 11 + matrix.stages.length, span: 1 }].filter((group) => group.span > 0);
     const columnWidths = matrix.headers.map((_header, index) => index === 0 ? 1.4 : index === 1 ? 1.35 : index === 2 ? 1.25 : index >= 3 && index <= 7 ? 1.35 : 1);
     const alignments = matrix.headers.map((_header, index) => index < 3 ? "left" : "center");
-    const valueSubtitle = `Nilai referensi per ${new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date())}: qty x harga aktif dalam IDR; part in-house fallback Live MBOM Costing${matrix.valuationMissingRows ? `; ${matrix.valuationMissingRows} baris belum lengkap harganya` : ""}.`;
+    const valueSubtitle = `Nilai referensi per ${new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format((globalThis.erpBusinessNow?.() || new Date()))}: qty x harga aktif dalam IDR; part in-house fallback Live MBOM Costing${matrix.valuationMissingRows ? `; ${matrix.valuationMissingRows} baris belum lengkap harganya` : ""}.`;
     return {
       title: `Inventory Stock Matrix - ${fg.fgPartCode}`,
       subtitle: `${inventorySubtitle(fg)} | Tampilan Qty PCS`,
-      fileName: `inventory-matrix-${fg.fgPartCode}-${new Date().toISOString().slice(0, 10)}`,
+      fileName: `inventory-matrix-${fg.fgPartCode}-${(globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10)}`,
       headers: matrix.headers,
       rows: matrix.values,
       summary: inventorySummary(fg),
@@ -670,7 +670,7 @@
   document.getElementById("inventory-detail-search")?.addEventListener("input", renderInventoryDetail);
   document.getElementById("inventory-detail-group")?.addEventListener("change", renderInventoryDetail);
   document.getElementById("report-export").addEventListener("click", () => shared.downloadCsv(
-    `${config.module}-${config.slug}-${new Date().toISOString().slice(0, 10)}.csv`, columns.map((column) => column.label),
+    `${config.module}-${config.slug}-${(globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10)}.csv`, columns.map((column) => column.label),
     state.rows.map((row) => columns.map((column) => shared.get(row, column.data) ?? "")),
   ));
   document.getElementById("inventory-detail-xlsx")?.addEventListener("click", function () { const fg = selectedFg(); if (fg) shared.exportTablePayload(inventoryDetailPayload(fg), "xlsx", this); });
