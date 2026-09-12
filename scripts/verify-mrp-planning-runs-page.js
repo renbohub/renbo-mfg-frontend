@@ -23,8 +23,18 @@ assert(routes.includes('res.render("ppic/mrp-planning-runs"'), "route /planning-
 assert(routes.includes('req.query.view === "runs"'), "daftar run harus tetap dapat diakses sebagai tampilan sekunder");
 assert(routes.includes('monthlyMode: true'), "halaman MRP utama harus langsung merender tabel bulanan");
 assert(detailScript.includes('if (!cfg.monthlyMode) await ensureAutomaticMPlusOnePreview()'), "membuka tabel bulanan tidak boleh membuat scenario secara otomatis");
-assert(routes.includes('req.query.tab === "mrp"'), "URL Control Tower lama dengan tab=mrp harus ditangani sebagai redirect kompatibilitas");
-assert(routes.includes('/modules/planning-ppic/mrp?month='), "redirect kompatibilitas harus mempertahankan periode MRP");
+// Exercise the shared redirect helper and registered handler; source spelling
+// changed when both legacy MRP and orders tabs began using the same redirect.
+const vm = require("node:vm");
+const redirectSource = routes.slice(routes.indexOf("function redirectPlanningWorkspace("), routes.indexOf("function renderPpic("));
+const legacyHandler = routes.match(/router\.get\("\/planning-ppic\/control-tower", (\(req, res\) => \{[\s\S]*?\n\})\);/);
+assert(legacyHandler, "legacy Control Tower handler must be registered");
+const redirect = vm.runInNewContext(redirectSource + "\n(" + legacyHandler[1] + ")", { URLSearchParams });
+for (const tab of ["mrp", "orders"]) {
+  let result;
+  redirect({ query: { tab, month: "2026-09" } }, { redirect: (status, location) => { result = { status, location }; } });
+  assert.deepEqual(result, { status: 302, location: "/modules/planning-ppic/mrp?month=2026-09" }, "legacy tabs must preserve MRP month");
+}
 assert(subnav.includes("href: '/modules/planning-ppic/mrp'"), "subnav MRP harus menunjuk ke halaman terpisah");
 assert(!controlTowerView.includes('data-pec-tab="mrp"'), "Control Tower tidak boleh lagi menampilkan tab MRP");
 

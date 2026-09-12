@@ -9,16 +9,14 @@
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: 'mrp' }) %>
 
-<main class="mrps-page ppic-page">
+<main class="mrps-page ppic-page ppic-workspace">
   <% const isMonthlyMrp = typeof monthlyMode !== 'undefined' && monthlyMode; %>
   <header class="mrps-header app-container planning-shared-header">
     <div class="mrps-title-block">
       <span class="mrps-eyebrow">PLANNING PPIC</span>
-      <h1>Material Requirements Planning</h1>
+      <h1 data-ppic-i18n="material">Rencana Kebutuhan Material (MRP)</h1>
     </div>
     <div class="mrps-head-actions">
-      <label class="mrps-search"><%- include('../partials/icon', { name: 'search' }) %><span class="sr-only">Cari data</span><input id="mrps-search" type="search" placeholder="Cari material, part, supplier…" autocomplete="off"></label>
-      <label><span class="sr-only">Filter status</span><select id="mrps-filter" data-searchable-disabled><option value="ALL">Semua status</option><option value="ACTION">Perlu ditindaklanjuti</option><option value="LATE">Terlambat – Belum Ditangani</option><option value="WARNING">Warning / Dekat Due Date</option><option value="GREEN">Due Date &gt; 1 Minggu</option><option value="ACCEPT_LATE">Accept Late</option><option value="URGENT">Urgent</option><option value="OPEN">Perlu supply</option><option value="COVERED">Covered</option></select></label>
         <button id="mrps-view-help" class="mrps-help" type="button" title="Minggu Senin–Minggu berdasarkan tanggal material wajib tersedia, dikelompokkan pada bulan awal minggu. Latest purchase tetap menjadi tanggal tindakan procurement. Make untuk Production Plan; Buy untuk Purchase Suggestion." data-tip="Minggu Senin–Minggu berdasarkan tanggal material wajib tersedia, dikelompokkan pada bulan awal minggu. Latest purchase tetap menjadi tanggal tindakan procurement. Make untuk Production Plan; Buy untuk Purchase Suggestion." aria-label="Petunjuk tabel">?</button>
       <div id="mrps-actions" class="mrps-actions"></div>
       <button id="mrps-customer-supply" class="btn btn-outline-primary" type="button">Suplai Customer</button>
@@ -41,6 +39,7 @@
     <div id="mrps-meta" class="mrps-meta">Memuat planning run dan horizon…</div>
   </section>
 
+  <section id="mrps-undated" class="mrps-alert app-container" role="status" hidden></section>
   <section id="mrps-alert" class="mrps-alert app-container" hidden></section>
 
   <section class="mrps-kpis app-container" aria-label="Ringkasan MRP">
@@ -51,12 +50,16 @@
   </section>
 
   <section class="mrps-workbench app-container">
+    <div class="ppic-table-filters" role="group" aria-label="Filter rincian material MRP">
+      <label class="mrps-search"><%- include('../partials/icon', { name: 'search' }) %><span class="sr-only">Cari rincian material</span><input id="mrps-search" type="search" placeholder="Cari material, part, supplier…" autocomplete="off"></label>
+      <select id="mrps-filter" data-searchable-disabled aria-label="Filter status material"><option value="ALL">Semua status</option><option value="ACTION">Perlu ditindaklanjuti</option><option value="LATE">Terlambat – Belum Ditangani</option><option value="WARNING">Warning / Dekat Due Date</option><option value="GREEN">Due Date &gt; 1 Minggu</option><option value="ACCEPT_LATE">Accept Late</option><option value="URGENT">Urgent</option><option value="OPEN">Perlu supply</option><option value="COVERED">Covered</option></select>
+    </div>
     <header class="mrps-workbench-head">
       <div class="mrps-tabs" role="tablist" aria-label="View MRP">
         <button class="active" type="button" role="tab" aria-selected="true" data-mrps-view="matrix">Material Mingguan <span id="mrps-tab-matrix">0</span></button>
         <button type="button" role="tab" aria-selected="false" data-mrps-view="make">Kebutuhan Produksi <span id="mrps-tab-make">0</span></button>
         <button type="button" role="tab" aria-selected="false" data-mrps-view="buy">Kebutuhan Material <span id="mrps-tab-buy">0</span></button>
-        <button type="button" role="tab" aria-selected="false" data-mrps-view="exception">Exception <span id="mrps-tab-exception">0</span></button>
+        <button type="button" role="tab" aria-selected="false" data-mrps-view="exception">Pengecualian <span id="mrps-tab-exception">0</span></button>
       </div>
       <div class="mrps-toolbar">
         <label id="mrps-mplus-display-wrap" hidden><span>Tampilan M+1</span><select id="mrps-mplus-display" data-searchable-disabled><option value="NET_CURRENT_STOCK">Net setelah stock saat ini</option><option value="FULL_EFD">Full EFD M+1</option></select></label>
@@ -87,6 +90,7 @@
 <aside id="mrps-recovery-modal" class="mrps-modal mrps-recovery-modal" aria-hidden="true"><div class="mrps-backdrop" data-close-mrps-recovery></div><form id="mrps-recovery-form" class="mrps-modal-panel"><header><div><small>LATE HANDLING</small><h2>Recovery kebutuhan terlambat</h2><p id="mrps-recovery-meta">Pilih delivery phase dan tindakan recovery.</p></div><button type="button" data-close-mrps-recovery aria-label="Tutup">×</button></header><div class="mrps-recovery-content"><div id="mrps-recovery-status" class="mrps-recovery-status">Memuat recovery plan…</div><label><span>Delivery phase</span><select id="mrps-recovery-phase" required></select></label><label><span>Opsi recovery</span><select id="mrps-recovery-action" required></select></label><div class="mrps-recovery-grid"><label><span>PIC / Owner</span><input id="mrps-recovery-owner" required></label><label><span>Tanggal recovery / komitmen baru</span><input id="mrps-recovery-date" type="date" required></label></div><label><span>Alasan dan dampak</span><textarea id="mrps-recovery-reason" rows="3" minlength="10" required placeholder="Jelaskan asumsi, perubahan tanggal, dan dampak delivery phase…"></textarea></label><label><span>Bukti / referensi</span><input id="mrps-recovery-evidence" placeholder="Konfirmasi supplier, trial result, nomor plan, atau referensi approval"></label><label class="mrps-recovery-ack"><input id="mrps-recovery-ack" type="checkbox" required> <span>Saya sudah memeriksa tanggal baru, risiko, PIC, dan bukti recovery.</span></label></div><footer><button type="button" class="btn btn-outline-secondary" data-close-mrps-recovery>Batal</button><button id="mrps-recovery-submit" class="btn btn-primary" type="submit">Simpan &amp; Ajukan Approval</button></footer></form></aside>
 
 <script id="mrps-config" type="application/json"><%- JSON.stringify({ recordKey, monthlyMode: isMonthlyMrp, initialMonth: isMonthlyMrp ? initialMonth : null, selectedRun: isMonthlyMrp ? selectedRun : null }).replace(/</g, '\\u003c') %></script>
+<script src="/js/ppic-dated-requirements.js?v=20260909-r3"></script>
 <script src="/js/ppic-mrp-weekly-delta-model.js?v=20260905-monday"></script>
 <script src="/js/ppic-mrp-supply-model.js?v=20260906-categories"></script>
 <script src="/js/ppic-mrp-zero-filter.js?v=20260823-1"></script>

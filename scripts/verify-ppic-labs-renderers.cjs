@@ -1,0 +1,29 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const source=fs.readFileSync(require.resolve('../public/js/ppic-labs-analysis.js'),'utf8');
+function harness(page='L05',filters={month:'2026-09',scenario:'S1'}){
+ const elements=new Map(),get=id=>{if(!elements.has(id))elements.set(id,{innerHTML:'',textContent:''});return elements.get(id);};
+ const escape=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+ const number=value=>value==null?'Belum diketahui':String(value);
+ const h={$:get,escape,number,filters:()=>filters,monthName:value=>value,datetime:value=>value?new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jakarta',dateStyle:'short',timeStyle:'short'}).format(new Date(value)):'Unknown',date:value=>value?String(value).slice(0,10):'Unknown',meta:()=>['unknown','Unknown','?'],badge:value=>'<badge>'+value+'</badge>',panel:(title,body,extra='')=>'<section><h2>'+escape(title)+'</h2>'+extra+body+'</section>',table:(headers,rows)=>'<table><thead>'+headers.map(escape).join('|')+'</thead>'+rows+'</table>',empty:(title,copy)=>'<empty>'+escape(title)+' '+escape(copy)+'</empty>',path:(id,extra={})=>'/modules/planning-ppic/labs/'+id+'?'+new URLSearchParams({...filters,...extra}),sourceLink:(route,label)=>'<a href="'+route+'">'+label+'</a>',kpi:(value,label)=>'<kpi>'+number(value)+' '+escape(label)+'</kpi>',setNotice:()=>{},persistQuery:()=>{}};
+ const sandbox={window:{},document:{addEventListener:()=>{}},location:{origin:'http://localhost'},URL,Intl,Date};vm.createContext(sandbox);vm.runInContext(source,sandbox);
+ return {render:analysis=>sandbox.window.PpicLabsPages.render({analysis,context:{page:{id:page},filters},helpers:h,scenarios:[{id:'S1',name:'Saved scenario',revision:2,month:'2026-09'}]}),html:()=>get('content').innerHTML};
+}
+const base=()=>({month:'2026-09',summary:{deliveryCount:10,activeDivisionCount:11,resourceConflictCount:0,unscheduledOperationCount:0,productionByUom:[{uom:'PCS',qty:1000}]},source:{stale:false},assumptions:[],unknowns:[],feasibility:{status:'UNKNOWN'},capacity:{resources:[],conflicts:[]},materials:{rows:[]},monthly:{rows:[]},daily:{rows:[]}});
+test('capacity does not display unknown available minutes as zero overload or green utilization',()=>{
+ const app=harness(),data=base();data.capacity.resources=[{id:'M1',code:'M-001',availableMinutes:null,plannedMinutes:null,existingMinutes:null,weekly:[{weekStart:'2026-09-07',periodStart:'2026-09-07',periodEnd:'2026-09-14',availableMinutes:null,plannedMinutes:null,existingMinutes:null,utilizationRatio:null}],operationIds:[],issues:[]}];app.render(data);const html=app.html();assert.match(html,/Unknown/);assert.doesNotMatch(html,/>0 jam<\/strong><h3>Overload/);assert.match(html,/ppw-heat unknown/);
+});
+test('capacity week bucket labels use inclusive calendar days without changing actual conflict intervals',()=>{
+ const app=harness(),data=base();data.capacity.resources=[{id:'M1',code:'M-001',weekly:[{weekStart:'2026-08-31',periodStart:'2026-09-01',periodEnd:'2026-09-07'},{weekStart:'2026-09-07',periodStart:'2026-09-07',periodEnd:'2026-09-14'},{weekStart:'2026-09-28',periodStart:'2026-09-28',periodEnd:'2026-10-01'}]}];data.capacity.conflicts=[{type:'RESOURCE_OVERLAP',resourceId:'M1',startAt:'2026-09-07T09:00:00+07:00',endAt:'2026-09-07T10:00:00+07:00',minutes:60,operationIds:[]}];app.render(data);const html=app.html();for(const text of ['2026-09-01 – 2026-09-06','2026-09-07 – 2026-09-13','2026-09-28 – 2026-09-30',new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jakarta',dateStyle:'short',timeStyle:'short'}).format(new Date('2026-09-07T10:00:00+07:00'))])assert.ok(html.includes(text),text);assert.doesNotMatch(html,/2026-09-28 – 2026-10-01/);
+});
+test('material unknown quantity is visible and malicious source text is escaped',()=>{
+ const app=harness('L06'),data=base();data.materials.rows=[{id:'MAT1',partCode:'<script>bad()</script>',partName:'coil',grossQty:100,onHandQty:null,firmSupplyQty:null,plannedSupplyQty:100,shortageQty:null,uom:'KG',status:'UNKNOWN',supplies:[],issues:[]}];app.render(data);const html=app.html();assert.match(html,/Belum diketahui/);assert.doesNotMatch(html,/<script>/);assert.match(html,/&lt;script&gt;/);assert.match(html,/Usulan supply/);
+});
+test('monthly KPIs use finished goods total and keep operation quantities at process grain',()=>{
+ const app=harness('L07'),data=base();data.monthly.rows=[{partCode:'FG1',processCode:'P1',processName:'Press',kind:'process',totalQty:2000,scheduledQty:2000,unscheduledQty:0,uom:'PCS',weeks:[{weekStart:'2026-09-07',qty:2000,occupiedMinutes:500}],operationIds:['OP1']}];app.render(data);const html=app.html();assert.match(html,/1000 PCS/);assert.match(html,/2000/);assert.match(html,/Output|Kuantitas tiap proses/);assert.match(html,/operation=OP1/);
+});
+test('daily displays explicit Jakarta time and unknown shifts without claiming dispatch readiness',()=>{
+ const app=harness('L08'),data=base();data.daily={shiftBasis:'UNKNOWN',rows:[{id:'OP1:0',operationId:'OP1',groupId:'G1',partCode:'FG1',processName:'Press',resourceId:'M1',resourceCode:'M-001',date:'2026-09-07',startAt:'2026-09-07T09:00:00+07:00',endAt:'2026-09-07T10:00:00+07:00',qty:1000,uom:'PCS',setupMinutes:0,runMinutes:60,occupiedMinutes:60,shiftId:null,shiftLabel:null,issues:[]}]};app.render(data);const html=app.html();assert.match(html,/09:00/);assert.match(html,/Belum ditetapkan/);assert.match(html,/operation=OP1/);assert.match(html,/belum menjadi WO atau dispatch/);assert.doesNotMatch(html,/<badge>OK<\/badge>/);
+});
+test('comparison can choose explicit server records without requiring a primary scenario first',()=>{
+ const app=harness('L09',{month:'2026-09'});app.render(null);assert.match(app.html(),/data-compare-id="S1"/);assert.match(app.html(),/Bandingkan 2–3 skenario/);assert.doesNotMatch(app.html(),/Data ilustrasi/);
+});

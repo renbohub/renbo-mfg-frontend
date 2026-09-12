@@ -1,0 +1,27 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'monthly-delivery' }) %>
+<main class="ppic-workspace ppic-delivery-page">
+  <header class="ppic-page-heading app-container">
+    <div><span class="ppic-eyebrow">PLANNING PPIC</span><h1 data-ppic-i18n="delivery">Jadwal Delivery Bulanan</h1><p data-ppic-i18n="deliveryExplanation">Target delivery dari PO firm dan sisa Forecast. Buka customer untuk meninjau part, tanggal, dan sumber kebutuhan.</p></div>
+    <a class="ppic-button" href="/modules/planning-ppic/demand-planning/delivery-workbench" data-ppic-i18n="deliveryFeasibility">Rincian kelayakan delivery</a>
+  </header>
+  <section class="ppic-period-panel app-container" aria-label="Periode delivery">
+    <label for="pd-month" data-ppic-i18n="deliveryPeriod">Periode delivery</label>
+    <input id="pd-month" type="month" value="<%= initialMonth %>" aria-label="Periode delivery">
+  </section>
+  <section id="pd-totals" class="ppic-delivery-totals app-container" aria-label="Ringkasan delivery" aria-live="polite"></section>
+  <section class="ppic-calendar-page ppic-calendar-card app-container">
+    <header class="ppic-card-heading"><div><span class="ppic-eyebrow" data-ppic-i18n="deliveryCalendar">KALENDER DELIVERY</span><h2 data-ppic-i18n="deliveryTable">Jadwal per customer &amp; part</h2></div></header>
+    <div class="ppic-calendar-tools ppic-calendar-filters" role="group" aria-label="Filter jadwal delivery">
+      <label class="ppic-calendar-search"><%- include('../partials/icon', { name: 'search' }) %><input id="pd-search" type="search" aria-label="Cari customer, part, atau nomor sumber" placeholder="Cari customer, part, atau nomor sumber"></label>
+      <select id="pd-period" data-searchable-disabled aria-label="Ringkasan waktu"><option value="day">Harian</option><option value="week">Mingguan</option></select>
+      <div class="ppic-calendar-actions"><button id="pd-refresh" type="button" data-ppic-i18n="refresh">Muat Ulang</button><button id="pd-export" type="button" data-ppic-i18n="export">Ekspor seluruh hasil filter</button></div>
+    </div>
+    <p id="pd-status" class="ppic-calendar-status" role="status"></p>
+    <div id="pd-table" class="ppic-calendar-scroll" tabindex="0" role="region" aria-label="Kalender delivery, geser untuk melihat seluruh tanggal"></div>
+    <footer class="ppic-calendar-tools ppic-calendar-pagination"><span id="pd-page" aria-live="polite"></span><div class="ppic-pagination-controls"><button id="pd-prev" type="button" data-ppic-i18n="previous">Sebelumnya</button><button id="pd-next" type="button" data-ppic-i18n="next">Berikutnya</button></div></footer>
+  </section>
+</main>
+<script src="/js/ppic-calendar-model.js?v=20260909-r3"></script>
+<%- include('../partials/footer') %>

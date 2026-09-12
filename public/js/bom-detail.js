@@ -37,8 +37,29 @@
     const processes = (record.details || []).flatMap((detail) => (detail.mbomProcesses || []).filter((item) => !item.isDeleted).map((item) => ({ ...item, detail }))).sort(compareRouting);
     document.getElementById("bom-process-rows").innerHTML = processes.length ? processes.map((item, index) => `<tr><td>${esc(item.routingNumber || item.sequence || (index + 1) * 10)}</td><td><b>${esc(processName(item))}</b></td><td>${esc(processOccurrence(item))}</td><td class="bom-muted">${esc(item.machine?.machineName || item.machine?.machineCode || "—")}</td><td>0</td><td>${Number(item.cycleTime || 0)}</td><td>0</td><td>0</td><td><span class="bom-release-badge">Aktif</span></td></tr>`).join("") : '<tr><td colspan="9" class="text-center py-4">Belum ada routing proses pada detail BOM.</td></tr>';
     document.getElementById("bom-process-flow").innerHTML = processes.length ? processes.map((item, index) => `${index ? '<i>›</i>' : ""}<span>${esc(processOccurrence(item))} (${esc(item.routingNumber || item.sequence || (index + 1) * 10)})</span>`).join("") : '<span class="empty">Belum ada alur proses.</span>';
+    renderYieldLinks(processes);
     const run = processes.reduce((sum, item) => sum + Number(item.cycleTime || 0), 0); document.getElementById("bom-time-caption").textContent = `Total Waktu Produksi (Run): ${run.toLocaleString("id-ID", { maximumFractionDigits: 2 })} Detik`;
     document.getElementById("bom-total-hours").textContent = `${(run / 3600).toFixed(2)} Hours`;
+  }
+  async function routingApi(path, options={}) {
+    const response=await fetch('/routing-tools/api/'+path,{...options,headers:{Authorization:'Bearer '+token(),'Content-Type':'application/json'}});
+    const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||'Standar routing gagal diproses.');return data;
+  }
+  async function renderYieldLinks(processes) {
+    const container=document.getElementById('bom-yield-link-rows'),status=document.getElementById('bom-yield-link-status');if(!container)return;
+    try {
+      const data=await routingApi('routings');const masters=(data.items||[]).filter(row=>row.source==='ROUTING_MASTER'&&row.status==='ACTIVE'&&!row.isDeleted);
+      container.innerHTML=processes.map((process,index)=>{
+        const candidates=masters.filter(row=>row.partId===process.detail.partId).flatMap(row=>(row.operations||[]).filter(op=>op.isActive&&op.processId===process.processId&&Boolean(op.isSubcontract)===(process.routingMode==='VENDOR')).map(op=>({...op,master:row})));
+        process.yieldCandidates=candidates;
+        return '<div class="border rounded p-3 mb-3"><strong>'+esc(process.detail.part?.partCode)+' · '+esc(processName(process))+'</strong><label class="d-block mt-2">Operasi master / yield<select class="form-select" data-yield-select="'+index+'"><option value="">Belum ditautkan</option>'+candidates.map(op=>'<option value="'+esc(op.id)+'"'+(op.id===process.routingOperationId?' selected':'')+'>'+esc(op.master.routingCode+' · OP '+op.sequence+' · yield '+op.yieldPercent+'%')+'</option>').join('')+'</select></label><button class="btn btn-primary mt-2" type="button" data-yield-save="'+index+'"'+(!candidates.length?' disabled':'')+'>Simpan tautan</button>'+(candidates.length?'':'<p>Belum ada operasi master aktif yang sesuai part, proses, dan pelaksana ini. Buat master routing terlebih dahulu.</p>')+'</div>';
+      }).join('');
+      container.onclick=async event=>{
+        const button=event.target.closest('[data-yield-save]');if(!button)return;const index=Number(button.dataset.yieldSave),process=processes[index],selected=container.querySelector('[data-yield-select="'+index+'"]').value;
+        if(!selected){status.textContent='Pilih operasi master sebelum menyimpan.';return;}button.disabled=true;status.textContent='Menyimpan tautan operasi…';
+        try{const saved=await routingApi('mbom-processes/'+encodeURIComponent(process.id)+'/link',{method:'PATCH',body:JSON.stringify({routingOperationId:selected,expectedUpdatedAt:process.updatedAt})});if(saved.routingOperationId!==selected)throw new Error('Tautan belum terkonfirmasi; muat ulang data.');status.textContent='Tautan tersimpan. Hitung ulang rencana MPS/MRP dan validasi kembali Data Readiness.';await load();}catch(error){status.textContent=error.message;}finally{button.disabled=false;}
+      };
+    }catch(error){container.textContent=error.message;}
   }
   load();
 })();

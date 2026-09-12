@@ -73,6 +73,7 @@
       const minutes = Number(check.gap.value);
       data.gap = minutes < 0 ? `Terlambat ${qty(-minutes / 60, "hour")}` : `Sisa ${qty(minutes / 60, "hour")}`;
     }
+    if (check.status === "NOT_CHECKED" && check.code === "FIRM_SUPPLY_ON_TIME") data.gap = "Belum dihitung";
     // A known material shortage must remain visible even when its supply ETA is missing.
     data.reason = data.reason.replace(/(\d+) child batch berstatus NOT_CHECKED\. /, "$1 batch belum dievaluasi. ").replace(/(\d+) child batch berstatus FAIL\. /, "$1 batch gagal. ").replace(/(\d+) child batch berstatus WARNING\. /, "$1 batch berisiko. ");
     return data;

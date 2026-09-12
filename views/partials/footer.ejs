@@ -1,3 +1,6 @@
+  <% if (typeof module !== 'undefined' && module.slug === 'planning-ppic') { %>
+  <link rel="stylesheet" href="/css/ppic-workspace.css?v=20260910-layout-1">
+  <% } %>
   <div id="toast-stack" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
   <% if (typeof requiresAuth !== 'undefined' && requiresAuth) { %>
     <%- include('demo-date') %>

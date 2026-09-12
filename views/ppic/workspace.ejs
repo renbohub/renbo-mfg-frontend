@@ -1,0 +1,32 @@
+<%- include('../partials/head') %>
+<% if (ppicWorkspacePage.id === 'L10') { %><link rel="stylesheet" href="/css/ppic-workspace-release.css?v=20260912-1"><% } %>
+<% if (ppicWorkspacePage.domain === 'execution') { %><link rel="stylesheet" href="/css/ppic-execution-workspace.css?v=20260912-1"><% } %>
+<% const followupPage = ['E06','E07','E08','E09','E10'].includes(ppicWorkspacePage.id); %>
+<% if (followupPage) { %><link rel="stylesheet" href="/css/ppic-execution-followup.css?v=20260912-1"><% } %>
+<% if (ppicWorkspacePage.domain === 'analytics' && ppicWorkspacePage.id !== 'A09') { %><link rel="stylesheet" href="/css/ppic-analytics-workspace.css?v=20260912-1"><% } %>
+<% if (ppicWorkspacePage.id === 'A09') { %><link rel="stylesheet" href="/css/ppic-improvement-actions.css?v=20260912-1"><% } %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/ppic-domain-nav') %>
+<main class="ppic-module-page" data-ppic-module data-page="<%= ppicWorkspacePage.id %>" data-domain="<%= ppicWorkspacePage.domain %>" data-implemented="<%= ppicWorkspacePage.implemented %>">
+  <%- include('../partials/ppic-workspace-context') %>
+  <header class="ppw-heading"><div><h1><%= ppicWorkspacePage.label %></h1><p id="ppw-subtitle"><%= ppicWorkspacePage.domainLabel %> · <%= ppicWorkspaceFilters.month %></p></div><div class="ppw-actions" id="ppw-page-actions"></div></header>
+  <form class="ppw-filters" id="ppw-filters" data-form-state="off">
+    <label <%= ppicWorkspacePage.domain === 'execution' ? 'hidden' : '' %>>Periode<input id="ppw-month" name="month" type="month" value="<%= ppicWorkspaceFilters.month %>" required data-allow-past="true"></label>
+    <% if (ppicWorkspacePage.domain === 'execution') { %><label>Tanggal<input id="ppw-date" name="date" type="date" value="<%= ppicWorkspaceFilters.date || initialDate %>" required data-allow-past="true"></label><label <%= followupPage ? 'hidden' : '' %>>Shift<select id="ppw-shift" name="shift" data-searchable-disabled="true"><option value="">Semua shift</option></select></label><% } %>
+    <label>Plant<select id="ppw-plant" name="plant" data-searchable-disabled="true"><option value="">Scope akses saya</option></select></label>
+    <label <%= ['L05','L06','L07','L08','L09','E06','E08','E09','E10'].includes(ppicWorkspacePage.id) ? 'hidden' : '' %>>Customer<select id="ppw-customer" name="customer" data-searchable-disabled="true"><option value="">Semua customer</option></select></label>
+    <label <%= ['L06','L07','L09','E06','E07','E08','E09','E10'].includes(ppicWorkspacePage.id) ? 'hidden' : '' %>>Resource<select id="ppw-resource" name="resource" data-searchable-disabled="true"><option value="">Semua resource</option></select></label>
+    <label class="ppw-scenario-filter" <%= ppicWorkspacePage.domain === 'execution' ? 'hidden' : '' %>>Skenario<select id="ppw-scenario" name="scenario" data-searchable-disabled="true"><option value="">Snapshot sumber</option></select></label>
+    <label <%= !['L03','L05','L06','L07','L08','E01','E02','E03','E04','E05','E06','E07','E08','E09','E10'].includes(ppicWorkspacePage.id) ? 'hidden' : '' %>>Cari<input id="ppw-search" name="q" type="search" value="<%= ppicWorkspaceFilters.q || '' %>" placeholder="FG / customer / resource"></label>
+    <button class="ppw-btn" type="submit">Terapkan filter</button>
+  </form>
+  <div class="ppw-freshness" id="ppw-freshness" aria-live="polite">Membaca status sumber…</div>
+  <div class="ppw-notice" id="ppw-notice" role="status" hidden></div>
+  <div id="ppw-loading" class="ppw-loading" role="status"><span class="ppw-spinner"></span><strong>Memuat data PPIC…</strong></div>
+  <div id="ppw-content" hidden></div>
+  <%- include('../partials/ppic-workspace-steps') %>
+  <dialog class="ppw-dialog" id="ppw-dialog" aria-labelledby="ppw-dialog-title"><header><h2 id="ppw-dialog-title"></h2><button type="button" class="ppw-btn" id="ppw-dialog-close" aria-label="Tutup dialog">×</button></header><div id="ppw-dialog-body"></div></dialog>
+</main>
+<script>window.PPIC_WORKSPACE_CONTEXT=<%- JSON.stringify({page:ppicWorkspacePage,filters:ppicWorkspaceFilters,pages:ppicWorkspaceRegistry.pages}).replace(/</g,'\\u003c') %>;</script>
+<script src="/js/ppic-labs-analysis.js?v=20260912-1"></script>
+<%- include('../partials/footer') %>

@@ -11,6 +11,7 @@
   const config = JSON.parse($("yd-page-config")?.textContent || "{}");
   const state = { year: Number(config.currentYear) || (globalThis.erpBusinessNow?.() || new Date()).getFullYear(), customerCode: "", q: "", page: 1, pageSize: 25, payload: null, requestId: 0, editing: null };
   let searchTimer = null;
+  const expandedParts = new Set();
 
   async function api(url, options = {}) {
     const response = await fetch(url, { ...options, headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json", ...(options.headers || {}) } });
@@ -48,31 +49,8 @@
     select.value = current;
   }
 
-  function columnsForMonth(payload, month) {
-    const locked = payload.items.some((row) => row.months?.[month.key]?.lock?.locked);
-    return demandModel.monthColumns({ lock: { locked } });
-  }
-
-  function tableColumnCount(payload) {
-    return 2 + payload.months.reduce((sum, month) => sum + columnsForMonth(payload, month).length, 0) + 3;
-  }
-
   function renderHead(payload) {
-    $("yd-head").innerHTML = `
-      <tr class="yd-month-head">
-        <th rowspan="2" class="yd-part-number">Part Number</th>
-        <th rowspan="2" class="yd-part-name">Part Name</th>
-        ${payload.months.map((month) => {
-          const columns = columnsForMonth(payload, month);
-          const locked = columns.length === 5;
-          return `<th colspan="${columns.length}" class="${locked ? "is-locked-month" : ""}">${monthNames[month.index - 1]}<small>${payload.year}${locked ? " · 🔒" : ""}</small></th>`;
-        }).join("")}
-        <th colspan="3" class="yd-total-head">Total ${payload.year}</th>
-      </tr>
-      <tr class="yd-metric-head">
-        ${payload.months.map((month) => columnsForMonth(payload, month).map((column) => `<th class="${column.key}">${column.label}</th>`).join("")).join("")}
-        <th class="fcc yd-total-col">FCT</th><th class="po">PO</th><th class="eff">EFD</th>
-      </tr>`;
+    $("yd-head").innerHTML = '<tr><th scope="col" class="yd-part-number">Part</th><th scope="col" class="yd-part-name">Nama part / customer</th>' + payload.months.map(month => '<th scope="col">' + monthNames[month.index - 1] + '</th>').join('') + '<th scope="col" class="yd-annual-total">Total EFD</th></tr>';
   }
 
   function metricCell(row, month, type) {
@@ -95,45 +73,34 @@
     if (type !== "efd") return `<td class="yd-value ${type} ${value === 0 ? "is-zero" : ""}">${qty(value)}</td>`;
     if (metric.lock?.locked) return `<td class="yd-value eff is-locked"><button type="button" data-open-lock data-part="${esc(row.partCode)}" data-month="${esc(month.key)}" title="EFD sudah dikunci"><span>${qty(metric.lock.lockedEfd)}</span><small>🔒</small></button></td>`;
     const overridden = Boolean(metric.efdOverride);
-    return `<td class="yd-value eff ${value === 0 ? "is-zero" : ""} ${overridden ? "is-overridden" : ""}"><button type="button" data-edit-efd data-part="${esc(row.partCode)}" data-month="${esc(month.key)}" title="Edit sumber EFD"><span>${qty(value)}</span>${overridden ? `<small>${esc(metric.efdSource === "MANUAL" ? "MANUAL" : metric.efdSource)}</small>` : ""}</button></td>`;
+    const sourceLabel = ({ MANUAL: "Manual", FORECAST_FALLBACK: "Forecast", FORECAST: "Forecast", ACTUAL_PO: "PO aktual", PO: "PO aktual" })[metric.efdSource] || "Override";
+    return `<td class="yd-value eff ${value === 0 ? "is-zero" : ""} ${overridden ? "is-overridden" : ""}"><button type="button" data-edit-efd data-part="${esc(row.partCode)}" data-month="${esc(month.key)}" title="Edit sumber EFD"><span>${qty(value)}</span>${overridden ? `<small>${esc(sourceLabel)}</small>` : ""}</button></td>`;
   }
 
   function renderBody(payload) {
-    if (!payload.items.length) {
-      $("yd-body").innerHTML = `<tr><td class="yd-empty" colspan="${tableColumnCount(payload)}"><strong>Belum ada demand pada filter ini.</strong><span>Coba ganti tahun, customer, atau kata pencarian.</span></td></tr>`;
-      $("yd-foot").innerHTML = "";
-      return;
-    }
-    $("yd-body").innerHTML = payload.items.map((row) => `
-      <tr>
-        <td class="yd-part-number"><strong>${esc(row.partNumber || row.partCode)}</strong><small>${esc(row.partCode)} · ${esc(row.planningPolicy)} · ${esc(row.uomCode)}</small></td>
-        <td class="yd-part-name"><strong>${esc(row.partName || "-")}</strong><small>${esc(row.customerCodes.join(", ") || "Tanpa customer")}</small></td>
-        ${payload.months.map((month) => columnsForMonth(payload, month).map((column) => metricCell(row, month, column.key)).join("")).join("")}
-        <td class="yd-value fcc yd-total-col"><strong>${qty(row.totals.fcc)}</strong></td>
-        <td class="yd-value po"><strong>${qty(row.totals.po)}</strong></td>
-        <td class="yd-value eff"><strong>${qty(row.totals.eff)}</strong></td>
-      </tr>`).join("");
-    $("yd-foot").innerHTML = `
-      <tr>
-        <th colspan="2">Total semua hasil filter</th>
-        ${payload.months.map((month) => {
-          const columns = columnsForMonth(payload, month);
-          const total = payload.items.reduce((sum, row) => {
-            const metric = row.months[month.key] || {};
-            sum.fcc += number(metric.fcc);
-            sum.po += number(metric.po);
-            sum.eff += number(metric.eff);
-            sum.lockedEfd += number(metric.lock?.lockedEfd);
-            sum.additional += number(metric.additional?.qty);
-            sum.current += number(metric.currentQty ?? metric.po);
-            return sum;
-          }, { fcc: 0, po: 0, eff: 0, lockedEfd: 0, additional: 0, current: 0 });
-          return columns.map((column) => `<td class="${column.key}">${qty(total[column.key])}</td>`).join("");
-        }).join("")}
-        <td class="fcc yd-total-col">${qty(payload.totals.fcc)}</td>
-        <td class="po">${qty(payload.totals.po)}</td>
-        <td class="eff">${qty(payload.totals.eff)}</td>
-      </tr>`;
+    const detail = (row) => ['fcc', 'po', 'lockedEfd', 'additional', 'current'].map((key) => `
+      <tr class="yd-part-detail">
+        <th scope="row" colspan="2" class="yd-detail-label"><span aria-hidden="true">↳</span> ${{ fcc: 'Forecast', po: 'PO firm', lockedEfd: 'EFD terkunci', additional: 'Demand tambahan', current: 'PO terkini' }[key]}</th>
+        ${payload.months.map((month) => metricCell(row, month, key)).join('')}
+        <td class="yd-detail-total" aria-label="Tidak dijumlahkan">—</td>
+      </tr>`).join('');
+    $("yd-body").innerHTML = payload.items.map((row) => {
+      const expanded = expandedParts.has(row.partCode);
+      return `<tr class="yd-part-row ${expanded ? 'is-expanded' : ''}">
+        <td class="yd-part-number">
+          <button type="button" class="yd-part-toggle" data-expand-part="${esc(row.partCode)}" aria-expanded="${expanded}" title="${expanded ? 'Tutup' : 'Buka'} rincian demand ${esc(row.partNumber || row.partCode)}">
+            <span class="yd-part-chevron" aria-hidden="true">${expanded ? '▾' : '▸'}</span><span>${esc(row.partNumber || row.partCode)}</span>
+          </button>
+          <small>${esc(row.partCode)} · ${esc(row.uomCode)}</small>
+        </td>
+        <td class="yd-part-name"><strong title="${esc(row.partName)}">${esc(row.partName)}</strong><small>${esc(row.customerCodes.join(', '))}</small></td>
+        ${payload.months.map((month) => metricCell(row, month, 'efd')).join('')}
+        <td class="yd-value eff yd-annual-total">${qty(row.totals.eff)}</td>
+      </tr>${expanded ? detail(row) : ''}`;
+    }).join('') || '<tr><td colspan="15" class="yd-empty">Belum ada demand pada filter ini.</td></tr>';
+    // Backend summary is over the complete filtered result; do not label a page
+    // subtotal as the total of all records or add quantities of unlike units.
+    $("yd-foot").innerHTML = '';
   }
 
   function renderSummary(payload) {
@@ -157,6 +124,8 @@
     $("yd-formula-rules").innerHTML = payload.formula.rules.map((rule) => `<li>${esc(rule)}</li>`).join("");
   }
 
+  $("yd-body").addEventListener("click", event => { const button=event.target.closest("[data-expand-part]"); if(!button)return; const key=button.dataset.expandPart; expandedParts.has(key)?expandedParts.delete(key):expandedParts.add(key); renderBody(state.payload); });
+
   function render(payload) {
     state.payload = payload;
     updateCustomerOptions(payload.filters.customerOptions);
@@ -179,7 +148,7 @@
     } catch (error) {
       if (requestId !== state.requestId) return;
       showAlert(error.message);
-      $("yd-body").innerHTML = `<tr><td class="yd-empty" colspan="41"><strong>Yearly Demand gagal dimuat.</strong><span>${esc(error.message)}</span><button type="button" id="yd-retry">Coba lagi</button></td></tr>`;
+      $("yd-body").innerHTML = `<tr><td class="yd-empty" colspan="15"><strong>Yearly Demand gagal dimuat.</strong><span>${esc(error.message)}</span><button type="button" id="yd-retry">Coba lagi</button></td></tr>`;
       $("yd-retry")?.addEventListener("click", load);
     } finally {
       if (requestId === state.requestId) setBusy(false);

@@ -12,8 +12,11 @@ const detail = read("views/master-data/work-center-detail.ejs");
 const formScript = read("public/js/work-center-form.js");
 const detailScript = read("public/js/work-center-detail.js");
 const style = read("public/css/work-center-master.css");
-const backendController = read("../backend/src/prisma/controllers/engineering/RoutingController.js");
-const backendRoutes = read("../backend/src/prisma/routes/engineering/routing.js");
+const backendRoot = ["../renbo-mfg-backend", "../backend"].map(candidate => path.resolve(root, candidate))
+  .find(candidate => fs.existsSync(path.join(candidate, "src/prisma/controllers/engineering/RoutingController.js")));
+assert(backendRoot, "Backend ERP harus tersedia untuk memeriksa kontrak Work Center lintas repository");
+const backendController = fs.readFileSync(path.join(backendRoot, "src/prisma/controllers/engineering/RoutingController.js"), "utf8");
+const backendRoutes = fs.readFileSync(path.join(backendRoot, "src/prisma/routes/engineering/routing.js"), "utf8");
 
 assert.match(registry, /"work-centers": entity\(/, "Work Center harus terdaftar di Master Data");
 assert.match(registry, /formView: "master-data\/work-center-form"/, "Work Center harus memakai form khusus");

@@ -25,6 +25,7 @@ app.disable("x-powered-by");
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.use(express.static(path.join(__dirname, "public")));
+app.get("/js/ppic-sandbox-engine.js", (_req, res) => res.sendFile(path.join(__dirname, "../library/ppic-planning/engine.js")));
 app.use("/uploads", uploadRoutes);
 
 const vendor = (route, folder) => app.use(route, express.static(path.join(__dirname, "node_modules", folder)));
@@ -36,6 +37,7 @@ vendor("/vendor/datatables-bs5", "datatables.net-bs5");
 vendor("/vendor/alpine", "alpinejs/dist");
 vendor("/vendor/apexcharts", "apexcharts/dist");
 vendor("/vendor/frappe-gantt", "frappe-gantt/dist");
+app.use("/vendor/ppic-gantt", express.static(path.join(__dirname, "../library/gantt/src")));
 vendor("/vendor/tabulator", "tabulator-tables/dist");
 vendor("/vendor/socket.io-client", "socket.io-client/dist");
 vendor("/vendor/mqtt", "mqtt/dist");

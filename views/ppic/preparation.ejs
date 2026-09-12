@@ -1,0 +1,29 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', {activePage:'preparation'}) %>
+<link rel="stylesheet" href="/vendor/tabulator/css/tabulator.min.css">
+<link rel="stylesheet" href="/css/ppic-preparation.css?v=20260910-1">
+<main class="prep-page" data-quantity-formatted="true">
+  <header class="prep-heading"><div><span class="prep-eyebrow">PLANNING PPIC · WORKBOOK</span><h1>Preparation PPIC <span class="prep-draft">Draft eksperimen</span></h1><p>Susun delivery, rencana produksi, dan kedatangan material untuk bulan berikutnya.</p></div><div class="prep-actions"><button id="prep-export">Ekspor Excel</button><button id="prep-simulate" class="prep-blue">Jalankan simulasi</button><button id="prep-save" class="prep-primary">Simpan draft</button></div></header>
+  <section class="prep-scenario" aria-label="Skenario persiapan">
+    <label>Periode<input id="prep-month" type="month" value="<%= initialMonth %>" aria-label="Periode preparation"></label>
+    <label class="prep-name">Nama skenario<input id="prep-name" maxlength="100" placeholder="Nama eksperimen PPIC" aria-label="Nama skenario"></label>
+    <label class="prep-saved">Draft tersimpan<select id="prep-scenarios" data-searchable-disabled aria-label="Buka draft tersimpan"><option value="">Skenario baru</option></select></label>
+    <button id="prep-source">Ambil data bulan</button><button id="prep-new">Draft kosong</button>
+  </section>
+  <div id="prep-message" role="status" hidden></div>
+  <section class="prep-metrics" aria-label="Ringkasan workbook"><article><span>Delivery Schedule</span><strong id="prep-delivery-total">—</strong><small>Kebutuhan delivery dalam draft</small></article><article><span>Production Schedule</span><strong id="prep-production-total">—</strong><small>Rencana FG selesai · dapat diedit</small></article><article><span>Material Arrival</span><strong id="prep-material-count">—</strong><small>Material / satuan / pemilik pasokan</small></article><article><span>Status simulasi</span><strong id="prep-result-status">Belum dihitung</strong><button id="prep-show-result" hidden>Lihat hasil simulasi →</button></article></section>
+  <section class="prep-workbook" aria-label="Workbook Preparation PPIC">
+    <div class="prep-ribbon"><div class="prep-edit-actions"><button id="prep-undo" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button><button id="prep-redo" title="Redo (Ctrl+Y)" aria-label="Redo">↷</button><span class="prep-divider"></span><button id="prep-add">＋ Tambah baris</button><button id="prep-delete" data-confirm-delete="off" title="Hapus dari draft; dapat dikembalikan dengan Undo">Hapus baris terpilih</button></div><input id="prep-search" type="search" placeholder="Cari di sheet ini…" aria-label="Cari di sheet aktif"><span id="prep-save-status">Belum tersimpan</span></div>
+    <div class="prep-cellbar"><output id="prep-cell-address">—</output><span>Nilai sel</span><input id="prep-cell-value" aria-label="Nilai sel terpilih" placeholder="Pilih sel pada tabel" disabled><span id="prep-cell-label"></span></div>
+    <div class="prep-sheet-heading"><strong id="prep-sheet-title">Production Schedule</strong><span id="prep-sheet-hint">Klik dua kali untuk edit. Pilih rentang lalu Ctrl+C / Ctrl+V dari Excel.</span></div>
+    <div id="prep-grid" aria-label="Tabel spreadsheet PPIC"></div>
+    <footer class="prep-sheetbar"><div role="tablist" aria-label="Sheet preparation"><button role="tab" data-sheet="delivery" aria-selected="false">Delivery Schedule <span id="prep-tab-delivery">0</span></button><button role="tab" data-sheet="production" aria-selected="true">Production Schedule <span id="prep-tab-production">0</span></button><button role="tab" data-sheet="material" aria-selected="false">Material Arrival <span id="prep-tab-material">0</span></button></div><span id="prep-selection-status">Siap</span></footer>
+  </section>
+  <p class="prep-help">Klik dua kali atau Enter untuk edit · Tab / tombol panah untuk berpindah · Ctrl+C / Ctrl+V untuk salin dan tempel · Koma untuk desimal. Semua perubahan disimpan sebagai draft terpisah.</p>
+  <details class="prep-source-notes"><summary>Dasar data dan perhitungan</summary><p>Production Schedule berisi jumlah FG selesai per tanggal, mesin, dan shift. Offset material memajukan tanggal kebutuhan material sebelum FG selesai. Material Arrival memakai proyeksi stok awal yang Anda isi. Simulasi belum menjadwalkan kapasitas mesin atau menerapkan perubahan ke rencana resmi.</p><ul id="prep-source-notes"></ul></details>
+  <dialog id="prep-results" aria-labelledby="prep-results-title"><header><div><span class="prep-eyebrow">HASIL EKSPERIMEN</span><h2 id="prep-results-title">Simulasi Preparation PPIC</h2></div><button id="prep-close-results" aria-label="Tutup hasil simulasi">✕</button></header><div id="prep-results-body"></div></dialog>
+</main>
+<script src="/vendor/tabulator/js/tabulator.min.js"></script>
+<script src="/js/ppic-preparation-model.js?v=20260910-1"></script>
+<%- include('../partials/footer') %>

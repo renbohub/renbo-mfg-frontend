@@ -7,18 +7,16 @@
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: 'mps' }) %>
 
-<main class="mwb-page ppic-page">
+<link rel="stylesheet" href="/css/ppic-plan-review.css?v=20260909-r3">
+
+<main class="mwb-page ppic-page ppic-workspace">
   <header class="mwb-head app-container planning-shared-header">
     <div class="mwb-title-block">
       <span class="mwb-eyebrow">PLANNING PPIC</span>
-      <h1>Master Production Schedule</h1>
+      <h1 data-ppic-i18n="fg">Jadwal Produksi FG Bulanan</h1>
     </div>
     <div class="mwb-head-actions">
-      <label class="mwb-search"><%- include('../partials/icon', { name: 'search' }) %><input id="mwb-search" type="search" placeholder="Cari data PPIC..." autocomplete="off"></label>
-      <select id="mwb-status" data-searchable-disabled aria-label="Filter status"><option value="">Semua Status</option></select>
       <a id="mwb-recovery-kanban" class="mwb-outline-action" href="/modules/planning-ppic/mps/recovery-kanban?month=<%= initialMonth %>">Recovery Kanban</a>
-      <button id="mwb-density" class="mwb-view-button" type="button" title="Ubah kerapatan tabel">▦</button>
-      <button id="mwb-export" class="mwb-outline-action" type="button">↓&nbsp; Export CSV</button>
       <button id="mwb-sync" class="mwb-primary-action" type="button">＋&nbsp; <span class="mwb-sync-full">Buat MPS Production Plan</span><span class="mwb-sync-short">Buat MPS</span></button>
     </div>
   </header>
@@ -37,6 +35,7 @@
   </section>
 
   <%- include('../partials/mps-eta-source') %>
+  <p class="app-container mwb-shift-quantity-rule">Qty produksi bulanan awal setelah buffer dibulatkan ke atas kelipatan 1.000. Di ruang simulasi, jumlah pembagian mengikuti jumlah delivery; sisa menjadi pembagian terpisah dan seluruh qty dapat disesuaikan lewat Atur pembagian qty. Kapasitas shift tetap diperhitungkan saat penjadwalan dihitung ulang.</p>
   <section class="mwb-efd-window app-container" aria-label="EFD tiga bulan">
     <article><span id="mwb-efd-m1-label">EFD M-1</span><strong id="mwb-efd-m1">0</strong></article>
     <article class="current"><span id="mwb-efd-m-label">EFD M</span><strong id="mwb-efd-m">0</strong></article>
@@ -77,6 +76,12 @@
   </section>
 
   <section class="mwb-board app-container">
+    <div class="ppic-table-filters" role="group" aria-label="Filter rincian MPS">
+      <label class="mwb-search"><%- include('../partials/icon', { name: 'search' }) %><input id="mwb-search" type="search" aria-label="Cari rincian MPS" placeholder="Cari rincian MPS..." autocomplete="off"></label>
+      <select id="mwb-status" data-searchable-disabled aria-label="Filter status"><option value="">Semua Status</option></select>
+      <button id="mwb-density" class="mwb-view-button" type="button" title="Ubah kerapatan tabel" aria-label="Ubah kerapatan tabel">▦</button>
+      <button id="mwb-export" class="mwb-outline-action" type="button">↓&nbsp; Export CSV</button>
+    </div>
     <header class="mwb-board-meta"><div><span>MPS PRODUCTION PLANNING MATRIX</span><h2 id="mwb-title">Master Production Schedule</h2><p id="mwb-result-meta">Memuat data…</p></div></header>
     <div class="mwb-baseline-toolbar" aria-label="Kontrol Lock MPS dan perubahan PO">
       <div><span>PO+ BASELINE · BUKAN APPROVAL MPS</span><strong id="mwb-baseline-status">Memeriksa baseline PO…</strong><small id="mwb-baseline-meta">PO+ membandingkan PO aktif dengan PO ketika baseline dikunci.</small></div>
@@ -126,10 +131,11 @@
 </div><footer id="mwb-rccp-actions"><button type="button" class="btn btn-outline-secondary" data-close-rccp-modal>Kembali ke MPS</button></footer></section></aside>
 
 <script id="mwb-page-config" type="application/json"><%- JSON.stringify({ initialMonth }).replace(/</g, '\\u003c') %></script>
-<script src="/js/ppic-mps-eta.js?v=20260907-mps-source-1"></script>
+<script src="/js/ppic-mps-eta.js?v=20260909-bom-default-1"></script>
 <script src="/js/ppic-mps-delivery-status.js?v=20260904-auto-evaluation-1"></script>
 <script src="/js/ppic-mps-audit-model.js?v=20260905-production-evidence"></script>
 <script src="/js/ppic-mps-table-layout.js?v=20260905-1"></script>
 <link rel="stylesheet" href="/css/ppic-mps-audit.css?v=20260905-production-checksheet">
 <script src="/js/ppic-mps-recovery-actions.js?v=20260901-accept-late-refresh-1"></script>
+<%- include('../partials/mps-readiness-bot') %>
 <%- include('../partials/footer') %>

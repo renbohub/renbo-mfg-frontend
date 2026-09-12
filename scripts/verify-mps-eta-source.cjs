@@ -50,7 +50,7 @@ const fixture = { period: "2026-09", mps: { mpsNumber: "MPS-202609", revision: 7
       assert.equal(await save.isVisible(), false); await select.selectOption("BOM");
       assert.deepEqual(await page.evaluate(() => controls.creationOptions()), {etaMode:"BOM"});
       await page.evaluate(() => controls.render(data)); assert.equal(await select.inputValue(), "BOM");
-      await page.evaluate(() => {data.period="2026-11";controls.render(data);}); assert.equal(await select.inputValue(), "MANUAL", "new-MPS choices are period scoped");
+      await page.evaluate(() => {data.period="2026-11";controls.render(data);}); assert.equal(await select.inputValue(), "BOM", "new MPS defaults to BOM");
     }
     const integrated = { ...structuredClone(fixture), items: [], statuses: [], summary: { partCount: 0 }, pagination: { page: 1, pages: 1, pageSize: 25, filtered: 0 }, efdWindow: { months: ["2026-08", "2026-09", "2026-10"], totals: {}, total: 0 }, deliveryGate: {} };
     const fullView = read("views/ppic/mps-workbench.ejs")

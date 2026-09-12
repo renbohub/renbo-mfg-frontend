@@ -7,7 +7,8 @@ router.get('/modules/engineering/routings/:key/edit',(req,res)=>res.render('mast
 router.all('/routing-tools/api/*path',async(req,res)=>{
   const segments=Array.isArray(req.params.path)?req.params.path:[req.params.path];
   if(segments.some(segment=>!segment||segment==='.'||segment==='..'||/[\\/\x00-\x1f]/.test(segment)))return res.status(400).json({message:'Path tidak valid.'});
-  if(!['routing-options','routings','parts'].includes(segments[0]))return res.sendStatus(404);
+  if(segments[0]==='mbom-processes'&&(req.method!=='PATCH'||segments.length!==3||segments[2]!=='link'))return res.sendStatus(404);
+  if(!['routing-options','routings','parts','mbom-processes'].includes(segments[0]))return res.sendStatus(404);
   if(!req.get('authorization'))return res.status(401).json({message:'Login diperlukan.'});
   if(!['GET','POST','PATCH','DELETE'].includes(req.method))return res.sendStatus(405);
   try{

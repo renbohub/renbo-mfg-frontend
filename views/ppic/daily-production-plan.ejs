@@ -3,11 +3,10 @@
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: 'daily-production-plans' }) %>
 
-<main class="dpp-page" data-role="PPIC">
+<main class="dpp-page ppic-workspace" data-role="PPIC">
   <header class="dpp-head app-container planning-shared-header">
-    <div><span>PLANNING PPIC</span><h1>Daily Production Plan</h1><p>Finite plan per mesin dan jam. Production hanya menerima revision yang sudah Released.</p></div>
+    <div><span>PLANNING PPIC</span><h1 data-ppic-i18n="daily">Jadwal Produksi Harian</h1><p>Jadwal per mesin dan jam mengikuti kapasitas tersedia. Produksi menggunakan revisi yang sudah dirilis.</p></div>
     <div class="dpp-head-actions">
-      <a class="dpp-button ghost" id="dpp-monthly-link" href="/modules/planning-ppic/monthly-production-plans">Monthly Plan</a>
       <a class="dpp-button ghost" id="dpp-monthly-link" href="/modules/planning-ppic/monthly-production-plans?month=<%= initialDate.slice(0, 7) %>">Monthly Plan</a>
       <button class="dpp-button ghost" id="dpp-refresh" type="button">↻ Refresh</button>
       <button class="dpp-button primary" id="dpp-draft" type="button">Buat Draft</button>

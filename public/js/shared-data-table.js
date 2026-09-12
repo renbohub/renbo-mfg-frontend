@@ -19,7 +19,7 @@
     return number(raw);
   }
   function normalizePcsTextNode(node) {
-    if (!node?.nodeValue || node.parentElement?.closest("script,style,textarea,input,select,option,[contenteditable='true']")) return;
+    if (!node?.nodeValue || node.parentElement?.closest("script,style,textarea,input,select,option,[contenteditable='true'],[data-quantity-formatted]")) return;
     const normalized = node.nodeValue.replace(pcsTextPattern, (match, raw, uom) => `${formatQuantity(parseDisplayedNumber(raw), uom)} ${uom.toUpperCase()}`);
     if (normalized !== node.nodeValue) node.nodeValue = normalized;
   }

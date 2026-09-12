@@ -1,0 +1,4 @@
+<div class="ppw-context">
+  <nav aria-label="Breadcrumb"><a data-ppw-link href="<%= ppicWorkspaceRegistry.href(ppicWorkspaceRegistry.pages.find(page => page.domain === ppicWorkspacePage.domain), ppicWorkspaceFilters) %>"><%= ppicWorkspacePage.domainLabel %></a><span aria-hidden="true">›</span><strong><%= ppicWorkspacePage.label %></strong></nav>
+  <details class="ppw-page-menu"><summary>Semua halaman <span aria-hidden="true">⌄</span></summary><div><% ppicWorkspaceRegistry.domains.forEach(domain => { %><section><strong><%= domain.label %></strong><% ppicWorkspaceRegistry.pages.filter(page => page.domain === domain.id).forEach(page => { %><a data-ppw-link href="<%= ppicWorkspaceRegistry.href(page,ppicWorkspaceFilters) %>" <%- page.id === ppicWorkspacePage.id ? 'aria-current="page"' : '' %>><span><%= page.id %></span><%= page.label %><% if (!page.implemented) { %><small>Belum diimplementasikan</small><% } %></a><% }) %></section><% }) %></div></details>
+</div>

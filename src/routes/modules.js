@@ -27,6 +27,7 @@ function authHeader(req) {
   return headers;
 }
 router.use(require("./step1-proxy")({ backendUrl, authHeader, common, getModule, getPage }));
+router.use(require("./ppic-workspace")({ backendUrl, authHeader, common, getModule, businessNow }));
 function findConfig(req, res) {
   const module = getModule(req.params.module);
   const page = getPage(req.params.module, req.params.page);
@@ -140,6 +141,9 @@ router.get("/api/sales/:page/generate-number", (req, res) => {
 router.get("/api/sales/sales-orders/line-preview", (req, res) => proxyReadWithQuery(req, res, "/api/sales/sales-orders/line-preview", "Preview harga dan margin gagal dimuat."));
 router.get("/api/sales/sales-orders/forecast-targets", (req, res) => proxyReadWithQuery(req, res, "/api/sales/sales-orders/forecast-targets", "Target Forecast yang dapat dikonsumsi gagal dimuat."));
 router.get("/api/planning-ppic/demand-planning", (req, res) => proxyReadWithQuery(req, res, "/api/planning/demand-planning", "Demand Planning gagal dimuat."));
+router.post("/api/planning-ppic/mps/:mpsNumber/integrated-preview", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "POST", `/${encodeURIComponent(req.params.mpsNumber)}/integrated-preview`, MONTHLY_PLAN_CREATE_TIMEOUT_MS));
+router.post("/api/planning-ppic/mps/:mpsNumber/experiment-seed", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "POST", `/${encodeURIComponent(req.params.mpsNumber)}/experiment-seed`, 180000));
+router.post("/api/planning-ppic/mps/:mpsNumber/confirm-plan", (req, res) => proxyPageMutation(req, res, "/api/planning/mps", "POST", `/${encodeURIComponent(req.params.mpsNumber)}/confirm-plan`, MONTHLY_PLAN_CREATE_TIMEOUT_MS));
 router.get("/api/planning-ppic/demand-planning/yearly", (req, res) => proxyReadWithQuery(req, res, "/api/planning/demand-planning/yearly", "Yearly Demand gagal dimuat."));
 router.get("/api/planning-ppic/demand-planning/yearly/additional-coverage", (req, res) => proxyReadWithQuery(req, res, "/api/planning/demand-planning/yearly/additional-coverage", "Coverage PO tambahan gagal dimuat."));
 router.put("/api/planning-ppic/demand-planning/yearly/rule", (req, res) => proxyPageMutation(req, res, "/api/planning/demand-planning/yearly", "PUT", "/rule"));
@@ -298,6 +302,13 @@ router.get("/api/purchasing-po/:key/pdf", async (req, res) => {
   }
 });
 
+router.get("/api/planning-ppic/production-actuals", (req, res) => proxyReadWithQuery(req, res, "/api/planning/execution-cockpit/production-actuals", "Pemantauan aktual gagal dimuat."));
+router.get("/api/planning-ppic/preparation", (req, res) => proxyPageMutation(req,res,"/api/planning/preparation","GET"));
+router.get("/api/planning-ppic/preparation/source", (req, res) => proxyPageMutation(req,res,"/api/planning/preparation/source","GET","",120000));
+router.post("/api/planning-ppic/preparation/simulate", (req, res) => proxyPageMutation(req,res,"/api/planning/preparation/simulate","POST","",180000));
+router.get("/api/planning-ppic/preparation/:id", (req, res) => proxyPageMutation(req,res,"/api/planning/preparation","GET",`/${encodeURIComponent(req.params.id)}`));
+router.post("/api/planning-ppic/preparation", (req, res) => proxyPageMutation(req,res,"/api/planning/preparation","POST"));
+router.put("/api/planning-ppic/preparation/:id", (req, res) => proxyPageMutation(req,res,"/api/planning/preparation","PUT",`/${encodeURIComponent(req.params.id)}`));
 router.get("/api/planning-ppic/execution-cockpit", (req, res) => proxyReadWithQuery(req, res, "/api/planning/execution-cockpit", "Planning Execution Cockpit gagal dimuat."));
 router.post("/api/planning-ppic/execution-cockpit/:month/close", (req, res) => proxyPageMutation(req, res, "/api/planning/execution-cockpit", "POST", `/${encodeURIComponent(req.params.month)}/close`));
 router.post("/api/planning-ppic/execution-cockpit/:month/reopen", (req, res) => proxyPageMutation(req, res, "/api/planning/execution-cockpit", "POST", `/${encodeURIComponent(req.params.month)}/reopen`));
@@ -666,7 +677,7 @@ function renderPpic(res, tab = "mrp", req = null) {
   if (tab === "dashboard") return res.render("modules/executive-dashboard", { title: "Planning Performance", module, ...common(module.slug) });
   const ppicTabs = { mrp: "MRP Planning Run", mps: "Rolling MPS", "demand-planning": "Demand Planning", "capacity-planning": "Capacity Planning", "daily-production-plans": "Daily Production Plan", "control-tower": "Control Tower", "planned-orders": "Planned Orders", "monthly-production-plans": "Production Plans" };
   if (!ppicTabs[tab]) return res.status(404).render("errors/404", { title: "Menu PPIC tidak ditemukan" });
-  if (tab === "demand-planning") return res.render("ppic/yearly-demand", { title: "Demand Planning", module, activePpicTab: tab, currentYear: businessNow().getFullYear(), pageScript: "/js/ppic-yearly-demand.js?v=20260821-efd-1", ...common(module.slug) });
+  if (tab === "demand-planning") return res.render("ppic/yearly-demand", { title: "Demand Planning", module, activePpicTab: tab, currentYear: businessNow().getFullYear(), pageScript: "/js/ppic-yearly-demand.js?v=20260910-yearly-layout-1", ...common(module.slug) });
   if (tab === "capacity-planning") return redirectPlanningWorkspace(req, res);
   if (["control-tower", "planned-orders", "monthly-production-plans", "daily-production-plans"].includes(tab)) return renderOperationsDashboard(res, { params: { page: tab }, query: req?.query || {} }, "planning-ppic", tab);
   return res.render("ppic/dashboard", { title: ppicTabs[tab], module, activePpicTab: tab, pageScript: tab === "demand-planning" ? "/js/ppic-demand-planning.js?v=20260812-1" : "/js/ppic-dashboard.js?v=20260812-1", ...common(module.slug) });
@@ -680,11 +691,19 @@ function renderPpicDetail(res, req) {
   if (tab === "mrp") return res.render("ppic/mrp-detail-simple", { title: "MRP Planning Run", module, activePpicTab: tab, recordKey: req.params.key, pageScript: "/js/ppic-mrp-detail-simple.js?v=20260906-categories", ...common(module.slug) });
   return res.render("ppic/detail", { title: `${ppicTabs[tab]} Detail`, module, activePpicTab: tab, recordKey: req.params.key, pageScript: "/js/ppic-detail.js?v=20260813-management-matrix-2", ...common(module.slug) });
 }
-router.get("/planning-ppic", (_req, res) => res.redirect(308, "/modules/planning-ppic/demand-planning"));
+router.get("/planning-ppic", (req, res) => res.redirect(302, "/modules/planning-ppic/labs/planning-home" + (req.originalUrl.includes("?") ? req.originalUrl.slice(req.originalUrl.indexOf("?")) : "")));
+router.get("/planning-ppic/preparation", (req,res)=>{const module=getModule("planning-ppic");const initialMonth=/^20\d{2}-(0[1-9]|1[0-2])$/.test(String(req.query.month||""))?String(req.query.month):addMonthKey(jakartaMonthKey(),1);res.render("ppic/preparation",{title:"Preparation PPIC",module,initialMonth,pageScript:"/js/ppic-preparation.js?v=20260910-1",...common(module.slug)});});
+router.get("/planning-ppic/production-actuals", (req, res) => { const module = getModule("planning-ppic"); const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : jakartaMonthKey(); res.render("ppic/production-actuals", { title: "Pemantauan Aktual Produksi", module, initialMonth, pageScript: "/js/ppic-production-actuals.js?v=20260910-layout-1", ...common(module.slug) }); });
 router.get("/planning-ppic/mrp/general", (_req, res) => res.redirect(308, "/modules/planning-ppic/mrp"));
 router.get("/planning-ppic/mps/general", (_req, res) => res.redirect(308, "/modules/planning-ppic/mps/workbench"));
 router.get("/planning-ppic/monthly-plan/:key", (req, res) => res.redirect(308, `/modules/planning-ppic/monthly-production-plans?planNumber=${encodeURIComponent(req.params.key)}`));
 router.get("/planning-ppic/monthly-plan", (_req, res) => res.redirect(308, "/modules/planning-ppic/monthly-production-plans"));
+router.get("/planning-ppic/monthly-delivery", (req, res) => {
+  const module = getModule("planning-ppic");
+  const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : addMonthKey(jakartaMonthKey(), 1);
+  res.render("ppic/monthly-delivery", { title: "Jadwal Delivery Bulanan", module, initialMonth, pageScript: "/js/ppic-monthly-delivery.js?v=20260910-layout-1", ...common(module.slug) });
+});
+router.get("/api/planning-ppic/demand-planning/delivery-calendar", (req, res) => proxyReadWithQuery(req, res, "/api/planning/demand-planning/delivery-calendar", "Kalender delivery gagal dimuat."));
 router.get("/planning-ppic/demand-planning/monthly-review", (req, res) => {
   const module = getModule("planning-ppic");
   const nextMonth = addMonthKey(jakartaMonthKey(), 1);
@@ -710,9 +729,13 @@ router.get("/planning-ppic/demand-planning/exception-workbench", (req, res) => {
 });
 router.get("/planning-ppic/mps/workbench", (req, res) => {
   const module = getModule("planning-ppic");
+  if (req.query.view !== "legacy") {
+    const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : addMonthKey(jakartaMonthKey(), 1);
+    return res.render("ppic/planning-sandbox", { title: "Simulasi Perencanaan PPIC", module, activePpicTab: "mps", initialMonth, pageScript: "/js/ppic-sandbox.js?v=20260912-8-delivery-qty", ...common(module.slug) });
+  }
   const nextMonth = addMonthKey(jakartaMonthKey(), 1);
   const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : nextMonth;
-  return res.render("ppic/mps-workbench", { title: "Master Production Schedule", module, activePpicTab: "mps", initialMonth, pageScript: "/js/ppic-mps-workbench.js?v=20260907-mps-source-1", ...common(module.slug) });
+  return res.render("ppic/mps-workbench", { title: "Master Production Schedule", module, activePpicTab: "mps", initialMonth, pageScript: "/js/ppic-mps-workbench.js?v=20260909-mrp-bot-1", ...common(module.slug) });
 });
 router.get("/planning-ppic/mps/recovery-kanban", (req, res) => {
   const module = getModule("planning-ppic");
@@ -728,7 +751,7 @@ router.get("/planning-ppic/mps", (req, res) => res.redirect(308, `/modules/plann
 router.get("/planning-ppic/master-production-schedule", (req, res) => res.redirect(308, `/modules/planning-ppic/mps/workbench${req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : ""}`));
 router.get("/planning-ppic/mrp", (req, res) => {
   const module = getModule("planning-ppic");
-  const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : jakartaMonthKey();
+  const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : addMonthKey(jakartaMonthKey(), 1);
   if (req.query.view === "runs") return res.render("ppic/mrp-planning-runs", { title: "MRP Planning Runs", module, activePpicTab: "mrp", initialMonth, pageScript: "/js/ppic-mrp-planning-runs.js?v=20260906-monthly", ...common(module.slug) });
   return res.render("ppic/mrp-detail-simple", { title: "Material Requirements Planning", module, activePpicTab: "mrp", initialMonth, monthlyMode: true, selectedRun: typeof req.query.run === "string" ? req.query.run : "", recordKey: "", pageScript: "/js/ppic-mrp-detail-simple.js?v=20260906-categories", ...common(module.slug) });
 });
@@ -736,7 +759,7 @@ router.get("/planning-ppic/material-requirements-planning", (req, res) => res.re
 router.get("/planning-ppic/planned-orders", (req, res) => redirectPlanningWorkspace(req, res, "mrp"));
 router.get("/planning-ppic/monthly-production-plans", (req, res) => {
   const module = getModule("planning-ppic");
-  const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : jakartaMonthKey();
+  const initialMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.month || "")) ? String(req.query.month) : addMonthKey(jakartaMonthKey(), 1);
   return res.render("ppic/monthly-production-plan", { title: "Monthly Production Plan", module, activePpicTab: "monthly-production-plans", initialMonth, pageScript: "/js/ppic-monthly-production-plan.js?v=20260908-executor-1", ...common(module.slug) });
 });
 router.get("/planning-ppic/monthly-production-plans/:key", (req, res) => res.redirect(308, `/modules/planning-ppic/monthly-production-plans?planNumber=${encodeURIComponent(req.params.key)}`));
@@ -773,7 +796,7 @@ router.get("/manufacturing-bom/bill-of-materials/:key/edit-table", (req, res) =>
 
 router.get("/manufacturing-bom/bill-of-materials/:key/processes", (req, res) => {
   const module = getModule("manufacturing-bom"); const page = getPage("manufacturing-bom", "bill-of-materials");
-  res.render("bom/processes", { title: "BOM Proses", module, page, recordKey: req.params.key, pageScript: "/js/bom-detail.js", ...common(module.slug) });
+  res.render("bom/processes", { title: "BOM Proses", module, page, recordKey: req.params.key, pageScript: "/js/bom-detail.js?v=20260912-yield", ...common(module.slug) });
 });
 
 router.get("/manufacturing-bom/bill-of-materials/:key", (req, res) => {

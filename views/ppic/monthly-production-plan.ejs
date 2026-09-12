@@ -4,12 +4,12 @@
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: 'monthly-production-plans' }) %>
 
-<main class="mpp-month-page">
+<main class="mpp-month-page ppic-workspace">
   <div class="app-container">
     <%
       const mppShellActions = `<div class="mpp-header-actions"><details class="mpp-settings"><summary class="mpp-outline-button">Pengaturan <span aria-hidden="true">⌄</span></summary><nav aria-label="Master data produksi"><a class="mpp-master-link" href="/master-data/work-centers">Work Center <span aria-hidden="true">↗</span></a><a class="mpp-master-link" href="/master-data/vendor-processes">Proses Vendor <span aria-hidden="true">↗</span></a></nav></details><button id="mpp-month-refresh" class="mpp-outline-button" type="button">↻ Refresh</button><a class="mpp-outline-button" href="/modules/planning-ppic/daily-production-plans?date=${initialMonth}-01" title="Buka Daily Plan per mesin dan jam">Daily Plan <span aria-hidden="true">→</span></a></div>`;
     %>
-    <%- include('../partials/document-shell', { documentShell: { variant: 'planning', eyebrow: 'Planning PPIC', number: 'Monthly Production Plan', subtitle: 'Hasil MRP langsung dialokasikan ke mesin dan proses vendor, lalu diterbitkan menjadi Daily Plan.', actions: mppShellActions } }) %>
+    <%- include('../partials/document-shell', { documentShell: { variant: 'planning', eyebrow: 'Planning PPIC', number: 'Rencana Produksi Bulanan', subtitle: 'Hasil MRP langsung dialokasikan ke mesin dan proses vendor, lalu diterbitkan menjadi Daily Plan.', actions: mppShellActions } }) %>
   </div>
 
   <%- include('../partials/ppic-workflow-strip', { currentStage: 'MPP', monthControl: 'mpp-month-input', dateControl: '' }) %>

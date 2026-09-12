@@ -1,0 +1,7 @@
+<link rel="stylesheet" href="/css/ppic-module-workspace.css?v=20260912-evaluator-4">
+<nav class="ppw-domain-nav" aria-label="Workspace PPIC">
+  <% ppicWorkspaceRegistry.domains.forEach(domain => { const target = ppicWorkspaceRegistry.pages.find(page => page.domain === domain.id); %>
+  <a data-ppw-link href="<%= ppicWorkspaceRegistry.href(target, ppicWorkspaceFilters) %>" class="<%= ppicWorkspacePage.domain === domain.id ? 'active' : '' %>" <%- ppicWorkspacePage.domain === domain.id ? 'aria-current="true"' : '' %>><%- include('icon', { name: domain.icon }) %><%= domain.label %></a>
+  <% }) %>
+  <details class="ppw-legacy-links"><summary>Halaman ERP lainnya</summary><div><a href="/modules/planning-ppic/preparation">Preparation PPIC</a><a href="/modules/planning-ppic/demand-planning">Demand Tahunan</a><a href="/modules/planning-ppic/production-actuals">Aktual Produksi</a></div></details>
+</nav>

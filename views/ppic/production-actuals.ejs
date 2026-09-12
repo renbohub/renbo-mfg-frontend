@@ -1,0 +1,24 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'production-actuals' }) %>
+<link rel="stylesheet" href="/css/ppic-calendar.css?v=20260909-r3">
+<link rel="stylesheet" href="/css/ppic-production-actuals.css?v=20260910-layout-1">
+<main class="app-container ppic-calendar-page pa-page">
+  <header class="pa-heading">
+    <div><span class="pa-eyebrow">PLANNING PPIC</span><h1 data-ppic-i18n="actual">Pemantauan Aktual Produksi</h1><p>Pantau target, hasil produksi, dan posisi pekerjaan vendor per periode.</p></div>
+    <button id="pa-export" class="pa-export" data-ppic-i18n="export">Ekspor seluruh hasil filter</button>
+  </header>
+  <div class="ppic-calendar-tools pa-filters">
+    <label>Periode<input id="pa-month" type="month" value="<%= initialMonth %>" aria-label="Periode"></label>
+    <label class="pa-search">Pencarian<input id="pa-search" type="search" placeholder="Cari mesin, part, atau proses" aria-label="Cari mesin, part, atau proses"></label>
+    <label>Tampilan<select id="pa-period" aria-label="Ringkasan waktu" data-searchable-disabled><option value="day">Harian</option><option value="week">Mingguan</option></select></label>
+    <button id="pa-refresh" data-ppic-i18n="refresh">Muat Ulang</button>
+  </div>
+  <p id="pa-message" role="status"></p>
+  <section class="pa-card" aria-labelledby="pa-production-title">
+    <header class="pa-card-heading"><div><h2 id="pa-production-title">Produksi internal</h2><p>Hasil baik dan NG dari laporan produksi yang disetujui. Kekurangan = target − hasil baik.</p></div><span id="pa-period-label" class="pa-period-label"></span></header>
+    <div id="pa-table" class="ppic-calendar-scroll"></div>
+    <footer class="ppic-calendar-tools pa-pagination"><span id="pa-page"></span><div><label id="pa-page-size-label">Baris</label><button id="pa-prev" data-ppic-i18n="previous">Sebelumnya</button><button id="pa-next" data-ppic-i18n="next">Berikutnya</button></div></footer>
+  </section>
+  <section id="pa-vendors" class="pa-card" aria-label="Posisi proses vendor"></section>
+</main><%- include('../partials/footer') %>

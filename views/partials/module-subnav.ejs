@@ -1,3 +1,6 @@
+<% if (typeof ppicWorkspacePage !== 'undefined' && ppicWorkspacePage) { %>
+<%- include('ppic-domain-nav') %>
+<% } else { %>
 <%
   const requestedActivePage = typeof activePage !== 'undefined'
     ? activePage
@@ -38,22 +41,46 @@
     'material-requirements-planning': { label: 'MRP Planning Runs', href: '/modules/planning-ppic/mrp' },
     'monthly-production-plans': { label: 'Production Plans', href: '/modules/planning-ppic/monthly-production-plans' },
   } : {};
-  const moduleNavigationItems = (module.pages || []).filter(item => !item.navHidden).map(item => ({
+  let moduleNavigationItems = (module.pages || []).filter(item => !item.navHidden).map(item => ({
     slug: item.slug,
     label: ppicWorkbenchNav[item.slug]?.label || item.label,
     href: ppicWorkbenchNav[item.slug]?.href || '/modules/' + module.slug + '/' + item.slug,
     apiReady: item.apiReady !== false,
     icon: navigationIcon(item)
   }));
+  if (module.slug === 'planning-ppic') moduleNavigationItems = [
+    ['preparation', null, 'Preparation PPIC', '/modules/planning-ppic/preparation'],
+    ['demand-planning', 'annual', 'Demand Tahunan', '/modules/planning-ppic/demand-planning'],
+    ['production-actuals', 'actual', 'Pemantauan Aktual Produksi', '/modules/planning-ppic/production-actuals'],
+    ['monthly-delivery', 'delivery', 'Jadwal Delivery Bulanan', '/modules/planning-ppic/monthly-delivery'],
+    ['master-production-schedule', 'fg', 'Jadwal Produksi FG Bulanan', '/modules/planning-ppic/mps/workbench'],
+    ['material-requirements-planning', 'material', 'Rencana Kebutuhan Material (MRP)', '/modules/planning-ppic/mrp'],
+    ['monthly-production-plans', 'monthly', 'Rencana Produksi Bulanan', '/modules/planning-ppic/monthly-production-plans'],
+    ['daily-production-plans', 'daily', 'Jadwal Produksi Harian', '/modules/planning-ppic/daily-production-plans']
+  ].map(([slug, i18n, label, href]) => ({ slug, i18n, label, href, icon: 'calendar', apiReady: true }));
 %>
-<nav class="module-subnav module-subnav--<%= module.color %>" aria-label="Menu <%= module.label %>">
+<% if (module.slug === 'planning-ppic') { %>
+<script src="/js/ppic-language.js?v=20260910-layout-1"></script>
+<script src="/js/ppic-calendar-model.js?v=20260909-r3"></script>
+<link rel="stylesheet" href="/css/ppic-calendar.css?v=20260909-r3">
+<% if (normalizedActivePage !== 'preparation') { %>
+<link rel="stylesheet" href="/css/ppic-plan-review.css?v=20260909-r3">
+<script defer src="/js/ppic-plan-review.js?v=20260909-r3"></script>
+<script defer src="/js/ppic-proposals.js?v=20260910-layout-1"></script>
+<% } %>
+<% } %>
+<nav class="module-subnav module-subnav--<%= module.color %> <%= module.slug === 'planning-ppic' ? 'ppic-workspace-nav' : '' %>" aria-label="Menu <%= module.label %>">
   <div class="app-container module-subnav-inner">
-    <% moduleNavigationItems.forEach(item => { %>
+    <% moduleNavigationItems.forEach((item, index) => { %>
+      <% if (module.slug === 'planning-ppic' && index === 0) { %><div class="ppic-nav-utilities"><% } %>
+      <% if (module.slug === 'planning-ppic' && index === 3) { %></div><% } %>
       <a
-        class="<%= normalizedActivePage === item.slug ? 'active' : '' %> <%= !item.apiReady ? 'disabled' : '' %>"
+        class="<%= normalizedActivePage === item.slug ? 'active' : '' %> <%= !item.apiReady ? 'disabled' : '' %> <%= module.slug === 'planning-ppic' ? (index < 3 ? 'ppic-nav-utility' : 'ppic-nav-stage') : '' %>"
         href="<%= item.apiReady ? item.href : '#' %>"
+        <% if (normalizedActivePage === item.slug) { %>aria-current="page"<% } %>
         <%= !item.apiReady ? 'aria-disabled="true" title="Endpoint belum tersedia"' : '' %>
-      ><span class="module-subnav-icon"><%- include('icon', { name: item.icon }) %></span><span><%= item.label %></span></a>
+      ><% if (module.slug === 'planning-ppic' && index >= 3) { %><span class="ppic-nav-number" aria-hidden="true"><%= String(index - 2).padStart(2, '0') %></span><% } else { %><span class="module-subnav-icon"><%- include('icon', { name: item.icon }) %></span><% } %><span <% if (item.i18n) { %>data-ppic-i18n="<%= item.i18n %>"<% } %>><%= item.label %></span></a>
     <% }) %>
   </div>
 </nav>
+<% } %>

@@ -1,5 +1,5 @@
 <%- include('../partials/head') %>
-<link rel="stylesheet" href="/css/ppic-yearly-demand.css?v=20260822-mps-shell-1">
+<link rel="stylesheet" href="/css/ppic-yearly-demand.css?v=20260910-yearly-layout-1">
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: 'demand-planning' }) %>
 
@@ -7,7 +7,7 @@
   <header class="yd-page-head app-container planning-shared-header">
     <div class="yd-title-block">
       <span class="yd-eyebrow">PLANNING PPIC</span>
-      <h1>Demand Planning</h1>
+      <h1 data-ppic-i18n="annual">Demand Tahunan</h1>
     </div>
     <div class="yd-head-actions">
       <label class="yd-search">
@@ -21,7 +21,7 @@
       </label>
       <button id="yd-density-toggle" class="yd-view-button" type="button" title="Ubah kerapatan tabel" aria-pressed="false">▦</button>
       <button id="yd-export" class="yd-outline-action" type="button">↓&nbsp; Export CSV</button>
-      <a class="yd-primary-action" href="/modules/planning-ppic/mps/workbench">＋&nbsp; Buat MPS</a>
+      <a class="yd-primary-action" href="/modules/planning-ppic/mps/workbench">Lihat Usulan FG</a>
     </div>
   </header>
 
@@ -70,10 +70,16 @@
     </header>
     <div id="yd-alert" class="yd-alert" hidden></div>
     <div id="yd-scroll" class="yd-matrix-scroll">
-      <table class="yd-matrix-table">
+      <table class="yd-matrix-table yd-primary-matrix" data-enterprise-table="off" aria-label="Demand tahunan per part dan bulan">
+        <colgroup>
+          <col class="yd-part-code-col">
+          <col class="yd-part-name-col">
+          <col span="12">
+          <col class="yd-annual-total-col">
+        </colgroup>
         <thead id="yd-head"></thead>
         <tbody id="yd-body">
-          <tr><td class="yd-loading-cell" colspan="41"><span></span>Memuat Yearly Demand…</td></tr>
+          <tr><td class="yd-loading-cell" colspan="15"><span></span>Memuat Yearly Demand…</td></tr>
         </tbody>
         <tfoot id="yd-foot"></tfoot>
       </table>

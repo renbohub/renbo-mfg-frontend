@@ -17,6 +17,7 @@
   const state = { page: 1, pageSize: 25, data: null, loading: false, action: null, rowItem: null, phaseAction: null, recoveryAction: null, recoveryPayload: null, recoverySourcePayload: null, recoveryBusy: false, bufferItem: null, rccpRun: null, planningPreview: null, planningMode: null, planningBusy: false, modalMode: "sync", zoom: 1, drawerFullscreen: false, detailRequestId: 0, expanded: new Set(), expandedBatches: new Set(), feasibilityLineId: null, feasibilityDetail: null, feasibilityFilter: "all", feasibilityOrigin: null };
   const apiBase = "/modules/api/planning-ppic/mps";
   const etaControls = window.MpsEtaControls.create({ request, reload: () => load({ quiet: true }), notify: showAlert });
+  const readinessBot = window.MpsReadinessBot?.create({ request, getMonth: () => els.month.value });
   let checklistRecovery = null;
   let checklistRecoveryError = "";
   let feasibilityLoadVersion = 0;
@@ -77,7 +78,7 @@
   const capacityTone = (status) => ({ FEASIBLE: "success", WARNING: "warning", OVERLOAD: "danger", OVERRIDDEN: "neutral", NOT_CHECKED: "muted", RUNNING: "info", INVALID: "muted" }[String(status || "").toUpperCase()] || "muted");
   const capacityBadge = (capacity = {}) => `<button class="mwb-capacity-link ${capacityTone(capacity.status)}" type="button" data-view-rccp="${esc(capacity.rccpRunId || "")}" ${capacity.rccpRunId ? "" : "disabled"}>${esc(label(capacity.status || "NOT_CHECKED"))}</button>`;
   const formulaButton = (kind, itemId, phaseId = "", partCode = "") => `<button class="mwb-formula-help" type="button" data-formula-kind="${esc(kind)}" data-item-id="${esc(itemId)}" data-phase-id="${esc(phaseId)}" data-part-code="${esc(partCode)}" aria-label="Lihat formula MPS Qty" title="Lihat formula MPS Qty">?</button>`;
-  const mpsNumberCell = (value, kind, itemId, phaseId = "", partCode = "") => `<div class="mwb-mps-cell"><b>${num(value)}</b>${formulaButton(kind, itemId, phaseId, partCode)}</div>`;
+  const mpsNumberCell = (value, kind, itemId, phaseId = "", partCode = "") => `<div class="mwb-mps-cell"><button type="button" class="ppic-plan-quantity" data-plan-review="${esc(itemId)}" title="Tinjau dan simulasikan rencana FG">${num(value)}</button>${formulaButton(kind, itemId, phaseId, partCode)}</div>`;
   const planNumberCell = (item) => mpsNumberCell(item.planMetrics?.totalPlanQty ?? item.metrics?.plannedProductionQty, "root", item.id);
   const poDeltaCell = (item, locked) => {
     if (!locked) return '<td class="mwb-po-delta is-unlocked" title="Lock MPS untuk mulai memantau perubahan PO">—</td>';
@@ -541,6 +542,7 @@
   }
   function renderFlow(data) {
     etaControls.render(data);
+    readinessBot?.update(data);
     const etaGate = data.etaGate;
     const etaBanner = document.getElementById("mwb-eta-gate");
     if (etaBanner) {
@@ -1292,6 +1294,8 @@
   }
   function closeActionModal() { els.actionModal.setAttribute("aria-hidden", "true"); state.action = null; }
   els.body.addEventListener("click", (event) => {
+    const planReview = event.target.closest("[data-plan-review]");
+    if (planReview) { const item = state.data?.items.find(row => row.id === planReview.dataset.planReview); if (item) window.PpicPlanReview.open({ mpsNumber: state.data.mps.mpsNumber, item, onConfirmed: load }); return; }
     const feasibilityButton = event.target.closest("[data-feasibility-line]");
     if (feasibilityButton) { event.preventDefault(); event.stopPropagation(); openFeasibility(feasibilityButton.dataset.feasibilityLine, feasibilityButton); return; }
     const rccpButton = event.target.closest("[data-view-rccp]");

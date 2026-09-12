@@ -4,6 +4,7 @@
   const supplyModel = window.PpicMrpSupplyModel;
   const materialGroups = window.PpicMrpMaterialGroups;
   const nettingSummary = window.PpicMrpNettingSummary;
+  const datedRequirements = window.PpicDatedRequirements;
   const expandedMaterials = new Set();
   let selectedMaterialCategory = "MATERIAL";
   const cfg = JSON.parse(document.getElementById("mrps-config")?.textContent || "{}");
@@ -234,9 +235,9 @@
     return state.mPlusOneDisplayMode === "FULL_EFD" ? "Full EFD" : "Net setelah stock saat ini";
   }
   function isLookaheadRequirement(item) {
-    if (item?._lookaheadOnly) return true;
+    if (item?._lookaheadOnly || item?.mpsDetail?.mps?.simulationOnly) return true;
     const planning = validDate(state.doc?.planningMonth) ? new Date(state.doc.planningMonth) : null;
-    const demandPeriod = item?.mpsDetail?.endDate || item?.mpsDetail?.startDate;
+    const demandPeriod = item?.mpsDetail?.mps?.periodStart; // Source plan month, never the date column containing this requirement.
     return Boolean(planning && validDate(demandPeriod)
       && new Date(demandPeriod) >= addUtcMonths(planning, 1));
   }
@@ -264,17 +265,9 @@
     const dates = [...(state.doc?.requirements || []), ...(state.doc?.mPlusOnePreview?.requirements || [])].map((row) => row.materialRequiredDate || row.requiredDate);
     return weeklyDeltaModel.buildWeeklyBuckets(validDate(state.doc?.planningMonth) ? state.doc.planningMonth : (globalThis.erpBusinessNow?.() || new Date()), dates);
   }
-  function weeklyStatus(items, bucket) {
-    const today = startUtcDay((globalThis.erpBusinessNow?.() || new Date()));
-    const warningLimit = addUtcDays(today, 7);
-    const targetIds = [...new Set(items.flatMap((item) => (item._demandSources || []).map((source) => source.deliveryTargetId).filter(Boolean)))];
-    const plans = recoveryPlanByTarget();
-    const acceptLate = targetIds.length > 0 && targetIds.every((id) => planAcceptsLate(plans.get(id)));
-    if (bucket.start < today) return acceptLate
-      ? { key: "ACCEPT_LATE", label: "Accept Late", tone: "accept-late" }
-      : { key: "LATE", label: "Terlambat – Belum Ditangani", tone: "late-unhandled" };
-    if (bucket.start <= warningLimit) return { key: "WARNING", label: "Warning / Dekat Due Date", tone: "warning" };
-    return { key: "GREEN", label: "Due Date > 1 Minggu", tone: "on-track" };
+  function weeklyStatus(items) {
+    const acceptedTargets = new Set([...recoveryPlanByTarget()].filter(([, plan]) => planAcceptsLate(plan)).map(([id]) => id));
+    return datedRequirements.status(items, { today: (globalThis.erpBusinessNow?.() || new Date()), acceptedTargets });
   }
   function weeklyMatrixRows() {
     const buckets = weeklyBuckets();
@@ -287,7 +280,7 @@
       const matrixRequirementQty = lookaheadRequirement
         ? lookaheadDisplayQty(item)
         : number(item.netRequirement);
-      if (!validDate(targetAvailableDate) || !nettingSummary.includeRequirement(matrixRequirementQty, item.grossRequirement, state.showCovered)) continue;
+      if (!datedRequirements.requiredDate(item) || !nettingSummary.includeRequirement(matrixRequirementQty, item.grossRequirement, state.showCovered)) continue;
       const anchor = mondayAnchor(targetAvailableDate);
       const bucket = buckets.byKey.get(dateKey(anchor));
       if (!bucket) continue;
@@ -301,7 +294,7 @@
       const category = supplyModel.materialCategory(item);
       const key = `${fgCodes.join("+") || item.fgPartCode || "NO-FG"}|${materialCode}|${parentCode}|${process}|${uom(item)}|${supplyModel.supplyKey(item)}|${category}`;
       if (!grouped.has(key)) grouped.set(key, {
-        _id: `matrix:${grouped.size}`,
+        _id: `matrix:${key}`,
         _search: "",
         fgLabel: fgPart?.partNumber || fgCodes.join(", ") || item.fgPartCode || item.planningPartCode || "-",
         fgName: fgPart?.partName || item._groupLabel || "Demand MRP",
@@ -384,7 +377,8 @@
   }
   function exceptionRows() {
     const rows = [];
-    buyRows().forEach((row) => {
+    [...buyRows(), ...lookaheadBuyRows()].forEach((row) => {
+      if (!datedRequirements.requiredDate(row)) rows.push({ ...row, _id: `exception:date:${row._id}`, _state: { key: "UNDATED", label: "Belum ada estimasi tanggal", tone: "warning" }, _exceptionType: "DATE", _exceptionTitle: "Belum ada estimasi tanggal", _exceptionMessage: `${row.partCode} · ${row._lookaheadOnly ? "Pratinjau" : "Rencana"} · ${num(row.netRequirement)} ${uom(row)}. Lengkapi tanggal pemakaian material.` });
       if (row._state.key === "URGENT") rows.push({ ...row, _id: `exception:buy:${row.id}`, _exceptionType: "PURCHASE", _exceptionTitle: "Material harus dipercepat", _exceptionMessage: `${row.partCode} harus tersedia ${date(row.materialRequiredDate || row.requiredDate)}.` });
       if (!row._usage?.routes?.length) rows.push({ ...row, _id: `exception:route:${row.id}`, _state: { key: "OPEN", label: "Master data", tone: "urgent" }, _exceptionType: "MASTER DATA", _exceptionTitle: "Proses pemakaian belum dipetakan", _exceptionMessage: `${row.partCode} belum memiliki relasi proses mBOM yang dapat diaudit.` });
     });
@@ -506,7 +500,7 @@
             : cell.lookaheadQty > 0 ? " · preview" : " · preview covered"
           : "";
         const ownership = cell.status.key === "COVERED" ? "Tercover" : cell.hasLookahead ? (cell.officialQty > 0 ? "Official + M+1" : "Preview M+1") : cell.additionalQty > 0 ? `ADD ${qty(cell.additionalQty, row.uom)}` : "BASE";
-        return `<td class="mrps-week-cell ${esc(cell.status.tone)} ${cell.hasLookahead ? "lookahead" : ""} ${cell.additionalQty > 0 ? "is-additional" : "is-baseline"}"><button type="button" data-mrps-week-cell="${esc(cellId)}" title="${esc(`${cell.status.label}${previewLabel} · BASE ${qty(cell.baselineQty, row.uom)} · ADD ${qty(cell.additionalQty, row.uom)} · Klik untuk netting`)}"><b>${qty(cell.qty, row.uom)} ${esc(row.uom)}</b><small>${esc(ownership)}</small></button></td>`;
+        return `<td class="mrps-week-cell ${esc(cell.status.tone)} ${cell.hasLookahead ? "lookahead" : ""} ${cell.additionalQty > 0 ? "is-additional" : "is-baseline"}"><button type="button" data-mrps-week-cell="${esc(cellId)}" title="${esc(`${cell.status.label}${previewLabel} · BASE ${qty(cell.baselineQty, row.uom)} · ADD ${qty(cell.additionalQty, row.uom)} · Klik untuk netting`)}"><b>${cell.hasLookahead ? `${qty(cell.officialQty, row.uom)} resmi + ${qty(cell.lookaheadQty, row.uom)} pratinjau` : qty(cell.officialQty, row.uom)} ${esc(row.uom)}</b><small>${esc(cell.status.label)}</small></button></td>`;
       }).join("");
       const recoveryButton = row._state.key === "LATE"
         ? `<button type="button" class="mrps-status-button ${esc(row._state.tone)}" data-mrps-recovery="${esc(row._id)}">${esc(row._state.label)}</button>`
@@ -597,6 +591,9 @@
     $("mrps-body").innerHTML = rows.map((row) => `<tr><td><b>${esc(row.customerCode || "-")}</b><small>${esc(row.sourceNumber || row.sourceType || "-")}</small></td><td><b>${esc(row.fgPartCode || "-")}</b></td><td><b>${esc(row.materialOrComponent || row.partCode || "-")}</b></td><td>${date(row.targetDeliveryDate)}</td><td>${date(row.requiredDate)}</td><td class="mrps-number"><b>${num(row.requirementQty)}</b></td><td class="mrps-number"><b>${num(row.supplyCoverageQty)}</b></td><td>${badge(row._state.label,row._state.tone)}</td><td><button class="mrps-row-action" type="button" data-mrps-detail="${esc(row._id)}">Rincian</button></td></tr>`).join("");
   }
   function renderTable() {
+    const undated = [...buyRows(), ...lookaheadBuyRows()].filter((row) => !datedRequirements.requiredDate(row));
+    $("mrps-undated").hidden = !undated.length;
+    $("mrps-undated").textContent = undated.length ? `Belum ada estimasi tanggal: ${undated.length} kebutuhan. Lihat tab Pengecualian; kebutuhan ini belum masuk kolom minggu.` : "";
     const eligible = eligibleRows();
     renderMaterialCategories(eligible);
     const all = eligible.filter((row) => !["matrix", "buy"].includes(state.view) || selectedMaterialCategory === "ALL" || supplyModel.materialCategory(row) === selectedMaterialCategory);

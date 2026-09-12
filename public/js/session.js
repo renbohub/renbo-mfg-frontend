@@ -44,6 +44,7 @@
   }
 
   function routePermission(pathname) {
+    if (/^\/modules\/planning-ppic\/(labs|execution|analytics)\//.test(pathname)) return { moduleCode:'planning-ppic', pageCode:'master-production-schedule', action:'read' };
     // Department inbox: the API limits records and feedback to assigned accounts.
     // Opening it does not grant access to MPS workbench or approval actions.
     if (pathname === "/modules/planning-ppic/mps/recovery-kanban") return null;

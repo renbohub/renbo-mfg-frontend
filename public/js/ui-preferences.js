@@ -96,6 +96,8 @@
   const textSources = new WeakMap();
   const attributeSources = new WeakMap();
   const reverse = new Map();
+  // PPIC owns stable domain keys; the shared text/attribute translator consumes its phrases.
+  Object.values(window.PpicI18n?.messages || {}).forEach(([id, en, ja]) => { messages[id] = { en, ja }; });
   Object.entries(messages).forEach(([source, variants]) => {
     reverse.set(source, source);
     Object.values(variants).forEach((translated) => reverse.set(translated, source));

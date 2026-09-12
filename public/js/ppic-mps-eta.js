@@ -8,7 +8,7 @@
     const draftModes = new Map();
     let current = null, busy = false;
     function update() {
-      const doc = current?.mps, active = current?.etaGate?.mode || "MANUAL";
+      const doc = current?.mps, active = current?.etaGate?.mode || "BOM";
       const editable = !busy && (doc ? current.etaPermissions?.canUpdate && ["Draft", "Confirmed"].includes(doc.status) : current?.etaPermissions?.canCreate);
       select.disabled = !editable;
       save.hidden = !doc;
@@ -25,12 +25,12 @@
     }
     function render(data) {
       current = data;
-      select.value = data.mps ? data.etaGate?.mode || "MANUAL" : draftModes.get(data.period) || "MANUAL";
+      select.value = data.mps ? data.etaGate?.mode || "BOM" : draftModes.get(data.period) || "BOM";
       update();
     }
     function creationOptions() {
       if (busy) throw Error("Sumber ETA sedang disimpan. Tunggu sampai selesai.");
-      if (current?.mps && select.value !== (current.etaGate?.mode || "MANUAL")) throw Error("Simpan sumber ETA MPS sebelum melanjutkan proses.");
+      if (current?.mps && select.value !== (current.etaGate?.mode || "BOM")) throw Error("Simpan sumber ETA MPS sebelum melanjutkan proses.");
       return current?.mps ? {} : { etaMode: select.value };
     }
     select.addEventListener("change", () => {

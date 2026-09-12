@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict');
+const calendar=require('../public/js/ppic-calendar-model');
+const dated=require('../public/js/ppic-dated-requirements');
+const cols=calendar.columns('2026-09',{weekly:true,horizon:1,dates:['2026-10-02']});
+assert.equal(cols.filter(row=>row.days.includes('2026-10-02')).length,1);const boundary=cols.find(row=>row.days.includes('2026-10-02'));assert.equal(boundary.key,'2026-09-28');assert.equal(boundary.end,'2026-10-04');
+assert.equal(cols.flatMap(r=>r.days).length,new Set(cols.flatMap(r=>r.days)).size);assert(cols.some(r=>r.days.includes('2026-08-01')));assert(cols.some(r=>r.days.includes('2026-10-31')));
+assert.equal(dated.dateKey(new Date('invalid')),null);assert.equal(dated.dateKey('2026-02-30'),null);assert.equal(dated.status([{netRequirement:1,requiredDate:'2026-10-02'}],{today:'2026-09-29'}).key,'WARNING','Friday requirement is not late on Tuesday of same week');
+assert.equal(dated.status([{netRequirement:1,requiredDate:null}],{today:'2026-09-29'}).key,'UNDATED');assert.equal(dated.status([{netRequirement:1,requiredDate:'2026-09-28'}],{today:'2026-09-29'}).key,'LATE');
+const rows=calendar.deliveryRows([{customerCode:'A',partCode:'P',uomCode:'pcs',effectiveDeliverySplits:[{targetDate:'2026-09-30',qty:100},{targetDate:'2026-10-02',qty:80}]}],'2026-10');assert.equal(rows.length,1);assert.equal(rows[0].qty,80);
+assert.deepEqual(calendar.totalsByUnit([{unit:'PCS',qty:100},{unit:'kg',qty:2},{unit:'pcs',qty:25}]),{PCS:125,KG:2});
+console.log('PASS PPIC R3: single Monday–Sunday bucket, M−1..M+1 coverage, exact-date status, invalid date exceptions, delivery split and separate-unit totals.');

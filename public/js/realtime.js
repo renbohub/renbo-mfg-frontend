@@ -2,6 +2,7 @@
   const config = window.REALTIME_CONFIG || {};
   if (config.socketUrl && window.io) {
     const socket = io(config.socketUrl, { transports: ["websocket", "polling"], autoConnect: true });
+    socket.on("planning:source-changed", detail => window.dispatchEvent(new CustomEvent("ppic:demand-changed", { detail })));
     ["master-data:changed", "product:created", "product:updated", "product:deleted"].forEach((event) => socket.on(event, (detail) => window.dispatchEvent(new CustomEvent("master-data:changed", { detail }))));
   }
   if (config.mqttUrl && window.mqtt) {

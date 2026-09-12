@@ -1,0 +1,85 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/vendor/ppic-gantt/styles.css?v=20260912-8-delivery-qty">
+<link rel="stylesheet" href="/css/ppic-sandbox.css?v=20260912-workspace-2">
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', { activePage: 'mps' }) %>
+<% const workspaceMode = typeof ppicWorkspacePage !== 'undefined' && ppicWorkspacePage; %>
+<% if (workspaceMode) { %><link rel="stylesheet" href="/css/ppic-module-workspace.css?v=20260912-1"><%- include('../partials/ppic-workspace-context') %><% } %>
+<main class="container-fluid ppic-workspace ppic-sandbox" data-ppic-sandbox data-workspace="<%= workspaceMode ? 'labs' : '' %>" data-month="<%= initialMonth %>">
+  <header class="ppsb-heading">
+    <div><div class="ppsb-eyebrow">PLANNING &amp; INVENTORY CONTROL <span>Ruang simulasi</span></div><h1><%= workspaceMode ? 'MPS / FG Production Gantt' : 'Rencanakan dari target FG.' %></h1><p>Satukan jadwal FG, urutan produksi, dan kebutuhan material dalam satu Gantt.</p></div>
+    <a class="ppsb-link" id="ppsb-official" href="?view=legacy&amp;month=<%= initialMonth %>">Buka rencana resmi <span aria-hidden="true">↗</span></a>
+  </header>
+  <section class="ppsb-controls" aria-label="Kontrol skenario">
+    <div class="ppsb-filter-stack"><p id="ppsb-selected-detail"></p><div class="ppsb-segments" role="group" aria-label="Tampilkan jenis tugas"><button type="button" data-kind="all" aria-pressed="true">Semua</button><button type="button" data-kind="production" aria-pressed="false">Produksi</button><button type="button" data-kind="material" aria-pressed="false">Material</button></div></div>
+    <label>Bulan demand<input id="ppsb-month" type="month" value="<%= initialMonth %>" data-allow-past="true"></label>
+    <label class="ppsb-scenario">Nama skenario<input id="ppsb-name" maxlength="80" value="Skenario awal" autocomplete="off"></label>
+    <button type="button" id="ppsb-load" class="ppsb-btn ppsb-primary">Hitung ulang</button>
+    <button type="button" id="ppsb-allocations" class="ppsb-btn" disabled>Atur pembagian qty</button>
+    <button type="button" id="ppsb-refresh" class="ppsb-btn" hidden>Muat data baru</button><div class="ppsb-control-divider"></div>
+    <button type="button" id="ppsb-undo" class="ppsb-btn" disabled title="Batalkan adjustment terakhir">↶ Undo</button>
+    <button type="button" id="ppsb-redo" class="ppsb-btn" disabled title="Ulangi adjustment">↷ Redo</button>
+    <button type="button" id="ppsb-save" class="ppsb-btn" disabled>Simpan skenario</button>
+    <button type="button" id="ppsb-save-copy" class="ppsb-btn" disabled>Simpan sebagai baru</button>
+    <button type="button" id="ppsb-restore" class="ppsb-btn" disabled>Buka tersimpan</button>
+    <button type="button" id="ppsb-reset" class="ppsb-btn" disabled>Reset</button>
+    <div class="ppsb-legend"><span><i class="ppsb-dot ppsb-dot-fg"></i>FG</span><span><i class="ppsb-dot ppsb-dot-process"></i>In-house</span><span><i class="ppsb-dot ppsb-dot-vendor"></i>Vendor</span><span><i class="ppsb-dot ppsb-dot-material"></i>Material</span></div>
+    <button type="button" id="ppsb-fullscreen" class="ppsb-btn" aria-pressed="true">Keluar layar penuh</button>
+  </section>
+  <div class="ppsb-statusline"><span id="ppsb-status" role="status" aria-live="polite">Menyiapkan snapshot MPS, MRP, dan MPP…</span><span><span id="ppsb-freshness" role="status" aria-live="polite"></span><span id="ppsb-engine"></span></span></div>
+  <div id="ppsb-message" class="ppsb-message" role="status" hidden></div>
+  <div id="ppsb-loading" class="ppsb-loading" aria-live="polite"><span class="ppsb-spinner"></span><div><strong>Memuat rencana PPIC</strong><p>Memeriksa perubahan demand, BOM, stok dan working calendar. Snapshot yang masih valid digunakan kembali; perhitungan awal hanya dijalankan bila diperlukan.</p></div></div>
+  <div id="ppsb-content" hidden>
+    <section id="ppsb-metrics" class="ppsb-metrics" aria-label="Ringkasan seluruh skenario"></section>
+    <div class="ppsb-workspace">
+      <aside class="ppsb-targets" hidden>
+        <div class="ppsb-section-title"><h2>Finished goods <span id="ppsb-group-count"></span></h2><span class="ppsb-muted">MPS</span></div>
+        <div id="ppsb-groups" class="ppsb-group-list"></div>
+      </aside>
+      <section class="ppsb-timeline" aria-label="Gantt PPIC terpadu">
+        <div class="ppsb-tree-controls" id="ppsb-search-tools"><label><span class="visually-hidden">Cari FG atau customer</span><input type="search" id="ppsb-search" placeholder="Cari FG / customer…"></label><button type="button" class="ppsb-btn" id="ppsb-all">Semua FG</button><select id="ppsb-view" aria-label="Tampilan Gantt"><option value="delivery">Per delivery</option><option value="resource">Per resource</option><option value="material">Per material</option></select><select id="ppsb-risk" aria-label="Filter risiko"><option value="all">Semua status</option><option value="risk">Berisiko</option><option value="unknown">Perlu verifikasi</option></select><button type="button" id="ppsb-checks" class="ppsb-btn">Kesiapan data</button></div>
+        <div class="ppsb-timeline-heading"><div><div class="ppsb-eyebrow" id="ppsb-selected-customer">ALUR PERENCANAAN</div><h2 id="ppsb-selected-title">Target produksi</h2></div><button type="button" class="ppsb-btn" id="ppsb-edit-fg">Ubah target FG</button></div>
+
+        <div id="ppsb-gantt"></div>
+        <div class="ppsb-pagination" id="ppsb-pagination"><button type="button" class="ppsb-btn" id="ppsb-prev">← Sebelumnya</button><span id="ppsb-page"></span><button type="button" class="ppsb-btn" id="ppsb-next">Berikutnya →</button></div>
+        <div id="ppsb-unscheduled" class="ppsb-unscheduled" hidden></div>
+      </section>
+    </div>
+    <section id="ppsb-analysis" class="ppsb-analysis" aria-label="Analisis kapasitas dan kesiapan PPIC"></section>
+    <section class="ppsb-detail-board">
+      <div class="ppsb-board-heading"><div class="ppsb-segments" role="group" aria-label="Rincian perencanaan"><button type="button" data-board="material" aria-pressed="true">Tanggal pembelian · MRP</button><button type="button" data-board="process" aria-pressed="false">Urutan proses · MPP</button><button type="button" data-board="capacity" aria-pressed="false">Beban mesin</button><button type="button" data-board="risk" aria-pressed="false">Perlu perhatian</button></div><button type="button" class="ppsb-btn" id="ppsb-export">Unduh CSV</button></div>
+      <p id="ppsb-board-caption" class="ppsb-board-caption"></p>
+      <div id="ppsb-table" class="ppsb-table-scroll"></div>
+    </section>
+    <details class="ppsb-assumptions"><summary>Dasar perhitungan &amp; sumber data</summary><div id="ppsb-assumptions-body"></div></details>
+  </div>
+  <dialog id="ppsb-scenarios" class="ppsb-editor ppsb-picker" aria-labelledby="ppsb-scenarios-title">
+    <header><div><div class="ppsb-eyebrow">SKENARIO TERSIMPAN DI SERVER</div><h2 id="ppsb-scenarios-title">Buka skenario</h2><p>Snapshot dan perubahan tersimpan bersama revisinya.</p></div><button type="button" id="ppsb-scenarios-close" class="ppsb-close" aria-label="Tutup skenario">×</button></header>
+    <div id="ppsb-scenarios-list" class="ppsb-editor-scroll"></div>
+  </dialog>
+  <dialog id="ppsb-allocation-editor" class="ppsb-editor ppsb-allocation-editor" aria-labelledby="ppsb-allocation-title">
+    <form id="ppsb-allocation-form" data-form-state="off">
+      <header><div><div class="ppsb-eyebrow">PEMBAGIAN PRODUKSI BULANAN</div><h2 id="ppsb-allocation-title">Atur kuantitas per delivery</h2><p>Qty bulanan awal dibulatkan ke 1.000, lalu dibagi menurut jumlah delivery. Sisa menjadi pembagian terpisah.</p></div><button type="button" id="ppsb-allocation-close" class="ppsb-close" aria-label="Tutup pembagian qty">×</button></header>
+      <div class="ppsb-editor-scroll"><p class="ppsb-help">Semua qty dapat diubah bebas, termasuk sisa. Nilai 0 menonaktifkan pembagian. Setelah diterapkan, durasi proses, kebutuhan material, dan total skenario dihitung ulang.</p><div id="ppsb-allocation-rows"></div><p id="ppsb-allocation-error" class="ppsb-error" role="alert"></p></div>
+      <footer><span>Perubahan berlaku pada skenario ini. Undo tersedia setelah diterapkan.</span><button type="button" id="ppsb-allocation-cancel" class="ppsb-btn">Batal</button><button type="submit" id="ppsb-allocation-apply" class="ppsb-btn ppsb-primary">Terapkan pembagian</button></footer>
+    </form>
+  </dialog>
+  <dialog id="ppsb-picker" class="ppsb-editor ppsb-picker" aria-labelledby="ppsb-picker-title">
+    <header><div><div class="ppsb-eyebrow">AKTIVITAS DALAM BARIS FG</div><h2 id="ppsb-picker-title"></h2><p id="ppsb-picker-count"></p></div><button type="button" id="ppsb-picker-close" class="ppsb-close" aria-label="Tutup daftar aktivitas">×</button></header>
+    <label class="ppsb-picker-search"><span class="visually-hidden">Cari aktivitas atau target tanggal</span><input type="search" id="ppsb-picker-search" placeholder="Cari material / proses / target tanggal…" autocomplete="off"></label>
+    <div id="ppsb-picker-list" class="ppsb-picker-list"></div>
+  </dialog>
+  <dialog id="ppsb-editor" class="ppsb-editor" aria-labelledby="ppsb-editor-title">
+    <form id="ppsb-form" data-form-state="off">
+      <header><div><div class="ppsb-eyebrow" id="ppsb-editor-type"></div><h2 id="ppsb-editor-title">Adjustment proses</h2><p id="ppsb-editor-context"></p></div><button type="button" id="ppsb-close" class="ppsb-close" aria-label="Tutup adjustment">×</button></header>
+      <div class="ppsb-editor-scroll"><div id="ppsb-editor-summary"></div><div id="ppsb-editor-fields"></div><div id="ppsb-formula" class="ppsb-formula"></div><div id="ppsb-editor-evidence"></div><p id="ppsb-editor-error" class="ppsb-error" role="alert"></p></div>
+      <footer><span>Perubahan berlaku pada skenario ini.</span><button type="button" class="ppsb-btn" id="ppsb-cancel">Batal</button><button type="submit" id="ppsb-apply" class="ppsb-btn ppsb-primary">Terapkan adjustment</button></footer>
+    </form>
+  </dialog>
+</main>
+<% if (workspaceMode) { %><div id="ppsb-workspace-stages"><%- include('../partials/ppic-workspace-steps') %></div><% } %>
+<script src="/js/ppic-scenario-store.js?v=20260912-31"></script>
+<script src="/js/ppic-sandbox-analysis.js?v=20260912-8-delivery-qty"></script>
+<script src="/js/ppic-sandbox-cache.js?v=20260912-8-delivery-qty"></script>
+<script src="/js/ppic-sandbox-engine.js?v=20260912-8-delivery-qty"></script>
+<%- include('../partials/footer') %>

@@ -1,0 +1,11 @@
+<link rel="stylesheet" href="/css/ppic-mps-readiness-bot.css?v=20260909-1">
+<button id="mrb-toggle" class="mrb-toggle" type="button" aria-label="Buka bot kesiapan MRP" aria-expanded="false" aria-controls="mrb-panel">
+  <svg viewBox="0 0 32 32" width="27" height="27" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M16 8V4m-3 0h6M5 15H2m28 0h-3M10 26v3m12-3v3"/><rect x="5" y="8" width="22" height="18" rx="6"/><circle cx="11" cy="16" r="1.5" fill="currentColor"/><circle cx="21" cy="16" r="1.5" fill="currentColor"/><path d="M12 21h8"/></svg>
+  <span>Cek kesiapan MRP</span><span id="mrb-badge" class="mrb-badge" hidden></span>
+</button>
+<section id="mrb-panel" class="mrb-panel" role="dialog" aria-modal="false" aria-labelledby="mrb-title" hidden>
+  <header><div><small>PLANNING ASSISTANT</small><h2 id="mrb-title">MRP Readiness Check</h2></div><button id="mrb-close" type="button" aria-label="Tutup bot kesiapan MRP">×</button></header>
+  <div class="mrb-tools"><p id="mrb-time">Data periode MPS aktif</p><button id="mrb-refresh" type="button">↻ Perbarui</button></div>
+  <div id="mrb-body" class="mrb-body" aria-live="polite"></div>
+</section>
+<script src="/js/ppic-mps-readiness-bot.js?v=20260909-1"></script>
