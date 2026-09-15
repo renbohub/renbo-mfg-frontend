@@ -14,7 +14,7 @@ function harness(slug,raw) {
   return {config,nodes,options,displayRows,exports};
 }
 (async()=>{
-  for(const slug of ['part-price-lists','material-price-lists','vendor-price-lists']) {
+  for(const slug of ['part-price-lists','material-price-lists','vendor-price-lists','product-price-lists']) {
     const row={id:'fixture',pricingYear:2026,unitPrice:null,january:100,june:120,september:90};
     if(slug==='vendor-price-lists')row.details=[{vendorProcessId:'p',unitPrice:null,january:80,june:100,september:70},{vendorProcessId:'q',unitPrice:null,january:20}];
     const h=harness(slug,[row]);const record=h.displayRows[0];
@@ -34,5 +34,5 @@ function harness(slug,raw) {
   const zero=pricing.project({pricingYear:2026,january:0,june:50});assert.equal(zero.february,0);assert.match(pricing.cell(zero,'february'),/<strong>0<\/strong>/);
   const legacy=pricing.project({unitPrice:200,effectiveFrom:'2026-03-01',effectiveUntil:'2026-06-30'});assert.equal(legacy.february,null);assert.equal(legacy.june,200);assert.equal(legacy.july,null);
   assert.match(pricing.cell(legacy,'july'),/–/);
-  console.log('PASS monthly price list: sparse AJAX projection, plain numeric cells, vendor monthly totals, PDF+XLSX exports for all 3 price lists, zero, bounded legacy periods, immutable/idempotent projection.');
+  console.log('PASS monthly price list: sparse AJAX projection, plain numeric cells, vendor monthly totals, PDF+XLSX exports for all 4 price lists, zero, bounded legacy periods, immutable/idempotent projection.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

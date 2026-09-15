@@ -78,7 +78,7 @@
     $("demand-risk").textContent = `${num(payload.summary?.critical)} / ${num(payload.summary?.atRisk)}`;
     $("demand-unreviewed").textContent = num(payload.summary?.unreviewed);
     renderCapacity(payload.capacityMonths || []);
-    $("ppic-head").innerHTML = `<tr><th>Sumber Demand</th><th>Customer / Part</th><th>Target Delivery</th><th>Komposisi Demand</th><th>Prioritas</th><th>Target Finish FG</th><th>Risiko Delivery</th><th>Constraint</th><th>Buffer / Status</th><th>Action</th></tr>`;
+    $("ppic-head").innerHTML = `<tr><th>Sumber Demand</th><th>Customer / Part</th><th>Part Number</th><th>Target Delivery</th><th>Komposisi Demand</th><th>Prioritas</th><th>Target Finish FG</th><th>Risiko Delivery</th><th>Constraint</th><th>Buffer / Status</th><th>Action</th></tr>`;
     renderRows(rows);
     $("ppic-footer").textContent = `${num(payload.total)} delivery target phase · exact customer due date tetap dipertahankan`;
     const flow = $("planning-flowbar");
@@ -95,10 +95,10 @@
   }
   function legacyRenderRows(items) {
     const body = $("ppic-rows");
-    if (!items.length) { body.innerHTML = `<tr><td colspan="16" class="text-center py-5 text-muted">Tidak ada Forecast delivery phase pada rolling horizon ini.</td></tr>`; return; }
+    if (!items.length) { body.innerHTML = `<tr><td colspan="17" class="text-center py-5 text-muted">Tidak ada Forecast delivery phase pada rolling horizon ini.</td></tr>`; return; }
     body.innerHTML = items.map((row) => `<tr>
       <td data-label="Forecast Target"><b>${esc(row.demandType === "UNPLANNED_SO" ? "Belum ada Forecast" : row.sourceNumber)}</b><small>${row.demandType === "UNPLANNED_SO" ? badge("UNPLANNED_SO") : `Forecast phase ${esc(row.phaseNumber)}`}</small></td>
-      <td data-label="Customer / Part"><b>${esc(row.customerCode || "-")}</b><small>${esc(row.partCode)}</small></td>
+      <td data-label="Customer / Part"><b>${esc(row.customerCode || "-")}</b><small>${esc(row.partCode)}</small></td><td data-label="Part Number">${esc(row.partNumber || "—")}</td>
       <td data-label="Forecast / Effective Delivery"><b>${date(row.effectiveTargetDate || row.targetDate || row.targetDeliveryDate)}</b><small>Forecast ${date(row.forecastTargetDate || row.targetDate || row.targetDeliveryDate)}${Number(row.pullForwardDays||0)>0?` · <strong>maju ${num(row.pullForwardDays)} hari</strong>`:""}</small></td>
       <td data-label="Forecast" class="ppic-number"><b>${num(row.forecastQty)}</b><small>${esc(row.planningPolicy || "MTS")}</small></td>
       <td data-label="Actual SO" class="ppic-number"><b>${num(row.actualSalesOrderQty)}</b><small title="${esc((row.actualSalesOrders || []).map((item) => `${item.sourceNumber} ${date(item.targetDate)}: ${num(item.qty)}`).join(" | "))}">${num((row.actualSalesOrders || []).length)} SO target · delivered ${num(row.actualSalesOrderDeliveredQty)}</small></td>
@@ -114,10 +114,10 @@
   }
   function renderRows(items) {
     const body = $("ppic-rows");
-    if (!items.length) { body.innerHTML = `<tr><td colspan="10" class="text-center py-5 text-muted">Tidak ada Forecast delivery phase pada rolling horizon ini.</td></tr>`; return; }
+    if (!items.length) { body.innerHTML = `<tr><td colspan="11" class="text-center py-5 text-muted">Tidak ada Forecast delivery phase pada rolling horizon ini.</td></tr>`; return; }
     body.innerHTML = items.map((row) => `<tr>
       <td data-label="Sumber Demand">${row.demandType === "UNPLANNED_SO" ? `<b>Belum ada Forecast</b><small>${badge("SO tanpa Forecast")}</small>` : `<a class="demand-source-link" href="/modules/sales/forecasts/${encodeURIComponent(row.sourceNumber)}"><b>${esc(row.sourceNumber)}</b></a><small>Forecast phase ${esc(row.phaseNumber)}</small>`}</td>
-      <td data-label="Customer / Part"><b>${esc(row.customerCode || "-")}</b><small>${esc(row.partCode)}</small></td>
+      <td data-label="Customer / Part"><b>${esc(row.customerCode || "-")}</b><small>${esc(row.partCode)}</small></td><td data-label="Part Number">${esc(row.partNumber || "—")}</td>
       <td data-label="Target Delivery"><b>${date(row.effectiveTargetDate || row.targetDate || row.targetDeliveryDate)}</b><small>Forecast awal ${date(row.forecastTargetDate || row.targetDate || row.targetDeliveryDate)}${Number(row.pullForwardDays || 0) > 0 ? ` &middot; <strong>maju ${num(row.pullForwardDays)} hari</strong>` : ""}</small></td>
       <td data-label="Komposisi Demand"><div class="demand-composition"><span><small>Forecast</small><b>${num(row.forecastQty)}</b></span><span><small>Actual SO</small><b>${num(row.actualSalesOrderQty)}</b></span><span class="provisional"><small>Draft SO</small><b>${num(row.draftSalesOrderQty)}</b></span><span><small>Effective</small><b>${num(row.demandQty)}</b></span><span><small>Outstanding</small><b>${num(row.outstandingQty)}</b></span></div><small title="${esc((row.actualSalesOrders || []).map((item) => `${item.sourceNumber} ${date(item.targetDate)}: ${num(item.qty)}`).join(" | "))}">${num((row.actualSalesOrders || []).length)} SO confirmed &middot; ${esc(row.planningPolicy || "MTS")}</small>${draftSoSummary(row)}</td>
       <td data-label="Prioritas"><div class="demand-priority-compact">${badge(row.priorityClass)}<b>${num(row.finalPriorityScore)}</b><button class="demand-score-info" title="Lihat faktor score" data-score="${esc(row.id)}">?</button></div><small>System ${num(row.systemPriorityScore)} &middot; Manual ${Number(row.manualPriorityAdjustment || 0) > 0 ? "+" : ""}${num(row.manualPriorityAdjustment)}</small></td>

@@ -1,0 +1,31 @@
+<dialog id="prep-capacity-dialog" class="prep-capacity-dialog" aria-labelledby="prep-capacity-edit-title" aria-describedby="prep-capacity-edit-context">
+  <header><div><span class="prep-eyebrow">CAPACITY MACHINE</span><h2 id="prep-capacity-edit-title">Pengaturan kapasitas</h2><p id="prep-capacity-edit-context"></p></div><button id="prep-capacity-edit-close" type="button" aria-label="Tutup pengaturan kapasitas">✕</button></header>
+  <form id="prep-capacity-edit-form">
+    <div class="prep-capacity-form-body">
+    <div id="prep-capacity-edit-machine">
+      <label class="prep-capacity-input-label">Status hari<select id="prep-capacity-edit-dayStatus"><option value="MASTER">Ikuti master</option><option value="WORKING">Masuk</option><option value="HOLIDAY">Libur</option></select></label>
+      <p id="prep-capacity-edit-day-info" class="prep-capacity-form-note"></p>
+      <fieldset><legend>Lembur per shift</legend>
+        <% for (const shift of [1,2]) { %>
+        <div class="prep-capacity-shift-option"><label><input id="prep-capacity-edit-overtimeShift<%= shift %>" type="checkbox"> Lembur shift <%= shift %></label><label class="prep-capacity-hours">Durasi <input id="prep-capacity-edit-overtimeHoursShift<%= shift %>" type="text" inputmode="decimal" aria-label="Jam lembur shift <%= shift %>"> jam</label><small id="prep-capacity-edit-shift<%= shift %>-info"></small></div>
+        <% } %>
+      </fieldset>
+      <label class="prep-capacity-overlap-option"><input id="prep-capacity-edit-overlap" type="checkbox"><span>Overlap shift<small>Waktu istirahat dipakai untuk bekerja.</small></span></label>
+      <dl id="prep-capacity-edit-machine-summary" class="prep-capacity-time-summary" aria-live="polite" aria-atomic="true">
+        <div title="Kapasitas tersedia sesuai pengaturan pada popup ini"><dt>Tersedia</dt><dd id="prep-capacity-edit-available">— menit</dd></div>
+        <div title="Waktu terpakai pada draft saat ini"><dt>Terpakai</dt><dd id="prep-capacity-edit-used">— menit</dd></div>
+        <div title="Perubahan kapasitas tersedia dibandingkan saat popup dibuka"><dt>Tambahan</dt><dd id="prep-capacity-edit-additional">— menit</dd></div>
+        <div title="Kapasitas tersedia dikurangi waktu terpakai"><dt>Sisa</dt><dd id="prep-capacity-edit-remaining">— menit</dd></div>
+      </dl>
+    </div>
+    <div id="prep-capacity-edit-child" hidden>
+      <p id="prep-capacity-edit-ct" class="prep-capacity-form-note"></p>
+      <label class="prep-capacity-input-label">Qty produksi<input id="prep-capacity-edit-quantity" type="text" inputmode="decimal" required></label>
+      <div class="prep-capacity-setup-inputs"><label class="prep-capacity-input-label">Jumlah ganti coil<input id="prep-capacity-edit-coil" type="text" inputmode="numeric" required><small>30 menit/kali</small></label><label class="prep-capacity-input-label">Jumlah ganti dies<input id="prep-capacity-edit-dies" type="text" inputmode="numeric" required><small>60 menit/kali</small></label></div>
+      <p id="prep-capacity-edit-preview" class="prep-capacity-calculation" aria-live="polite"></p>
+    </div>
+    <p id="prep-capacity-edit-error" class="prep-capacity-form-error" role="alert"></p>
+    </div>
+    <footer><button id="prep-capacity-edit-reset" type="button">Ikuti master</button><span></span><button id="prep-capacity-edit-cancel" type="button">Batal</button><button id="prep-capacity-edit-apply" type="submit" class="prep-capacity-primary">Terapkan ke draft</button></footer>
+  </form>
+</dialog>

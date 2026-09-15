@@ -128,15 +128,15 @@
     const matrix = new Map();
     for (const row of filtered) {
       const rowKey = `${row.customerCode || "Tanpa Customer"}|${row.partCode || "Tanpa Part"}`;
-      const item = matrix.get(rowKey) || { customerCode: row.customerCode || "Tanpa Customer", partCode: row.partCode || "Tanpa Part", partName: row.partName || row.partNumber || "-", months: new Map(), total: 0 };
+      const item = matrix.get(rowKey) || { customerCode: row.customerCode || "Tanpa Customer", partCode: row.partCode || "Tanpa Part", partNumber:row.partNumber || null, partName: row.partName || row.partNumber || "-", months: new Map(), total: 0 };
       const cell = item.months.get(row.month) || { forecastQty: 0, actualSalesOrderQty: 0, bufferQty: 0, qtyPlanned: 0, forecasts: new Set(), mpsNumbers: new Set() };
       cell.forecastQty += Number(row.forecastQty || 0); cell.actualSalesOrderQty += Number(row.actualSalesOrderQty || 0); cell.bufferQty += Number(row.bufferQty || 0); cell.qtyPlanned += Number(row.qtyPlanned || 0);
       if (row.forecastNumber) cell.forecasts.add(row.forecastNumber); (row.mpsNumbers || []).forEach((value) => cell.mpsNumbers.add(value));
       item.months.set(row.month, cell); item.total += Number(row.qtyPlanned || 0); matrix.set(rowKey, item);
     }
-    $("mps-summary-head").innerHTML = `<tr><th class="identity">Customer</th><th class="part">Finished Good</th>${months.map((value) => `<th>${esc(date(`${value}-01`))}<small class="d-block text-muted">Target Delivery</small></th>`).join("")}<th>Total MPS</th></tr>`;
+    $("mps-summary-head").innerHTML = `<tr><th class="identity">Customer</th><th class="part">Finished Good</th><th>Part Number</th>${months.map((value) => `<th>${esc(date(`${value}-01`))}<small class="d-block text-muted">Target Delivery</small></th>`).join("")}<th>Total MPS</th></tr>`;
     const matrixRows = [...matrix.values()].sort((left, right) => `${left.customerCode}|${left.partCode}`.localeCompare(`${right.customerCode}|${right.partCode}`));
-    $("mps-summary-rows").innerHTML = matrixRows.map((row) => `<tr><td class="identity"><b>${esc(row.customerCode)}</b></td><td class="part"><b>${esc(row.partCode)}</b><small class="d-block text-muted">${esc(row.partName)}</small></td>${months.map((monthKey) => {
+    $("mps-summary-rows").innerHTML = matrixRows.map((row) => `<tr><td class="identity"><b>${esc(row.customerCode)}</b></td><td class="part"><b>${esc(row.partCode)}</b><small class="d-block text-muted">${esc(row.partName)}</small></td><td>${esc(row.partNumber || "—")}</td>${months.map((monthKey) => {
       const cell = row.months.get(monthKey); if (!cell) return '<td><span class="text-muted">-</span></td>';
       const mpsNumber = [...cell.mpsNumbers][0]; const document = documentByNumber.get(mpsNumber) || {};
       // MRP is a planning-cycle action and is intentionally absent from the
@@ -145,7 +145,7 @@
         ? `<button data-make-plan="${esc(mpsNumber)}">Production Plan</button>`
         : "";
       return `<td><div class="mps-matrix-cell"><span class="forecast"><em>Forecast</em><b>${num(cell.forecastQty)}</b></span><span class="so"><em>Actual SO</em><b>${num(cell.actualSalesOrderQty)}</b></span><span class="buffer"><em>Buffer</em><b>${num(cell.bufferQty)}</b></span><span class="target"><em>Target MPS</em><b>${num(cell.qtyPlanned)}</b></span><small>${esc([...cell.forecasts].join(", ") || "Tanpa Forecast")} · ${esc(document.status || "Draft")}</small><div class="mps-matrix-actions">${mpsNumber ? `<a href="${detailLink(mpsNumber)}">Buka Matrix</a>` : ""}${workflowAction}</div></div></td>`;
-    }).join("")}<td class="ppic-number"><b>${num(row.total)}</b></td></tr>`).join("") || `<tr><td colspan="${months.length + 3}" class="ppic-empty">Belum ada FG receipt pada horizon ini.</td></tr>`;
+    }).join("")}<td class="ppic-number"><b>${num(row.total)}</b></td></tr>`).join("") || `<tr><td colspan="${months.length + 4}" class="ppic-empty">Belum ada FG receipt pada horizon ini.</td></tr>`;
     $("mps-summary-footer").innerHTML = `Menampilkan <b>${matrixRows.length}</b> kombinasi customer/FG pada <b>${months.length}</b> bulan Target Delivery. Forecast dan SO tetap traceable pada dokumen MPS.`;
   }
   async function loadMonthlySummary() {

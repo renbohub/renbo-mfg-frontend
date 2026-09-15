@@ -252,7 +252,29 @@
       <div><small>Status</small><strong>${escapeHtml(schedule.status || "-")}</strong></div>`;
   }
 
+  function isWholeDayPpicSchedule(schedule) {
+    return schedule?.demandSourceType === "PPIC_RELEASE" && Boolean(schedule.demandSourceNumber) && schedule.shift === "PPIC";
+  }
+
+  function applyScheduleShift(schedule, preserveActual = false) {
+    const shift = element("shift"), wholeDay = isWholeDayPpicSchedule(schedule);
+    const label = element("production-log-shift-label"), help = element("production-log-shift-help");
+    if (label) label.textContent = wholeDay ? "Shift aktual *" : "Shift *";
+    if (help) help.hidden = !wholeDay;
+    // PPIC's daily bucket can cover more than one shift. The operator chooses
+    // the real shift for this log; the released daily schedule stays intact.
+    for (const option of shift.options) {
+      const alias = ["1", "2", "3"].includes(option.value);
+      if (alias) { option.hidden = wholeDay; option.disabled = wholeDay; }
+    }
+    if (wholeDay) {
+      const current = ({ "1": "1A", "2": "2A", "3": "3A" })[value("shift")] || value("shift");
+      setValue("shift", preserveActual && ["1A", "1B", "2A", "2B", "3A", "3C"].includes(current) ? current : "");
+    } else if (schedule) setValue("shift", schedule.shift || "1A");
+  }
+
   function applySchedule(schedule, preserveActual = false) {
+    applyScheduleShift(schedule, preserveActual);
     if (!schedule) {
       setValue("moNumber", "");
       setValue("woNumber", "");
@@ -270,7 +292,6 @@
     }
     const remaining = Math.max(0, Number(schedule.plannedQty || 0) - Number(schedule.actualQty || 0));
     setValue("logDate", localDate(schedule.scheduleDate));
-    setValue("shift", schedule.shift || "1A");
     setValue("moNumber", schedule.moNumber || "");
     setValue("woNumber", schedule.woNumber || "");
     setValue("partCode", schedule.partCode || "");
@@ -536,6 +557,11 @@
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (isWholeDayPpicSchedule(schedules.get(value("scheduleNumber"))) && !["1A", "1B", "2A", "2B", "3A", "3C"].includes(value("shift"))) {
+      show("Pilih shift aktual produksi untuk jadwal harian PPIC.");
+      element("shift").focus();
+      return;
+    }
     refreshGoodQty();
     refreshCoilPhases();
     const downtimes = collectDowntimes();

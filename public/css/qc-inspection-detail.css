@@ -1,3 +1,11 @@
+.qc-inspection-detail-page {
+  --qci-line: #dce3eb;
+  --qci-blue: #3157c8;
+}
+.qc-inspection-detail-page .qci-result-notes { padding: 14px 16px; color: #667085; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.qc-inspection-detail-page .qci-result-notes p { margin: 0 0 8px; }
+.qc-inspection-detail-page .qci-result-notes p:last-child { margin-bottom: 0; }
+
 .qc-inspection-workbench {
   --qci-ink: #1d2939;
   --qci-muted: #667085;

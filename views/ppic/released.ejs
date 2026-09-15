@@ -1,0 +1,37 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav', {activePage}) %>
+<link rel="stylesheet" href="/css/ppic-lab-release.css?v=20260915-sections-2">
+<link rel="stylesheet" href="/css/ppic-released-tables.css?v=20260915-1">
+<link rel="stylesheet" href="/css/ppic-released-daily.css?v=20260915-1">
+<link rel="stylesheet" href="/css/ppic-confirmation-feedback.css?v=20260916-1">
+<% const selectedView = typeof initialView === 'string' ? initialView : 'monthly'; %>
+<main class="lab-release-page app-container" data-release-view="<%= releaseView %>" data-release-scope="<%= typeof releaseScope==='string'?releaseScope:'' %>" data-initial-view="<%= selectedView %>">
+  <header class="lab-release-heading"><div><span class="lab-release-eyebrow">PLANNING PPIC · RELEASED DATA</span><h1><%= title %> <span class="lab-release-heading-label">Rencana resmi</span></h1></div></header>
+  <% if (!releaseView) { %>
+  <nav id="release-tabs" class="lab-release-tabs" role="tablist" aria-label="Halaman PPIC Released Data">
+    <% for(const [index,key,label] of [['01','monthly','Monthly Production Plan'],['02','mrp','Material Requirement Plan'],['03','daily','Daily Production Schedule'],['04','recovery','Actual Daily Production Condition Recovery'],['05','delivery','Delivery Customer Planning'],['06','vendor','Delivery / Incoming Vendor Planning'],['07','incoming-supplier','Incoming Supplier Planning'],['08','incoming-material','Incoming Material from Supplier Planning']]) { %>
+    <button id="release-tab-<%= key %>" type="button" role="tab" aria-selected="<%= key===selectedView %>" aria-controls="release-panel" tabindex="<%= key===selectedView ? 0 : -1 %>" data-release-tab="<%= key %>"><span class="lab-release-tab-number"><%= index %></span><span><%= label %></span></button>
+    <% } %>
+  </nav>
+  <% } %>
+  <section class="lab-release-period" aria-label="Periode rencana resmi"><label>Bulan plan<input id="release-month" type="month" value="<%= initialMonth %>"></label><div id="release-info" class="lab-release-info" hidden></div><button id="release-refresh" type="button">↻ Perbarui data</button></section>
+  <div id="release-message" class="lab-release-message" role="status" aria-live="polite">Memuat status release…</div>
+  <section id="release-confirmation-feedback" class="ppic-eta-feedback" aria-label="Konfirmasi ETA departemen" hidden></section>
+  <section id="release-panel" class="lab-release-sheet" role="tabpanel"<% if (!releaseView) { %> aria-labelledby="release-tab-<%= selectedView %>"<% } %>>
+    <header class="lab-release-sheetbar"><h2 id="release-view-title">Rencana bulan terpilih</h2><a id="release-department-link" hidden></a></header>
+    <section id="release-data" hidden>
+      <div id="release-subtabs" hidden></div>
+      <div class="lab-release-toolbar"><label>Cari data<input id="release-search" type="search" placeholder="Part, proses, mesin, customer, supplier…" aria-label="Cari data release"></label><label id="release-category-label" hidden>Kategori<select id="release-category" aria-label="Filter kategori kebutuhan" data-searchable-disabled><option value="">Semua kategori</option><option value="PURCHASE_PART">Purchase part</option><option value="MATERIAL">Material</option></select></label><label id="release-recovery-label" hidden>Tampilan<select id="release-recovery-scope" aria-label="Tampilan recovery produksi" data-searchable-disabled><option value="plan">Plan &amp; recovery</option><option value="actual">Aktivitas aktual terkait</option></select></label><span id="release-count"></span><button id="release-prev" type="button" aria-label="Halaman sebelumnya">←</button><span id="release-page"></span><button id="release-next" type="button" aria-label="Halaman berikutnya">→</button></div>
+      <div class="lab-release-table-wrap" tabindex="0" role="region" aria-label="Tabel data rencana resmi"><table data-enterprise-table="off"><thead id="release-head"></thead><tbody id="release-body"></tbody></table></div>
+      <section id="release-monthly-summary" aria-label="Ringkasan waktu harian mesin" hidden></section>
+    </section>
+    <%- include('./partials/released-daily') %>
+    <p id="release-empty" class="lab-release-empty">Menyiapkan data bulan terpilih…</p>
+    <p id="release-basis" class="lab-release-basis"></p>
+  </section>
+  <section id="release-documents" class="lab-release-documents" hidden><h2>Dokumen Purchasing</h2><div id="release-document-links"></div></section>
+</main>
+<script src="/js/ppic-released-tables.js?v=20260915-1"></script>
+<script src="/js/ppic-released-daily.js?v=20260915-1"></script>
+<%- include('../partials/footer') %>

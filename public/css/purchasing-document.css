@@ -1,0 +1,98 @@
+/* PR and PO share the Goods Receipt document language; controls and data remain
+   in their original forms/collections so validation and workflow are unchanged. */
+main.purchasing-document-page {
+  --purchase-line:#d8e0eb;--purchase-muted:#738198;--purchase-ink:#16243a;
+  width:calc(100% - 48px);max-width:none;padding-top:18px;padding-bottom:42px;color:var(--purchase-ink);
+}
+main.purchasing-document-page .gr-detail-commandbar {
+  display:flex;align-items:flex-start;justify-content:space-between;gap:20px;
+  border:0;border-bottom:1px solid var(--purchase-line);border-radius:0;padding:17px 0 18px;margin:0;background:transparent;box-shadow:none;
+}
+main.purchasing-document-page .gr-detail-commandbar>div:first-child { min-width:0; }
+main.purchasing-document-page .gr-detail-commandbar h1 { font-size:1.38rem;letter-spacing:0;color:var(--purchase-ink); }
+main.purchasing-document-page .gr-detail-commandbar>div:first-child>p:last-child { max-width:850px;line-height:1.55;font-size:12px; }
+main.purchasing-document-page .gr-detail-command-actions { display:flex;flex-wrap:wrap;justify-content:flex-end;max-width:60%; }
+main.purchasing-document-page .gr-detail-workflow-actions { display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;max-width:100%; }
+main.purchasing-document-page .gr-detail-workflow-actions>.btn { width:auto;flex:0 0 auto; }
+main.purchasing-document-page .gr-detail-workflow-actions>:is(.btn-outline-primary,.btn-outline-secondary) { background:#fff;color:#405674;border:1px solid #cfd8e4; }
+main.purchasing-document-page .gr-detail-workflow-actions>.purchase-workflow-hint { display:none; }
+main.purchasing-document-page .gr-detail-workflow-actions>small { display:block;flex-basis:100%;margin:0;max-width:650px;font-size:10px;color:var(--purchase-muted); }
+main.purchasing-document-page .gr-detail-status { flex-shrink:0; }
+main.purchasing-document-page .gr-detail-status .ops-badge { border-color:currentColor; }
+main.purchasing-document-page :is(button,a,input,select,textarea):focus-visible { outline:2px solid #496ed3;outline-offset:2px; }
+main.purchasing-document-page .gr-detail-shell { display:block; }
+main.purchasing-document-page .gr-detail-metadata { margin-bottom:14px; }
+main.purchasing-document-page .gr-detail-metadata :is(.po-overview,.pr-overview,.po-overview-kpis,.pr-overview-kpis,.po-overview-meta,.pr-document-context) { display:contents; }
+main.purchasing-document-page .gr-detail-metadata :is(.po-overview-kpis,.pr-overview-kpis)>article,
+main.purchasing-document-page .gr-detail-metadata :is(.po-overview-meta,.pr-document-context)>div {
+  display:block;min-width:0;min-height:74px;padding:12px 0;border:0;border-radius:0;background:transparent;box-shadow:none;
+}
+main.purchasing-document-page .gr-detail-metadata :is(article>span,.po-overview-meta>div>span,.pr-document-context>div>span) {
+  display:block;margin-bottom:5px;color:var(--purchase-muted);font-size:9px;font-weight:850;letter-spacing:.05em;text-transform:uppercase;
+}
+main.purchasing-document-page .gr-detail-metadata :is(article>strong,.po-overview-meta>div>strong,.pr-document-context>div>b) {
+  display:block;color:#17253b;font-size:12px;font-weight:750;line-height:1.5;overflow-wrap:anywhere;
+}
+main.purchasing-document-page .gr-detail-metadata article small,
+main.purchasing-document-page .pr-document-context small { display:block;margin-top:3px;font-size:10px;color:var(--purchase-muted);font-weight:400; }
+main.purchasing-document-page .gr-detail-metadata a { color:#4f46e5;text-decoration:none; }
+main.purchasing-document-page .gr-detail-metadata a:hover { text-decoration:underline; }
+main.purchasing-document-page :is(.po-overview-notes,.pr-system-note) { grid-column:1/-1;border:0;border-top:1px solid #e8edf3;border-radius:0;background:transparent;padding:10px 0;margin:0;font-size:11px; }
+main.purchasing-document-page .po-overview-notes>span { color:var(--purchase-muted);font-size:9px;font-weight:800;text-transform:uppercase; }
+main.purchasing-document-page .po-overview-notes p { margin:5px 0; }
+main.purchasing-document-page .pr-progress-panel { grid-column:1/-1;padding:10px 0;margin:0;border:0;border-block:1px solid #e8edf3;border-radius:0;background:transparent; }
+main.purchasing-document-page .pr-progress-panel>i { height:4px;max-width:500px; }
+main.purchasing-document-page .pr-progress-panel>div { max-width:500px;font-size:11px; }
+main.purchasing-document-page .pr-progress-panel .pr-progress-next { margin:8px 0 0;color:#738198;font-size:10px; }
+main.purchasing-document-page .pr-progress-next b { color:#334968; }
+main.purchasing-document-page .pr-document-context .ops-badge { display:inline-flex; }
+main.purchasing-document-page .gr-detail-collections { min-width:0; }
+main.purchasing-document-page .po-support-grid:empty { display:none; }
+main.purchasing-document-page .gr-detail-collections .ops-detail-card { box-shadow:none; }
+main.purchasing-document-page .gr-detail-collections .table-responsive { max-width:100%;max-height:65vh;overflow:auto; }
+main.purchasing-document-page .gr-detail-collections .ops-collection-table thead th { position:sticky;top:0;z-index:2; }
+main.purchasing-document-page .gr-detail-collections .erp-table-commandbar { display:flex!important;background:#f8fafc;border-block:1px solid #e5eaf1; }
+main.purchasing-document-page .gr-detail-collections .ops-collection-head { gap:12px; }
+main.purchasing-document-page .gr-detail-collections .ops-collection-head p { text-transform:none;letter-spacing:0;font-size:10px;font-weight:400;margin-top:4px; }
+main.purchasing-document-page .gr-detail-collections :is(.po-line-item,.pr-line-item) { min-width:220px; }
+main.purchasing-document-page .gr-detail-collections :is(.po-line-item,.pr-line-item) :is(b,strong) { font-size:11px; }
+main.purchasing-document-page .gr-detail-collections :is(.po-line-item,.pr-line-item,.pr-line-trace) small { font-size:10px;line-height:1.5; }
+main.purchasing-document-page .gr-detail-collections .po-partner-grid { background:transparent; }
+/* Forms use the same metadata grid, with clearly editable white inputs. */
+main.purchasing-document-page.purchasing-document-form .select2-container { width:100%!important;min-width:0;font-size:12px;text-transform:none;letter-spacing:normal;font-weight:400; }
+main.purchasing-document-page.purchasing-document-form .select2-container .select2-selection { min-height:36px;border:1px solid #cfd8e4;border-radius:4px;background:#fff; }
+main.purchasing-document-page.purchasing-document-form .select2-container .select2-selection__rendered { line-height:34px;padding-left:10px;color:#243650;font-size:12px;text-transform:none;letter-spacing:normal;font-weight:400; }
+main.purchasing-document-page.purchasing-document-form .select2-container .select2-selection__arrow { height:34px; }
+main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) .purchase-form-metadata { padding:14px 0;margin:0 0 14px;border:0;border-bottom:1px solid var(--purchase-line);border-radius:0;background:transparent;box-shadow:none;overflow:visible; }
+main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) .pr-header-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px 30px;padding:0;background:transparent; }
+main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) .pr-header-grid>label { display:flex;flex-direction:column;min-width:0;min-height:0;padding:0;margin:0;border:0!important;border-radius:0;background:transparent;box-shadow:none; }
+main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) .pr-header-grid>label>span:not(.select2-container) { display:block;margin-bottom:6px;color:#738198;font-size:9px;font-weight:850;letter-spacing:.045em;text-transform:uppercase; }
+main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) .pr-header-grid>label>small { color:#7b8798;font-size:10px;line-height:1.45;margin-top:5px; }
+main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) :is(.form-control,.form-select) { min-height:36px;border:1px solid #cfd8e4;border-radius:4px;background:#fff;color:#243650;font-size:12px;box-shadow:none; }
+main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) :is(.form-control[readonly],.form-select:disabled) { background:#edf1f6;color:#596b82; }
+main.purchasing-document-page .purchase-more-fields { grid-column:1/-1;margin-top:16px;border-top:1px solid #e2e8f0;font-size:11px; }
+main.purchasing-document-page .purchase-more-fields>summary { padding:11px 0;cursor:pointer;color:#405674;font-weight:700; }
+main.purchasing-document-page .purchase-more-fields>summary small { margin-left:10px;font-weight:400;color:#7b8798; }
+main.purchasing-document-page .gr-detail-metadata .purchase-extra-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 30px; }
+main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) .pr-form-card>header { display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:55px;padding:12px 16px;margin:0;border-bottom:1px solid #c8d1dc;background:#fff; }
+main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) .pr-form-card>header h2 { font-size:13px;color:#1d304c;font-weight:800;margin:0; }
+main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) .pr-form-card>header p { font-size:10px;color:#738198;margin:4px 0 0;line-height:1.45;max-width:950px; }
+main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) .pr-form-card>header .btn { padding:7px 10px;border-radius:4px;font-size:11px;white-space:nowrap; }
+main.purchasing-document-page.purchasing-document-form .pr-table-key { padding:6px 14px;background:#fafbfd;border-bottom:1px solid #e2e8f0; }
+main.purchasing-document-page.purchasing-document-form .pr-table-key :is(span,small) { font-size:10px; }
+main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) :is(.pr-lines-table,.ops-collection-table) { border-collapse:separate;border-spacing:0;margin:0; }
+main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) :is(.pr-lines-table,.ops-collection-table) thead th { height:36px;padding:8px 10px;border-right:1px solid #c8d1dc;border-bottom:1px solid #b9c4d2;background:#e9eff7!important;color:#566176!important;font-size:9px!important;font-weight:800;text-transform:uppercase; }
+main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) :is(.pr-lines-table,.ops-collection-table) td { padding:8px!important;border-right:1px solid #d7dee7;border-bottom:1px solid #d7dee7;font-size:11px!important;background:#fff;vertical-align:top; }
+main.purchasing-document-page.purchasing-document-form #pr-form .line-supplier-row>td { padding:0!important;background:#f8fafd; }
+main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) td :is(.form-control,.form-select) { min-height:32px;font-size:11px; }
+main.purchasing-document-page.purchasing-document-form .purchase-po-lines table { min-width:1380px; }
+main.purchasing-document-page.purchasing-document-form .purchase-po-lines td:nth-child(1) { min-width:145px; }.purchasing-document-form .purchase-po-lines td:nth-child(2) { min-width:230px; }
+main.purchasing-document-page.purchasing-document-form .purchase-po-lines td:nth-child(3) { min-width:120px; }.purchasing-document-form .purchase-po-lines td:nth-child(4) { min-width:210px; }
+main.purchasing-document-page.purchasing-document-form .purchase-po-lines td:nth-child(n+5):nth-child(-n+8) { min-width:110px; }.purchasing-document-form .purchase-po-lines [data-line-total] { min-width:110px;text-align:right;font-weight:750;white-space:nowrap; }
+main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) .pr-form-summary { display:flex;align-items:center;justify-content:flex-end;gap:30px;min-height:54px;padding:12px 16px;border-top:1px solid #d8e0eb;background:#f8fafd; }
+main.purchasing-document-page.purchasing-document-form .pr-form-summary>span { font-size:10px;text-transform:uppercase;color:#687a91; }.purchasing-document-form .pr-form-summary small { display:block;text-transform:none;font-size:10px; }
+main.purchasing-document-page.purchasing-document-form .pr-form-summary strong { color:#1d345a;font-size:18px;font-variant-numeric:tabular-nums; }
+main.purchasing-document-page.purchasing-document-form .pr-notes { padding:16px; }.purchasing-document-form .pr-notes textarea { min-height:120px; }
+@media(max-width:1100px){main.purchasing-document-page .gr-detail-commandbar{flex-wrap:wrap;}main.purchasing-document-page .gr-detail-command-actions{max-width:100%;}main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) .pr-header-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 22px;}}
+@media(max-width:700px){main.purchasing-document-page{width:calc(100% - 24px);padding-top:12px;}main.purchasing-document-page .gr-detail-command-actions{justify-content:flex-start;gap:8px;}main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) .pr-header-grid{grid-template-columns:minmax(0,1fr);}main.purchasing-document-page.purchasing-document-form :is(#pr-form,#po-form) .pr-form-card>header{flex-wrap:wrap;}main.purchasing-document-page .gr-detail-metadata,main.purchasing-document-page .gr-detail-metadata .purchase-extra-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px;}}
+@media print{main.purchasing-document-page .gr-detail-tab-panel[hidden]{display:block!important;}main.purchasing-document-page .gr-detail-tabs,main.purchasing-document-page .gr-detail-command-actions{display:none!important;}}

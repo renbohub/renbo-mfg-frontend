@@ -19,7 +19,7 @@
     return Math.max(end - start - Number(rule.breakMinutes || 0) + Number(rule.overtimeMinutes || 0), 0);
   }
 
-  function normalizeSchedule(rules = [], shifts = []) {
+  function normalizeSchedule(rules = [], shifts = [], profile = {}) {
     const orderedShifts = [...shifts].sort((left, right) => Number(left.sequence || 0) - Number(right.sequence || 0));
     return DAY_NAMES.map((dayName, index) => {
       const dayOfWeek = index + 1;
@@ -38,7 +38,9 @@
           isEnabled: existing?.isEnabled === true,
         };
       });
-      return { dayOfWeek, dayName, shifts: dayShifts, totalMinutes: dayShifts.reduce((sum, rule) => sum + effectiveMinutes(rule), 0) };
+      const isHoliday = dayOfWeek === 6 ? profile.saturdayIsHoliday === true : dayOfWeek === 7 ? profile.sundayIsHoliday === true : false;
+      const templateMinutes=dayShifts.reduce((sum, rule) => sum + effectiveMinutes(rule), 0);
+      return { dayOfWeek, dayName, shifts: dayShifts, isHoliday, templateMinutes, totalMinutes:isHoliday?0:templateMinutes };
     });
   }
 

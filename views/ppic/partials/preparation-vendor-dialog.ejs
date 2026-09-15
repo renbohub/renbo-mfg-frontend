@@ -1,0 +1,14 @@
+<dialog id="prep-vendor-dialog" aria-labelledby="prep-vendor-edit-title">
+  <form id="prep-vendor-edit-form">
+    <header><div><h2 id="prep-vendor-edit-title">Lead time vendor di workbook</h2><p id="prep-vendor-edit-context"></p></div><button id="prep-vendor-edit-close" type="button" aria-label="Tutup lead time vendor">×</button></header>
+    <div class="prep-vendor-dialog-body">
+    <p id="prep-vendor-edit-source"></p>
+    <div class="prep-vendor-fields"><label>Lead time<input id="prep-vendor-edit-value" type="text" inputmode="decimal" required aria-label="Lead time vendor workbook"></label><label>Satuan<select id="prep-vendor-edit-unit" aria-label="Satuan lead time vendor workbook" data-searchable-disabled><option value="SECOND">Detik</option><option value="MINUTE">Menit</option><option value="HOUR">Jam</option><option value="DAY">Hari</option></select></label></div>
+    <p id="prep-vendor-edit-preview"></p>
+    <p class="prep-help">Berlaku hanya untuk proses vendor ini pada draft aktif. Tidak mengubah master BOM. Override tetap dipakai saat BOM diperbarui; pilih Kembali ke BOM untuk mengikuti master lagi.</p>
+    <p id="prep-vendor-edit-legacy" class="prep-help" hidden>Draft lama memakai tanggal masuk sebagai input. Tanggal tersebut tetap dipertahankan sampai Anda mengedit qty keluar pada baris ini.</p>
+    <p id="prep-vendor-edit-error" role="alert"></p>
+    </div>
+    <footer><button id="prep-vendor-edit-reset" type="button">Kembali ke BOM</button><button id="prep-vendor-edit-cancel" type="button">Batal</button><button id="prep-vendor-edit-apply" class="prep-primary" type="submit">Terapkan di workbook</button></footer>
+  </form>
+</dialog>

@@ -117,7 +117,6 @@ const registry = {
     columns: [column("termCode", "Kode"), column("description", "Deskripsi"), column("days", "Jumlah Hari")],
     fields: [field("termCode", "Kode Termin", "text", { required: true }), field("description", "Deskripsi", "textarea"), field("days", "Jumlah Hari", "number", { required: true, min: 0 })]
   }),
-  "price-list": priceListEntity("price-list", "Price List Umum", "/api/master-data/price-list", "file"),
   "customer-part-prices": entity({
     slug: "customer-part-prices", label: "Master Harga Customer", singular: "Harga Customer", group: "Data Keuangan", icon: "currency", endpoint: "/api/master-data/customer-part-prices",
     columns: [column("customer.customerCode", "Customer"), column("customer.customerName", "Nama Customer"), column("part.partCode", "Part"), column("currencyCode", "Currency"), column("unitPrice", "Unit Price", { type: "number" }), column("effectiveFrom", "Berlaku Mulai", { type: "date" }), column("effectiveUntil", "Berlaku Sampai", { type: "date" }), column("isActive", "Status", { type: "active" })],
@@ -128,7 +127,7 @@ const registry = {
     columns: [column("vendor.vendorName", "Vendor"), column("part.partCode", "Part"), column("category", "Kategori"), column("currencyCode", "Mata Uang"), column("pricingYear", "Tahun")],
     fields: [lookup("vendorId", "Vendor", "vendors", "id", "vendorName"), lookup("partId", "Part", "parts", "id", "partCode"), lookup("customerId", "Customer", "customers", "id", "customerName"), field("category", "Kategori", "text", { required: true }), lookup("currencyCode", "Mata Uang", "currencies", "currencyCode", "currencyName", { required: true }), field("pricingYear", "Tahun Harga", "number"), field("quotationFiles", "File Quotation", "file", { multiple: true }), field("details", "Detail Proses dan Harga", "json", { help: "Array JSON detail vendor price list." }), field("notes", "Catatan", "textarea")]
   }),
-  "part-price-lists": monthlyPriceEntity("part-price-lists", "Harga Part per Bulan", "/api/master-data/part-price-lists", lookup("partId", "Purchase Part", "parts", "id", "partCode", { lookupQuery: { itemType: "RAW", rawType: "PURCHASE_PART", pricingScope: "BOM_VENDOR_PART" }, labelKeys: ["partCode", "partNumber"], labelSeparator: " — ", help: "Pilih Purchase Part dengan kategori Vendor pada BOM yang berlaku." }), [lookup("supplierId", "Supplier", "suppliers", "id", "supplierName", { required: true })]),
+  "part-price-lists": monthlyPriceEntity("part-price-lists", "Harga Part per Bulan", "/api/master-data/part-price-lists", lookup("partId", "Purchase Part", "parts", "id", "partCode", { lookupQuery: { itemType: "RAW", rawType: "PURCHASE_PART", status: "Active" }, labelKeys: ["partCode", "partNumber"], labelSeparator: " — ", help: "Pilih part aktif dari master Purchase Part (RAW / PURCHASE_PART)." }), [lookup("supplierId", "Supplier", "suppliers", "id", "supplierName", { required: true })]),
   "material-price-lists": monthlyPriceEntity("material-price-lists", "Harga Material per Bulan", "/api/master-data/material-price-lists", lookup("materialGradeId", "Material Grade + Thickness", "material-grades", "id", "displayName"), [lookup("materialSubstanceId", "Bahan Material", "material-substances", "id", "substanceName", { required: true }), lookup("supplierId", "Supplier", "suppliers", "id", "supplierName", { required: true }), field("thickness", "Thickness dari Grade", "number", { step: "0.001", help: "Diisi otomatis dari Material Grade saat disimpan." }), field("CSP", "C/S/P (opsional)"), field("partNumberCP", "Part Number CP"), field("partNameCP", "Part Name CP")]),
   "scrap-price-masters": entity({
     slug: "scrap-price-masters", permission: "materialPriceLists", label: "Harga Scrap per KG", singular: "Harga Scrap", group: "Data Keuangan", icon: "currency", endpoint: "/api/master-data/scrap-price-masters",
@@ -211,7 +210,7 @@ const registry = {
     slug: "work-centers", permission: "machines", label: "Work Centers", singular: "Work Center", group: "Data Operasional", icon: "layers",
     endpoint: "/api/engineering/work-centers", detailKey: "workCenterCode", mutationKey: "id",
     formView: "master-data/work-center-form", detailView: "master-data/work-center-detail",
-    formPageScript: "/js/work-center-form.js?v=20260824-enterprise-1", detailPageScript: "/js/work-center-detail.js?v=20260824-enterprise-1",
+    formPageScript: "/js/work-center-form.js?v=20260913-recovery-1", detailPageScript: "/js/work-center-detail.js?v=20260824-enterprise-1",
     columns: [
       column("workCenterCode", "Kode Work Center"), column("workCenterName", "Nama Work Center"),
       column("lineCode", "Line"), column("machineCount", "Mesin", { type: "number" }),
@@ -241,7 +240,7 @@ const registry = {
   "working-hour-profiles": entity({
     slug: "working-hour-profiles", permission: "machines", label: "Working Hours", singular: "Working Hour Profile", group: "Data Operasional", icon: "calendar", endpoint: "/api/master-data/working-hour-profiles", detailKey: "profileCode",
     mutationKey: "id", formView: "master-data/working-hour-profile-form", detailView: "master-data/working-hour-profile-detail",
-    formPageScript: "/js/working-hour-profile-form.js?v=20260824-enterprise-1", detailPageScript: "/js/working-hour-profile-detail.js?v=20260824-enterprise-1",
+    formPageScript: "/js/working-hour-profile-form.js?v=20260915-weekend-1", detailPageScript: "/js/working-hour-profile-detail.js?v=20260915-weekend-1",
     columns: [column("profileCode", "Kode Profile"), column("profileName", "Nama Profile"), column("profileType", "Tipe"), column("effectiveFrom", "Berlaku Mulai", { type: "date" }), column("effectiveUntil", "Berlaku Sampai", { type: "date" }), column("assignmentCount", "Dipakai", { type: "number" }), column("isActive", "Status", { type: "active" })],
     fields: [field("profileCode", "Kode Profile", "text", { required: true, section: "Identitas" }), field("profileName", "Nama Profile", "text", { required: true, section: "Identitas" }), field("profileType", "Tipe Profile", "select", { required: true, options: option("REGULAR", "RAMADAN", "SPECIAL"), section: "Masa Berlaku" }), field("effectiveFrom", "Berlaku Mulai", "date", { section: "Masa Berlaku" }), field("effectiveUntil", "Berlaku Sampai", "date", { section: "Masa Berlaku" }), field("priority", "Prioritas", "number", { min: 0, defaultValue: 0, section: "Masa Berlaku" }), field("isActive", "Aktif", "checkbox", { defaultChecked: true, section: "Kontrol" }), field("notes", "Catatan", "textarea", { section: "Kontrol" })]
   }),
@@ -356,9 +355,6 @@ replaceRegistryField("parts", "category", field("category", "Kategori", "select"
 registry.parts.columns.splice(3, 0, column("category", "Kategori"));
 replaceRegistryField("parts", "customerCodes", lookup("customerCodes", "Daftar Pelanggan", "customer-codes", "customerCode", "customerName", { multiple: true, showValue: true, help: "Pilih satu atau beberapa pelanggan yang menggunakan part ini." }));
 replaceRegistryField("racks", "warehouseCode", lookup("warehouseCode", "Warehouse", "warehouse-codes", "warehouseCode", "warehouseName", { required: true, showValue: true }));
-replaceRegistryField("price-list", "partCode", lookup("partCode", "Part", "part-codes", "partCode", "partName", { showValue: true }));
-replaceRegistryField("price-list", "materialCode", lookup("materialCode", "Material", "material-codes", "materialCode", "materialName", { showValue: true }));
-replaceRegistryField("price-list", "supplierCode", lookup("supplierCode", "Supplier", "supplier-codes", "supplierCode", "supplierName", { showValue: true }));
 replaceRegistryField("customer-part-prices", "customerCode", lookup("customerCode", "Customer", "customer-codes", "customerCode", "customerName", { required: true, showValue: true }));
 replaceRegistryField("scrap-price-masters", "partCode", lookup("partCode", "Part Khusus", "part-codes", "partCode", "partName", { showValue: true, help: "Opsional. Jika dipilih, harga ini diprioritaskan hanya untuk part tersebut." }));
 replaceRegistryField("vendor-processes", "vendorProcessCode", lookup("vendorProcessCode", "Kode Proses Routing", "process-codes", "processCode", "processName", { required: true, showValue: true, section: "Identitas Proses", help: "Pilih dari Master Data Proses agar kode vendor sama persis dengan routing BOM dan pencarian harga tidak ambigu." }));
@@ -395,7 +391,7 @@ registry["vendor-price-lists"].fields = [
 ];
 
 // Purchasing price maintenance uses the familiar annual Jan-Dec sheet.
-for (const [slug, label] of [["vendor-price-lists", "Harga Vendor per Bulan"], ["material-price-lists", "Harga Material per Bulan"], ["part-price-lists", "Harga Purchase Part per Bulan"]]) {
+for (const [slug, label] of [["vendor-price-lists", "Harga Vendor per Bulan"], ["material-price-lists", "Harga Material per Bulan"], ["part-price-lists", "Harga Purchase Part per Bulan"], ["product-price-lists", "Harga Barang per Bulan"]]) {
   const config = registry[slug]; config.monthlyPricing = true; config.label = label;
   const main = config.fields.filter((f) => !["unitPrice", "effectiveFrom", "effectiveUntil", "notes", "details"].includes(f.name)).map((f) => ({ ...f, section: "Informasi Utama" }));
   main.push(field("pricingYear", "Tahun Harga", "number", { required: true, min: 2000, max: 2100, step: "1", section: "Informasi Utama", defaultValue: "currentYear" }));
@@ -411,15 +407,26 @@ for (const slug of ["part-price-lists", "vendor-price-lists"]) {
 registry['vendor-price-lists'].formView='master-data/vendor-bom-price-form';
 registry['vendor-price-lists'].formPageScript='/js/vendor-bom-price-form.js?v=20260909-multi-supplier-1';
 
+for (const slug of ['suppliers', 'vendors']) {
+  registry[slug].fields = registry[slug].fields.filter(f => f.name !== 'shippingAddress');
+  replaceRegistryField(slug, 'billingAddress', field('address', 'Alamat', 'textarea'));
+  registry[slug].columns.splice(3, 0, column('address', 'Alamat'), column('users', 'Pengguna / Kategori'));
+}
+registry['material-price-lists'].fields = registry['material-price-lists'].fields.filter(f => !['partNumberCP', 'partNameCP'].includes(f.name));
+Object.assign(registry['material-price-lists'].fields.find(f => f.name === 'thickness'), { readOnly: true, help: 'Terisi otomatis saat Material Grade dipilih.' });
+Object.assign(registry['customer-part-prices'].fields.find(f => f.name === 'partId'), { label: 'Finished Good · Kode - Part No - Part Name', lookup: { entity: 'finished-good-prices', valueKey: 'id', labelKey: 'partName' }, labelKeys: ['partCode', 'partNumber', 'partName'] });
+registry['customer-part-prices'].columns.splice(3, 0, column('part.partNumber', 'Part No'), column('part.partName', 'Part Name'));
+registry.departments.fields.find(f => f.name === 'departmentCode').help = 'Kode otomatis DEPT01–DEPT99.';
+registry['material-substances'].label = 'Bahan Material & Berat Jenis';
+registry['material-substances'].singular = 'Bahan Material & Berat Jenis';
+registry['material-substances'].fields.splice(2, 0, field('densityKgMm3', 'Berat Jenis (kg/mm³)', 'number', { required: true, min: 0.000000001, step: 'any', help: 'Contoh baja: 0.00000785 kg/mm³. Dipakai otomatis oleh Material Grade.' }));
+registry['material-substances'].columns.splice(2, 0, column('densityKgMm3', 'Berat Jenis (kg/mm³)', { type: 'number' }));
+registry['material-densities'].navigationHidden = true;
+registry['material-grades'].fields = registry['material-grades'].fields.filter(f => f.name !== 'densityId');
+registry['product-price-lists'].fields.find(f => f.name === 'supplierId').required = true;
+
 function partyFields(codeName, nameName, noun) {
   return [field(codeName, `Kode ${noun}`, "text", { required: true, generated: true }), field(nameName, `Nama ${noun}`, "text", { required: true }), field("contact", "Contact Person"), field("phone", "Telepon", "tel"), field("email", "Email", "email"), field("billingAddress", "Alamat Penagihan", "textarea"), field("shippingAddress", "Alamat Pengiriman", "textarea"), field("leadTimeDays", "Lead Time (hari)", "number"), field("taxId", "NPWP/Tax ID"), lookup("mainBusiness", "Bidang Usaha", "main-businesses", "id", "mainBusinessName", { multiple: true, sourceValueKey: "id" }), field("users", "Pengguna/Kategori", "select", { options: option("operational", "engineer", "other"), multiple: true }), field("status", "Status", "select", { options: option("Active", "Inactive") }), field("notes", "Catatan", "textarea")];
-}
-
-function priceListEntity(slug, label, endpoint, icon) {
-  return entity({ slug, label, singular: label, group: "Data Keuangan", icon, endpoint,
-    columns: [column("priceListCode", "Kode"), column("itemType", "Tipe Item"), column("partCode", "Part"), column("materialCode", "Material"), column("supplierName", "Supplier"), column("unitPrice", "Harga", { type: "currency" }), column("currencyCode", "Mata Uang")],
-    fields: [field("priceListCode", "Kode Price List", "text", { help: "Dibuat otomatis bila kosong." }), field("itemType", "Tipe Item", "select", { options: option("PART", "MATERIAL", "PRODUCT") }), lookup("partCode", "Part", "parts", "partCode", "partName", { showValue: true }), field("partName", "Nama Part", "text", { readOnly: true }), field("partDiameter", "Diameter Part", "number", { step: "0.001" }), lookup("materialCode", "Material", "materials", "materialCode", "materialName", { showValue: true }), field("materialType", "Tipe Material", "text", { readOnly: true }), field("materialThickness", "Thickness Material", "number", { step: "0.001", readOnly: true }), lookup("supplierCode", "Supplier", "suppliers", "supplierCode", "supplierName", { showValue: true }), field("supplierName", "Nama Supplier", "text", { readOnly: true }), field("unitPrice", "Harga Satuan", "number", { required: true, step: "0.01" }), lookup("currencyCode", "Mata Uang", "currencies", "currencyCode", "currencyName"), field("notes", "Catatan", "textarea")]
-  });
 }
 
 function monthlyPriceEntity(slug, label, endpoint, ownerField, extraFields = []) {
@@ -477,7 +484,7 @@ function getRegistry() { return registry; }
 function getEntity(slug) { return registry[entityAliases[slug] || slug] || null; }
 function getGroups() {
   const order = ["Data Umum", "Data Keuangan", "Data Karyawan", "Data Operasional", "Data Engineering", "Data Sistem"];
-  return order.map((title) => ({ title, items: Object.values(registry).filter((item) => item.group === title) })).filter((group) => group.items.length);
+  return order.map((title) => ({ title, items: Object.values(registry).filter((item) => item.group === title && !item.navigationHidden) })).filter((group) => group.items.length);
 }
 
 const resourceOverrides = {
@@ -510,6 +517,7 @@ const resourceOverrides = {
   "outgoing/shipments": "shipments"
 };
 
+for(const item of require('../../library/ppic-planning/released-pages.cjs')) resourceOverrides[`${item.module}/${item.slug}`]=item.resource;
 function getPermissionCatalog() {
   const { modules } = require("./moduleRegistry");
   const masterPages = Object.values(registry).map((item) => ({

@@ -56,8 +56,8 @@
     return entries.length ? entries.map(([unit, value]) => `${qty(value)} ${esc(unit)}`).join(" · ") : `${qty(day.qty)} ${esc((day.uomCodes || []).length === 1 ? day.uomCodes[0] : "")}`;
   }
   function lotDetails(day) {
-    const rows = (day.lots || []).map(lot => `<tr><td>${esc(lot.lotPlanNumber)}</td><td>${esc(lot.partCode)} / ${esc(lot.processCode)}</td><td>${esc(lot.shift)}</td><td>${qty(lot.qty)} ${esc(lot.uomCode)}</td><td>${lot.allocations.map(a => `${esc(a.planNumber || "—")} · ${qty(a.qty)}`).join("<br>")}</td></tr>`).join("");
-    return `<section><h4>Rencana lot per shift</h4><p>Perkiraan lot berdasarkan tanggal operasional, mesin, shift, part, dan proses. Alokasi sumber tetap ditelusuri.</p>${rows ? `<table class="table"><thead><tr><th>Rencana lot</th><th>Part / proses</th><th>Shift</th><th>Jumlah</th><th>Alokasi rencana</th></tr></thead><tbody>${rows}</tbody></table>` : "<p>Belum ada rencana lot dengan identitas shift lengkap.</p>"}${(day.lotExceptions || []).map(row => `<p>${esc(row.partCode)}: ${esc(row.reason)}</p>`).join("")}</section>`;
+    const rows = (day.lots || []).map(lot => `<tr><td>${esc(lot.lotPlanNumber)}</td><td>${esc(lot.partCode)} / ${esc(lot.processCode)}</td><td>${esc(lot.partNumber || state.data?.rows?.flatMap(row=>row.children||[]).find(child=>child.partCode===lot.partCode)?.partNumber || "—")}</td><td>${esc(lot.shift)}</td><td>${qty(lot.qty)} ${esc(lot.uomCode)}</td><td>${lot.allocations.map(a => `${esc(a.planNumber || "—")} · ${qty(a.qty)}`).join("<br>")}</td></tr>`).join("");
+    return `<section><h4>Rencana lot per shift</h4><p>Perkiraan lot berdasarkan tanggal operasional, mesin, shift, part, dan proses. Alokasi sumber tetap ditelusuri.</p>${rows ? `<table class="table"><thead><tr><th>Rencana lot</th><th>Part / proses</th><th>Part Number</th><th>Shift</th><th>Jumlah</th><th>Alokasi rencana</th></tr></thead><tbody>${rows}</tbody></table>` : "<p>Belum ada rencana lot dengan identitas shift lengkap.</p>"}${(day.lotExceptions || []).map(row => `<p>${esc(row.partCode)}: ${esc(row.reason)}</p>`).join("")}</section>`;
   }
   function parentCell(row, key) {
     const day = row.days?.[key] || {};

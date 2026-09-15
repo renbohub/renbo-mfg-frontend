@@ -1,0 +1,21 @@
+<% for (const [view,title,description] of [['delivery','Delivery Schedule','Kebutuhan customer, kesiapan FG, dan shortage mengikuti alokasi Worksheet Schedule.'],['kpi','KPI Simulation','Ukuran hasil simulasi dari kebutuhan delivery, kapasitas mesin, produksi, purchase, dan vendor pada draft yang sama.']]) { %>
+<section id="prep-<%= view %>-panel" class="prep-derived-panel prep-outlook-panel" role="tabpanel" aria-labelledby="prep-page-<%= view %>" hidden>
+  <section class="prep-workbook" aria-label="<%= title %>">
+    <header class="prep-sheetbar prep-derived-heading"><h2 class="prep-workbook-title"><%= title %></h2><div class="prep-sheet-meta"><strong id="prep-<%= view %>-scenario"></strong><button id="prep-<%= view %>-back" type="button">Edit di 02 Worksheet Schedule</button></div></header>
+    <div class="prep-ribbon prep-derived-toolbar">
+      <span class="prep-sheet-readonly">Hanya baca · mengikuti seluruh perubahan draft</span>
+      <% if(view==='delivery') { %><input id="prep-delivery-search" type="search" aria-label="Cari delivery" placeholder="Cari tanggal, customer, atau FG…" disabled><select id="prep-delivery-condition" aria-label="Kondisi delivery" data-searchable-disabled disabled><option value="">Semua kondisi</option><option value="SHORTAGE">Shortage</option><option value="TIGHT">Siap hari delivery</option><option value="READY">Siap sebelum delivery</option><option value="UNKNOWN">Belum terverifikasi</option></select><% } %>
+      <span id="prep-<%= view %>-status" class="prep-sheet-status" role="status" aria-live="polite">Menunggu sumber tab 02…</span>
+    </div>
+    <div class="prep-sheet-heading"><strong>Hasil simulasi bulan aktif</strong><span><%= description %></span></div>
+    <% if(view==='delivery') { %>
+    <div class="prep-derived-table-wrap" tabindex="0" role="region" aria-label="Tabel Delivery Schedule"><table class="prep-derived-table prep-delivery-table" data-enterprise-table="off"><thead id="prep-delivery-head"></thead><tbody id="prep-delivery-body"></tbody></table></div>
+    <nav class="prep-derived-pagination" aria-label="Halaman delivery"><button id="prep-delivery-prev" type="button" disabled>← Sebelumnya</button><span id="prep-delivery-count"></span><button id="prep-delivery-next" type="button" disabled>Berikutnya →</button></nav>
+    <% } else { %>
+    <div id="prep-kpi-content" class="prep-kpi-content" aria-live="polite"></div>
+    <% } %>
+  </section>
+  <details class="prep-source-notes prep-derived-basis-details"><summary>Dasar data dan perhitungan</summary><p id="prep-<%= view %>-basis"></p></details>
+  <p class="prep-help">Kesiapan hasil simulasi mengikuti stok usable dan urutan proses. Ketersediaan material dan kapasitas harian vendor belum menjadi pembatas alokasi. Ini bukan hasil aktual atau jaminan fulfillment.</p>
+</section>
+<% } %>

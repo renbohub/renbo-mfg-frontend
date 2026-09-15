@@ -1,33 +1,53 @@
 <%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/purchase-requisition-form-workbench.css?v=20260915">
+<link rel="stylesheet" href="/css/goods-receipt-detail.css?v=20260916-purchasing-1">
+<link rel="stylesheet" href="/css/purchasing-document.css?v=20260916-1">
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
-<main class="ops-page app-container transaction-form-page">
+<main class="ops-page app-container transaction-form-page purchasing-document-page purchasing-document-form">
   <nav class="module-breadcrumb"><a href="/modules/purchasing/purchase-order">Purchase Order</a><span>/</span><b><%= mode === 'edit' ? 'Edit PO' : 'Buat PO Manual' %></b></nav>
   <form id="po-form">
-    <section class="ops-detail-titlebar transaction-command-header">
+    <section class="ops-detail-titlebar transaction-command-header gr-detail-commandbar">
       <div><p class="ops-eyebrow">Purchasing · Manual PO</p><h1><%= mode === 'edit' ? 'Edit Purchase Order' : 'Buat Purchase Order Manual' %></h1><p>PO baru selalu disimpan sebagai Draft dan wajib melalui Approval Master.</p></div>
-      <div class="ops-title-actions"><a class="btn btn-outline-secondary" href="/modules/purchasing/purchase-order">Batal</a><button class="btn btn-primary" type="submit">Simpan Draft</button></div>
+      <div class="ops-title-actions gr-detail-command-actions"><div class="gr-detail-status"><small>Document Status</small><span id="po-status" class="ops-badge draft"><%= mode === 'edit' ? 'Memuat…' : 'Draft' %></span></div><a class="btn btn-outline-secondary" href="<%= mode === 'edit' ? '/modules/purchasing/purchase-order/' + encodeURIComponent(recordKey) : '/modules/purchasing/purchase-order' %>">Batal</a><button class="btn btn-primary" type="submit">Simpan Draft</button></div>
     </section>
-    <div id="po-form-alert" class="alert d-none"></div>
-    <section class="ops-detail-card pr-form-card">
-      <header><div><h2>Header PO</h2><p>Supplier dan jadwal delivery menjadi identitas komersial PO.</p></div></header>
+    <div id="po-form-alert" class="alert d-none" role="alert"></div>
+    <section class="ops-detail-card pr-form-card purchase-form-metadata" aria-label="Informasi Purchase Order">
       <div class="pr-header-grid">
-        <label><span>Supplier *</span><select id="po-supplier" class="form-select" required><option value="">Pilih supplier</option></select></label>
+        <label><span>No. PO</span><input id="po-number" class="form-control" readonly value="Otomatis saat disimpan"><small id="po-number-hint">Nomor final ditetapkan saat simpan.</small></label>
+        <label><span>Kode Nomor PO</span><select id="po-number-prefix" class="form-select"><option value="Production">Production · P-PO</option><option value="Engineering">Engineering · E-PO</option></select></label>
+        <label><span>Jenis Partner</span><select id="po-partner-kind" class="form-select"><option value="supplier">Supplier</option><option value="vendor">Vendor</option></select></label>
+        <label><span>Supplier / Vendor *</span><select id="po-supplier" class="form-select" required data-enterprise-lookup="supplier-codes"><option value=""></option></select></label>
         <label><span>Tanggal PO *</span><input id="po-date" class="form-control" type="date" required></label>
         <label><span>Delivery Date *</span><input id="po-delivery-date" class="form-control" type="date" required></label>
         <label><span>PO Type</span><select id="po-type" class="form-select"><option>Material</option><option>Consumable</option><option>Out Process</option><option>Maintenance</option><option>Service</option><option>Asset</option><option>Other</option></select></label>
         <label><span>Currency</span><input id="po-currency" class="form-control" value="IDR" required></label>
         <label><span>Payment Terms</span><input id="po-payment-terms" class="form-control"></label>
+        <label><span>Subkategori</span><input id="po-subcategory" class="form-control" list="po-subcategories" maxlength="30" placeholder="Pilih atau ketik kode lain"></label>
+        <datalist id="po-subcategories"><option value="PD"></option><option value="WD"></option><option value="MD"></option><option value="PSE"></option></datalist>
       </div>
+      <details class="purchase-more-fields"><summary>Kontak &amp; alamat partner <small>Data master untuk cetak PO</small></summary><div class="pr-header-grid" aria-label="Detail supplier untuk cetak PO">
+        <label><span>Nama</span><input id="po-partner-name" class="form-control" readonly></label>
+        <label><span>Contact Person</span><input id="po-contact" class="form-control" readonly></label>
+        <label><span>No. HP / Telepon</span><input id="po-phone" class="form-control" readonly></label>
+        <label><span>Email</span><input id="po-email" class="form-control" readonly></label>
+        <label><span>Alamat</span><textarea id="po-address" class="form-control" rows="2" readonly></textarea></label>
+      </div></details>
     </section>
-    <section class="ops-detail-card pr-form-card">
-      <header><div><h2>Detail PO</h2><p id="po-line-help">Manual PO dapat memuat purchase part, raw material, atau kebutuhan lainnya.</p></div><button id="po-add-line" class="btn btn-outline-primary" type="button">+ Tambah Baris</button></header>
-      <div class="table-responsive"><table class="table ops-collection-table"><thead><tr><th>Jenis</th><th>Part/Material Code</th><th>Drawing</th><th>Description</th><th>Qty</th><th>UOM/Form</th><th>KG/Form</th><th>Unit Price</th><th>Total</th><th></th></tr></thead><tbody id="po-lines"></tbody></table></div>
+    <div class="gr-detail-collections purchase-form-sections" data-purchase-form-sections>
+    <section class="ops-detail-card pr-form-card" data-purchase-tab="Detail Item">
+      <header><div><h2 id="po-lines-title">Detail PO · Tanpa PR</h2><p id="po-line-help">Material dipilih melalui part code / part number raw material. Qty dan harga memakai KG, dengan bentuk Coil atau Sheet. Harga mengikuti tanggal PO.</p></div><button id="po-add-line" class="btn btn-outline-primary" type="button">+ Tambah Baris</button></header>
+      <div class="table-responsive purchase-po-lines" tabindex="0" role="region" aria-label="Detail item Purchase Order"><table class="table ops-collection-table" data-enterprise-table="off"><thead><tr><th>Jenis</th><th>Part Code / Material</th><th>Part Number</th><th>Description</th><th>Qty</th><th>UOM</th><th>Bentuk</th><th>Harga / UOM</th><th>Total</th><th>Aksi</th></tr></thead><tbody id="po-lines"></tbody></table></div>
+      <div class="pr-form-summary"><span>Total PO <small id="po-item-count">0 item</small></span><strong id="po-total" aria-live="polite">IDR 0</strong></div>
     </section>
-    <section class="ops-detail-card pr-form-card"><header><h2>Catatan</h2></header><textarea id="po-notes" class="form-control" rows="3"></textarea></section>
+    <section class="ops-detail-card pr-form-card" data-purchase-tab="Catatan"><header><h2>Catatan</h2></header><div class="pr-notes"><label class="visually-hidden" for="po-notes">Catatan Purchase Order</label><textarea id="po-notes" class="form-control" rows="3" placeholder="Catatan atau ketentuan tambahan untuk partner…"></textarea></div></section>
+    </div>
   </form>
   <%- include('../partials/document-comments', { documentComments: { recordKey: mode === 'edit' ? recordKey : null, showPending: mode !== 'edit', title: 'Komentar Purchase Order', variant: 'receipt' } }) %>
 </main>
 <script id="po-form-config" type="application/json"><%- JSON.stringify({ mode, recordKey }).replace(/</g, '\\u003c') %></script>
-<script src="/js/purchasing-po-form.js"></script>
+<script src="/js/purchasing-document-ui.js?v=20260916-1"></script>
+<script src="/js/purchasing-material-model.js?v=20260916-kg-1"></script>
+<script src="/js/purchasing-pr-tools.js?v=20260916-kg-1"></script>
+<script src="/js/purchasing-po-form.js?v=20260916-kg-1" defer></script>
 <%- include('../partials/footer') %>

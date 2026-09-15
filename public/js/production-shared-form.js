@@ -1,6 +1,10 @@
 (function () {
   const config = JSON.parse(document.getElementById("production-shared-config").textContent);
   const page = config.page.slug;
+  let loadedRecord = null;
+  function qcSourceFields(record) {
+    return Object.fromEntries(['productionLogId','vendorProcessOrderId','woId','moId','partId','batchNumber'].map(key => [key, record[key] ?? null]));
+  }
   const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
   const get = (object, path) => String(path || "").split(".").reduce((value, key) => value?.[key], object);
@@ -59,9 +63,9 @@
       { name: "inspectedBy", label: "Inspector", required: true },
       { name: "batchNumber", label: "Batch / Lot" },
       { name: "sampleSize", label: "Sample Size", type: "number", min: 1, default: 1 },
-      { name: "qtyInspected", label: "Qty Inspected", type: "number", min: 0 },
-      { name: "qtyPassed", label: "Qty Passed", type: "number", min: 0 },
-      { name: "qtyFailed", label: "Qty Failed", type: "number", min: 0 },
+      { name: "qtyInspected", label: "Qty Diperiksa", type: "number", min: 0 },
+      { name: "qtyPassed", label: "Qty OK", type: "number", min: 0 },
+      { name: "qtyFailed", label: "Qty NG", type: "number", min: 0 },
       { name: "qtyRework", label: "Qty Rework", type: "number", min: 0 },
       { name: "decision", label: "Decision", type: "select", options: ["Pending", "Accepted", "Rejected", "Conditional Accept", "Rework"], default: "Pending" },
       { name: "details", label: "Parameter Inspection (JSON)", type: "json", span: 2, default: "[]" },
@@ -157,6 +161,7 @@
     if (config.mode !== "edit") return;
     try {
       const record = await api(`/modules/api/${encodeURIComponent(config.module || "production")}/${encodeURIComponent(page)}/${encodeURIComponent(config.recordKey)}`);
+      loadedRecord = record;
       activeFields.forEach((field) => {
         const element = document.getElementById(`field-${field.name}`);
         const value = get(record, field.name);
@@ -164,6 +169,15 @@
           ? JSON.stringify(value, null, 2)
           : ["date", "datetime-local"].includes(field.type) ? normalizeDateInput(value, field.type) : value;
       });
+      if (page === 'quality-inspections') {
+        ['productionLogId','woId'].forEach(key => { document.getElementById(`field-${key}`).disabled = true; });
+        document.getElementById('field-batchNumber').readOnly = true;
+        const rework = document.getElementById('field-qtyRework');
+        rework.value = 0;
+        rework.readOnly = true;
+        rework.title = 'Qty rework ditentukan melalui judgment NG, bukan input hasil QC.';
+        if (record.status === 'Completed') { submit.disabled = true; show('QC sudah selesai dan tidak dapat diedit.'); }
+      }
     } catch (error) { show(error.message); submit.disabled = true; }
   }
   document.getElementById("production-shared-form").addEventListener("submit", async (event) => {
@@ -177,6 +191,15 @@
         catch (_) { show(`${field.label} harus berupa JSON yang valid.`); return; }
       } else {
         body[field.name] = field.type === "number" ? (raw === "" ? null : Number(raw)) : (raw || null);
+      }
+    }
+    if (page === 'quality-inspections' && config.mode === 'edit') {
+      if (!loadedRecord || loadedRecord.status === 'Completed') return;
+      Object.assign(body, qcSourceFields(loadedRecord));
+      body.qtyRework = 0;
+      if (Math.abs(Number(body.qtyPassed || 0) + Number(body.qtyFailed || 0) - Number(body.qtyInspected || 0)) > 0.000001) {
+        show('Qty OK + Qty NG harus sama dengan Qty Diperiksa.');
+        return;
       }
     }
     submit.disabled = true;

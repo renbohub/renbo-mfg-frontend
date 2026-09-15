@@ -82,12 +82,12 @@ function harness(records = {}, mode = "edit") {
       return { ok: true, status: 200, json: async () => plain(records[key]) };
     },
   });
-  for (const file of ["bom-machine-policy.js", "bom-executor-policy.js", "bom-commercial.js", "bom-canvas-panels.js"]) {
+  for (const file of ["bom-measurements.js", "bom-machine-policy.js", "bom-executor-policy.js", "bom-commercial.js", "bom-canvas-panels.js"]) {
     const filename = path.join(publicJs, file);
     if (fs.existsSync(filename)) vm.runInContext(fs.readFileSync(filename, "utf8"), context, { filename });
     // A real browser's globalThis is window. Keep that alias for UMD helpers
     // while retaining a simple, isolated VM global in the fixture.
-    for (const name of ["BomMachinePolicy", "BomExecutorPolicy", "BomCommercial", "BomCanvasPanels"]) {
+    for (const name of ["BomMeasurements", "BomMachinePolicy", "BomExecutorPolicy", "BomCommercial", "BomCanvasPanels"]) {
       if (context[name]) window[name] = context[name];
       else if (window[name]) context[name] = window[name];
     }
@@ -134,6 +134,8 @@ const processes = [
 const materialFields = {
   materialThickness: 1, materialWidth: 100, materialDensity: 0.000001,
   materialPitch: 50, materialCavity: 2, materialFormId: "form-coil",
+  quotationMaterialThickness: 1.5, quotationMaterialWidth: 90,
+  quotationMaterialPitch: 45, quotationMaterialCavity: 1,
   materialScheme: "ALTERNATIVE", defaultGrossWeight: 0.0025,
   alternateMaterialFormId: "form-sheet", alternateMaterialPitch: 60,
   alternateMaterialCavity: 3, alternateGrossWeight: 0.002, grossWeight: 0.002,
@@ -213,6 +215,14 @@ async function main() {
   const raw = api.state.nodes.find((node) => node.id === "row-customer");
   const purchased = api.state.nodes.find((node) => node.id === "row-supplier");
   const routing = api.state.nodes.find((node) => node.id === "row-routing");
+  assert.equal(raw.quotationMaterialWidth, 90, "load must preserve independent quotation dimensions");
+  assert.equal(api.serializeBomNode(raw).quotationMaterialWidth, 90);
+  assert.equal(api.draftSnapshot().nodes.find((node) => node.clientKey === raw.clientKey).quotationMaterialPitch, 45);
+  api.state.selectedId = raw.id;
+  await change(byId("node-quotation-material"), "105.5", { dataset: { quotationMaterial: "quotationMaterialWidth" } });
+  assert.equal(raw.quotationMaterialWidth, 105.5);
+  assert.equal(raw.materialWidth, materialFields.materialWidth, "quotation edits must not change Actual");
+  await change(byId("node-quotation-material"), "90", { dataset: { quotationMaterial: "quotationMaterialWidth" } });
   assert.equal(raw.materialSupplyType, "CUSTOMER_SUPPLIED", "load canvas must preserve customer material ownership");
   assert.equal(raw.supplyCustomerId, "customer-owner");
   assert.equal(purchased.supplierId, "supplier-bom-override", "BOM supplier must win over part-master supplier");
@@ -416,6 +426,14 @@ async function main() {
   assert.ok(typing.byId("node-cost-breakdown").innerHTML.includes(money210), "cost panel must update without reopening it");
   assert.equal(typingList.innerHTML, listMarkupBefore, "typing must not replace the routing form and move the cursor");
   assert.equal(typingList.controls, controlsBefore, "typing must retain the existing input controls");
+  typingTarget.dataset.processField = "quotationCycleTime";
+  await input(typingList, "2.75", typingTarget);
+  assert.equal(typingNode.processes[0].quotationCycleTime, 2.75);
+  assert.equal(typingNode.processes[0].cycleTime, 5);
+  assert.equal(typing.api.commercial.processCost(typingNode.processes[0], typingNode).value, 210);
+  assert.equal(typing.api.serializeBomNode(typingNode).mbomProcesses[0].quotationCycleTime, 2.75);
+  await change(typingList, "", typingTarget);
+  assert.equal(typingNode.processes[0].quotationCycleTime, null, "blank quotation remains unknown, not zero");
   typingTarget.dataset.processField = "notes";
   const typedNotes = "Check thread before coating\nDo not paint bearing surface";
   await input(typingList, typedNotes, typingTarget);

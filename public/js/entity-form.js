@@ -190,6 +190,7 @@
       else if (field.multiple) {
         const values = (Array.isArray(value) ? value : []).map((item) => typeof item === "object" ? item[field.sourceValueKey || field.lookup?.valueKey || "id"] : item).map(String);
         [...input.options].forEach((option) => option.selected = values.includes(String(option.value)));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
       }
       else if (field.type === "json") input.value = hasStructuredValue(value) ? JSON.stringify(value, null, 2) : "";
       else if (field.type === "date") input.value = toInputDate(value, false);
@@ -220,6 +221,21 @@
 
   async function initialize() {
     try {
+      initializeMultipleChoices();
+      const grade = form.elements.materialGradeId;
+      if (config.slug === 'material-price-lists' && grade) {
+        const syncGrade = () => {
+          const selected = window.EnterpriseLookup?.getSelected(grade);
+          form.elements.thickness.value = selected?.thickness ?? '';
+          const substance = form.elements.materialSubstanceId;
+          if (substance) {
+            window.EnterpriseLookup.clear(substance);
+            if (selected?.substanceId) window.EnterpriseLookup.setSelected(substance, { id: selected.substanceId, text: selected.substance?.substanceName || 'Bahan dari Grade' });
+          }
+        };
+        grade.addEventListener('change', syncGrade);
+        window.jQuery?.(grade).on('select2:select.grade select2:clear.grade', syncGrade);
+      }
       await initializeVendorPriceDetails();
       await Promise.all([...document.querySelectorAll(".lookup-select:not([data-enterprise-lookup])")].map(loadLookup));
       [["material-price-lists", "materialId"], ["part-price-lists", "partId"], ["product-price-lists", "productId"]]
@@ -328,5 +344,25 @@
     finally { saveButton.disabled = priceEditBlocked; saveButton.querySelector("i").classList.add("d-none"); }
   });
 
+  function initializeMultipleChoices() {
+    form.querySelectorAll('select[multiple]:not([data-enterprise-lookup])').forEach(select => {
+      select.classList.add('d-none');
+      const group = document.createElement('div');
+      group.className = 'd-flex flex-wrap gap-2 p-3 border rounded bg-light';
+      group.setAttribute('role', 'group');
+      group.setAttribute('aria-label', config.fields.find(f => f.name === select.name)?.label || select.name);
+      for (const option of select.options) {
+        const label = document.createElement('label');
+        label.className = 'd-flex align-items-center gap-2 border rounded-pill px-3 py-2 bg-white';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox'; checkbox.className = 'form-check-input m-0';
+        checkbox.checked = option.selected;
+        checkbox.addEventListener('change', () => { option.selected = checkbox.checked; select.dispatchEvent(new Event('change', { bubbles: true })); });
+        select.addEventListener('change', () => { checkbox.checked = option.selected; });
+        label.append(checkbox, document.createTextNode(option.textContent)); group.append(label);
+      }
+      select.after(group);
+    });
+  }
   initialize();
 })();

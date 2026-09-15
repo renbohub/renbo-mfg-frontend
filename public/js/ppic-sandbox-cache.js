@@ -4,7 +4,7 @@
   else root.PpicSandboxCache = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
-  const prefix = 'ppic-snapshot:v5:';
+  const prefix = 'ppic-snapshot:v6:';
   // Per-tab session storage: survives page navigation, never shares another user's seed.
   function create(storage, identity, day, now = Date.now) {
     const key = month => prefix + JSON.stringify([identity, day, month]);

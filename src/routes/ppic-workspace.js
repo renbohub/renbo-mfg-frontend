@@ -50,7 +50,7 @@ module.exports = function createPpicWorkspace({ backendUrl, authHeader, common, 
     }
     const locals = {...common(module.slug),title:page.label,module,activePpicTab:page.id==='L04'?'mps':page.slug,initialMonth:selectedFilters.month,initialDate,ppicWorkspacePage:page,ppicWorkspaceRegistry:registry,ppicWorkspaceFilters:selectedFilters};
     const executionPage=['E01','E02','E03','E04','E05'].includes(page.id),followupPage=['E06','E07','E08','E09','E10'].includes(page.id),analyticsPage=page.domain==='analytics' && page.id!=='A09';
-    return res.render(page.id==='L04'?'ppic/planning-sandbox':'ppic/workspace',{...locals,pageScript:page.id==='L04'?'/js/ppic-sandbox.js?v=20260912-workspace-1':page.id==='L10'?'/js/ppic-workspace-release.js?v=20260912-1':executionPage?'/js/ppic-execution-workspace.js?v=20260912-1':followupPage?'/js/ppic-execution-followup.js?v=20260912-1':analyticsPage?'/js/ppic-analytics-workspace.js?v=20260912-1':page.id==='A09'?'/js/ppic-improvement-actions.js?v=20260912-1':'/js/ppic-module-workspace.js?v=20260912-evaluator-5'});
+    return res.render(page.id==='L04'?'ppic/planning-sandbox':'ppic/workspace',{...locals,pageScript:page.id==='L04'?'/js/ppic-sandbox.js?v=20260913-part-number-1':page.id==='L10'?'/js/ppic-workspace-release.js?v=20260912-1':executionPage?'/js/ppic-execution-workspace.js?v=20260913-part-number-1':followupPage?'/js/ppic-execution-followup.js?v=20260912-1':analyticsPage?'/js/ppic-analytics-workspace.js?v=20260913-part-number-1':page.id==='A09'?'/js/ppic-improvement-actions.js?v=20260912-1':'/js/ppic-module-workspace.js?v=20260913-part-number-1'});
   });
   return router;
 };

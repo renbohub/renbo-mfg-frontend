@@ -1,6 +1,10 @@
 /* Transaction document detail language (Vendor Receipt style).
    Shared scope: Goods Receipt detail + Stock Balance detail. */
-.goods-receipt-detail-page,
+.production-material-issue-detail-page .mi-stock-card .ops-collection-head { background: #fff; }
+.production-material-issue-detail-page .mi-stock-table thead th { background: #e9eff6 !important; color: #3e4f67 !important; }
+.production-material-issue-detail-page .mi-stock-table tbody td { height: auto; }
+.production-material-issue-detail-page .mi-qty strong { font-size: 12px; }
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page),
 .stock-balance-detail-page {
   --gr-detail-border: #d8e0eb;
   --gr-detail-ink: #16243a;
@@ -9,13 +13,13 @@
   padding-bottom: 42px;
 }
 
-.goods-receipt-detail-page .module-breadcrumb,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .module-breadcrumb,
 .stock-balance-detail-page .module-breadcrumb {
   margin-bottom: 10px;
   font-size: 10px;
 }
 
-.goods-receipt-detail-page .gr-detail-commandbar,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-commandbar,
 .stock-balance-detail-page .gr-detail-commandbar {
   align-items: flex-start;
   margin: 0;
@@ -24,7 +28,7 @@
   background: transparent;
 }
 
-.goods-receipt-detail-page .gr-detail-commandbar .ops-eyebrow,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-commandbar .ops-eyebrow,
 .stock-balance-detail-page .gr-detail-commandbar .ops-eyebrow {
   margin-bottom: 5px;
   color: #526a91;
@@ -33,7 +37,7 @@
   letter-spacing: .105em;
 }
 
-.goods-receipt-detail-page .gr-detail-commandbar h1,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-commandbar h1,
 .stock-balance-detail-page .gr-detail-commandbar h1 {
   overflow-wrap: anywhere;
   color: var(--gr-detail-ink);
@@ -42,28 +46,28 @@
   line-height: 1.2;
 }
 
-.goods-receipt-detail-page .gr-detail-commandbar > div:first-child > p:last-child,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-commandbar > div:first-child > p:last-child,
 .stock-balance-detail-page .gr-detail-commandbar > div:first-child > p:last-child {
   margin-top: 5px;
   color: #5f718a;
   font-size: .76rem;
 }
 
-.goods-receipt-detail-page .gr-detail-command-actions,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-command-actions,
 .stock-balance-detail-page .gr-detail-command-actions {
   align-items: center;
   flex: 0 0 auto;
   gap: 10px;
 }
 
-.goods-receipt-detail-page .gr-detail-status,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-status,
 .stock-balance-detail-page .gr-detail-status {
   min-width: 108px;
   padding-right: 16px;
   border-right: 1px solid var(--gr-detail-border);
 }
 
-.goods-receipt-detail-page .gr-detail-status small,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-status small,
 .stock-balance-detail-page .gr-detail-status small {
   display: block;
   margin-bottom: 4px;
@@ -74,7 +78,7 @@
   text-transform: uppercase;
 }
 
-.goods-receipt-detail-page .gr-detail-status .ops-badge,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-status .ops-badge,
 .stock-balance-detail-page .gr-detail-status .ops-badge {
   min-height: 23px;
   border: 1px solid #b7dfc7;
@@ -83,7 +87,7 @@
   font-size: .63rem;
 }
 
-.goods-receipt-detail-page .gr-detail-workflow-actions,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-workflow-actions,
 .stock-balance-detail-page .gr-detail-workflow-actions {
   display: flex;
   align-items: center;
@@ -91,18 +95,18 @@
   padding: 0;
 }
 
-.goods-receipt-detail-page .gr-detail-workflow-actions:has(.btn),
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-workflow-actions:has(.btn),
 .stock-balance-detail-page .gr-detail-workflow-actions:has(.btn) {
   padding-right: 2px;
 }
 
-.goods-receipt-detail-page .gr-detail-workflow-actions > small,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-workflow-actions > small,
 .stock-balance-detail-page .gr-detail-workflow-actions > small {
   display: none;
 }
 
-.goods-receipt-detail-page .gr-detail-workflow-actions .btn,
-.goods-receipt-detail-page .gr-detail-command-actions > .btn,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-workflow-actions .btn,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-command-actions > .btn,
 .stock-balance-detail-page .gr-detail-workflow-actions .btn,
 
 .stock-balance-detail-page .gr-detail-command-actions > .btn {
@@ -115,26 +119,26 @@
   white-space: nowrap;
 }
 
-.goods-receipt-detail-page .gr-detail-workflow-actions .btn,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-workflow-actions .btn,
 .stock-balance-detail-page .gr-detail-workflow-actions .btn {
   border-color: var(--gr-detail-accent);
   background: var(--gr-detail-accent);
   color: #fff;
 }
 
-.goods-receipt-detail-page .ops-detail-loading,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .ops-detail-loading,
 .stock-balance-detail-page .ops-detail-loading {
   margin-top: 14px;
   border-radius: 3px;
 }
 
-.goods-receipt-detail-page .gr-detail-shell,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-shell,
 .stock-balance-detail-page .gr-detail-shell {
   display: grid;
   gap: 12px;
 }
 
-.goods-receipt-detail-page .gr-detail-metadata,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata,
 .stock-balance-detail-page .gr-detail-metadata {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -144,16 +148,16 @@
   background: transparent;
 }
 
-.goods-receipt-detail-page .gr-detail-metadata > .ops-detail-fields,
-.goods-receipt-detail-page .gr-detail-metadata > .ops-document-meta,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata > .ops-detail-fields,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata > .ops-document-meta,
 .stock-balance-detail-page .gr-detail-metadata > .ops-detail-fields,
 
 .stock-balance-detail-page .gr-detail-metadata > .ops-document-meta {
   display: contents;
 }
 
-.goods-receipt-detail-page .gr-detail-metadata .ops-detail-fields > div,
-.goods-receipt-detail-page .gr-detail-metadata .ops-document-meta > div,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata .ops-detail-fields > div,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata .ops-document-meta > div,
 .stock-balance-detail-page .gr-detail-metadata .ops-detail-fields > div,
 
 .stock-balance-detail-page .gr-detail-metadata .ops-document-meta > div {
@@ -165,8 +169,8 @@
   background: transparent;
 }
 
-.goods-receipt-detail-page .gr-detail-metadata .ops-detail-fields small,
-.goods-receipt-detail-page .gr-detail-metadata .ops-document-meta span,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata .ops-detail-fields small,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata .ops-document-meta span,
 .stock-balance-detail-page .gr-detail-metadata .ops-detail-fields small,
 
 .stock-balance-detail-page .gr-detail-metadata .ops-document-meta span {
@@ -179,8 +183,8 @@
   text-transform: uppercase;
 }
 
-.goods-receipt-detail-page .gr-detail-metadata .ops-detail-fields strong,
-.goods-receipt-detail-page .gr-detail-metadata .ops-document-meta strong,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata .ops-detail-fields strong,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata .ops-document-meta strong,
 .stock-balance-detail-page .gr-detail-metadata .ops-detail-fields strong,
 
 .stock-balance-detail-page .gr-detail-metadata .ops-document-meta strong {
@@ -193,24 +197,24 @@
   text-align: left;
 }
 
-.goods-receipt-detail-page .gr-detail-metadata .ops-detail-fields a,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata .ops-detail-fields a,
 .stock-balance-detail-page .gr-detail-metadata .ops-detail-fields a {
   color: #4f46e5;
   text-decoration: none;
 }
 
-.goods-receipt-detail-page .gr-detail-metadata .ops-detail-fields a:hover,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata .ops-detail-fields a:hover,
 .stock-balance-detail-page .gr-detail-metadata .ops-detail-fields a:hover {
   text-decoration: underline;
 }
 
-.goods-receipt-detail-page .gr-detail-metadata .mpp-reference-list,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata .mpp-reference-list,
 .stock-balance-detail-page .gr-detail-metadata .mpp-reference-list {
   display: block;
   min-width: 0;
 }
 
-.goods-receipt-detail-page .gr-detail-metadata .mpp-reference-link,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata .mpp-reference-link,
 .stock-balance-detail-page .gr-detail-metadata .mpp-reference-link {
   display: inline;
   padding: 0;
@@ -220,15 +224,15 @@
   text-decoration: none;
 }
 
-.goods-receipt-detail-page .gr-detail-metadata .mpp-reference-link span,
-.goods-receipt-detail-page .gr-detail-metadata .mpp-reference-link i,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata .mpp-reference-link span,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata .mpp-reference-link i,
 .stock-balance-detail-page .gr-detail-metadata .mpp-reference-link span,
 
 .stock-balance-detail-page .gr-detail-metadata .mpp-reference-link i {
   display: none;
 }
 
-.goods-receipt-detail-page .gr-detail-metadata .mpp-reference-link b,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata .mpp-reference-link b,
 .stock-balance-detail-page .gr-detail-metadata .mpp-reference-link b {
   overflow: visible;
   color: inherit;
@@ -237,19 +241,19 @@
   white-space: normal;
 }
 
-.goods-receipt-detail-page .gr-detail-metadata .ops-more-fields,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata .ops-more-fields,
 .stock-balance-detail-page .gr-detail-metadata .ops-more-fields {
   grid-column: 1 / -1;
 }
 
-.goods-receipt-detail-page .gr-detail-collections,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections,
 .stock-balance-detail-page .gr-detail-collections {
   display: grid;
   gap: 12px;
   min-width: 0;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .ops-detail-card,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-detail-card,
 .stock-balance-detail-page .gr-detail-collections .ops-detail-card {
   overflow: hidden;
   border: 1px solid #b9c4d2;
@@ -258,7 +262,7 @@
   box-shadow: none;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .ops-collection-head,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-collection-head,
 .stock-balance-detail-page .gr-detail-collections .ops-collection-head {
   min-height: 46px;
   padding: 8px 16px;
@@ -266,22 +270,22 @@
   background: #fff;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .ops-collection-head h2,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-collection-head h2,
 .stock-balance-detail-page .gr-detail-collections .ops-collection-head h2 {
   color: #1d304c;
   font-size: .84rem;
   font-weight: 800;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .ops-collection-head p,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-collection-head p,
 .stock-balance-detail-page .gr-detail-collections .ops-collection-head p {
   margin: 3px 0 0;
   color: #7b8798;
   font-size: .6rem;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .ops-collection-head > span,
-.goods-receipt-detail-page .gr-detail-collections .ops-related-summary-meta span,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-collection-head > span,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-related-summary-meta span,
 .stock-balance-detail-page .gr-detail-collections .ops-collection-head > span,
 
 .stock-balance-detail-page .gr-detail-collections .ops-related-summary-meta span {
@@ -294,19 +298,19 @@
   text-transform: uppercase;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .erp-table-commandbar,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .erp-table-commandbar,
 .stock-balance-detail-page .gr-detail-collections .erp-table-commandbar {
   display: none !important;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .table-responsive,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .table-responsive,
 .stock-balance-detail-page .gr-detail-collections .table-responsive {
   overflow: auto;
   border: 0;
   background: #fff;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .ops-collection-table,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-collection-table,
 .stock-balance-detail-page .gr-detail-collections .ops-collection-table {
   width: 100%;
   min-width: 980px;
@@ -315,7 +319,7 @@
   border-spacing: 0;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .ops-collection-table thead th,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-collection-table thead th,
 .stock-balance-detail-page .gr-detail-collections .ops-collection-table thead th {
   height: 34px;
   padding: 7px 9px !important;
@@ -329,7 +333,7 @@
   text-transform: uppercase;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .ops-collection-table tbody td,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-collection-table tbody td,
 .stock-balance-detail-page .gr-detail-collections .ops-collection-table tbody td {
   height: 42px;
   padding: 6px 9px !important;
@@ -341,25 +345,25 @@
   vertical-align: middle;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .ops-collection-table th:last-child,
-.goods-receipt-detail-page .gr-detail-collections .ops-collection-table td:last-child,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-collection-table th:last-child,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-collection-table td:last-child,
 .stock-balance-detail-page .gr-detail-collections .ops-collection-table th:last-child,
 
 .stock-balance-detail-page .gr-detail-collections .ops-collection-table td:last-child {
   border-right: 0;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .ops-collection-table tbody tr:last-child td,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-collection-table tbody tr:last-child td,
 .stock-balance-detail-page .gr-detail-collections .ops-collection-table tbody tr:last-child td {
   border-bottom: 0;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .ops-collection-table tbody tr:hover td,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-collection-table tbody tr:hover td,
 .stock-balance-detail-page .gr-detail-collections .ops-collection-table tbody tr:hover td {
   background: #f8fafc;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .gr-detail-grip-column,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .gr-detail-grip-column,
 .stock-balance-detail-page .gr-detail-collections .gr-detail-grip-column {
   width: 38px;
   min-width: 38px;
@@ -369,7 +373,7 @@
   text-align: center;
 }
 
-.goods-receipt-detail-page .gr-detail-row-grip,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-row-grip,
 .stock-balance-detail-page .gr-detail-row-grip {
   display: inline-grid;
   grid-template-columns: repeat(2, 3px);
@@ -381,7 +385,7 @@
   color: #7c899c;
 }
 
-.goods-receipt-detail-page .gr-detail-row-grip i,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-row-grip i,
 .stock-balance-detail-page .gr-detail-row-grip i {
   width: 3px;
   height: 3px;
@@ -389,45 +393,45 @@
   background: currentColor;
 }
 
-.goods-receipt-detail-page .gr-detail-collections tbody tr:hover .gr-detail-row-grip,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections tbody tr:hover .gr-detail-row-grip,
 .stock-balance-detail-page .gr-detail-collections tbody tr:hover .gr-detail-row-grip {
   color: var(--gr-detail-accent);
   background: #eef3ff;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .ops-secondary-card,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-secondary-card,
 .stock-balance-detail-page .gr-detail-collections .ops-secondary-card {
   border-color: #d4dce6;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .ops-object-fields,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-object-fields,
 .stock-balance-detail-page .gr-detail-collections .ops-object-fields {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   background: #dfe5ec;
 }
 
-.goods-receipt-detail-page .gr-detail-collections .ops-object-fields > div,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-object-fields > div,
 .stock-balance-detail-page .gr-detail-collections .ops-object-fields > div {
   min-height: 58px;
   padding: 10px 12px;
 }
 
 @media (max-width: 1000px) {
-  .goods-receipt-detail-page .gr-detail-metadata,
+  :is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata,
 
   .stock-balance-detail-page .gr-detail-metadata {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 26px;
   }
 
-  .goods-receipt-detail-page .gr-detail-collections .ops-object-fields,
+  :is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-object-fields,
   .stock-balance-detail-page .gr-detail-collections .ops-object-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 700px) {
-  .goods-receipt-detail-page .gr-detail-commandbar,
+  :is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-commandbar,
 
   .stock-balance-detail-page .gr-detail-commandbar {
     align-items: stretch;
@@ -435,13 +439,13 @@
     gap: 14px;
   }
 
-  .goods-receipt-detail-page .gr-detail-command-actions,
+  :is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-command-actions,
   .stock-balance-detail-page .gr-detail-command-actions {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .goods-receipt-detail-page .gr-detail-status,
+  :is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-status,
   .stock-balance-detail-page .gr-detail-status {
     grid-column: 1 / -1;
     padding: 0 0 9px;
@@ -449,20 +453,20 @@
     border-bottom: 1px solid var(--gr-detail-border);
   }
 
-  .goods-receipt-detail-page .gr-detail-metadata,
+  :is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-metadata,
   .stock-balance-detail-page .gr-detail-metadata {
     grid-template-columns: 1fr;
     gap: 0;
   }
 
-  .goods-receipt-detail-page .gr-detail-collections .ops-object-fields,
+  :is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-collections .ops-object-fields,
   .stock-balance-detail-page .gr-detail-collections .ops-object-fields {
     grid-template-columns: 1fr;
   }
 }
 
 /* Goods Receipt · tabbed operational workspace */
-.goods-receipt-detail-page .gr-detail-tabs-workspace,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabs-workspace,
 
 .stock-balance-detail-page .gr-detail-tabs-workspace {
   min-width: 0;
@@ -472,7 +476,7 @@
   background: #fff;
 }
 
-.goods-receipt-detail-page .gr-detail-tabs,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabs,
 .stock-balance-detail-page .gr-detail-tabs {
   display: flex;
   min-height: 42px;
@@ -482,7 +486,7 @@
   scrollbar-width: thin;
 }
 
-.goods-receipt-detail-page .gr-detail-tabs button,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabs button,
 .stock-balance-detail-page .gr-detail-tabs button {
   position: relative;
   flex: 0 0 auto;
@@ -499,7 +503,7 @@
   white-space: nowrap;
 }
 
-.goods-receipt-detail-page .gr-detail-tabs button::before,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabs button::before,
 .stock-balance-detail-page .gr-detail-tabs button::before {
   position: absolute;
   top: 0;
@@ -510,19 +514,19 @@
   content: "";
 }
 
-.goods-receipt-detail-page .gr-detail-tabs button:hover,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabs button:hover,
 .stock-balance-detail-page .gr-detail-tabs button:hover { background: #eef3f9; color: #284269; }
-.goods-receipt-detail-page .gr-detail-tabs button.is-active,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabs button.is-active,
 
 .stock-balance-detail-page .gr-detail-tabs button.is-active { background: #fff; color: #203f79; font-weight: 850; }
-.goods-receipt-detail-page .gr-detail-tabs button.is-active::before,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabs button.is-active::before,
 
 .stock-balance-detail-page .gr-detail-tabs button.is-active::before { background: var(--gr-detail-accent); }
-.goods-receipt-detail-page .gr-detail-tabs button:focus-visible,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabs button:focus-visible,
 
 .stock-balance-detail-page .gr-detail-tabs button:focus-visible { box-shadow: inset 0 0 0 2px rgb(49 88 212 / 24%); }
 
-.goods-receipt-detail-page .gr-detail-tab-panel,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tab-panel,
 .stock-balance-detail-page .gr-detail-tab-panel {
   margin: 0;
   border: 0 !important;
@@ -530,16 +534,16 @@
   box-shadow: none !important;
 }
 
-.goods-receipt-detail-page .gr-detail-tab-panel[hidden],
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tab-panel[hidden],
 .stock-balance-detail-page .gr-detail-tab-panel[hidden] { display: none !important; }
-.goods-receipt-detail-page .gr-detail-tab-panel .ops-collection-head,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tab-panel .ops-collection-head,
 
 .stock-balance-detail-page .gr-detail-tab-panel .ops-collection-head { min-height: 50px; }
-.goods-receipt-detail-page .gr-detail-tab-panel .ops-collection-head p,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tab-panel .ops-collection-head p,
 
 .stock-balance-detail-page .gr-detail-tab-panel .ops-collection-head p { margin: 0 0 2px; color: #526a91; font-size: .56rem; font-weight: 900; letter-spacing: .09em; }
 
-.goods-receipt-detail-page .gr-detail-tabulator.tabulator,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabulator.tabulator,
 .stock-balance-detail-page .gr-detail-tabulator.tabulator {
   min-height: 96px;
   border: 0;
@@ -549,7 +553,7 @@
   font-size: .67rem;
 }
 
-.goods-receipt-detail-page .gr-detail-tabulator .tabulator-header,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabulator .tabulator-header,
 .stock-balance-detail-page .gr-detail-tabulator .tabulator-header {
   border-top: 1px solid #d4dce7;
   border-bottom: 1px solid #becbdc;
@@ -557,44 +561,44 @@
   color: #3e4f67;
 }
 
-.goods-receipt-detail-page .gr-detail-tabulator .tabulator-header .tabulator-col,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabulator .tabulator-header .tabulator-col,
 .stock-balance-detail-page .gr-detail-tabulator .tabulator-header .tabulator-col {
   min-height: 34px;
   border-right: 1px solid #c9d4e1;
   background: #e9eff6;
 }
 
-.goods-receipt-detail-page .gr-detail-tabulator .tabulator-header .tabulator-col-content,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabulator .tabulator-header .tabulator-col-content,
 .stock-balance-detail-page .gr-detail-tabulator .tabulator-header .tabulator-col-content { padding: 8px 10px; }
-.goods-receipt-detail-page .gr-detail-tabulator .tabulator-col-title,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabulator .tabulator-col-title,
 
 .stock-balance-detail-page .gr-detail-tabulator .tabulator-col-title { overflow: hidden; font-size: .59rem; font-weight: 850; letter-spacing: .035em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
-.goods-receipt-detail-page .gr-detail-tabulator .tabulator-row,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabulator .tabulator-row,
 
 .stock-balance-detail-page .gr-detail-tabulator .tabulator-row { min-height: 48px; border-bottom: 1px solid #dbe3ed; background: #fff; }
-.goods-receipt-detail-page .gr-detail-tabulator .tabulator-row:hover,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabulator .tabulator-row:hover,
 
 .stock-balance-detail-page .gr-detail-tabulator .tabulator-row:hover { background: #f8faff; }
-.goods-receipt-detail-page .gr-detail-tabulator .tabulator-row .tabulator-cell,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabulator .tabulator-row .tabulator-cell,
 
 .stock-balance-detail-page .gr-detail-tabulator .tabulator-row .tabulator-cell { display: inline-flex; align-items: center; min-height: 48px; padding: 7px 10px; border-right: 1px solid #dbe3ed; background: inherit; line-height: 1.2; }
-.goods-receipt-detail-page .gr-detail-tabulator .tabulator-cell.tabulator-frozen,
-.goods-receipt-detail-page .gr-detail-tabulator .tabulator-col.tabulator-frozen,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabulator .tabulator-cell.tabulator-frozen,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabulator .tabulator-col.tabulator-frozen,
 
 .stock-balance-detail-page .gr-detail-tabulator .tabulator-cell.tabulator-frozen,
 
 .stock-balance-detail-page .gr-detail-tabulator .tabulator-col.tabulator-frozen { background: #f7f9fc; box-shadow: 3px 0 5px rgb(36 54 78 / 7%); }
-.goods-receipt-detail-page .gr-detail-tabulator .tabulator-cell.is-identity b,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabulator .tabulator-cell.is-identity b,
 
 .stock-balance-detail-page .gr-detail-tabulator .tabulator-cell.is-identity b { overflow: hidden; color: #1d438f; font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
-.goods-receipt-detail-page .gr-detail-tabulator .tabulator-tableholder,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabulator .tabulator-tableholder,
 
 .stock-balance-detail-page .gr-detail-tabulator .tabulator-tableholder { overflow-x: auto; }
-.goods-receipt-detail-page .gr-detail-tabulator .tabulator-placeholder,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabulator .tabulator-placeholder,
 
 .stock-balance-detail-page .gr-detail-tabulator .tabulator-placeholder { min-height: 64px; color: #7b8798; }
 
-.goods-receipt-detail-page .gr-detail-quantity,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-quantity,
 .stock-balance-detail-page .gr-detail-quantity {
   display: inline-flex;
   align-items: baseline;
@@ -604,14 +608,14 @@
   font-variant-numeric: tabular-nums;
 }
 
-.goods-receipt-detail-page .gr-detail-quantity b,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-quantity b,
 .stock-balance-detail-page .gr-detail-quantity b { color: #172c4b; font-size: .7rem; }
-.goods-receipt-detail-page .gr-detail-quantity em,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-quantity em,
 
 .stock-balance-detail-page .gr-detail-quantity em { color: #718096; font-size: .55rem; font-style: normal; font-weight: 800; text-transform: uppercase; }
 
 /* Same discussion language as Vendor Receipt, scoped to GR and Stock Balance detail. */
-.goods-receipt-detail-page .vendor-receipt-discussion {
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion {
   overflow: hidden;
   margin-top: 14px;
   padding: 0;
@@ -621,107 +625,107 @@
   box-shadow: 0 2px 8px rgb(20 39 68 / 3%);
 }
 
-.goods-receipt-detail-page .vendor-receipt-discussion .document-comments__head,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__head,
 .stock-balance-detail-page .vendor-receipt-discussion .document-comments__head { align-items: center; padding: 18px 22px 14px; }
-.goods-receipt-detail-page .vendor-receipt-discussion .document-comments__head p,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__head p,
 
 .stock-balance-detail-page .vendor-receipt-discussion .document-comments__head p { margin: 0 0 5px; color: #3158d4; font-size: .63rem; font-weight: 900; letter-spacing: .11em; }
-.goods-receipt-detail-page .vendor-receipt-discussion .document-comments__head h2,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__head h2,
 
 .stock-balance-detail-page .vendor-receipt-discussion .document-comments__head h2 { color: #142238; font-size: 1rem; font-weight: 800; }
-.goods-receipt-detail-page .vendor-receipt-discussion .document-comments__head > span,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__head > span,
 
 .stock-balance-detail-page .vendor-receipt-discussion .document-comments__head > span { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px; background: #f0f3f7; color: #26354b; font-size: .68rem; font-weight: 750; }
-.goods-receipt-detail-page .vendor-receipt-discussion .document-comments__head .ui-icon,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__head .ui-icon,
 
 .stock-balance-detail-page .vendor-receipt-discussion .document-comments__head .ui-icon { width: 15px; height: 15px; color: #63738b; fill: none; stroke: currentColor; stroke-width: 1.7; }
-.goods-receipt-detail-page .vendor-receipt-discussion .document-comments__form,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__form,
 
 .stock-balance-detail-page .vendor-receipt-discussion .document-comments__form { padding: 0 22px 16px; }
-.goods-receipt-detail-page .vendor-receipt-discussion .document-comments__form textarea,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__form textarea,
 
 .stock-balance-detail-page .vendor-receipt-discussion .document-comments__form textarea { width: 100%; min-height: 84px; padding: 11px 13px; resize: vertical; border: 1px solid #cfd8e4; border-radius: 4px; outline: 0; background: #fff; color: #26354b; font-size: .74rem; line-height: 1.5; }
-.goods-receipt-detail-page .vendor-receipt-discussion .document-comments__form textarea:focus,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__form textarea:focus,
 
 .stock-balance-detail-page .vendor-receipt-discussion .document-comments__form textarea:focus { border-color: #5b7bd8; box-shadow: 0 0 0 2px rgb(49 88 212 / 10%); }
-.goods-receipt-detail-page .vendor-receipt-discussion .document-comments__form > div,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__form > div,
 
 .stock-balance-detail-page .vendor-receipt-discussion .document-comments__form > div { align-items: center; margin-top: 8px; }
-.goods-receipt-detail-page .vendor-receipt-discussion .document-comments__form small,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__form small,
 
 .stock-balance-detail-page .vendor-receipt-discussion .document-comments__form small { display: inline-flex; align-items: center; gap: 7px; color: #60718a; font-size: .65rem; }
-.goods-receipt-detail-page .vendor-receipt-discussion .document-comments__info,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__info,
 
 .stock-balance-detail-page .vendor-receipt-discussion .document-comments__info { display: inline-grid; width: 15px; height: 15px; place-items: center; border: 1px solid #71819a; border-radius: 50%; color: #52637c; font-size: .55rem; font-weight: 850; }
-.goods-receipt-detail-page .vendor-receipt-discussion .document-comments__form .btn,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__form .btn,
 
 .stock-balance-detail-page .vendor-receipt-discussion .document-comments__form .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 140px; min-height: 36px; border-color: #2555d9; border-radius: 4px; background: #2555d9; font-size: .68rem; font-weight: 800; }
-.goods-receipt-detail-page .vendor-receipt-discussion .document-comments__form .btn .ui-icon,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__form .btn .ui-icon,
 
 .stock-balance-detail-page .vendor-receipt-discussion .document-comments__form .btn .ui-icon { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; }
-.goods-receipt-detail-page .vendor-receipt-discussion .document-comments__list,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__list,
 
 .stock-balance-detail-page .vendor-receipt-discussion .document-comments__list { overflow: hidden; margin: 0; padding: 10px 20px 20px; border-top: 1px solid #dce3eb; background: #fbfcfe; }
-.goods-receipt-detail-page .vendor-receipt-discussion .page-context-entry,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .page-context-entry,
 
 .stock-balance-detail-page .vendor-receipt-discussion .page-context-entry { display: grid; grid-template-columns: 40px minmax(0, 1fr) 18px; gap: 12px; margin: 0; padding: 16px 18px; border: 1px solid #dce3eb; border-bottom: 0; border-left: 1px solid #dce3eb; border-radius: 0; background: #fff; box-shadow: none; }
-.goods-receipt-detail-page .vendor-receipt-discussion .page-context-entry:first-child,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .page-context-entry:first-child,
 
 .stock-balance-detail-page .vendor-receipt-discussion .page-context-entry:first-child { border-radius: 7px 7px 0 0; }
-.goods-receipt-detail-page .vendor-receipt-discussion .page-context-entry:last-child,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .page-context-entry:last-child,
 
 .stock-balance-detail-page .vendor-receipt-discussion .page-context-entry:last-child { border-bottom: 1px solid #dce3eb; border-radius: 0 0 7px 7px; }
-.goods-receipt-detail-page .vendor-receipt-discussion .page-context-entry:only-child,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .page-context-entry:only-child,
 
 .stock-balance-detail-page .vendor-receipt-discussion .page-context-entry:only-child { border-radius: 7px; }
-.goods-receipt-detail-page .vendor-receipt-discussion .page-context-entry-avatar,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .page-context-entry-avatar,
 
 .stock-balance-detail-page .vendor-receipt-discussion .page-context-entry-avatar { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 50%; background: #dce7ff; color: #2456ca; font-size: .72rem; font-weight: 850; }
-.goods-receipt-detail-page .vendor-receipt-discussion .page-context-entry-menu,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .page-context-entry-menu,
 
 .stock-balance-detail-page .vendor-receipt-discussion .page-context-entry-menu { display: block; color: #52637b; font-size: 1rem; font-weight: 800; text-align: center; }
-.goods-receipt-detail-page .vendor-receipt-discussion .page-context-entry-head,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .page-context-entry-head,
 
 .stock-balance-detail-page .vendor-receipt-discussion .page-context-entry-head { align-items: center; margin: 0 0 4px; }
-.goods-receipt-detail-page .vendor-receipt-discussion .page-context-entry-head strong,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .page-context-entry-head strong,
 
 .stock-balance-detail-page .vendor-receipt-discussion .page-context-entry-head strong { color: #142238; font-size: .73rem; }
-.goods-receipt-detail-page .vendor-receipt-discussion .page-context-entry-head time,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .page-context-entry-head time,
 
 .stock-balance-detail-page .vendor-receipt-discussion .page-context-entry-head time { color: #64748b; font-size: .63rem; }
-.goods-receipt-detail-page .vendor-receipt-discussion .page-context-entry-body > p,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .page-context-entry-body > p,
 
 .stock-balance-detail-page .vendor-receipt-discussion .page-context-entry-body > p { color: #475569; font-size: .71rem; line-height: 1.45; }
-.goods-receipt-detail-page .vendor-receipt-discussion .page-context-entry-meta,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .page-context-entry-meta,
 
 .stock-balance-detail-page .vendor-receipt-discussion .page-context-entry-meta { margin-top: 7px; }
-.goods-receipt-detail-page .vendor-receipt-discussion .page-context-record-chip,
+:is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .page-context-record-chip,
 
 .stock-balance-detail-page .vendor-receipt-discussion .page-context-record-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 6px; background: #eef3fb; color: #315b9d; font-size: .61rem; font-weight: 700; text-decoration: none; }
 
 @media (max-width: 700px) {
-  .goods-receipt-detail-page .gr-detail-tabs button,
+  :is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabs button,
 
   .stock-balance-detail-page .gr-detail-tabs button { min-width: 132px; padding-right: 14px; padding-left: 14px; }
-  .goods-receipt-detail-page .gr-detail-tabs-workspace,
+  :is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .gr-detail-tabs-workspace,
 
   .stock-balance-detail-page .gr-detail-tabs-workspace { border-right: 0; border-left: 0; border-radius: 0; }
-  .goods-receipt-detail-page .vendor-receipt-discussion .document-comments__head,
+  :is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__head,
 
   .stock-balance-detail-page .vendor-receipt-discussion .document-comments__head { align-items: flex-start; padding: 15px 14px 12px; }
-  .goods-receipt-detail-page .vendor-receipt-discussion .document-comments__form,
+  :is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__form,
 
   .stock-balance-detail-page .vendor-receipt-discussion .document-comments__form { padding: 0 14px 14px; }
-  .goods-receipt-detail-page .vendor-receipt-discussion .document-comments__form > div,
+  :is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__form > div,
 
   .stock-balance-detail-page .vendor-receipt-discussion .document-comments__form > div { align-items: stretch; }
-  .goods-receipt-detail-page .vendor-receipt-discussion .document-comments__form .btn,
+  :is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__form .btn,
 
   .stock-balance-detail-page .vendor-receipt-discussion .document-comments__form .btn { width: 100%; }
-  .goods-receipt-detail-page .vendor-receipt-discussion .document-comments__list,
+  :is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .document-comments__list,
 
   .stock-balance-detail-page .vendor-receipt-discussion .document-comments__list { padding: 8px 10px 12px; }
-  .goods-receipt-detail-page .vendor-receipt-discussion .page-context-entry,
+  :is(.goods-receipt-detail-page, .purchasing-document-page, .production-log-detail-page, .qc-inspection-detail-page, .fg-receipt-page, .manufacturing-order-detail-page, .production-material-issue-detail-page, .vendor-delivery-detail-page) .vendor-receipt-discussion .page-context-entry,
 
   .stock-balance-detail-page .vendor-receipt-discussion .page-context-entry { grid-template-columns: 34px minmax(0, 1fr) 14px; gap: 9px; padding: 13px 11px; }
 }

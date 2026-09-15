@@ -1,8 +1,9 @@
 (function () {
+  // Login validates the saved token before deciding where to redirect.
+  if (/^\/login\/?$/.test(location.pathname)) return;
   const raw = localStorage.getItem("user") || sessionStorage.getItem("user");
   let user = {};
   try { user = raw ? JSON.parse(raw) : {}; } catch { user = {}; }
-  if (user.partnerAccess) { location.replace('/partner-portal'); return; }
   const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9*]/g, "");
   const pageAliases = {
     "outgoing/scan": "delivery-schedules",
@@ -99,9 +100,18 @@
   }));
   const activeToken = localStorage.getItem("token") || sessionStorage.getItem("token");
   if (activeToken) fetch("/auth/api/profile", { headers: { Authorization: `Bearer ${activeToken}` } })
-    .then((response) => response.ok ? response.json() : null)
+    .then((response) => {
+      if (response.status === 401 && activeToken === (localStorage.getItem("token") || sessionStorage.getItem("token"))) {
+        for (const storage of [localStorage, sessionStorage]) {
+          storage.removeItem("token"); storage.removeItem("user");
+        }
+        location.replace("/login?next=" + encodeURIComponent(location.pathname + location.search));
+        return null;
+      }
+      return response.ok ? response.json() : null;
+    })
     .then((profile) => {
-      if (profile) {
+      if (profile && activeToken === (localStorage.getItem("token") || sessionStorage.getItem("token"))) {
         user = profile;
         const storage = localStorage.getItem("token") ? localStorage : sessionStorage;
         storage.setItem("user", JSON.stringify(user));

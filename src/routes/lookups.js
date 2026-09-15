@@ -57,7 +57,7 @@ function normalizeLookupPayload(payload, config, page = 1, pageSize = 25) {
   const rows = rowsFromPayload(payload, config.resultPaths);
   const results = rows.map((record) => {
     const id = nestedValue(record, config.valueKey);
-    const code = String(firstValue(record, config.codeKeys) || "").trim();
+    const code = config.joinCodeKeys ? config.codeKeys.map(key => nestedValue(record, key)).filter(Boolean).join(' - ') : String(firstValue(record, config.codeKeys) || "").trim();
     const name = String(firstValue(record, config.nameKeys) || "").trim();
     const meta = String(firstValue(record, config.metaKeys) || "").trim();
     const data = selectedData(record, config.dataKeys);

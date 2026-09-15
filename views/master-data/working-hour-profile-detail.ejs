@@ -1,5 +1,5 @@
 <%- include('../partials/head') %>
-<link rel="stylesheet" href="/css/working-hour-profile-master.css?v=20260824-enterprise-1">
+<link rel="stylesheet" href="/css/working-hour-profile-master.css?v=20260915-weekend-1">
 <%- include('../partials/header-master') %>
 <main class="wh-master-page wh-detail-page app-container transaction-detail-page">
   <%- include('../partials/document-shell', { documentShell: { variant: 'master', eyebrow: 'Master Data · Capacity Calendar', number: recordKey, title: 'Detail Working Hours', titleId: 'wh-detail-code', subtitle: 'Memuat Working Hour Profile...', subtitleId: 'wh-detail-name', status: 'MEMUAT', statusId: 'wh-detail-status', actions: '<a id="wh-detail-edit" class="btn btn-primary brand-button" href="#">Edit Working Hours</a>', backHref: '/master-data/working-hour-profiles', breadcrumbHtml: '<a href="/master-data/working-hour-profiles">Working Hours</a><span>/</span><strong>Detail</strong>' } }) %>
@@ -12,5 +12,5 @@
   <%- include('../partials/document-comments', { documentComments: { recordKey, title: 'Komentar Working Hour Profile', variant: 'receipt' } }) %>
 </main>
 <script id="wh-config" type="application/json"><%- JSON.stringify({ config, recordKey }).replace(/</g, '\u003c') %></script>
-<script src="/js/working-hour-profile-model.js?v=20260824-enterprise-1"></script>
+<script src="/js/working-hour-profile-model.js?v=20260915-weekend-1"></script>
 <%- include('../partials/footer') %>

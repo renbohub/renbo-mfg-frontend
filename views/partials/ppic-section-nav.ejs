@@ -1,0 +1,23 @@
+<%
+  const ppicNavActive = typeof activePage !== 'undefined' ? activePage : typeof activePpicTab !== 'undefined' ? activePpicTab : '';
+  const ppicNavWorkspace = typeof ppicWorkspacePage !== 'undefined' ? ppicWorkspacePage : null;
+  const ppicNavGroup = ['preparation','released','control'].includes(ppicNavActive) ? ppicNavActive
+    : ppicNavWorkspace?.domain === 'labs' ? 'preparation'
+    : ppicNavWorkspace?.domain === 'execution' ? 'released' : 'control';
+  const ppicNavMonth = typeof initialMonth !== 'undefined' ? initialMonth
+    : typeof ppicWorkspaceFilters !== 'undefined' ? ppicWorkspaceFilters.month : '';
+  const ppicNavQuery = /^20\d{2}-(0[1-9]|1[0-2])$/.test(ppicNavMonth) ? '?month='+ppicNavMonth : '';
+%>
+<link rel="stylesheet" href="/css/ppic-sections.css?v=20260915-structure-1">
+<script defer src="/js/ppic-sections.js?v=20260915-structure-1"></script>
+<script src="/js/ppic-language.js?v=20260910-layout-1"></script>
+<script src="/js/ppic-calendar-model.js?v=20260909-r3"></script>
+<link rel="stylesheet" href="/css/ppic-calendar.css?v=20260909-r3">
+<% if (ppicNavWorkspace) { %><link rel="stylesheet" href="/css/ppic-module-workspace.css?v=20260912-evaluator-4"><% } %>
+<nav class="module-subnav ppic-workspace-nav ppic-section-nav" aria-label="Menu PPIC">
+  <div class="app-container ppic-section-links">
+    <% for(const item of module.pages.filter(item=>['preparation','released','control'].includes(item.slug))) { %>
+    <a data-ppic-section="<%= item.slug %>" href="/modules/planning-ppic/<%= item.slug %><%= ppicNavQuery %>" class="<%= ppicNavGroup===item.slug?'active':'' %>" <% if(ppicNavGroup===item.slug){ %>aria-current="page"<% } %>><span class="ppic-section-code"><%= item.code %></span><span><%= item.label %></span></a>
+    <% } %>
+  </div>
+</nav>

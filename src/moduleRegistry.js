@@ -59,10 +59,12 @@ const modules = [
     description: "Consume Daily Production Plan dari PPIC dengan referensi MO dan Material Issue.", color: "orange",
     pages: [
       dashboardPage("Production Dashboard", "Perbandingan daily production plan dan actual output per bulan."),
+      page("monthly-plan", "Monthly Plan · PPIC", "Rencana bulanan dari PPIC Released", "/api/planning/preparation/released?view=monthly", "id", []),
+      page("daily-plan", "Daily Plan · PPIC", "Jadwal harian dari PPIC Released", "/api/planning/preparation/released?view=daily", "id", []),
       { ...page("oee-monitoring", "Monitoring OEE", "Efektivitas mesin, output produksi, dan history downtime per mesin", "/api/production/production-reports/oee-monitoring", "id", []), icon: "chart", kind: "monitoring" },
       page("daily-production-schedules", "Daily Production Schedule", "Schedule harian tim produksi berdasarkan alokasi PPIC", "/api/production/daily-production-schedules", "scheduleNumber", [col("scheduleNumber", "No. Schedule"), col("scheduleDate", "Tanggal", "date"), col("shift", "Shift"), col("machineCode", "Mesin"), col("processName", "Proses"), col("partCode", "Part"), col("plannedQty", "Target", "number"), col("actualQty", "Aktual", "number"), col("status", "Status", "status")]),
       page("manufacturing-orders", "MO Reference", "Referensi Manufacturing Order dari PPIC; bukan titik pembuatan jadwal harian", "/api/production/manufacturing-orders", "moNumber", productionOrderColumns()),
-      page("material-issues", "Material Issue Reference", "Referensi Material Issue yang terbentuk saat Daily Production Plan dikonsumsi", "/api/production/material-issues", "issueNumber", [col("issueNumber", "No. Issue"), col("issueDate", "Tanggal", "date"), col("manufacturingOrder.moNumber", "MO"), col("workOrder.woNumber", "WO"), col("warehouseCode", "Warehouse"), col("issuedBy", "Issued By"), col("status", "Status", "status")]),
+      page("material-issues", "Material Issue Reference", "Referensi Material Issue yang terbentuk saat Daily Production Plan dikonsumsi", "/api/production/material-issues", "issueNumber", [col("issueNumber", "No. Issue"), col("issueDate", "Tanggal Issue", "date"), col("productionDate", "Tanggal Produksi", "date"), col("productionPartCode", "Part Produksi"), col("productionPartNumber", "Part Number"), col("productionPartName", "Nama Part"), col("requiredMachineLabel", "Mesin"), col("manufacturingOrder.moNumber", "MO"), col("workOrder.woNumber", "WO"), col("warehouseCode", "Warehouse"), col("issuedBy", "Issued By"), col("status", "Status", "status")]),
       { ...page("work-orders", "Work Orders", "Instruksi kerja per proses", "/api/production/work-orders", "woNumber", [col("woNumber", "No. WO"), col("woDate", "Tanggal", "date"), col("outputPartCode", "Output Part"), col("process.processName", "Proses"), col("machine.machineName", "Mesin"), col("plannedQty", "Plan", "number"), col("qtyGood", "Good", "number"), col("status", "Status", "status")]), createRoute: "/modules/production/work-orders/new", navHidden: true },
       { ...page("prepare-delivery-vendor", "Prepare Delivery to Vendor", "WIP hanya dapat dikirim setelah proses sebelumnya selesai dan material input mencukupi", "/api/production/vendor-process-orders", "orderNumber", [col("orderNumber", "No. Order"), col("dueDate", "Target Kembali", "date"), col("moNumber", "MO"), col("inputPartCode", "Part Dikirim"), col("processName", "Proses"), col("vendorName", "Vendor"), col("qtyPlanned", "Butuh", "number"), col("materialAvailableQty", "WIP Ready", "number"), col("materialShortageQty", "Kurang", "number"), col("status", "Status", "status")]), fixedQuery: { status: "Planned,Waiting Material,Ready to Send,Partial Sent" }, vendorProcessFlow: "SEND" },
       { ...page("vendor-process-orders", "Vendor Process Orders", "Seluruh histori proses produksi melalui vendor", "/api/production/vendor-process-orders", "orderNumber", [col("orderNumber", "No. Order"), col("orderDate", "Tanggal", "date"), col("moNumber", "MO"), col("processName", "Proses"), col("vendorName", "Vendor"), col("qtySent", "Sent", "number"), col("qtyReceived", "Received", "number"), col("status", "Status", "status")]), createRoute: "/modules/production/vendor-process-orders/new", navHidden: true, vendorProcessFlow: "ALL" },
@@ -103,8 +105,9 @@ const modules = [
     description: "Permintaan, pemesanan, penerimaan, invoice, dan inspeksi pembelian.", color: "green",
     pages: [
       dashboardPage("Purchasing Dashboard", "Purchase Order plan dibanding Goods Receipt aktual dalam qty dan rupiah."),
-      page("eta-monitor", "ETA Material & Proses", "Monitor jadwal supplier, proses vendor dan suplai customer", "/api/purchasing/eta-monitor/suggestions", "id", [col("code", "Material / Part"), col("eta", "ETA", "date")]),
-      page("customer-supplies", "Suplai Material Customer", "Permintaan dan konfirmasi kiriman material milik customer tanpa PO", "/api/incoming/customer-supplies", "id", [col("requestNumber", "Permintaan"), col("customerCode", "Customer"), col("partCode", "Material"), col("qtyRequested", "Qty"), col("requiredDate", "Dibutuhkan", "date")]),
+      page("pr-supplier", "PR Supplier · PPIC", "Kebutuhan supplier dan PR dari PPIC Released", "/api/planning/preparation/released?view=supplier", "id", []),
+      page("pr-vendor", "PR Vendor · PPIC", "Kebutuhan jasa vendor dan PR dari PPIC Released", "/api/planning/preparation/released?view=vendor", "id", []),
+      page("eta-monitor", "Konfirmasi ETA", "Permintaan ETA PPIC Lab, MOQ dan penggabungan jadwal supplier / vendor", "/api/purchasing/eta-monitor/suggestions", "id", [col("code", "Material / Part"), col("eta", "ETA", "date")]),
       page("purchase-suggestions", "Purchase Suggestion", "Rekomendasi pembelian hasil backward scheduling MRP dan konfirmasi supplier sebelum PR", "/api/purchasing/purchase-suggestions", "suggestionNumber", [col("suggestionNumber", "Suggestion"), col("dueDate", "Due Date", "date"), col("runNumber", "Sumber MRP", "mrpLink"), col("warehouseCode", "Warehouse"), col("itemCount", "Items", "number"), col("netRequirement", "Net Requirement", "number"), col("recommendedPurchaseQty", "Recommended Qty", "number"), col("excessQty", "Excess Qty", "number"), col("status", "Status", "status")]),
       page("purchase-requisitions", "Purchase Requisition", "Worklist permintaan pembelian berdasarkan kategori dan supplier/vendor, lengkap dengan trace Planning sampai PO", "/api/purchasing/purchase-requisitions", "prNumber", [col("prNumber", "No. PR"), col("categoryLabel", "Jenis PR"), col("partnerLabel", "Supplier / Vendor"), col("requiredDate", "Dibutuhkan", "date"), col("requestedQtyLabel", "Qty Request"), col("outstandingQtyLabel", "Outstanding"), col("orderProgressPercent", "Progress PO %", "number"), col("lineCount", "Item", "number"), col("sourceType", "Sumber"), col("priority", "Prioritas", "status"), col("totalAmount", "Estimasi", "currency"), col("convertedToPO", "PO"), col("status", "Status", "status")]),
       { ...page("purchase-order", "Purchase Order", "Pemesanan barang dan jasa ke supplier", "/api/purchasing/purchase-order", "poNumber", [col("poNumber", "No. PO"), col("poDate", "Tanggal", "date"), col("supplier.supplierName", "Supplier"), col("vendor.vendorName", "Vendor"), col("deliveryDate", "Delivery", "date"), col("poType", "Type"), col("totalAmount", "Total", "currency"), col("status", "Status", "status")]), createRoute: "/modules/purchasing/purchase-order/new" },
@@ -167,6 +170,7 @@ const modules = [
     description: "Alur barang keluar dari jadwal, picking, hingga pengiriman.", color: "rose",
     pages: [
       dashboardPage("Outgoing Dashboard", "Delivery schedule plan dibanding delivery aktual per bulan."),
+      page("delivery-plan-schedule", "Delivery Plan Schedule", "Rencana delivery dari PPIC Released", "/api/planning/preparation/released?view=delivery", "id", []),
       page("delivery-orders", "Delivery Orders", "Order pengiriman berdasarkan sales order aktif", "/api/outgoing/delivery-orders", "soNumber", [col("deliveryOrderNumber", "Delivery Order"), col("soDate", "Tanggal SO", "date"), col("customerName", "Customer"), col("deliveryDate", "Delivery", "date"), col("plannedQty", "Qty Order", "number"), col("deliveredQty", "Delivered", "number"), col("scheduleCount", "Schedule", "number"), col("status", "Status", "status")]),
       { ...page("delivery-schedules", "SO Delivery Schedules", "Jadwal pengiriman dengan validasi FG Receipt dan stock", "/api/outgoing/delivery-schedules", "scheduleNumber", [col("scheduleNumber", "No. Schedule"), col("plannedDate", "Rencana", "date"), col("soNumber", "No. SO"), col("customerName", "Customer"), col("plannedQty", "Qty Plan", "number"), col("fgAvailableQty", "FG Ready", "number"), col("fgShortageQty", "FG Kurang", "number"), col("fgReadinessCode", "Readiness", "status"), col("status", "Status", "status")]), createRoute: "/modules/outgoing/delivery-schedules/new" },
       page("picking-packing", "Picking & Packing", "Picking dapat dimulai, tetapi shipment menunggu seluruh FG tersedia", "/api/outgoing/picking-packing", "scheduleNumber", [col("scheduleNumber", "Picking Ref"), col("plannedDate", "Rencana", "date"), col("soNumber", "No. SO"), col("customerName", "Customer"), col("plannedQty", "Qty Pick", "number"), col("fgAvailableQty", "FG Ready", "number"), col("fgShortageQty", "FG Kurang", "number"), col("fgReadinessCode", "Readiness", "status"), col("status", "Status", "status")]),
@@ -196,4 +200,22 @@ function getPage(moduleSlug, pageSlug) {
   return getModule(moduleSlug)?.pages.find((item) => item.slug === canonicalSlug);
 }
 
+for (const slug of ['purchase-order', 'purchase-requisitions']) getPage('purchasing', slug).columns.splice(2, 0, col('subCategory', 'Subkategori'));
+const ppic = getModule('planning-ppic');
+ppic.label = 'PPIC';
+ppic.description = 'Plan Lab, Released Data, serta Control & Analytic dalam satu alur PPIC.';
+ppic.pages.forEach(item => { item.navHidden = true; });
+ppic.pages.unshift(...require('./ppicPageMap').groups.map(group => ({
+  ...page(group.slug, group.label, group.tabs.map(([,label]) => label).join(' · '),
+    '/api/planning/preparation' + (group.slug === 'preparation' ? '' : '/' + group.slug), 'id', []),
+  kind:'workspace', code:group.code, tabs:group.tabs.map(([slug,label],index)=>({slug,label,code:group.code+'.'+(index+1)}))
+})));
+for(const item of require('../../library/ppic-planning/released-pages.cjs')) {
+  const module=getModule(item.module);
+  const existing=module.pages.find(p=>p.slug===item.slug);
+  // PPIC planning is accessed centrally. Keep legacy routes and permissions for
+  // existing document references, but remove duplicate pages from module menus.
+  if(existing){existing.navHidden=true;continue;}
+  module.pages.splice(1,0,{...page(item.slug,item.label,item.description,'/api/planning/preparation/released','id',[]),kind:'workspace',apiReady:true,navHidden:true});
+}
 module.exports = { modules, getModule, getPage };

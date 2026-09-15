@@ -44,7 +44,7 @@
         ${identity(row.part)}
         <div class="vendor-bom-defaults"><strong>Supplier default di BOM</strong>${defaults.map(d=>`<div><span>${esc(d.vendor?vendorName(d.vendor):d.vendorId?'Supplier BOM tidak aktif':'Belum ditetapkan')} <small>· ${esc(d.bomNumber)}</small></span><a href="/modules/manufacturing-bom/bill-of-materials/${encodeURIComponent(d.bomNumber)}/edit-table" target="_blank" rel="noopener">Atur default di BOM ↗</a></div>`).join('')}<small>Harga alternatif tidak mengubah supplier default. Costing BOM memakai supplier yang dipilih pada routing.</small></div>
         ${rows.map(r=>supplierCard(r,view.rows.indexOf(r))).join('')}
-        <p class="vendor-bom-eligibility">Pilihan supplier mengikuti vendor aktif di <a href="${row.vendorProcessId?`/master-data/vendor-processes/${encodeURIComponent(row.vendorProcessId)}/edit?key=${encodeURIComponent(row.vendorProcessCode||row.processCode)}`:'/master-data/vendor-processes'}" target="_blank" rel="noopener">Master Proses Vendor · ${esc(row.processCode)}</a>.${!canAdd&&!used.has(null)?' Belum ada supplier alternatif lain. Tambahkan supplier pada master proses terlebih dahulu.':''}</p>
+        <p class="vendor-bom-eligibility">Pilih vendor aktif untuk menambahkan harga supplier alternatif. ${!canAdd&&!used.has(null)?'Semua vendor aktif sudah ditambahkan.':''} <a href="/master-data/vendors/new" target="_blank" rel="noopener">Tambah master vendor ↗</a></p>
       </section>`;
     }).join('');
     editor.querySelectorAll('[data-bom-price-row]').forEach(card=>monthly.bind(card,view.rows[Number(card.dataset.index)]));

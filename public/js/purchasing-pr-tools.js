@@ -22,10 +22,12 @@
   function lookup({ api, source, title, query = {}, onSelect }) {
     const node = dialog(title);
     const material = source === "pr-materials";
+    const rawPart = source === 'pr-raw-material-parts';
     const part = source === "pr-parts";
-    const headings = ["Kode", "Nama", ...(part ? ["Drawing / Part Number", "UOM"] : material ? ["Spec", "Thickness", "Width"] : []), "Aksi"];
+    const prices = source === 'purchase-item-prices';
+    const headings = [rawPart ? 'Part Code Raw Material' : "Kode", "Nama", ...(prices ? ['Supplier / Vendor', 'Proses', 'Harga', 'Mata Uang', 'UOM'] : rawPart ? ['Part Number', 'Material Master', 'Spec', 'Thickness', 'Width'] : part ? ["Drawing / Part Number", "UOM"] : material ? ["Spec", "Thickness", "Width"] : []), "Aksi"];
     const body = node.querySelector(".pr-dialog-body");
-    body.innerHTML = `<label class="pr-lookup-search">Cari ${esc(title.toLowerCase())}<input type="search" class="form-control" aria-label="Cari ${esc(title)}" placeholder="Ketik kode atau nama" autocomplete="off"></label><p class="pr-lookup-status" role="status"></p><div class="pr-lookup-results"><table data-enterprise-table="off"><thead><tr>${headings.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody></tbody></table></div><footer><span data-count></span><button type="button" class="btn btn-outline-primary" data-more>Muat lebih banyak</button></footer>`;
+    body.innerHTML = `<label class="pr-lookup-search">Cari ${esc(title.toLowerCase())}<input type="search" class="form-control" aria-label="Cari ${esc(title)}" placeholder="${rawPart ? 'Ketik part code, part number, atau nama raw material' : 'Ketik kode atau nama'}" autocomplete="off"></label>${rawPart ? '<p class="text-muted">RAW · MATERIAL · UOM KG. Part harus terhubung ke Material Master.</p>' : ''}<p class="pr-lookup-status" role="status"></p><div class="pr-lookup-results"><table data-enterprise-table="off"><thead><tr>${headings.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody></tbody></table></div><footer><span data-count></span><button type="button" class="btn btn-outline-primary" data-more>Muat lebih banyak</button></footer>`;
     const search = body.querySelector("input");
     const status = body.querySelector("[role=status]");
     const more = body.querySelector("[data-more]");
@@ -45,8 +47,9 @@
         page = nextPage;
         tbody.innerHTML = rows.map((item, i) => {
           const data = item.data || {};
-          const values = [item.code, item.name, ...(part ? [data.partNumber || "—", data.purchaseUomCode || data.baseUomCode || data.uomCode || "—"] : material ? [data.spec || "—", data.thickness ?? "—", data.width ?? "—"] : [])];
-          return `<tr>${values.map((v) => `<td>${esc(v)}</td>`).join("")}<td><button type="button" class="btn btn-sm btn-primary" data-pick="${i}" ${item.active === false ? "disabled" : ""} aria-label="Pilih ${esc(item.code)}">Pilih</button></td></tr>`;
+          const validMaterial = !rawPart || (data.itemType === 'RAW' && data.rawType === 'MATERIAL' && data.material?.materialCode && !data.material.isDeleted);
+          const values = [item.code, item.name, ...(prices ? [data.partnerName, data.processName || '—', new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 }).format(data.unitPrice), data.currencyCode, data.uomCode] : rawPart ? [data.partNumber || '—', data.material?.materialCode || 'Material belum terhubung', data.material?.spec || '—', data.material?.thickness ?? '—', data.material?.width ?? '—'] : part ? [data.partNumber || "—", data.purchaseUomCode || data.baseUomCode || data.uomCode || "—"] : material ? [data.spec || "—", data.thickness ?? "—", data.width ?? "—"] : [])];
+          return `<tr>${values.map((v) => `<td>${esc(v)}</td>`).join("")}<td><button type="button" class="btn btn-sm btn-primary" data-pick="${i}" ${item.active === false || !validMaterial ? "disabled" : ""} aria-label="Pilih ${esc(item.code)}">Pilih</button>${!validMaterial ? '<small class="d-block text-danger">Lengkapi Material Master pada part ini.</small>' : ''}</td></tr>`;
         }).join("");
         status.textContent = rows.length ? "" : "Tidak ada data yang cocok. Coba kata kunci lain.";
         body.querySelector("[data-count]").textContent = `${rows.length} data ditampilkan${result.pagination?.more ? "" : " · semua hasil dimuat"}`;
@@ -83,7 +86,8 @@
       && (category !== "NON_PRODUCTION" || !["code", "drawing"].includes(id));
     const labelFor = (id) => ({
       item: category === "NON_PRODUCTION" ? "Description" : category === "MATERIAL" ? "Material Name" : "Part Name",
-      code: category === "MATERIAL" ? "Material Code" : "Part Code",
+      code: category === "MATERIAL" ? "Part Code / Material" : "Part Code",
+      form: category === 'MATERIAL' ? 'Bentuk' : 'C/S/P',
       drawing: "Part Number", partner: category === "VENDOR_PROCESS" ? "Preferred Vendor" : "Preferred Supplier",
       price: "Estimated Price", total: "Total Amount",
     })[id] || columns.find(([columnId]) => columnId === id)[1];

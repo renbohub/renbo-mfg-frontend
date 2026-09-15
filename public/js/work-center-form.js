@@ -101,6 +101,7 @@
       });
       renderMachines();
       syncCapacity();
+      window.dispatchEvent(new CustomEvent('ppic-recovery:ready'));
     } catch (error) { showError(error.message); }
   }
 

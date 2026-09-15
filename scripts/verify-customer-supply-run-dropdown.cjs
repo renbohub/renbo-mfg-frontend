@@ -6,16 +6,17 @@ const path = require("node:path");
 const source = fs.readFileSync(path.join(__dirname, "../public/js/customer-supplies.js"), "utf8");
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 async function setup(runs, search = "") {
-  const elements = new Map(), pending = new Map();
+  const elements = new Map(), pending = new Map(), calls = [];
   const get = (id) => {
     if (!elements.has(id)) elements.set(id, { value: "", innerHTML: "", textContent: "", disabled: false, handlers: {}, addEventListener(event, fn) { this.handlers[event] = fn; }, closest() { return get("main"); } });
     return elements.get(id);
   };
   const context = {
     document: { getElementById: get }, Intl, URL, URLSearchParams, setTimeout, clearTimeout,
-    location: { href: `http://localhost/modules/incoming/customer-supplies${search}`, search },
+    location: { href: `http://localhost/modules/purchasing/eta-monitor${search}`, search },
     history: { replaceState() {} }, localStorage: { getItem: () => "" }, sessionStorage: { getItem: () => "" },
     fetch: async (url) => {
+      calls.push(url);
       let data;
       if (url.endsWith("/options")) data = { mrpRuns: runs, materials: [], uoms: [], warehouses: [] };
       else if (url.includes("/mrp/")) data = await new Promise((resolve, reject) => pending.set(decodeURIComponent(url.split("/mrp/")[1]), { resolve, reject }));
@@ -24,6 +25,9 @@ async function setup(runs, search = "") {
     },
   };
   vm.runInNewContext(source, context); await flush();
+  assert.equal(calls.length,0,'Customer operations are loaded only when expanded');
+  const panel=get('eta-customer-operations');panel.open=true;panel.handlers.toggle();await flush();panel.handlers.toggle();await flush();
+  assert.equal(calls.filter(url=>url.endsWith('/options')).length,1,'Reopening does not duplicate initialization');
   return { get, pending, async select(run) { get("cs-run").value = run; get("cs-run").handlers.change(); await flush(); } };
 }
 const runs = ["R013", "R012"].map((runNumber) => ({ runNumber, planningMonth: "2026-09-01T00:00:00Z", scenarioStatus: "APPROVED", status: "Completed" }));

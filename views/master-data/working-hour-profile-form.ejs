@@ -1,5 +1,5 @@
 <%- include('../partials/head') %>
-<link rel="stylesheet" href="/css/working-hour-profile-master.css?v=20260824-enterprise-1">
+<link rel="stylesheet" href="/css/working-hour-profile-master.css?v=20260915-weekend-1">
 <%- include('../partials/header-master') %>
 <main class="wh-master-page transaction-form-page">
   <div class="app-container">
@@ -33,7 +33,8 @@
     </section>
 
     <section class="wh-schedule-panel">
-      <header><div><span>03 · WEEKLY CAPACITY RULE</span><h2>Jadwal Mingguan</h2><p>Aktifkan shift yang bekerja, lalu isi jam mulai, selesai, break, dan overtime per hari.</p></div><div class="wh-schedule-actions"><button id="wh-copy-monday" type="button">Salin Senin → Selasa–Kamis</button><strong id="wh-week-total">0 jam / minggu</strong></div></header>
+      <header><div><span>03 · WEEKLY CAPACITY RULE</span><h2>Jadwal Mingguan</h2><p>Pilih default hari kerja, lalu atur shift dan jam yang dipakai ketika hari tersebut masuk.</p></div><div class="wh-schedule-actions"><button id="wh-copy-monday" type="button">Salin Senin → Selasa–Kamis</button><strong id="wh-week-total">0 jam / minggu</strong></div></header>
+      <div class="wh-weekend-defaults"><div><h3>Default akhir pekan</h3><p>Hari libur memiliki kapasitas 0. Jam shift tetap tersimpan sebagai template jika PPIC Lab memilih masuk pada tanggal tertentu.</p></div><label>Default hari Sabtu<select name="saturdayIsHoliday"><option value="true">Libur</option><option value="false">Masuk</option></select></label><label>Default hari Minggu<select name="sundayIsHoliday"><option value="true">Libur</option><option value="false">Masuk</option></select></label></div>
       <div class="wh-schedule-legend"><span>AKTIF</span><span>SHIFT</span><span>MULAI</span><span>SELESAI</span><span>BREAK</span><span>OVERTIME</span><span>EFEKTIF</span></div>
       <div id="wh-weekly-schedule" class="wh-weekly-schedule"><div class="wh-loading">Memuat master shift dan jadwal kerja...</div></div>
     </section>
@@ -48,5 +49,5 @@
   <div class="app-container"><%- include('../partials/document-comments', { documentComments: { recordKey: mode === 'create' ? null : recordKey, showPending: mode === 'create', title: 'Komentar Working Hour Profile', variant: 'receipt' } }) %></div>
 </main>
 <script id="wh-config" type="application/json"><%- JSON.stringify({ config, mode, recordId, recordKey }).replace(/</g, '\u003c') %></script>
-<script src="/js/working-hour-profile-model.js?v=20260824-enterprise-1"></script>
+<script src="/js/working-hour-profile-model.js?v=20260915-weekend-1"></script>
 <%- include('../partials/footer') %>

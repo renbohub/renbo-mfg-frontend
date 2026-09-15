@@ -1,5 +1,9 @@
 (() => {
   "use strict";
+  let initialized = false;
+  function initialize() {
+  if (initialized) return;
+  initialized = true;
   const $ = (id) => document.getElementById(id);
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const fmt = (v) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 }).format(Number(v) || 0);
@@ -99,14 +103,16 @@
     try {
       const input = currentForm.transform(Object.fromEntries(new FormData(event.target)));
       await api(currentForm.path, { ...input, idempotencyKey: currentForm.idempotencyKey });
-      $("cs-dialog").close(); message("Tersimpan. Hitung ulang checksheet/MRP untuk memakai data suplai terbaru."); await reload();
+      window.PpicConfirmationFeedback?.notify({source:'customer-supply'});
+      window.dispatchEvent(new CustomEvent('customer-supply:changed'));
+      $("cs-dialog").close(); message("Tersimpan. Konfirmasi material customer diteruskan ke ETA dan rencana PPIC terkait."); await reload();
     } catch (e) { $("cs-form-error").textContent = e.message; } finally { submit.disabled = false; }
   });
-  $("cs-page-info").closest("main").addEventListener("click", async (event) => {
+  $("cs-workspace").addEventListener("click", async (event) => {
     const b = event.target.closest("[data-action]"); if (b) openAction(b.dataset.action, b.dataset.request, b.dataset.child);
     if (event.target.id === "cs-create-mrp") {
       const target = event.target; target.disabled = true;
-      try { if (!loadedRun || loadedRun !== $("cs-run").value) throw new Error("Muat kebutuhan MRP run terpilih terlebih dahulu."); const ids = [...document.querySelectorAll("[data-need]:checked")].map((x) => x.dataset.need); if (!ids.length) throw new Error("Pilih kebutuhan terlebih dahulu."); const result = await api("/from-mrp", { runNumber: loadedRun, requirementIds: ids }); message(`${result.count} permintaan dibuat, dikelompokkan per material/customer/minggu.`); await Promise.all([reload(), loadNeeds()]); } catch (e) { message(e.message, true); } finally { target.disabled = false; }
+      try { if (!loadedRun || loadedRun !== $("cs-run").value) throw new Error("Muat kebutuhan MRP run terpilih terlebih dahulu."); const ids = [...document.querySelectorAll("[data-need]:checked")].map((x) => x.dataset.need); if (!ids.length) throw new Error("Pilih kebutuhan terlebih dahulu."); const result = await api("/from-mrp", { runNumber: loadedRun, requirementIds: ids }); message(`${result.count} permintaan dibuat, dikelompokkan per material/customer/minggu.`); window.dispatchEvent(new CustomEvent('customer-supply:changed')); await Promise.all([reload(), loadNeeds()]); } catch (e) { message(e.message, true); } finally { target.disabled = false; }
     }
   });
   $("cs-refresh").addEventListener("click", () => reload().catch((e) => message(e.message, true)));
@@ -132,4 +138,8 @@
     } else if (run) { $("cs-run").value = run; }
     await Promise.all([reload(), loadNeeds()]);
   })().catch((e) => message(e.message, true));
+  }
+  const panel = document.getElementById('eta-customer-operations');
+  panel?.addEventListener('toggle', () => { if (panel.open) initialize(); });
+  if (panel?.open) initialize();
 })();

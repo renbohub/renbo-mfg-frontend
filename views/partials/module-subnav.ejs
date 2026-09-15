@@ -1,4 +1,6 @@
-<% if (typeof ppicWorkspacePage !== 'undefined' && ppicWorkspacePage) { %>
+<% if (typeof module !== 'undefined' && module.slug === 'planning-ppic') { %>
+<%- include('ppic-section-nav') %>
+<% } else if (typeof ppicWorkspacePage !== 'undefined' && ppicWorkspacePage) { %>
 <%- include('ppic-domain-nav') %>
 <% } else { %>
 <%
@@ -14,7 +16,7 @@
     mps: 'master-production-schedule',
     'monthly-plan': 'monthly-production-plans'
   };
-  const normalizedActivePage = modulePageAliases[requestedActivePage] || requestedActivePage;
+  const normalizedActivePage = module.slug === 'planning-ppic' ? modulePageAliases[requestedActivePage] || requestedActivePage : requestedActivePage;
   const navigationIconRules = [
     { match: /dashboard|control-tower/, icon: 'grid' },
     { match: /tutorial/, icon: 'book' },
@@ -49,8 +51,8 @@
     icon: navigationIcon(item)
   }));
   if (module.slug === 'planning-ppic') moduleNavigationItems = [
-    ['preparation', null, 'Preparation PPIC', '/modules/planning-ppic/preparation'],
-    ['demand-planning', 'annual', 'Demand Tahunan', '/modules/planning-ppic/demand-planning'],
+    ['preparation', null, 'Production Plan Lab', '/modules/planning-ppic/preparation'],
+    ['released', null, 'PPIC Released', '/modules/planning-ppic/released'],
     ['production-actuals', 'actual', 'Pemantauan Aktual Produksi', '/modules/planning-ppic/production-actuals'],
     ['monthly-delivery', 'delivery', 'Jadwal Delivery Bulanan', '/modules/planning-ppic/monthly-delivery'],
     ['master-production-schedule', 'fg', 'Jadwal Produksi FG Bulanan', '/modules/planning-ppic/mps/workbench'],
@@ -58,15 +60,17 @@
     ['monthly-production-plans', 'monthly', 'Rencana Produksi Bulanan', '/modules/planning-ppic/monthly-production-plans'],
     ['daily-production-plans', 'daily', 'Jadwal Produksi Harian', '/modules/planning-ppic/daily-production-plans']
   ].map(([slug, i18n, label, href]) => ({ slug, i18n, label, href, icon: 'calendar', apiReady: true }));
+  if(module.slug==='planning-ppic' && ['preparation','released'].includes(normalizedActivePage)) moduleNavigationItems=moduleNavigationItems.slice(0,3);
+  if(typeof initialMonth!=='undefined' && /^20\d{2}-(0[1-9]|1[0-2])$/.test(initialMonth)) for(const item of moduleNavigationItems)if(['preparation','released','monthly-plan','daily-plan','pr-supplier','pr-vendor','delivery-plan-schedule'].includes(item.slug))item.href+='?month='+initialMonth;
 %>
 <% if (module.slug === 'planning-ppic') { %>
 <script src="/js/ppic-language.js?v=20260910-layout-1"></script>
 <script src="/js/ppic-calendar-model.js?v=20260909-r3"></script>
 <link rel="stylesheet" href="/css/ppic-calendar.css?v=20260909-r3">
-<% if (normalizedActivePage !== 'preparation') { %>
+<% if (!['preparation','released'].includes(normalizedActivePage)) { %>
 <link rel="stylesheet" href="/css/ppic-plan-review.css?v=20260909-r3">
-<script defer src="/js/ppic-plan-review.js?v=20260909-r3"></script>
-<script defer src="/js/ppic-proposals.js?v=20260910-layout-1"></script>
+<script defer src="/js/ppic-plan-review.js?v=20260913-part-number-1"></script>
+<script defer src="/js/ppic-proposals.js?v=20260913-part-number-1"></script>
 <% } %>
 <% } %>
 <nav class="module-subnav module-subnav--<%= module.color %> <%= module.slug === 'planning-ppic' ? 'ppic-workspace-nav' : '' %>" aria-label="Menu <%= module.label %>">
@@ -81,6 +85,7 @@
         <%= !item.apiReady ? 'aria-disabled="true" title="Endpoint belum tersedia"' : '' %>
       ><% if (module.slug === 'planning-ppic' && index >= 3) { %><span class="ppic-nav-number" aria-hidden="true"><%= String(index - 2).padStart(2, '0') %></span><% } else { %><span class="module-subnav-icon"><%- include('icon', { name: item.icon }) %></span><% } %><span <% if (item.i18n) { %>data-ppic-i18n="<%= item.i18n %>"<% } %>><%= item.label %></span></a>
     <% }) %>
+    <% if(module.slug==='planning-ppic' && moduleNavigationItems.length<=3) { %></div><% } %>
   </div>
 </nav>
 <% } %>

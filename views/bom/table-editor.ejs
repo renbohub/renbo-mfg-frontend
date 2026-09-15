@@ -42,7 +42,7 @@
         </div>
       </div>
       <div class="bom-table-context-notes"><small id="bom-table-owned-note" class="bom-table-owned-note d-none"></small><small id="bom-table-vendor-note" class="bom-table-vendor-note d-none"></small></div>
-      <div class="table-responsive bom-edit-grid-scroll" tabindex="0" role="region" aria-label="Worksheet komponen BOM, geser untuk melihat kolom lainnya"><table id="bom-detail-edit-table" class="table align-middle bom-edit-grid"><thead><tr><th>Level</th><th>Part</th><th>Part Number</th><th>Qty</th><th>UOM</th><th>Parent</th><th>Kategori</th><th>Policy</th><th>Lead Time / Order</th><th>Routing</th><th>Sumber Material / Partner</th><th>Qty Harga</th><th>Biaya BOM Turunan</th><th>Cycle Time / Unit</th><th>Rate Mesin / Detik</th><th>Biaya Proses / Unit</th><th>Catatan</th><th>Aksi</th></tr></thead><tbody id="bom-table-edit-rows"><tr><td colspan="18" class="text-center py-4">Memuat BOM...</td></tr></tbody></table></div>
+      <div class="table-responsive bom-edit-grid-scroll" tabindex="0" role="region" aria-label="Worksheet komponen BOM, geser untuk melihat kolom lainnya"><table id="bom-detail-edit-table" class="table align-middle bom-edit-grid"><thead><tr><th>Level</th><th>Part</th><th>Part Number</th><th>Qty</th><th>UOM</th><th>Parent</th><th>Kategori</th><th>Policy</th><th>Lead Time / Order</th><th>Routing</th><th>Sumber Material / Partner</th><th>Qty Harga</th><th>Biaya BOM Turunan</th><th>Cycle Time Actual / Unit</th><th>Rate Mesin / Detik</th><th>Biaya Proses / Unit</th><th>Catatan</th><th>Aksi</th></tr></thead><tbody id="bom-table-edit-rows"><tr><td colspan="18" class="text-center py-4">Memuat BOM...</td></tr></tbody></table></div>
       <p id="bom-table-search-empty" class="bom-table-search-empty" hidden>Tidak ada komponen yang sesuai. Coba kode atau nama part lain.</p>
       <footer class="bom-table-grid-footer"><span>Perubahan komponen diterapkan saat Simpan Perubahan.</span><details><summary>Referensi perhitungan biaya</summary><p>Cycle time mengikuti Routing BOM. Rate mesin berasal dari <a href="/master-data/machines" target="_blank" rel="noopener">Master Machine</a>. Vendor dan harga jasanya dipilih per proses melalui tombol Routing.</p></details></footer>
     </article>
@@ -53,8 +53,8 @@
   <form method="dialog" class="bom-process-dialog-card">
     <header><div><small>Routing Komponen</small><h2 id="bom-process-title">Edit Proses</h2></div><button value="cancel" type="submit" aria-label="Tutup routing">×</button></header>
     <details class="bom-process-help"><summary>Panduan proses vendor</summary><div class="bom-process-vendor-guide"><span>1. Pilih Process</span><span>2. Pilih mode Vendor process</span><span>3. Pilih vendor; harga per pcs terisi otomatis</span><a href="/master-data/vendor-processes" target="_blank" rel="noopener">Master proses vendor</a><a href="/master-data/vendor-price-lists" target="_blank" rel="noopener">Harga vendor</a></div></details>
-    <div class="bom-process-dialog-actions"><p>Cycle time memakai detik untuk in-house. Proses vendor memakai harga per pcs dan tidak dikali cycle time.</p><button id="bom-process-add" class="btn btn-outline-primary" type="button">＋ Tambah Proses</button></div>
-    <div class="table-responsive"><table class="table bom-process-edit-table"><thead><tr><th>ROUTING NO.</th><th>ORDER</th><th>PROCESS</th><th>MODE</th><th>MACHINE / VENDOR</th><th>DEFAULT RATE</th><th>CYCLE TIME (DETIK)</th><th>COST BASIS</th><th>PROCESS COST / UNIT</th><th>CATATAN</th><th></th></tr></thead><tbody id="bom-process-edit-rows"></tbody></table></div>
+    <div class="bom-process-dialog-actions"><p>Cycle time Quotation dan Actual memakai detik / pcs. Planning dan estimasi biaya memakai Actual. Proses vendor memakai harga per pcs dan tidak dikali cycle time.</p><button id="bom-process-add" class="btn btn-outline-primary" type="button">＋ Tambah Proses</button></div>
+    <div class="table-responsive"><table class="table bom-process-edit-table"><thead><tr><th>ROUTING NO.</th><th>ORDER</th><th>PROCESS</th><th>MODE</th><th>MACHINE / VENDOR</th><th>DEFAULT RATE</th><th>CYCLE TIME<br>QUOTATION / ACTUAL<br>(DETIK / PCS)</th><th>COST BASIS</th><th>PROCESS COST / UNIT</th><th>CATATAN</th><th></th></tr></thead><tbody id="bom-process-edit-rows"></tbody></table></div>
     <footer><span>Routing disimpan bersama perubahan BOM.</span><button class="btn btn-primary" value="default" type="submit">Selesai</button></footer>
   </form>
 </dialog>
@@ -66,19 +66,20 @@
       <label>Skema yang dipakai MRP / Purchase
         <select id="bom-material-scheme" class="form-select"><option value="DEFAULT">Default</option><option value="ALTERNATIVE">Alternatif</option></select>
       </label>
-      <h3>Skema Default</h3>
+      <div id="bom-quotation-material"></div>
+      <h3>Based on Actual · Skema Default</h3>
       <div class="bom-material-dialog-grid">
         <label>Spec<input id="bom-material-spec" class="form-control" readonly></label>
         <label>C/S/P<input id="bom-material-csp" class="form-control" readonly></label>
         <label>Material Form<select id="bom-material-form" class="form-select"></select></label>
-        <label>T / Thickness (mm)<input id="bom-material-thickness" class="form-control" readonly></label>
-        <label>W / Width (mm)<input id="bom-material-width" class="form-control" readonly></label>
+        <label>T / Thickness (mm)<input id="bom-material-thickness" class="form-control" type="number" min="0.001" step="any" required></label>
+        <label>W / Width (mm)<input id="bom-material-width" class="form-control" type="number" min="0.001" step="any" required></label>
         <label>P / Pitch (mm)<input id="bom-material-pitch" class="form-control" type="number" min="0.001" step="0.001" required></label>
         <label>Cavity<input id="bom-material-cavity" class="form-control" type="number" min="1" step="1" required></label>
         <label>Density (kg/mm³)<input id="bom-material-density" class="form-control" readonly></label>
         <label>Gross Weight (kg/pcs)<input id="bom-material-gross" class="form-control" readonly></label>
       </div>
-      <h3>Skema Alternatif <small>(opsional, maksimal satu)</small></h3>
+      <h3>Based on Actual · Skema Alternatif <small>(opsional, maksimal satu)</small></h3>
       <div class="bom-material-dialog-grid">
         <label>Material Form<select id="bom-material-alt-form" class="form-select"></select></label>
         <label>P / Pitch (mm)<input id="bom-material-alt-pitch" class="form-control" type="number" min="0.001" step="0.001"></label>
@@ -96,4 +97,5 @@
 <script src="/js/bom-machine-policy.js?v=20260909-dies-1"></script>
 <script src="/js/bom-executor-policy.js?v=20260909-dies-1"></script>
 <script src="/js/bom-table-workspace.js?v=20260907-1"></script>
+<script src="/js/bom-measurements.js?v=20260915-1"></script>
 <%- include('../partials/footer') %>

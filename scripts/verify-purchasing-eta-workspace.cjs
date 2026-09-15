@@ -147,8 +147,15 @@ async function run() {
   assert.equal(vendorRisk.api.filteredRows().length, 1, "vendor readiness failure remains in follow-up filter even with on-time ETA");
   const unknown = harness(undefined, payload("MPS-B", { items: [row("MPS-B", "VENDOR", { confirmed: true, confirmation: "CONFIRMED", timing: "UNKNOWN", confirmedQty: 20 })] })); await tick();
   assert.equal(unknown.api.filteredRows().length, 1, "UNKNOWN timing always remains in follow-up");
-  const empty = harness("?month=2026-09", payload(null, { documents: [], items: [] })); await tick();
+  const empty = harness("?month=2026-09&tab=mps", payload(null, { documents: [], items: [] })); await tick();
   assert.equal(empty.elements.get("eta-start").disabled, true); assert.match(empty.elements.get("eta-documents").innerHTML, /Pilih MPS/);
+  for(const search of ['?month=2026-09&tab=ppic&source=ppic&partner=customer','?month=2026-09&tab=customer&source=customer&releaseId=round1']){
+    const customer=harness(search,{items:[row('CR1','CUSTOMER',{sourceType:'customer'}),row('PS1','MATERIAL',{sourceType:'suggestions'})]});await tick();
+    assert.match(customer.requests[0].url,/\/ppic\?month=/);
+    const button=customer.buttons.find(b=>b.dataset.etaPartner==='customer');assert.equal(button.hidden,false);assert.equal(button['aria-pressed'],'true');
+    assert.equal(customer.api.filteredRows().length,1);assert.equal(customer.api.filteredRows()[0].category,'CUSTOMER');
+    customer.api.openDetail(customer.api.filteredRows()[0]);assert.equal(customer.elements.get('eta-form').fields.moq,undefined);
+  }
   console.log("PASS ETA workspace: EJS, exact MPS, categories, stale responses, permissions, lead-time defaults/limits, fixed partner, scoped payload, optimistic confirmation, idempotency, legacy and empty states (offline).");
 }
 if (process.argv.includes("--serve")) {

@@ -6,15 +6,24 @@ const root = path.resolve(__dirname, "..");
 const read = (name) => fs.readFileSync(path.join(root, name), "utf8");
 const { getPage } = require("../src/moduleRegistry");
 assert.ok(getPage("purchasing", "eta-monitor"));
-assert.ok(getPage("purchasing", "customer-supplies"));
+assert.ok(!getPage("purchasing", "customer-supplies"));
 assert.ok(!getPage("incoming", "customer-supplies"));
 const routes = read("src/routes/modules.js");
-assert.match(routes, /incoming\/customer-supplies[\s\S]*res\.redirect\(302, `\/modules\/purchasing\/customer-supplies/);
+const redirectSource=routes.match(/function redirectCustomerSupplies\(req, res\) \{[\s\S]*?\n\}/)[0];
+const redirect=require('node:vm').runInNewContext('('+redirectSource+')',{URLSearchParams});
+for(const query of [{},{month:'2026-09',releaseId:'round1',q:'CSR / 01'},{run:'MRP-1'}]){
+  redirect({query},{redirect(status,target){assert.equal(status,302);const url=new URL(target,'http://localhost');assert.equal(url.pathname,'/modules/purchasing/eta-monitor');assert.equal(url.searchParams.get('partner'),'customer');assert.equal(url.searchParams.get('tab'),'ppic');for(const [key,value]of Object.entries(query))assert.equal(url.searchParams.get(key),value);assert.equal(url.searchParams.get('customer_ops'),query.q||query.run?'1':null);}});
+}
+assert.match(routes,/router.get\("\/incoming\/customer-supplies", redirectCustomerSupplies\)/);
+assert.match(routes,/router.get\("\/purchasing\/customer-supplies", redirectCustomerSupplies\)/);
+assert.doesNotMatch(routes,/res.render\("incoming\/customer-supplies"/);
 assert.match(routes, /purchasing\/eta-monitor\/:source/);
 const view = read("views/purchasing/eta-monitor.ejs"), script = read("public/js/purchasing-eta.js");
 assert.match(view, /purchase-suggestion-compact-ui\.css/);
 assert.match(view, /data-enterprise-table="off"/);
 assert.match(view, /aria-label="Jenis suplai"/);
+assert.match(view,/include\('\.\.\/partials\/eta-customer-operations'\)/);
+const operations=read('views/partials/eta-customer-operations.ejs');assert.doesNotMatch(operations,/<main|<h1|header-modules|module-subnav/);assert.match(operations,/id="cs-workspace"/);
 assert.match(script, /current !== version/, "stale source responses must not overwrite current source");
 assert.match(script, /eta-monitor\/\$\{r.sourceType\}\/confirm/);
 assert.match(script, /sourceFingerprint: r.sourceFingerprint, confirmationId: r.confirmationRecord\?\.id \|\| null, requestId/);

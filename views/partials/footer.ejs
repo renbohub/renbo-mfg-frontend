@@ -1,5 +1,9 @@
   <% if (typeof module !== 'undefined' && module.slug === 'planning-ppic') { %>
   <link rel="stylesheet" href="/css/ppic-workspace.css?v=20260910-layout-1">
+  <% if (typeof preparationWorkbench !== 'undefined' && preparationWorkbench) { %>
+  <link rel="stylesheet" href="/css/ppic-preparation-workbench.css?v=20260915-requirement-table-1">
+  <script src="/js/ppic-preparation-layout.js?v=20260912-1"></script>
+  <% } %>
   <% } %>
   <div id="toast-stack" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
   <% if (typeof requiresAuth !== 'undefined' && requiresAuth) { %>
@@ -16,7 +20,7 @@
   <script src="/vendor/socket.io-client/socket.io.min.js"></script>
   <script src="/vendor/mqtt/mqtt.min.js"></script>
   <script src="/vendor/apexcharts/apexcharts.min.js"></script>
-  <script src="/js/session.js?v=20260908-step1"></script>
+  <script src="/js/session.js?v=20260912-auth"></script>
   <script src="/js/demo-date.js?v=20260905-1"></script>
   <% if (typeof requiresAuth !== 'undefined' && requiresAuth) { %><script src="/js/page-context.js?v=20260908-simple-navbar-1"></script><% } %>
   <% if (typeof requiresAuth !== 'undefined' && requiresAuth) { %>
@@ -32,10 +36,13 @@
   <script src="/js/searchable-select.js?v=20260817-1"></script>
   <script src="/js/form-dialog.js?v=20260827-2"></script>
   <script src="/js/shared-form-ux.js?v=20260907-20260809-1"></script>
+  <link rel="stylesheet" href="/css/ppic-recovery-focus.css?v=20260913-1">
+  <script src="/js/ppic-recovery-focus.js?v=20260913-1"></script>
   <script src="/js/gallery-view.js"></script>
   <link rel="stylesheet" href="/css/workflow-views.css">
   <script>window.REALTIME_CONFIG = <%- JSON.stringify({ socketUrl: typeof socketUrl === 'undefined' ? '' : socketUrl, mqttUrl: typeof mqttUrl === 'undefined' ? '' : mqttUrl }) %>;</script>
   <script src="/js/realtime.js"></script>
+  <script src="/js/ppic-confirmation-feedback.js?v=20260916-1"></script>
   <% if (typeof pageScript !== 'undefined' && pageScript) { %><script src="<%= pageScript %><%= pageScript.includes('?') ? '&' : '?' %>v=20260827-18"></script><% } %>
 </body>
 </html>

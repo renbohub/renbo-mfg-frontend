@@ -1,0 +1,32 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header-modules') %>
+<%- include('../partials/module-subnav',{activePage}) %>
+<main class="ppic-sheet-page app-container" id="ppic-control" data-initial-view="<%= initialView %>">
+  <div class="ppic-sheet-top">
+    <header class="ppic-sheet-heading"><span class="ppic-sheet-eyebrow">4.3 · PPIC CONTROL & ANALYTIC</span><h1>PPIC Control & Analytic</h1></header>
+    <div class="ppic-sheet-tabs" role="tablist" aria-label="Halaman PPIC Control & Analytic">
+      <% controlTabs.forEach(([key,label],index)=>{ %><button type="button" role="tab" id="control-tab-<%= key %>" data-control-view="<%= key %>" aria-selected="<%= key===initialView %>" aria-controls="control-panel" tabindex="<%= key===initialView?'0':'-1' %>"><span><%= String(index+1).padStart(2,'0') %></span><%= label %></button><% }); %>
+    </div>
+  </div>
+  <section id="control-panel" role="tabpanel" aria-labelledby="control-tab-<%= initialView %>">
+    <div class="ppic-sheet-tools">
+      <label>Bulan monitoring<input type="month" id="control-month" value="<%= initialMonth %>" aria-label="Bulan monitoring"></label>
+      <span class="ppic-sheet-status" id="control-status">Memuat status bulan…</span>
+      <button type="button" id="control-refresh">↻ Perbarui data</button>
+      <a id="control-release-link" href="/modules/planning-ppic/released?month=<%= initialMonth %>">Buka Released Data →</a>
+    </div>
+    <div class="ppic-sheet-message" id="control-message" role="status" aria-live="polite">Memuat rencana dan aktual…</div>
+    <div class="ppic-sheet-summary" id="control-summary" hidden></div>
+    <div class="ppic-sheet-toolbar">
+      <div class="ppic-sheet-switch" role="group" aria-label="Sumber monitoring"><button type="button" id="control-plan" aria-pressed="true">Rencana & pemenuhan</button><button type="button" id="control-actual" aria-pressed="false">Aktivitas aktual terkait</button></div>
+      <input type="search" id="control-search" placeholder="Cari part, mesin, partner, atau dokumen…" aria-label="Cari data monitoring">
+      <select id="control-filter" aria-label="Filter status monitoring" data-searchable-disabled><option value="">Semua status</option></select>
+      <button type="button" id="control-reset">Reset filter</button>
+      <span id="control-count" class="sheet-spacer"></span>
+      <span class="ppic-sheet-paging"><button type="button" id="control-prev" aria-label="Halaman sebelumnya">←</button><span id="control-page">1 / 1</span><button type="button" id="control-next" aria-label="Halaman berikutnya">→</button></span>
+    </div>
+    <div class="ppic-sheet-table" id="control-table" aria-busy="true" tabindex="0" role="region" aria-label="Tabel rencana dan realisasi PPIC"><table data-enterprise-table="off" aria-label="Rencana dan realisasi PPIC"><thead id="control-head"></thead><tbody id="control-body"></tbody></table></div>
+    <details class="ppic-sheet-details"><summary>Dasar data dan perhitungan</summary><p class="ppic-sheet-basis" id="control-basis">Rencana dari PPIC Released pada bulan terpilih.</p></details>
+  </section>
+</main>
+<%- include('../partials/footer') %>

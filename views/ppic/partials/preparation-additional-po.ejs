@@ -1,0 +1,12 @@
+<dialog id="prep-additional-dialog" aria-labelledby="prep-additional-title">
+ <header><div><span class="prep-eyebrow">REVISI TAMBAHAN · SETELAH LOCK</span><h2 id="prep-additional-title">Proses Additional PO</h2></div><button type="button" data-additional-close aria-label="Tutup">✕</button></header>
+ <div class="prep-additional-body">
+  <label>PO customer<select id="prep-additional-target"></select></label>
+  <label>Pemenuhan<select id="prep-additional-mode"><option value="BUFFER">Ambil dari buffer</option><option value="PRODUCTION">Buat produksi tambahan</option></select></label>
+  <label>Tanggal demand / tanggal pengganti<input id="prep-additional-date" type="date" required></label>
+  <p>Jika tanggal demand sudah lewat, pilih tanggal pengganti. Buffer harus siap pada tanggal tersebut. Produksi tambahan memakai sisa kapasitas dan ditandai garis-garis.</p>
+  <p>Revisi ini menyimpan alokasi planning, tidak mengubah release lama, tidak memindahkan stok fisik, dan belum menerbitkan DPS/PR tambahan.</p>
+  <div id="prep-additional-result" role="status" aria-live="polite"></div>
+  <footer><button type="button" id="prep-additional-preview">Cek alokasi</button><button type="button" id="prep-additional-save" disabled>Konfirmasi revisi tambahan</button></footer>
+ </div>
+</dialog>

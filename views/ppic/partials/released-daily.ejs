@@ -1,0 +1,37 @@
+<section id="released-daily" class="released-daily" hidden aria-label="Jadwal harian dan kondisi aktual">
+  <div class="released-daily-toolbar">
+    <label>Hari produksi <input id="rd-date" type="date"></label>
+    <button id="rd-prev" type="button" aria-label="Hari sebelumnya">←</button><button id="rd-next" type="button" aria-label="Hari berikutnya">→</button>
+    <label>Mesin <select id="rd-machine" data-searchable-disabled aria-label="Filter mesin jadwal"><option value="">Semua mesin</option></select></label>
+    <span id="rd-range"></span><span class="rd-legend"><i></i>Release <i class="is-recovery"></i>Recovery <i class="is-setup"></i>Setup</span>
+  </div>
+  <p id="rd-message" class="rd-message" role="status" aria-live="polite"></p>
+  <div id="rd-chart" class="rd-chart" tabindex="0" role="region" aria-label="Gantt jadwal produksi jam 05.00 sampai 05.00"></div>
+  <section class="rd-actual" aria-labelledby="rd-actual-heading">
+    <header class="rd-section-heading"><h3 id="rd-actual-heading">Kondisi aktual harian · seluruh mesin</h3><span id="rd-updated">Aktual diperbarui otomatis setiap 15 detik</span></header>
+    <div id="rd-summary" class="rd-summary"></div>
+    <p id="rd-actual-basis" class="rd-note">Ringkasan seluruh mesin hanya menghitung log approved yang terhubung ke release. Tabel mengikuti filter mesin.</p>
+    <div class="rd-table-wrap"><table data-enterprise-table="off"><thead><tr><th>Mesin</th><th>Part / proses</th><th>Good</th><th>NG</th><th>UOM</th><th>Downtime (menit)</th><th>Status sumber</th><th>Dokumen aktual</th></tr></thead><tbody id="rd-actual-body"></tbody></table></div>
+  </section>
+  <section class="rd-ng" aria-labelledby="rd-ng-heading">
+    <header class="rd-section-heading"><h3 id="rd-ng-heading">NG yang belum ditindaklanjuti</h3><span id="rd-ng-count"></span></header>
+    <p class="rd-note">NG tetap muncul pada hari berikutnya sampai seluruh qty masuk rencana recovery. Tanggal asal menunjukkan kapan NG terjadi.</p>
+    <div class="rd-table-wrap"><table data-enterprise-table="off"><thead><tr><th>Tanggal asal NG</th><th>Mesin</th><th>Part / proses</th><th>NG asal</th><th>Sudah direncanakan</th><th>Sisa NG</th><th>UOM</th><th>Sumber</th><th>Tindak lanjut</th></tr></thead><tbody id="rd-ng-body"></tbody></table></div>
+  </section>
+  <dialog id="rd-dialog" class="rd-dialog" aria-labelledby="rd-dialog-title">
+    <form id="rd-form">
+      <header class="rd-dialog-heading"><div><span class="rd-eyebrow">PPIC · RECOVERY PRODUKSI</span><h3 id="rd-dialog-title">Jadwalkan tindak lanjut NG</h3></div><button id="rd-close" type="button" aria-label="Tutup recovery">×</button></header>
+      <p id="rd-source" class="rd-source"></p>
+      <div class="rd-form-grid">
+        <label>Qty recovery <input id="rd-quantity" type="number" step="any" min="0.000001" required><small id="rd-quantity-help"></small></label>
+        <label>Tanggal produksi <input id="rd-target-date" type="date" required><button id="rd-tomorrow" type="button">Hari berikutnya</button></label>
+        <label>Cara recovery <select id="rd-mode" data-searchable-disabled><option value="NEW_PLAN">Buat rencana tambahan</option><option value="ADD_QTY">Tambahkan qty pada jadwal</option></select></label>
+        <label id="rd-target-label" hidden>Jadwal tujuan <select id="rd-target-job" data-searchable-disabled></select></label>
+      </div>
+      <p class="rd-note">Recovery menambah jadwal resmi pada mesin dan proses sumber NG. Pemeriksaan memakai kapasitas tersisa serta ketersediaan material pada tanggal tujuan.</p>
+      <div id="rd-preview" class="rd-preview" hidden></div>
+      <p id="rd-error" class="rd-error" role="alert" hidden></p>
+      <footer><button id="rd-cancel" type="button">Batal</button><button id="rd-check" type="submit">Periksa material &amp; kapasitas</button><button id="rd-commit" class="rd-primary" type="button" disabled>Simpan recovery</button></footer>
+    </form>
+  </dialog>
+</section>

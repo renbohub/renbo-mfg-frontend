@@ -4,7 +4,7 @@
   const esc = (v) => String(v ?? "—").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const qty = (v) => v == null ? "—" : new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 }).format(Number(v) || 0);
   const date = (v) => v ? new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(v)) : "—";
-  const groups = { mps: [["mps", "Checksheet MPS · semua partner"]], supplier: [["suggestions", "Purchase Suggestion"], ["orders", "Purchase Order"]], vendor: [["vendor-plans", "Rencana proses · Monthly Plan"], ["vendor-orders", "Order proses vendor"]], customer: [["customer", "Permintaan & kiriman customer"]] };
+  const groups = { ppic: [["ppic", "Permintaan PPIC Lab"]], mps: [["mps", "Checksheet MPS · semua partner"]], supplier: [["suggestions", "Purchase Suggestion"], ["orders", "Purchase Order"]], vendor: [["vendor-plans", "Rencana proses · Monthly Plan"], ["vendor-orders", "Order proses vendor"]], customer: [["customer", "Permintaan & kiriman customer"]] };
   const labels = { BOM: "Perkiraan By BOM", MISSING: "Belum ada ETA", LATE: "Lewat target", ON_TRACK: "Dalam target", UNKNOWN: "Kesiapan belum lengkap", RECEIVED: "Sudah diterima", PLANNED: "Belum konfirmasi", CONFIRMED: "Konfirmasi manual" };
   let tab = "mps", rows = [], documents = [], page = 1, version = 0, asOf = "", currentRow = null, saving = false, requestId = "", selectedMpsNumber = new URLSearchParams(location.search).get("mpsNumber") || "", partnerFilter = "";
   const partnerCategory = (r) => r.category === "VENDOR" ? "vendor" : r.category === "CUSTOMER" ? "customer" : r.checkOnly || r.category === "CHECKSHEET" ? "checksheet" : "supplier";
@@ -15,10 +15,12 @@
   const evaluated = new Set();
   let permissions = { canConfirm: false, canEvaluate: false };
   let loading = false;
+  let selectedReleaseId = new URLSearchParams(location.search).get("releaseId") || "";
   const required = (r) => Number(r.requiredQty ?? r.qty);
   const unresolved = (r) => r.etaBasis === "BOM" ? r.readiness?.ready !== true : r.timing !== "RECEIVED" && (!r.confirmed || r.stale || r.checkOnly || r.readiness?.ready === false || ["LATE", "UNKNOWN"].includes(r.timing) || Number(r.confirmedQty ?? r.qty) + .000001 < required(r) || (r.requiresQc && !r.readyDate));
   const newId = () => window.crypto?.randomUUID?.() || `eta-${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
-  async function api(url, body, timeout = 50000) {
+  const sheet = window.EtaRequestSheet?.mount({api,reload:()=>load(),openDetail:row=>openDetail(row),notify:(text,error=false)=>{const node=$(error?'eta-error':'eta-success');node.textContent=text;node.hidden=false;}});
+  async function api(url, body, timeout = 190000) {
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeout);
     try {
       const response = await fetch(url, { method: body ? "POST" : "GET", signal: controller.signal, headers: { Authorization: `Bearer ${localStorage.getItem("token") || sessionStorage.getItem("token") || ""}`, ...(body ? { "Content-Type": "application/json" } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
@@ -30,16 +32,17 @@
       throw error;
     } finally { clearTimeout(timer); }
   }
-  function chooseTab(value, source) {
-    tab = value; page = 1; partnerFilter = ""; $("eta-category").value = ""; $("eta-status").value = "";
+  function chooseTab(value, source, partner='') {
+    tab = value; page = 1; partnerFilter = ['supplier','vendor','customer'].includes(partner)?partner:""; $("eta-category").value = ""; $("eta-status").value = "";
+    if ($("eta-heading-copy")) $("eta-heading-copy").textContent = ({ppic:"Permintaan PPIC Lab · konfirmasi supplier, vendor, dan material customer langsung pada tabel.",mps:"Pilih MPS hasil perhitungan, lalu catat komitmen Supplier, Vendor, dan Customer.",supplier:"Purchase Plan Recommendation Confirm · catat komitmen supplier sebelum pembelian.",vendor:"Vendor Process Plan Recommendation Confirm · konfirmasi qty, lead time, dan tanggal kembali.",customer:"Material Supply from Customer Confirm · konfirmasi material milik customer dan tanggal siap dipakai."})[tab];
     $("eta-mode").value = tab;
     $("eta-mps-wrap").hidden = tab !== "mps";
-    $("eta-source-wrap").hidden = tab === "mps";
-    $("eta-partners").hidden = tab !== "mps";
+    $("eta-source-wrap").hidden = ["mps","ppic"].includes(tab);
+    $("eta-partners").hidden = !["mps","ppic"].includes(tab);
     $("eta-source").innerHTML = groups[tab].map(([v, label]) => `<option value="${v}">${label}</option>`).join("");
     if (groups[tab].some(([v]) => v === source)) $("eta-source").value = source;
     $("eta-source").disabled = groups[tab].length === 1;
-    $("eta-category-wrap").hidden = !["mps", "supplier"].includes(tab);
+    $("eta-category-wrap").hidden = !["ppic", "mps", "supplier"].includes(tab);
     load();
   }
   function filteredRows() {
@@ -67,8 +70,10 @@
   }
   function render() {
     renderDocuments();
+    if ($('eta-customer-operations')) $('eta-customer-operations').hidden = !(tab === 'customer' || tab === 'ppic' && partnerFilter === 'customer');
     document.querySelectorAll("[data-eta-partner]").forEach((b) => {
       b.setAttribute("aria-pressed", String(b.dataset.etaPartner === partnerFilter));
+      b.hidden=tab==='ppic'&&b.dataset.etaPartner==='checksheet';
       const count = rows.filter((r) => !b.dataset.etaPartner || partnerCategory(r) === b.dataset.etaPartner).length;
       b.textContent = `${partnerLabels[b.dataset.etaPartner] || "Semua"} (${qty(count)})`;
     });
@@ -77,6 +82,11 @@
     $("eta-missing").textContent = qty(rows.filter((r) => r.timing === "MISSING" || r.checkOnly).length);
     $("eta-late").textContent = qty(rows.filter((r) => r.timing === "LATE").length);
     $("eta-pending").textContent = qty(rows.filter(unresolved).length);
+    if($('eta-legacy-table'))$('eta-legacy-table').hidden=tab==='ppic';
+    if($('eta-legacy-pagination'))$('eta-legacy-pagination').hidden=tab==='ppic';
+    $('eta-start').hidden=tab==='ppic';
+    sheet?.update({active:tab==='ppic',rows,filtered,period:$('eta-month').value,loading});
+    if(tab==='ppic'){$('eta-note').textContent='Dikelompokkan seperti Purchase Suggestion. Konfirmasi memperbarui review PPIC Lab; stok dan transaksi pembelian mengikuti proses berikutnya.';return;}
     const pages = Math.max(1, Math.ceil(filtered.length / 25)); page = Math.min(Math.max(page, 1), pages);
     $("eta-body").innerHTML = filtered.slice((page - 1) * 25, page * 25).map((r) => `<tr><td class="eta-identity" data-label="Material / Part"><b>${esc(r.code)}</b><small>${esc(r.name)}${r.process ? ` · ${esc(r.process)}` : ""}</small></td><td data-label="Part No">${esc(r.partNumber)}</td><td class="eta-partner" data-label="Partner">${esc(r.partner || "Lengkapi partner di sumber")}</td><td data-label="Kebutuhan"><b>${date(r.needDate)}</b><small>Target tiba ${date(r.targetArrivalDate)}</small></td><td data-label="Lead time">${r.etaBasis !== "BOM" && (r.confirmedLeadTimeDays != null || r.confirmationRecord?.valid && r.confirmationRecord.leadTimeDays != null) ? `<b>Konfirmasi ${qty(r.confirmedLeadTimeDays ?? r.confirmationRecord.leadTimeDays)} hari</b>` : r.effectiveLeadTimeDays != null ? `<b>Acuan ${qty(r.effectiveLeadTimeDays)} hari</b>` : ""}<small>Master ${r.leadTime == null ? "—" : `${qty(r.leadTime)} hari`}</small></td><td data-label="ETA"><b>${date(r.eta)}</b><small>${esc(labels[r.confirmation])}</small></td><td data-label="Siap setelah QC">${date(r.readyDate)}</td><td class="qty" data-label="Qty kebutuhan">${qty(required(r))} ${esc(r.uom)}<small>${r.etaBasis === "BOM" ? "Qty rencana BOM" : `Konfirmasi ${qty(r.confirmedQty)}`}</small></td><td class="qty" data-label="Diterima">${qty(r.receivedQty)}<small>${r.qcHold ? `QC hold ${qty(r.qcHold)}` : r.rejectedQty ? `Reject ${qty(r.rejectedQty)}` : ""}</small></td><td data-label="Status"><span class="eta-badge ${r.checkOnly || r.stale ? "missing" : r.timing.toLowerCase()}">${r.checkOnly ? "Periksa checksheet" : r.etaBasis === "BOM" ? "Perkiraan By BOM" : r.confirmationRecord?.valid === false ? "Konfirmasi ulang" : labels[r.timing]}</span><small>${esc(r.readiness?.ready === false ? r.readiness.reason : "")}</small></td><td data-label="Dokumen"><a href="${esc(r.href)}">${esc(r.source)}</a><small>${esc(r.stage)}</small></td><td data-label="Aksi"><button class="eta-button ${canEdit(r) && unresolved(r) ? "primary" : ""}" type="button" data-detail="${esc(r.id)}">${canEdit(r) && unresolved(r) ? `Konfirmasi ${partnerLabels[partnerCategory(r)] || "Partner"}` : "Lihat detail"}</button></td></tr>`).join("") || `<tr><td class="eta-empty" colspan="12">${rows.length ? "Tidak ada item pada filter ini. Matikan fokus tindak lanjut untuk melihat konfirmasi yang selesai." : tab === "mps" ? "Belum ada kebutuhan konfirmasi MPS pada periode ini. Buat MPS atau periksa checksheet untuk memuat kebutuhannya." : "Tidak ada jadwal pada sumber dan periode ini."}</td></tr>`;
     $("eta-range").textContent = `${filtered.length ? (page - 1) * 25 + 1 : 0}–${Math.min(page * 25, filtered.length)} dari ${filtered.length} item`;
@@ -94,9 +104,11 @@
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error("Pilih periode yang valid.");
       const requestedMpsNumber = source === "mps" ? selectedMpsNumber : "";
       const url = new URL(location.href); url.searchParams.set("month", month); url.searchParams.set("tab", tab); url.searchParams.set("source", source);
+      if(tab==='ppic'&&partnerFilter)url.searchParams.set('partner',partnerFilter);else url.searchParams.delete('partner');
       if (requestedMpsNumber) url.searchParams.set("mpsNumber", requestedMpsNumber); else url.searchParams.delete("mpsNumber");
       history.replaceState(null, "", url);
       const query = new URLSearchParams({ month });
+      if (selectedReleaseId && source !== "mps") query.set("releaseId", selectedReleaseId);
       if (requestedMpsNumber) query.set("mpsNumber", requestedMpsNumber);
       const payload = await api(`/modules/api/purchasing/eta-monitor/${source}?${query}`);
       if (current !== version) return false;
@@ -115,11 +127,12 @@
       if (current !== version) return false;
       loading = false; permissions = { canConfirm: false, canEvaluate: false }; renderDocuments();
       $("eta-error").textContent = error.message; $("eta-error").hidden = false;
+      if(tab==='ppic')sheet?.error(error.message);
       $("eta-body").innerHTML = '<tr><td colspan="12" class="eta-empty">Data belum tersedia. Periksa akses atau Refresh status.</td></tr>'; return false;
     } finally { if (current === version) $("eta-refresh").disabled = false; }
   }
   function openDetail(r) {
-    currentRow = { ...r, sourceType: $("eta-source").value, month: $("eta-month").value, mpsNumber: selectedMpsNumber };
+    currentRow = { ...r, sourceType: $("eta-source").value==='ppic'?r.sourceType:$("eta-source").value, month: $("eta-month").value, mpsNumber: selectedMpsNumber };
     requestId = newId();
     const editable = canEdit(r), partnerLabel = partnerLabels[partnerCategory(r)] || "Partner";
     $("eta-dialog-title").textContent = editable ? `Konfirmasi ${partnerLabel} · ${r.code}` : `Rincian · ${r.code}`;
@@ -138,6 +151,7 @@
         <div class="eta-form-grid ps-form-grid">
           <label>${esc(partnerLabel)}<input class="form-control" readonly value="${esc([r.partnerCode, r.partner && r.partner !== r.partnerCode ? r.partner : ""].filter(Boolean).join(" · "))}"><small>Partner tetap mengikuti dokumen sumber.</small></label>
           <label>Confirmed Qty (${esc(r.uom || "unit")})<input class="form-control" name="qty" type="number" step="any" min="0.000001" required value="${inputQty(r.confirmedQty ?? required(r))}" ${r.id.startsWith("CS:") ? "readonly" : ""}></label>
+          ${r.category!=='CUSTOMER'?`<label>MOQ (${esc(r.uom||'unit')})<input class="form-control" name="moq" type="number" step="any" min="0" value="${inputQty(r.confirmedMoq??r.moq??0)}" required><small>Minimum qty untuk satu konfirmasi / jadwal gabungan.</small></label>`:''}
           <label>${r.category === "VENDOR" ? "Confirmed Delivery · kembali vendor" : "Confirmed Delivery · tiba"}<input class="form-control" name="eta" type="date" required value="${inputDate(r.eta || r.targetArrivalDate || r.needDate)}"><small>${r.targetArrivalDate ? `Target tiba ${date(r.targetArrivalDate)}` : `Siap produksi ${date(r.needDate)}; target tiba belum ditetapkan.`}</small></label>
           <label>Lead Time Aktual (hari)<input class="form-control" name="leadTimeDays" type="number" min="0" max="3650" step="any" ${currentRow.sourceType === "mps" ? "required" : ""} value="${esc(lead)}"><small>Master / baseline: ${r.leadTime == null ? "belum tersedia" : `${qty(r.leadTime)} hari`}. Isi komitmen aktual partner.</small></label>
           ${r.requiresQc ? `<label>Siap setelah QC<input class="form-control" name="readyDate" type="date" required value="${inputDate(r.readyDate || r.eta || r.needDate)}"></label>` : ""}
@@ -181,6 +195,7 @@
     saving = true; $("eta-close").disabled = true; form.querySelectorAll("button,input,select,textarea").forEach((b) => b.disabled = true); $("eta-form-error").hidden = true;
     try {
       const payload = await api(`/modules/api/purchasing/eta-monitor/${r.sourceType}/confirm`, { ...data, id: r.id, month: r.month, ...(r.sourceType === "mps" ? { mpsNumber: r.mpsNumber } : {}), qty: Number(data.qty), sourceFingerprint: r.sourceFingerprint, confirmationId: r.confirmationRecord?.id || null, requestId });
+      window.PpicConfirmationFeedback?.notify({month:r.month,source:r.sourceType});
       $("eta-dialog").close(); $("eta-success").textContent = `${r.code}: konfirmasi tersimpan.${payload.item?.readiness?.ready === false ? ` ${payload.item.readiness.reason}` : ""}`; $("eta-success").hidden = false;
       const loaded = await load();
       if (next && loaded) { const candidate = filteredRows().find((x) => x.id !== r.id && x.id !== payload.sourceKey && canEdit(x) && unresolved(x)); if (candidate) openDetail(candidate); }
@@ -196,10 +211,10 @@
     finally { evaluated.delete(number); renderDocuments(); }
   });
   $("eta-mode").addEventListener("change", () => chooseTab($("eta-mode").value));
-  $("eta-month").addEventListener("change", () => { selectedMpsNumber = ""; $("eta-success").hidden = true; load(); });
+  $("eta-month").addEventListener("change", () => { selectedMpsNumber = ""; selectedReleaseId = ""; const url = new URL(location.href); url.searchParams.delete("releaseId"); history.replaceState(null,"",url); $("eta-success").hidden = true; load(); });
   $("eta-mps").addEventListener("change", () => { selectedMpsNumber = $("eta-mps").value; $("eta-success").hidden = true; load(); });
   $("eta-source").addEventListener("change", load);
-  document.querySelectorAll("[data-eta-partner]").forEach((b) => b.addEventListener("click", () => { partnerFilter = b.dataset.etaPartner; page = 1; render(); }));
+  document.querySelectorAll("[data-eta-partner]").forEach((b) => b.addEventListener("click", () => { partnerFilter = b.dataset.etaPartner; page = 1;if(tab==='ppic'){const url=new URL(location.href);if(partnerFilter)url.searchParams.set('partner',partnerFilter);else url.searchParams.delete('partner');history.replaceState(null,'',url);}render(); }));
   for (const id of ["eta-category", "eta-status", "eta-search", "eta-unresolved"]) $(id).addEventListener(id === "eta-search" ? "input" : "change", () => { page = 1; render(); });
   $("eta-refresh").addEventListener("click", load);
   $("eta-prev").addEventListener("click", () => { page--; render(); }); $("eta-next").addEventListener("click", () => { page++; render(); });
@@ -207,5 +222,9 @@
   $("eta-dialog").addEventListener("cancel", (event) => { if (saving) event.preventDefault(); });
   $("eta-body").addEventListener("click", (event) => { const button = event.target.closest("[data-detail]"); if (button) { const row = rows.find((r) => r.id === button.dataset.detail); if (row) openDetail(row); } });
   $("eta-start").addEventListener("click", () => { const row = filteredRows().find((r) => canEdit(r) && unresolved(r)); if (row) openDetail(row); });
-  const params = new URLSearchParams(location.search); chooseTab(groups[params.get("tab")] ? params.get("tab") : "mps", params.get("source"));
+  const params = new URLSearchParams(location.search);
+  const initialTab=selectedReleaseId&&['vendor','supplier','customer'].includes(params.get('tab'))?'ppic':groups[params.get('tab')]?params.get('tab'):selectedMpsNumber?'mps':'ppic';
+  chooseTab(initialTab,params.get('source'),params.get('partner')||(selectedReleaseId?params.get('tab'):''));
+  if (params.get('customer_ops') === '1' && $('eta-customer-operations')) $('eta-customer-operations').open = true;
+  window.addEventListener?.('customer-supply:changed', () => load());
 })();

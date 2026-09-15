@@ -12,6 +12,9 @@
     "test:pr-form": "node --check public/js/purchasing-pr-form.js && node --check public/js/purchasing-pr-tools.js",
     "test:monthly-executor": "node scripts/verify-bom-executor-policy.js && node scripts/verify-monthly-executor-ui.js",
     "test:home": "node scripts/verify-home.js",
+    "test:preparation-workbench": "node --test scripts/verify-preparation-workbench.cjs",
+    "test:preparation-readiness": "node --test scripts/verify-preparation-readiness.cjs",
+    "test:auth": "node --test scripts/verify-auth-session.cjs",
     "test:demo-date": "node scripts/verify-demo-date.js",
     "start": "node server.js",
     "dev": "nodemon server.js",
@@ -53,7 +56,10 @@
     "test:vendor-receipt-layout": "node scripts/verify-vendor-receipt-layout.js",
     "test:schedule-board": "node scripts/verify-schedule-board.js",
     "build": "npm run test:ai-assistant-ui && npm run test:ai-model-profile-page && npm run test:ai-context-actions && npm run test:ai-capacity-actions && npm run test:encoding && npm run test:enterprise-lookup && npm run test:master-data-safety && npm run test:document-shell && npm run test:shared-ui && npm run test:mpp-gantt && npm run test:mps-delivery-status && npm run test:mps-recovery-actions && npm run test:mps-recovery-kanban && npm run test:mps-feasibility-checklist && npm run test:mrp-planning-runs-page && npm run test:mrp-current-stock && npm run test:monthly-production-plan-page && npm run test:daily-production-plan-model && npm run test:mpp-recommendation && npm run test:mpp-capacity-editor && npm run test:work-center-master && npm run test:working-hour-profile-master && npm run test:yearly-working-calendar && npm run test:vendor-process-master && npm run check && npm run check:ppic-cockpit",
-    "test:ppic-workspace": "node --check public/js/ppic-module-workspace.js && node --check public/js/ppic-labs-analysis.js && node --check public/js/ppic-execution-workspace.js && node --check public/js/ppic-execution-followup.js && node --check public/js/ppic-improvement-actions.js && node --check public/js/ppic-analytics-workspace.js && node --check public/js/ppic-workspace-release.js && node --check src/routes/ppic-workspace.js && node --check src/ppicWorkspaceRegistry.js && node --test scripts/verify-ppic-workspace-pages.cjs scripts/verify-ppic-readiness-ui.cjs scripts/verify-ppic-labs-renderers.cjs scripts/verify-ppic-execution-pages.cjs scripts/verify-ppic-execution-followup.cjs scripts/verify-ppic-improvement-actions.cjs scripts/verify-ppic-analytics-ui.cjs scripts/verify-ppic-release-ui.cjs"
+    "test:ppic-workspace": "node --check public/js/ppic-module-workspace.js && node --check public/js/ppic-labs-analysis.js && node --check public/js/ppic-execution-workspace.js && node --check public/js/ppic-execution-followup.js && node --check public/js/ppic-improvement-actions.js && node --check public/js/ppic-analytics-workspace.js && node --check public/js/ppic-workspace-release.js && node --check src/routes/ppic-workspace.js && node --check src/ppicWorkspaceRegistry.js && node --test scripts/verify-ppic-workspace-pages.cjs scripts/verify-ppic-readiness-ui.cjs scripts/verify-ppic-labs-renderers.cjs scripts/verify-ppic-execution-pages.cjs scripts/verify-ppic-execution-followup.cjs scripts/verify-ppic-improvement-actions.cjs scripts/verify-ppic-analytics-ui.cjs scripts/verify-ppic-release-ui.cjs",
+    "test:ppic-lab-release": "node --test scripts/verify-ppic-lab-release.cjs scripts/verify-preparation-bom-sync.cjs scripts/verify-preparation-controller-edit.cjs scripts/verify-preparation-derived-views.cjs scripts/verify-preparation-readiness.cjs scripts/verify-preparation-workbench.cjs scripts/verify-preparation-daily-plan.cjs",
+    "test:ppic-structure": "node --test scripts/verify-ppic-control.cjs scripts/verify-ppic-lab-release.cjs scripts/verify-preparation-outlook.cjs scripts/verify-preparation-readiness.cjs scripts/verify-preparation-workbench.cjs scripts/verify-preparation-controller-edit.cjs scripts/verify-preparation-derived-views.cjs scripts/verify-preparation-daily-plan.cjs",
+    "test:ppic-released-data": "node --test scripts/verify-ppic-lab-release.cjs scripts/verify-ppic-released-tables.cjs scripts/verify-ppic-released-daily.cjs scripts/verify-production-log-ppic-shift.cjs"
   },
   "dependencies": {
     "alpinejs": "^3.14.9",

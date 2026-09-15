@@ -1,0 +1,13 @@
+<dialog id="prep-adjustment-dialog" aria-labelledby="prep-adjustment-edit-title">
+  <form id="prep-adjustment-edit-form">
+    <header><div><h2 id="prep-adjustment-edit-title">Shortage / Buffer</h2><p id="prep-adjustment-edit-context"></p></div><button id="prep-adjustment-edit-close" type="button" aria-label="Tutup shortage dan buffer">×</button></header>
+    <div class="prep-adjustment-dialog-body">
+      <label>Shortage<input id="prep-adjustment-edit-shortage" type="text" inputmode="decimal" aria-label="Qty shortage" aria-describedby="prep-adjustment-edit-shortage-source"><small id="prep-adjustment-edit-shortage-source"></small></label>
+      <label>Buffer<input id="prep-adjustment-edit-buffer" type="text" inputmode="decimal" aria-label="Qty buffer" aria-describedby="prep-adjustment-edit-buffer-source"><small id="prep-adjustment-edit-buffer-source"></small></label>
+      <p id="prep-adjustment-edit-total" aria-live="polite"></p>
+      <p class="prep-help">Sel menampilkan total shortage + buffer. Perubahan berlaku untuk FG dan tanggal ini pada draft aktif.</p>
+      <p id="prep-adjustment-edit-error" role="alert"></p>
+    </div>
+    <footer><button id="prep-adjustment-edit-cancel" type="button">Batal</button><button id="prep-adjustment-edit-apply" class="prep-primary" type="submit">Terapkan</button></footer>
+  </form>
+</dialog>

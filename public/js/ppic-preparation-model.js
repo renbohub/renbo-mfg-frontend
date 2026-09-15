@@ -12,16 +12,16 @@
     return quantity(Number(input));
   }
   function columns(sheet,month){
-    const common=[{field:'partCode',title:sheet==='material'?'Kode material / part':'Kode part',width:180},{field:'partName',title:'Nama part / material',width:230},{field:'uomCode',title:'Satuan',width:88}];
+    const common=[{field:'partCode',title:sheet==='material'?'Kode material / part':'Kode part',width:180},{field:'partNumber',title:'Part Number',width:170,readonly:true},{field:'partName',title:'Nama part / material',width:230},{field:'uomCode',title:'Satuan',width:88}];
     if(sheet==='delivery')common.push({field:'customerCode',title:'Customer',width:130});
     if(sheet==='production')common.push({field:'resource',title:'Mesin / pelaksana',width:155},{field:'shift',title:'Shift',width:80},{field:'materialOffsetDays',title:'Offset material (hari)',width:150,numeric:true,integer:true});
     if(sheet==='material')common.push({field:'supplyType',title:'Jenis pasokan',width:170,options:['SUPPLIER_PURCHASE','CUSTOMER_SUPPLIED']},{field:'customerCode',title:'Pemilik customer',width:145},{field:'openingStock',title:'Stok awal simulasi',width:150,numeric:true});
     return [...common,...dates(month).map((date,i)=>({field:'d'+date.slice(-2),date,title:String(i+1).padStart(2,'0'),numeric:true,width:90,weekend:[0,6].includes(new Date(date+'T12:00:00').getDay())})),{field:'_total',title:'Total',width:125,numeric:true,readonly:true}];
   }
-  function parse(value,column){if(column.readonly)throw Error('Kolom total dihitung otomatis.');if(column.numeric){const n=quantity(value);if(column.integer&&(!Number.isInteger(n)||n>90))throw Error('Offset material harus 0–90 hari bulat.');return n;}const str=String(value??'').trim();if(str.length>180)throw Error('Teks maksimal 180 karakter.');if(column.options&&!column.options.includes(str))throw Error('Jenis pasokan: SUPPLIER_PURCHASE atau CUSTOMER_SUPPLIED.');return column.field==='uomCode'?str.toUpperCase():str;}
+  function parse(value,column){if(column.readonly)throw Error(column.field==='partNumber'?'Part Number berasal dari master part.':'Kolom total dihitung otomatis.');if(column.numeric){const n=quantity(value);if(column.integer&&(!Number.isInteger(n)||n>90))throw Error('Offset material harus 0–90 hari bulat.');return n;}const str=String(value??'').trim();if(str.length>180)throw Error('Teks maksimal 180 karakter.');if(column.options&&!column.options.includes(str))throw Error('Jenis pasokan: SUPPLIER_PURCHASE atau CUSTOMER_SUPPLIED.');return column.field==='uomCode'?str.toUpperCase():str;}
   function flatten(rows,month){return rows.map(row=>{const flat={...row};delete flat.days;let total=0;for(const date of dates(month)){const n=Number(row.days?.[date])||0;flat['d'+date.slice(-2)]=n;total+=n;}flat._total=total;return flat;});}
-  function inflate(rows,sheet,month){const fields=columns(sheet,month).filter(c=>!c.date&&!c.readonly);return rows.map(flat=>{const row={id:flat.id,days:{}};for(const c of fields)row[c.field]=flat[c.field]??(c.numeric?0:'');for(const date of dates(month)){const n=Number(flat['d'+date.slice(-2)])||0;if(n)row.days[date]=n;}return row;});}
-  function blank(sheet,id){return {id,partCode:'',partName:'',uomCode:'PCS',customerCode:'',resource:'',shift:'1',materialOffsetDays:0,supplyType:'SUPPLIER_PURCHASE',openingStock:0,days:{}};}
+  function inflate(rows,sheet,month){const fields=columns(sheet,month).filter(c=>!c.date&&(!c.readonly||c.field==='partNumber'));return rows.map(flat=>{const row={id:flat.id,days:{}};for(const c of fields)row[c.field]=flat[c.field]??(c.numeric?0:'');for(const date of dates(month)){const n=Number(flat['d'+date.slice(-2)])||0;if(n)row.days[date]=n;}return row;});}
+  function blank(sheet,id){return {id,partCode:'',partNumber:'',partName:'',uomCode:'PCS',customerCode:'',resource:'',shift:'1',materialOffsetDays:0,supplyType:'SUPPLIER_PURCHASE',openingStock:0,days:{}};}
   function paste(rows,columns,startRow,startColumn,tsv,newRow){
     const matrix=String(tsv).replace(/\r\n?/g,'\n').replace(/\n$/,'').split('\n').map(line=>line.split('\t'));
     if(matrix.length+startRow>2000)throw Error('Maksimal 2.000 baris per sheet.');

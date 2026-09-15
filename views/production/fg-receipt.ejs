@@ -1,56 +1,57 @@
-<%- include('../partials/head') %>
+<%- include('../partials/head', { pageStyles: ['/css/goods-receipt-detail.css?v=20260916-fg-1', '/css/fg-receipt-gr.css?v=20260916-1'] }) %>
 <%- include('../partials/header-modules') %>
 <%- include('../partials/module-subnav', { activePage: page.slug }) %>
 <main class="ops-page app-container fg-receipt-page transaction-detail-page">
   <nav class="module-breadcrumb"><a href="/modules/production">Production</a><span>/</span><b>FG Receipt</b></nav>
 
-  <section class="ops-detail-titlebar fg-receipt-titlebar transaction-command-header">
+  <section class="ops-detail-titlebar fg-receipt-titlebar transaction-command-header gr-detail-commandbar">
     <div>
       <p class="ops-eyebrow">Production · Inventory</p>
       <h1>FG Receipt</h1>
       <p>Terima hasil proses final yang sudah lolos QC menjadi Finished Goods. Seluruh referensi sumber tetap dapat ditelusuri.</p>
     </div>
-    <button id="fg-refresh" class="btn btn-outline-secondary" type="button">Refresh</button>
+    <div class="gr-detail-command-actions"><button id="fg-refresh" class="btn btn-outline-secondary" type="button">Refresh</button></div>
   </section>
 
   <div id="fg-alert" class="alert d-none" role="alert"></div>
 
-  <section class="fg-summary" aria-label="Ringkasan FG Receipt">
-    <article><span>Open Receipt</span><strong id="fg-pending-count">—</strong><small>ready dan menunggu proses/QC</small></article>
-    <article><span>Pending Qty</span><strong id="fg-pending-qty">—</strong><small>dipisahkan per UOM</small></article>
+  <section class="fg-summary gr-detail-metadata" aria-label="Ringkasan FG Receipt">
+    <article><span>Siap Diterima</span><strong id="fg-ready-qty">—</strong><small>output terakhir sudah lolos QC</small></article>
+    <article><span>Open Receipt</span><strong id="fg-pending-count">—</strong><small>baris siap dan menunggu</small></article>
+    <article><span>Menunggu Proses / QC</span><strong id="fg-pending-qty">—</strong><small>sisa rencana belum siap diterima</small></article>
     <article><span>Receipt History</span><strong id="fg-history-count">—</strong><small>movement aktif</small></article>
   </section>
 
-  <section class="ops-detail-card fg-workspace">
+  <section class="gr-detail-collections"><section class="ops-detail-card fg-workspace gr-detail-tabs-workspace">
     <header class="fg-toolbar">
-      <nav class="fg-tabs" aria-label="Tampilan FG Receipt">
-        <button class="active" type="button" data-fg-tab="pending">Pending Receipt <span id="fg-tab-pending-count">0</span></button>
-        <button type="button" data-fg-tab="history">History <span id="fg-tab-history-count">0</span></button>
+      <nav class="fg-tabs gr-detail-tabs" role="tablist" aria-label="Tampilan FG Receipt">
+        <button id="fg-tab-pending" class="active is-active" type="button" role="tab" aria-selected="true" aria-controls="fg-pending-panel" data-fg-tab="pending">Pending Receipt <span id="fg-tab-pending-count">0</span></button>
+        <button id="fg-tab-history" type="button" role="tab" aria-selected="false" aria-controls="fg-history-panel" tabindex="-1" data-fg-tab="history">History <span id="fg-tab-history-count">0</span></button>
       </nav>
       <label class="fg-search"><span class="visually-hidden">Cari data</span><input id="fg-search" class="form-control" type="search" placeholder="Cari QC, MO, WO, log, part, lot, atau warehouse..."></label>
     </header>
 
     <div id="fg-loading" class="fg-state">Memuat FG Receipt...</div>
-    <div id="fg-pending-panel" class="fg-panel d-none">
-      <div class="fg-table-wrap">
-        <table class="table fg-table fg-pending-table">
-          <thead><tr><th>QC / Receipt Source</th><th>Status</th><th>Production Entry</th><th>MO / WO</th><th>Source WIP</th><th>Source Location</th><th>Finished Goods</th><th>Passed</th><th>Received</th><th>Pending</th><th>Aksi / Resolusi</th></tr></thead>
+    <div id="fg-pending-panel" role="tabpanel" aria-labelledby="fg-tab-pending" class="fg-panel d-none">
+      <div class="fg-table-wrap table-responsive">
+        <table data-enterprise-table="off" class="table ops-collection-table fg-table fg-pending-table">
+          <thead><tr><th>QC / Receipt Source</th><th>Status</th><th>Production / Vendor</th><th>MO / WO</th><th>Source WIP</th><th>Source Location</th><th>Finished Goods</th><th>Passed</th><th>Received</th><th>Pending</th><th>Aksi / Resolusi</th></tr></thead>
           <tbody id="fg-pending-body"></tbody>
         </table>
       </div>
       <div id="fg-pending-empty" class="fg-empty d-none"><strong>Tidak ada FG yang menunggu receipt.</strong><span>Selesaikan QC pada proses final atau lihat tab History untuk receipt yang sudah diposting.</span></div>
     </div>
 
-    <div id="fg-history-panel" class="fg-panel d-none">
-      <div class="fg-table-wrap">
-        <table class="table fg-table fg-history-table">
-          <thead><tr><th>Receipt Ref</th><th>Received At</th><th>QC Inspection</th><th>MO / WO</th><th>Production Entry</th><th>Finished Goods</th><th>Target Location</th><th>Qty Received</th><th>Operator</th><th>Aksi</th></tr></thead>
+    <div id="fg-history-panel" role="tabpanel" aria-labelledby="fg-tab-history" class="fg-panel d-none">
+      <div class="fg-table-wrap table-responsive">
+        <table data-enterprise-table="off" class="table ops-collection-table fg-table fg-history-table">
+          <thead><tr><th>Receipt Ref</th><th>Received At</th><th>QC Inspection</th><th>MO / WO</th><th>Production / Vendor</th><th>Finished Goods</th><th>Target Location</th><th>Qty Received</th><th>Operator</th><th>Aksi</th></tr></thead>
           <tbody id="fg-history-body"></tbody>
         </table>
       </div>
       <div id="fg-history-empty" class="fg-empty d-none"><strong>Belum ada history FG Receipt.</strong><span>Receipt yang berhasil diposting akan muncul di sini.</span></div>
     </div>
-  </section>
+  </section></section>
   <%- include('../partials/document-comments', { documentComments: { recordKey: 'FG-RECEIPT-WORKSPACE', title: 'Komentar FG Receipt', variant: 'receipt' } }) %>
 </main>
 

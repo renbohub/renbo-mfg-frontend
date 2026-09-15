@@ -70,7 +70,8 @@
   }
 
   function sourceWipsCell(row) {
-    const sources = Array.isArray(row.sourceWips) ? row.sourceWips : [];
+    const allSources = Array.isArray(row.sourceWips) ? row.sourceWips : [];
+    const sources = row.sourcePart?.partCode ? allSources.filter((source) => source.partCode === row.sourcePart.partCode) : allSources;
     if (!sources.length) {
       return `<div class="fg-cell-stack"><b>${escapeHtml(row.sourcePart?.partCode || "-")}</b><small>Tidak ada detail movement</small></div>`;
     }
@@ -101,8 +102,8 @@
         <td><div class="fg-cell-stack">${row.inspectionNumber
           ? reference(`/modules/qc/quality-inspections/${encodeURIComponent(row.inspectionNumber)}`, row.inspectionNumber)
           : reference(`/modules/planning-ppic/monthly-production-plans/${encodeURIComponent(row.monthlyProductionPlanNumber)}`, row.monthlyProductionPlanNumber, "MPP")}<small>${formatDate(row.inspectionDate || row.dueDate)}</small></div></td>
-        <td><div class="fg-cell-stack"><span class="fg-receipt-state ${escapeHtml(String(row.receiptState || "").toLowerCase())}">${escapeHtml(stateLabels[row.receiptState] || row.receiptState || "Pending")}</span>${row.blockers?.[0]?.message ? `<small title="${escapeHtml(row.blockers[0].message)}">${escapeHtml(row.blockers[0].code || "BLOCKER")}</small>` : ""}</div></td>
-        <td>${reference(`/modules/production/production-logs/${encodeURIComponent(row.productionLogNumber)}`, row.productionLogNumber)}</td>
+        <td><div class="fg-cell-stack"><span class="fg-receipt-state ${escapeHtml(String(row.receiptState || "").toLowerCase())}">${escapeHtml(stateLabels[row.receiptState] || row.receiptState || "Pending")}</span>${row.blockers?.[0]?.message ? `<small class="fg-blocker-message">${escapeHtml(row.blockers[0].message)}</small>` : ""}</div></td>
+        <td>${row.vendorProcessOrderNumber ? reference(`/modules/production/vendor-process-orders/${encodeURIComponent(row.vendorProcessOrderNumber)}`, row.vendorProcessOrderNumber, "Vendor") : reference(`/modules/production/production-logs/${encodeURIComponent(row.productionLogNumber)}`, row.productionLogNumber)}</td>
         <td><div class="fg-cell-stack">${reference(`/modules/production/manufacturing-orders/${encodeURIComponent(row.moNumber)}`, row.moNumber, "MO")}${reference(`/modules/production/work-orders/${encodeURIComponent(row.woNumber)}`, row.woNumber, "WO")}</div></td>
         <td>${sourceWipsCell(row)}</td>
         <td><div class="fg-cell-stack"><b>${escapeHtml(row.sourceLocation?.warehouseCode || "-")}</b><small>${escapeHtml([row.sourceLocation?.rackCode, row.sourceLocation?.lotNumber].filter(Boolean).join(" · ") || "Tanpa rack / lot")}</small></div></td>
@@ -125,7 +126,7 @@
         <td>${formatDate(row.receivedAt, true)}</td>
         <td>${reference(`/modules/qc/quality-inspections/${encodeURIComponent(row.inspectionNumber)}`, row.inspectionNumber)}</td>
         <td><div class="fg-cell-stack">${reference(`/modules/production/manufacturing-orders/${encodeURIComponent(row.moNumber)}`, row.moNumber, "MO")}${reference(`/modules/production/work-orders/${encodeURIComponent(row.woNumber)}`, row.woNumber, "WO")}</div></td>
-        <td>${reference(`/modules/production/production-logs/${encodeURIComponent(row.productionLogNumber)}`, row.productionLogNumber)}</td>
+        <td>${row.vendorProcessOrderNumber ? reference(`/modules/production/vendor-process-orders/${encodeURIComponent(row.vendorProcessOrderNumber)}`, row.vendorProcessOrderNumber, "Vendor") : reference(`/modules/production/production-logs/${encodeURIComponent(row.productionLogNumber)}`, row.productionLogNumber)}</td>
         <td><div class="fg-cell-stack fg-part"><strong>${escapeHtml(row.fgPart?.partCode || "-")}</strong><small>${escapeHtml(row.fgPart?.partName || row.fgPart?.partNumber || "-")}</small></div></td>
         <td><div class="fg-cell-stack"><b>${escapeHtml(row.targetLocation?.warehouseCode || "-")}</b><small>${escapeHtml([row.targetLocation?.rackCode, row.targetLocation?.lotNumber].filter(Boolean).join(" · ") || "Tanpa rack / lot")}</small></div></td>
         <td>${qtyCell(row.qtyReceived, row.uomCode)}</td>
@@ -145,8 +146,9 @@
   }
 
   function renderAll() {
+    element("fg-ready-qty").textContent = summaryQuantity(state.pending.filter((row) => row.actionable), "qtyPending");
     element("fg-pending-count").textContent = formatNumber(state.pending.length, "PCS");
-    element("fg-pending-qty").textContent = summaryQuantity(state.pending, "qtyPending");
+    element("fg-pending-qty").textContent = summaryQuantity(state.pending.filter((row) => !row.actionable), "qtyPending");
     element("fg-history-count").textContent = formatNumber(state.history.length, "PCS");
     element("fg-tab-pending-count").textContent = state.pending.length;
     element("fg-tab-history-count").textContent = state.history.length;
@@ -156,10 +158,26 @@
 
   function setTab(tab) {
     state.activeTab = tab;
-    document.querySelectorAll("[data-fg-tab]").forEach((button) => button.classList.toggle("active", button.dataset.fgTab === tab));
+    document.querySelectorAll("[data-fg-tab]").forEach((button) => {
+      const active = button.dataset.fgTab === tab;
+      button.classList.toggle("active", active);
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-selected", String(active));
+      button.tabIndex = active ? 0 : -1;
+    });
     element("fg-pending-panel").classList.toggle("d-none", tab !== "pending");
     element("fg-history-panel").classList.toggle("d-none", tab !== "history");
   }
+
+  document.querySelectorAll("[data-fg-tab]").forEach((button) => {
+    button.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const tab = event.key === "Home" ? "pending" : event.key === "End" ? "history" : state.activeTab === "pending" ? "history" : "pending";
+      setTab(tab);
+      document.querySelector(`[data-fg-tab="${tab}"]`)?.focus();
+    });
+  });
 
   function fillWarehouseOptions(selectedCode = "") {
     warehouseSelect.innerHTML = `<option value="">Pilih warehouse...</option>${state.warehouses.map((warehouse) => `<option value="${escapeHtml(warehouse.warehouseCode)}" ${warehouse.warehouseCode === selectedCode ? "selected" : ""}>${escapeHtml(warehouse.warehouseCode)} · ${escapeHtml(warehouse.warehouseName || "Tanpa nama")}</option>`).join("")}`;
@@ -189,7 +207,7 @@
     element("fg-modal-title").textContent = `Receive ${row.fgPart?.partCode || "Finished Goods"}`;
     element("fg-modal-subtitle").textContent = `${row.inspectionNumber} · pending ${formatNumber(row.qtyPending, row.uomCode)} ${row.uomCode || ""}`;
     element("fg-modal-reference").innerHTML = [
-      ["QC Inspection", row.inspectionNumber], ["Production Entry", row.productionLogNumber],
+      ["QC Inspection", row.inspectionNumber], [row.vendorProcessOrderNumber ? "Vendor Process" : "Production Entry", row.vendorProcessOrderNumber || row.productionLogNumber],
       ["MO / WO", [row.moNumber, row.woNumber].filter(Boolean).join(" / ")], ["Source WIP", row.sourcePart?.partCode],
       ["FG Part", row.fgPart?.partCode], ["Source Location", locationLabel(row.sourceLocation)],
       ["Qty Passed", `${formatNumber(row.qtyPassed, row.uomCode)} ${row.uomCode || ""}`],

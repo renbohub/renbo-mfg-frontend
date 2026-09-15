@@ -1,0 +1,23 @@
+.fg-receipt-page .fg-summary { margin: 0 0 12px; gap: 0 28px; }
+.fg-receipt-page .fg-summary article { padding: 14px 0; border: 0; border-radius: 0; background: transparent; }
+.fg-receipt-page .fg-summary strong { margin-top: 6px; font-size: 14px; }
+.fg-receipt-page .fg-summary small { margin-top: 4px; }
+.fg-receipt-page .fg-toolbar { padding: 0; gap: 0; background: #f7f9fc; }
+.fg-receipt-page .fg-tabs { align-self: stretch; gap: 0; border-bottom: 0; }
+.fg-receipt-page .fg-tabs button { border-radius: 0; }
+.fg-receipt-page .fg-search { margin: 6px 12px; width: min(400px, 100%); }
+.fg-receipt-page .fg-search input { min-height: 30px; }
+.fg-receipt-page .fg-table { min-width: 1500px; }
+.fg-receipt-page .fg-blocker-message { max-width: 240px; white-space: normal; color: #667085; line-height: 1.4; }
+.fg-receipt-page .fg-source-wips { max-width: 200px; }
+.fg-receipt-page .fg-part { min-width: 160px; }
+.fg-receipt-page .fg-cell-stack { gap: 4px; }
+.fg-receipt-page .fg-receipt-state { font-size: 10px; font-weight: 700; }
+.fg-receipt-page .fg-receipt-state.ready_to_receive { color: #087647; }
+.fg-receipt-page .fg-resolution-links { display: grid; gap: 4px; }
+.fg-receipt-page .fg-resolution-link { font-size: 10px; }
+.fg-receipt-page .fg-resolution-link small { margin-right: 4px; color: #738198; }
+@media (max-width: 800px) {
+  .fg-receipt-page .fg-toolbar { align-items: stretch; }
+  .fg-receipt-page .fg-search { width: auto; }
+}

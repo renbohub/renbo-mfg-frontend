@@ -1,0 +1,6 @@
+.ppic-recovery-focus-banner{margin:12px 20px;padding:12px 16px;border:1px solid #e7bd5f;border-left:4px solid #bf7b00;border-radius:5px;background:#fff9e9;color:#614200;font-size:12px;line-height:1.6}
+.ppic-recovery-focus-banner strong{font-size:14px}.ppic-recovery-focus-banner p{margin:5px 0}.ppic-recovery-focus-banner a{font-weight:600;color:#2451bf}
+.ppic-recovery-field{outline:2px solid #d99000!important;outline-offset:3px;background-color:#fff5cf!important;scroll-margin-top:110px}
+.ppic-recovery-field:not(input):not(select):not(textarea)::after{content:attr(data-ppic-recovery);display:block;color:#865400;font-size:11px;font-weight:600;line-height:1.5;padding:3px 5px;white-space:normal}
+.ppic-recovery-field :is(input,select,textarea,.select2-selection){border-color:#cc900b!important}
+@media(max-width:700px){.ppic-recovery-focus-banner{margin:8px;padding:10px}}

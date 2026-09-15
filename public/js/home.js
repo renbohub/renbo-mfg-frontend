@@ -11,8 +11,17 @@
   function alert(message) { $("home-alert").textContent = message; $("home-alert").hidden = !message; }
   const errorMessage = (error) => ["TypeError", "TimeoutError", "AbortError", "SyntaxError"].includes(error?.name) ? "Koneksi belum tersedia. Data terakhir tetap ditampilkan; coba muat ulang sebentar lagi." : error.message;
   async function request(url, options = {}) {
-    const response = await fetch(url, { ...options, signal: AbortSignal.timeout(25000), headers: { Authorization: `Bearer ${token()}`, Accept: "application/json" } });
-    if (response.status === 401) { location.replace("/login?next=%2Fhome"); throw new Error("Sesi berakhir. Silakan masuk kembali."); }
+    const requestToken = token();
+    const response = await fetch(url, { ...options, signal: AbortSignal.timeout(25000), headers: { Authorization: `Bearer ${requestToken}`, Accept: "application/json" } });
+    if (response.status === 401) {
+      if (token() === requestToken) {
+        for (const storage of [localStorage, sessionStorage]) {
+          storage.removeItem("token"); storage.removeItem("user");
+        }
+        location.replace("/login?next=%2Fhome");
+      }
+      throw new Error("Sesi berakhir. Silakan masuk kembali.");
+    }
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.message || "Permintaan belum berhasil. Coba lagi.");
     return payload;

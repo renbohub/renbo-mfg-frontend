@@ -1,0 +1,25 @@
+.prep-workbench > .prep-lab-tabs {min-width:0;max-width:100%;scrollbar-width:thin;}
+.prep-workbench > .prep-lab-tabs button {flex:0 0 auto;min-width:125px;max-width:210px;white-space:normal;line-height:1.4;}
+.prep-outlook-panel .prep-derived-toolbar select {border:1px solid #dce2ec;border-radius:4px;padding:5px 8px;background:white;color:#43516a;font-size:11px;}
+.prep-outlook-panel .prep-derived-table td {vertical-align:middle;}
+.prep-outlook-panel .prep-outlook-status {display:inline-block;white-space:nowrap;padding:3px 6px;border-radius:4px;background:#eef2f8;color:#536580;font-size:10px;}
+.prep-outlook-panel .prep-outlook-status.READY {background:#e7f6ef;color:#277347;}
+.prep-outlook-panel .prep-outlook-status.TIGHT {background:#fff3d8;color:#855b12;}
+.prep-outlook-panel .prep-outlook-status.SHORTAGE {background:#fff0ed;color:#b44232;}
+.prep-kpi-content {padding:12px;min-height:300px;}
+.prep-kpi-cards {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px;}
+.prep-kpi-cards article {border:1px solid #e2e8f0;border-radius:6px;padding:12px;background:#fff;}
+.prep-kpi-cards article > span {display:block;font-size:11px;color:#536580;}
+.prep-kpi-cards article > strong {display:block;font-size:23px;font-weight:650;color:#24468a;margin:5px 0;}
+.prep-kpi-cards article > small {display:block;font-size:10px;color:#68778d;}
+.prep-kpi-caption {font-size:11px;color:#536580;margin:12px 0 6px;}
+.prep-kpi-table-wrap {overflow:auto;border:1px solid #e2e8f0;border-radius:5px;}
+.prep-kpi-table {width:100%;border-collapse:collapse;font-size:11px;}
+.prep-kpi-table th {text-align:left;background:#f6f8fc;font-weight:600;color:#536580;white-space:nowrap;}
+.prep-kpi-table :is(th,td) {padding:8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;}
+.prep-kpi-table tbody tr:nth-child(even) {background:#fbfcff;}
+.prep-kpi-table .prep-derived-number {text-align:right;font-variant-numeric:tabular-nums;}
+.prep-kpi-limit {padding:8px 0 0;font-size:11px;color:#68778d;}
+.prep-kpi-content .prep-derived-empty {padding:40px;text-align:center;font-size:12px;color:#68778d;}
+@media(max-width:950px){.prep-kpi-cards{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:550px){.prep-kpi-cards{grid-template-columns:1fr;}.prep-kpi-content{padding:8px;}}

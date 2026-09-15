@@ -50,7 +50,7 @@
   }
 
   function renderHead(payload) {
-    $("yd-head").innerHTML = '<tr><th scope="col" class="yd-part-number">Part</th><th scope="col" class="yd-part-name">Nama part / customer</th>' + payload.months.map(month => '<th scope="col">' + monthNames[month.index - 1] + '</th>').join('') + '<th scope="col" class="yd-annual-total">Total EFD</th></tr>';
+    $("yd-head").innerHTML = '<tr><th scope="col" class="yd-part-number">Part Number / Code</th><th scope="col" class="yd-part-name">Nama part / customer</th>' + payload.months.map(month => '<th scope="col">' + monthNames[month.index - 1] + '</th>').join('') + '<th scope="col" class="yd-annual-total">Total EFD</th></tr>';
   }
 
   function metricCell(row, month, type) {

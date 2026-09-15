@@ -16,7 +16,7 @@ function taskUrl(item) {
   return item.kind === "comment" ? `${target}?openComments=1` : target;
 }
 router.get("/home", (_req, res) => res.render("home/index", {
-  title: "Beranda", requiresAuth: true, modules, activeModule: "", pageStyles: ["/css/home.css?v=20260909-friendly-1"], pageScript: "/js/home.js?v=20260909-friendly-1",
+  title: "Beranda", requiresAuth: true, modules, activeModule: "", pageStyles: ["/css/home.css?v=20260909-friendly-1"], pageScript: "/js/home.js?v=20260912-auth",
   socketUrl: process.env.SOCKET_URL || "http://localhost:5017", mqttUrl: "",
 }));
 router.get("/home/api/tasks", async (req, res) => {

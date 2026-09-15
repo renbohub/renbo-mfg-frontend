@@ -1,0 +1,26 @@
+<section id="prep-daily-panel" class="prep-derived-panel" role="tabpanel" aria-labelledby="prep-page-daily" hidden>
+  <section class="prep-workbook" aria-label="Daily Production Simulation">
+    <header class="prep-sheetbar prep-derived-heading"><h2 class="prep-workbook-title">Daily Production Simulation</h2><div class="prep-sheet-meta"><strong id="prep-daily-scenario"></strong><button id="prep-daily-back" type="button">Edit di 02 Worksheet Schedule</button><button id="prep-daily-save" type="button" class="prep-primary" disabled>Simpan draft</button></div></header>
+    <div class="prep-ribbon prep-daily-toolbar">
+      <button id="prep-daily-prev" type="button" aria-label="Hari sebelumnya">←</button><label>Tanggal <input id="prep-daily-date" type="date"></label><button id="prep-daily-next" type="button" aria-label="Hari berikutnya">→</button>
+      <button id="prep-daily-expand" type="button">Buka semua mesin</button><button id="prep-daily-collapse" type="button">Tutup semua mesin</button>
+      <button id="prep-daily-undo" type="button">↶ Undo</button><button id="prep-daily-redo" type="button">↷ Redo</button>
+      <input id="prep-daily-search" type="search" aria-label="Cari mesin atau child part" placeholder="Cari mesin, part, proses, FG…">
+      <span id="prep-daily-status" class="prep-sheet-status" role="status" aria-live="polite">Menunggu sumber tab 02…</span>
+    </div>
+    <div class="prep-sheet-heading"><strong id="prep-daily-range">05.00–05.00 (+1 hari)</strong><span>Geser blok pada mesin yang sama · snap 15 menit · klik / Enter untuk jam presisi · ← → untuk geser</span></div>
+    <div class="prep-daily-legend"><span><i class="auto"></i> Otomatis</span><span><i class="manual"></i> Posisi manual</span><span><i class="issue"></i> Perlu ditinjau</span><span><i class="closed"></i> Di luar jam efektif / libur</span><span>Durasi termasuk setup · qty tetap</span></div>
+    <p id="prep-daily-message" role="status" aria-live="polite" hidden></p>
+    <div id="prep-daily-scroll" class="prep-daily-scroll" tabindex="0" role="region" aria-label="Gantt produksi 24 jam"><div id="prep-daily-chart"></div></div>
+    <footer class="prep-derived-pagination"><span id="prep-daily-count"></span><span>Waktu lokal pabrik · 24 jam</span></footer>
+  </section>
+  <details id="prep-daily-unplaced" class="prep-source-notes" hidden><summary id="prep-daily-unplaced-count"></summary><ul id="prep-daily-unplaced-list"></ul></details>
+  <p id="prep-daily-basis" class="prep-help"></p>
+</section>
+<dialog id="prep-daily-dialog" aria-labelledby="prep-daily-dialog-title">
+  <form method="dialog" id="prep-daily-form">
+    <header><div><span class="prep-eyebrow">DAILY PRODUCTION PLAN</span><h2 id="prep-daily-dialog-title">Posisi proses</h2></div><button type="button" id="prep-daily-close" aria-label="Tutup">✕</button></header>
+    <div class="prep-daily-dialog-body"><p id="prep-daily-detail"></p><label>Mulai <input id="prep-daily-start" type="time" step="60" required></label><p id="prep-daily-duration"></p><p id="prep-daily-preview"></p><ul id="prep-daily-issues"></ul><p id="prep-daily-error" role="alert" hidden></p></div>
+    <footer><button id="prep-daily-reset" type="button">Kembali otomatis</button><button id="prep-daily-cancel" type="button">Batal</button><button id="prep-daily-apply" type="submit" class="prep-primary">Terapkan ke draft</button></footer>
+  </form>
+</dialog>

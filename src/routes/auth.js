@@ -13,7 +13,7 @@ router.get("/login", (req, res) => {
     nextPath,
     socketUrl: "",
     mqttUrl: "",
-    pageScript: "/js/login.js"
+    pageScript: "/js/login.js?v=20260912-auth"
   });
 });
 

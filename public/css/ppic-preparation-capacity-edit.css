@@ -1,0 +1,53 @@
+.prep-workbench .prep-capacity-matrix button.prep-capacity-cell-edit{display:block;width:100%;min-height:38px;border:0;background:transparent;color:inherit;font:inherit;text-align:right;padding:4px 2px;cursor:pointer;border-radius:4px}
+.prep-workbench .prep-capacity-matrix button.prep-capacity-cell-edit:hover{background:rgba(37,99,235,.08)}
+.prep-workbench .prep-capacity-matrix button.prep-capacity-cell-edit:focus-visible{outline:2px solid #2563eb;outline-offset:-2px}
+.prep-workbench .prep-capacity-matrix button.prep-capacity-cell-edit>small{display:block}
+.prep-capacity-markers{display:flex;justify-content:flex-end;gap:3px;margin-top:3px;min-height:0}
+.prep-capacity-markers:empty{display:none}
+.prep-capacity-marker{display:inline-block;padding:1px 5px;border-radius:4px;font-size:10px;font-weight:700;line-height:15px;white-space:nowrap}
+.prep-capacity-marker.overtime{background:#fef3c7;color:#92400e;border:1px solid #fcd34d}
+.prep-capacity-marker.overlap{background:#e0f2fe;color:#075985;border:1px solid #7dd3fc}
+.prep-capacity-setup{color:#6d28d9}
+.prep-capacity-options-legend{display:flex;flex-wrap:wrap;gap:8px 18px;padding:10px 14px;font-size:12px;color:#475569;border-top:1px solid #e2e8f0;margin:0;background:#f8fafc}
+.prep-capacity-options-legend>span{display:inline-flex;align-items:center;gap:5px}
+.prep-capacity-dialog{width:min(580px,calc(100vw - 32px));max-height:90vh;max-height:calc(100dvh - 32px);border:1px solid #dbe3ee;border-radius:14px;padding:0;color:#172033;box-shadow:0 24px 70px #0f172a40;overflow:hidden;box-sizing:border-box}
+.prep-capacity-dialog[open]{display:flex;flex-direction:column}
+.prep-capacity-dialog::backdrop{background:#0f172a66}
+.prep-capacity-dialog header{display:flex;flex-shrink:0;align-items:flex-start;justify-content:space-between;gap:12px;padding:22px 24px 14px;border-bottom:1px solid #e2e8f0}
+.prep-capacity-dialog h2{font-size:21px;margin:5px 0 8px}
+.prep-capacity-dialog header p{font-size:12px;color:#64748b;margin:0;line-height:1.6;overflow-wrap:anywhere}
+.prep-capacity-dialog button{font:inherit;border:1px solid #cbd5e1;border-radius:6px;padding:8px 11px;background:#fff;cursor:pointer}
+.prep-capacity-dialog button:disabled{opacity:.5;cursor:wait}
+.prep-capacity-dialog form{display:flex;flex-direction:column;min-height:0;overflow:hidden;margin:0}
+.prep-capacity-form-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:18px 24px 20px}
+.prep-capacity-dialog fieldset{padding:0;border:0;margin:0 0 16px}
+.prep-capacity-dialog legend{font-weight:600;font-size:13px;padding:0 0 10px}
+.prep-capacity-shift-option{display:grid;grid-template-columns:1fr auto;gap:5px 14px;background:#f8fafc;padding:12px;margin-bottom:8px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px}
+.prep-capacity-shift-option small{grid-column:1/-1;color:#64748b}
+.prep-capacity-hours{display:flex;align-items:center;gap:7px}
+.prep-capacity-dialog input[type=text]{font:inherit;border:1px solid #cbd5e1;padding:9px;border-radius:6px;box-sizing:border-box;background:white;color:#172033}
+.prep-capacity-hours input{width:64px;text-align:right}
+.prep-capacity-overlap-option{display:flex;gap:8px;align-items:flex-start;padding:12px;border:1px solid #bae6fd;background:#f0f9ff;border-radius:8px;font-size:14px}
+.prep-capacity-overlap-option small{display:block;color:#64748b;font-size:12px;margin-top:4px}
+.prep-capacity-input-label{display:flex;flex-direction:column;gap:7px;font-size:13px;font-weight:600;margin:0 0 16px}
+.prep-capacity-input-label small{font-size:11px;color:#64748b;font-weight:400}
+.prep-capacity-setup-inputs{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.prep-capacity-setup-inputs input{width:100%}
+.prep-capacity-form-note{font-size:12px;color:#64748b;line-height:1.6}
+.prep-capacity-calculation{padding:12px;background:#eff6ff;border:1px solid #dbeafe;border-radius:8px;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.6;color:#1e40af;overflow-wrap:anywhere}
+.prep-capacity-time-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:#dbeafe;border:1px solid #dbeafe;border-radius:8px;overflow:hidden;margin:16px 0 0}
+.prep-capacity-time-summary>div{padding:12px 14px;background:#eff6ff;min-width:0}
+.prep-capacity-time-summary dt{font-size:12px;color:#475569;margin:0 0 5px}
+.prep-capacity-time-summary dd{margin:0;color:#1e40af;font-size:18px;font-weight:600;line-height:1.4;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.prep-capacity-time-summary dd.is-overload{color:#b91c1c}
+.prep-capacity-form-error{font-size:13px;color:#b91c1c;line-height:1.5}
+.prep-capacity-form-error:empty{display:none}
+.prep-capacity-dialog footer{display:flex;flex-shrink:0;gap:8px;align-items:center;border-top:1px solid #e2e8f0;padding:16px 24px;background:#fff}
+.prep-capacity-dialog footer span{flex:1}
+.prep-capacity-dialog .prep-capacity-primary{background:#1d4ed8;color:white;border-color:#1d4ed8}
+@media(max-width:520px){.prep-capacity-dialog header,.prep-capacity-form-body,.prep-capacity-dialog footer{padding:16px}.prep-capacity-shift-option{grid-template-columns:1fr}.prep-capacity-setup-inputs{gap:10px}.prep-capacity-dialog footer{flex-wrap:wrap}.prep-capacity-time-summary>div{padding:10px}.prep-capacity-time-summary dd{font-size:16px}}
+
+.prep-workbench .prep-capacity-matrix .prep-capacity-machine-value button.prep-capacity-cell-edit{text-align:center}
+.prep-workbench .prep-capacity-matrix .prep-capacity-machine-value .prep-capacity-markers{justify-content:center}
+
+.prep-capacity-dialog select{font:inherit;padding:10px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#172033}.prep-workbench .prep-capacity-matrix .prep-capacity-weekday{display:block;margin-top:4px;font-size:10px;color:#64748b}.prep-workbench .prep-capacity-matrix th.is-weekend{background:#e8edf5}.prep-workbench .prep-derived-panel .prep-capacity-matrix tbody td.is-holiday{background:repeating-linear-gradient(135deg,#edf0f5,#edf0f5 5px,#f5f7fa 5px,#f5f7fa 10px);color:#64748b}.prep-workbench .prep-derived-panel .prep-capacity-matrix tbody td.holiday-load{background:#fff1e6;color:#9a3412}.prep-capacity-holiday-warning{display:block;white-space:normal;font-size:10px}.prep-capacity-marker.working{background:#dcfce7;color:#166534;border:1px solid #86efac;margin-top:4px}.prep-capacity-legend-holiday{width:18px;height:14px;border:1px solid #cbd5e1;background:repeating-linear-gradient(135deg,#e2e8f0,#e2e8f0 3px,#f8fafc 3px,#f8fafc 6px)}

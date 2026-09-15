@@ -1,6 +1,7 @@
 (function () {
   const config = JSON.parse(document.getElementById("purchasing-pr-config").textContent);
   const $ = (id) => document.getElementById(id);
+  const materialModel = window.PurchasingMaterial;
   const token = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
   const number = (value) => {
@@ -14,7 +15,7 @@
   };
   const date = (value) => value ? String(value).slice(0, 10) : "";
   const today = () => (globalThis.erpBusinessNow?.() || new Date()).toISOString().slice(0, 10);
-  const currency = (value) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(number(value));
+  const currency = (value, code = 'IDR') => new Intl.NumberFormat("id-ID", { style: "currency", currency: code, maximumFractionDigits: 2 }).format(number(value));
   const state = { parts: [], materials: [], suppliers: [], record: null, currentCategory: null, ready: false };
   const tableLayout = window.PRFormTools.columnLayout(document.querySelector(".pr-lines-table"), $("pr-columns"));
   const categoryFromQuery = {
@@ -32,8 +33,8 @@
       slug: "material",
       label: "Material",
       poType: "Material",
-      description: "PR material mengambil item dari Material Master. Isi quantity, UOM, spesifikasi, dan pilihan C/S/P sesuai kebutuhan.",
-      detail: "Pilih Material Master; periksa Spec, Thickness, Width, C/S/P, quantity, UOM, harga estimasi, dan preferred supplier.",
+      description: "Pilih raw material melalui part code atau part number. Quantity dan harga memakai KG; tentukan bentuk Sheet atau Coil.",
+      detail: "Raw material terhubung ke Material Master. Isi qty KG, bentuk Sheet/Coil, harga per KG, dan supplier.",
     },
     PURCHASE_PART: {
       slug: "purchase-part",
@@ -59,7 +60,7 @@
       label: "Non Produksi",
       poType: "Other",
       description: "PR Non Produksi digunakan untuk consumable, service, asset, maintenance, dan kebutuhan umum.",
-      detail: "Tuliskan deskripsi kebutuhan secara jelas karena item Non Produksi tidak wajib terhubung ke Part Master.",
+      detail: "Cari barang pada Master Harga Barang untuk mengambil item, supplier, UOM, dan harga. Deskripsi tambahan dapat diisi pada setiap item.",
     },
   };
 
@@ -74,7 +75,7 @@
     state.currentCategory = category;
     if ($("pr-category")) $("pr-category").value = category;
     $("po-type").value = meta.poType;
-    [...$("po-type").options].forEach((option) => { option.disabled = category === "NON_PRODUCTION" ? !["Other", "Service", "Consumable", "Maintenance", "Asset"].includes(option.value) : option.value !== meta.poType; });
+    [...$("po-type").options].forEach((option) => { option.disabled = false; });
     $("header-material-wrap").classList.toggle("d-none", category !== "MATERIAL");
     if (category !== "MATERIAL") $("header-material").value = "-";
     $("pr-category-eyebrow").textContent = `Purchasing · ${meta.label}`;
@@ -106,6 +107,11 @@
   }
   function setUom(tr, code) {
     const select = tr.querySelector(".line-uom");
+    if (tr.querySelector('.line-category').value === 'MATERIAL') {
+      select.innerHTML = '<option value="KG" selected>KG</option>';
+      select.disabled = true;
+      return;
+    }
     window.EnterpriseLookup.setSelected(select, { id: code, text: code });
     select.dispatchEvent(new Event("change", { bubbles: true }));
   }
@@ -120,14 +126,68 @@
   }
   function openItemLookup(tr) {
     const category = tr.querySelector(".line-category").value;
-    const source = category === "MATERIAL" ? "pr-materials" : "pr-parts";
+    if (['NON_PRODUCTION', 'VENDOR_PROCESS'].includes(category)) return openPriceLookup(tr);
+    const source = category === "MATERIAL" ? "pr-raw-material-parts" : "pr-parts";
     const query = ["PURCHASE_PART", "UNIVERSAL_PURCHASE_PART"].includes(category)
-      ? { prCategory: category, rawType: "PURCHASE_PART", hasDrawing: String(category === "PURCHASE_PART") } : category === "VENDOR_PROCESS" ? { prCategory: category } : {};
-    window.PRFormTools.lookup({ api, source, query, title: category === "MATERIAL" ? "Material" : "Part", onSelect(item) {
-      cacheItem(source, item);
+      ? { prCategory: category, rawType: "PURCHASE_PART", hasDrawing: String(category === "PURCHASE_PART") } : category === "MATERIAL" ? {itemType:'RAW',rawType:'MATERIAL'} : {};
+    window.PRFormTools.lookup({ api, source, query, title: category === "MATERIAL" ? "Raw Material" : "Part", onSelect(item) {
+      if (category === 'MATERIAL') {
+        const selected = materialModel.rawPartSelection(item);
+        if (!selected) return show('Raw material harus terhubung ke Material Master.');
+        tr._sourceRecord = {...tr._sourceRecord,partId:selected.partId,partCode:selected.partCode,partNumber:selected.partNumber,partName:selected.partName};
+        tr._legacyMaterialInvalid = false;
+        tr._selectedMaterialPrice = null;
+        tr._priceInvalid = false;
+        tr.querySelector('.line-price').value = '';
+        item = {...item,id:selected.material.materialCode,data:selected.material};
+        cacheItem('pr-materials', item);
+      } else cacheItem(source, item);
       const select = tr.querySelector(".line-part");
       select.innerHTML = `<option value="${esc(item.id)}" selected>${esc(item.text)}</option>`;
       syncPart(tr, false, true);
+      recalculate();
+      openPriceLookup(tr);
+    } });
+  }
+  function openPriceLookup(tr) {
+    const category = tr.querySelector('.line-category').value;
+    const kind = ({ MATERIAL: 'MATERIAL', VENDOR_PROCESS: 'VENDOR', NON_PRODUCTION: 'PRODUCT' })[category] || 'PART';
+    const code = tr.querySelector('.line-part').value;
+    window.PRFormTools.lookup({ api, source: 'purchase-item-prices', title: 'Item & Harga Supplier / Vendor', query: {
+      kind, at: $('pr-date').value || today(),
+      ...((kind === 'VENDOR' ? tr.querySelector('.line-vendor').value : tr.querySelector('.line-supplier').value) ? { [kind === 'VENDOR' ? 'vendorCode' : 'supplierCode']: kind === 'VENDOR' ? tr.querySelector('.line-vendor').value : tr.querySelector('.line-supplier').value } : {}),
+      ...(kind === 'MATERIAL' && code ? { materialCode: code } : {}),
+      ...(kind === 'PART' && code ? { partCode: code } : {}),
+    }, onSelect(item) {
+      const selected = item.data;
+      if (!tr.isConnected) return;
+      tr._applyingPrice = true;
+      if (kind === 'MATERIAL' && code !== selected.materialCode) tr._sourceRecord = {...tr._sourceRecord,partId:null,partCode:null,partNumber:null,partName:null};
+      if (selected.partCode) cacheItem('pr-parts', { id: selected.partCode, data: { ...selected, id: selected.partId, rawType: 'PURCHASE_PART' } });
+      if (selected.materialCode) cacheItem('pr-materials', { id: selected.materialCode, data: { ...selected, id: selected.materialId } });
+      const value = selected.materialCode || selected.partCode || selected.productId;
+      tr.querySelector('.line-part').innerHTML = `<option value="${esc(value)}" selected>${esc(item.text)}</option>`;
+      tr._sourceRecord = { ...tr._sourceRecord, productId: selected.productId || null, productCode: selected.productCode || null,
+        currencyCode: selected.currencyCode, preferredSupplier: selected.supplierCode || null };
+      syncPart(tr, false, true);
+      tr.querySelector('.line-description').value = [selected.itemName, selected.processName].filter(Boolean).join(' · ');
+      tr.querySelector('.line-part-code').textContent = kind === 'MATERIAL' ? tr._sourceRecord.partCode || selected.itemCode : selected.itemCode;
+      setUom(tr, selected.uomCode);
+      tr.querySelector('.line-price').value = selected.unitPrice;
+      tr._priceInvalid = false;
+      if (kind === 'MATERIAL') {
+        setUom(tr, 'KG');
+        if (!tr.querySelector('.line-csp').value) tr.querySelector('.line-csp').value = ({COIL:'C',SHEET:'S'})[materialModel.form(selected.purchasePackageUomCode || selected.CSP)] || '';
+        tr._selectedMaterialPrice = selected;
+        const kgPrice = materialModel.pricePerKg(selected,tr.querySelector('.line-csp').value);
+        tr.querySelector('.line-price').value = kgPrice ?? '';
+        tr._priceInvalid = kgPrice === null;
+        if (kgPrice === null) show('Pilih harga sesuai bentuk material atau isi estimasi harga per KG.', 'warning');
+      }
+      tr.querySelector('.line-price').title = `${selected.currencyCode} / ${kind === 'MATERIAL' ? 'KG' : selected.uomCode}`;
+      window.EnterpriseLookup.setSelected(tr.querySelector(selected.vendorCode ? '.line-vendor' : '.line-supplier'), {
+        id: selected.vendorCode || selected.supplierCode, text: `${selected.vendorCode || selected.supplierCode} — ${selected.partnerName}` });
+      tr._applyingPrice = false;
       recalculate();
     } });
   }
@@ -198,6 +258,7 @@
   }
   function sourceTrace(row) {
     const links = (row.sources || []).map((source) => {
+      if(source.sourceType==='PPIC_RELEASE'&&/^20\d{2}-(0[1-9]|1[0-2])$/.test(source.metadata?.month||''))return `<a href="/modules/purchasing/${row.preferredVendor?'pr-vendor':'pr-supplier'}?month=${encodeURIComponent(source.metadata.month)}" target="_blank" rel="noopener">PPIC Released ${esc(source.metadata.month)}</a>`;
       const mrp = source.mrpRunNumber
         ? `<a href="/modules/planning-ppic/mrp/${encodeURIComponent(source.mrpRunNumber)}" target="_blank" rel="noopener">${esc(source.mrpRunNumber)}</a>`
         : null;
@@ -282,6 +343,8 @@
   }
   function addLine(row = {}) {
     const category = ["MATERIAL", "PURCHASE_PART", "UNIVERSAL_PURCHASE_PART", "VENDOR_PROCESS", "NON_PRODUCTION"].includes(lineCategory(row)) ? lineCategory(row) : state.currentCategory;
+    const kgValues = category === 'MATERIAL' ? materialModel.storedKgValues({...row,unitPrice:row.estimatedPrice??0}) : null;
+    if (kgValues) row = {...row,qty:kgValues.qty,estimatedPrice:kgValues.unitPrice,uomCode:'KG'};
     const sourceForm = String(row.purchasePackageUomCode || "").trim().toUpperCase();
     const purchaseForm = ["COIL", "SHEET", "PCS"].includes(sourceForm) ? sourceForm : "";
     const packageQty = row.purchasePackageQty ?? row.lotCount ?? "";
@@ -301,8 +364,8 @@
       <td><span class="line-part-number">${esc(row.partNumber || "-")}</span></td>
       <td><span class="line-material">-</span></td>
       <td><input class="form-control line-qty" type="number" min="0.000001" step="any" value="${number(row.qty || 1)}"><div class="line-lot-fields" hidden><small>Raw material direquest dalam KG. Bentuk Sheet/Coil/Pcs ditentukan setelah supplier dipilih.</small></div></td>
-      <td><select class="form-select line-uom" required data-enterprise-lookup="uom" data-lookup-placeholder="Cari UOM"><option value=""></option>${row.uomCode ? `<option value="${esc(row.uomCode)}" selected>${esc(row.uomCode)}</option>` : ""}</select></td>
-      <td><select class="form-select line-csp" aria-label="C/S/P"><option value="">-</option><option value="C">C · Coil</option><option value="S">S · Sheet</option><option value="P">P · Pcs</option></select><div class="line-conversion-fields" hidden>
+      <td><select class="form-select line-uom" aria-label="UOM" required ${category === 'MATERIAL' ? 'disabled data-searchable-disabled="true"' : 'data-enterprise-lookup="uom" data-lookup-placeholder="Cari UOM"'}><option value=""></option>${row.uomCode ? `<option value="${esc(row.uomCode)}" selected>${esc(row.uomCode)}</option>` : ""}</select></td>
+      <td><select class="form-select line-csp" aria-label="Bentuk material" ${category === 'MATERIAL' ? 'required' : ''}><option value="">Pilih bentuk</option><option value="C">Coil</option><option value="S">Sheet</option></select><div class="line-conversion-fields" hidden>
         <small>Rekomendasi BOM: ${esc(recommendedForms || "-")} (tidak mengunci pembelian)</small>
         <select class="form-select line-purchase-form"><option value="">Pilih C/S/P</option><option value="COIL" ${purchaseForm === "COIL" ? "selected" : ""}>C · Coil</option><option value="SHEET" ${purchaseForm === "SHEET" ? "selected" : ""}>S · Sheet</option><option value="PCS" ${purchaseForm === "PCS" ? "selected" : ""}>P · Pcs</option></select>
         <div class="line-conversion-grid"><input class="form-control line-package-qty" type="text" inputmode="numeric" value="${esc(packageQty)}" placeholder="Jumlah C/S/P"><input class="form-control line-conversion-factor" type="text" inputmode="decimal" value="${esc(conversionFactor)}" placeholder="Isi per C/S/P"><select class="form-select line-conversion-uom"><option value="KG" ${conversionUom === "KG" ? "selected" : ""}>KG</option><option value="PCS" ${conversionUom === "PCS" ? "selected" : ""}>PCS</option></select></div>
@@ -327,6 +390,15 @@
     supplierTr.innerHTML = `<td colspan="18"><details class="line-supplier-control"><summary><span class="pr-supplier-summary-title">Trace &amp; Split Supplier</span><span class="supplier-allocation-status" data-status="UNDER"></span><small>Buka rincian sumber MRP/MPS dan alokasi vendor</small></summary><div class="supplier-allocation-scroll"><table data-enterprise-table="off"><thead><tr><th>Supplier</th><th>Trace MRP / MPS / SO</th><th>Qty Alokasi</th><th>Form</th><th>Qty Form</th><th>Isi/Form</th><th>Delivery</th><th>Harga</th><th></th></tr></thead><tbody class="line-supplier-rows"></tbody></table></div><div class="pr-supplier-actions"><button class="supplier-allocation-add" type="button">+ Split Supplier</button><small>Total alokasi dibandingkan dengan qty kebutuhan dan ditandai UNDER, EXACT, atau OVER.</small></div></details></td>`;
     $("pr-lines").appendChild(supplierTr);
     tr._sourceRecord = row;
+    tr._legacyMaterialInvalid = kgValues?.valid === false;
+    if (tr._legacyMaterialInvalid) {
+      tr.querySelector('.line-qty').value = '';tr.querySelector('.line-price').value = '';
+      show('Material pada PR lama belum memiliki konversi KG yang valid. Pilih ulang raw material dan isi qty/harga KG.', 'warning');
+    }
+    const lookupButton = tr.querySelector('.line-lookup');
+    lookupButton.hidden = false;
+    lookupButton.setAttribute('aria-label', category === 'NON_PRODUCTION' ? 'Cari Barang & Harga Supplier' : category === 'VENDOR_PROCESS' ? 'Cari Harga Vendor' : 'Cari Item');
+    if (!['NON_PRODUCTION', 'VENDOR_PROCESS'].includes(category)) lookupButton.insertAdjacentHTML('afterend', '<button type="button" class="btn btn-outline-secondary line-price-lookup">Harga Supplier</button>');
     tr.querySelector(".line-csp").value = row.CSP || ({ COIL: "C", SHEET: "S", PCS: "P" }[purchaseForm]) || "";
     tr._supplierAllocations = initialSupplierAllocations(row);
     tr._supplierPanel = supplierTr;
@@ -341,11 +413,11 @@
     if (reset) select.innerHTML = partOptions(category);
     const material = category === "MATERIAL" ? state.materials.find((item) => item.materialCode === select.value) : null;
     const part = state.parts.find((item) => item.partCode === select.value);
-    tr.querySelector(".line-part-code").textContent = category === "MATERIAL" ? (material?.materialCode || "-") : (part?.partCode || "-");
-    tr.querySelector(".line-part-number").textContent = category === "MATERIAL" ? "-" : (part?.partNumber || "-");
+    tr.querySelector(".line-part-code").textContent = category === "MATERIAL" ? (tr._sourceRecord?.partCode || material?.materialCode || "-") : (part?.partCode || "-");
+    tr.querySelector(".line-part-number").textContent = category === "MATERIAL" ? (tr._sourceRecord?.partNumber || "-") : (part?.partNumber || "-");
     tr.querySelector(".line-description").title = material ? `${material.materialCode} — ${material.materialName || ""}` : part ? `${part.partCode} — ${part.partName || ""}` : "";
-    if (category === "MATERIAL" && material && (changed || !tr.querySelector(".line-csp").value)) {
-      tr.querySelector(".line-csp").value = material.CSP || ({ COIL: "C", SHEET: "S", PIECES: "P", PCS: "P" }[material.materialForm]) || "";
+    if (category === "MATERIAL" && material && !tr.querySelector(".line-csp").value) {
+      tr.querySelector(".line-csp").value = ({COIL:'C',SHEET:'S'})[materialModel.form(material.CSP || material.materialForm)] || "";
     }
     const dimensions = material || part?.material || {};
     for (const key of ["spec", "thickness", "width"]) {
@@ -362,7 +434,7 @@
       tr.querySelector(".line-conversion-factor").value = "";
       tr.querySelector(".line-conversion-uom").value = "KG";
     }
-    if (category === "MATERIAL" && material && (reset || changed || !tr.querySelector(".line-uom").value)) setUom(tr, "KG");
+    if (category === "MATERIAL") setUom(tr, "KG");
     else if (part && (reset || changed || !tr.querySelector(".line-uom").value)) setUom(tr, partUom(part, category));
     if (category === "MATERIAL" && material && (changed || !tr.querySelector(".line-description").value)) tr.querySelector(".line-description").value = material.materialName || material.spec || material.materialCode;
     else if (part && (changed || !tr.querySelector(".line-description").value)) tr.querySelector(".line-description").value = part.partName || materialIdentity(part);
@@ -371,7 +443,7 @@
     }
   }
   function recalculate() {
-    let total = 0;
+    const totals = new Map();
     $("pr-lines").querySelectorAll(".pr-item-row").forEach((tr, index) => {
       tr.querySelector(".line-index").textContent = index + 1;
       const rawMaterial = tr.querySelector(".line-category").value === "MATERIAL";
@@ -379,8 +451,9 @@
       const sourceQty = number(tr.querySelector(".line-qty").value);
       const effectiveQty = sourceQty;
       const lineTotal = effectiveQty * number(tr.querySelector(".line-price").value);
-      total += lineTotal;
-      tr.querySelector(".line-total").textContent = currency(lineTotal);
+      const code = tr._sourceRecord?.currencyCode || 'IDR';
+      totals.set(code, (totals.get(code) || 0) + lineTotal);
+      tr.querySelector(".line-total").textContent = currency(lineTotal, code);
       const conversionLabel = tr.querySelector(".line-converted-qty");
       if (conversionLabel) {
         const packageQty = number(tr.querySelector(".line-package-qty")?.value);
@@ -392,7 +465,7 @@
           : "Hasil konversi: -";
       }
     });
-    $("pr-total").textContent = currency(total);
+    $("pr-total").textContent = [...totals].map(([code, total]) => currency(total, code)).join(' + ') || currency(0);
   }
   function linePayload(tr) {
     const source = tr._sourceRecord || {};
@@ -401,14 +474,13 @@
     const part = state.parts.find((item) => item.partCode === tr.querySelector(".line-part").value);
     const sourceQty = number(tr.querySelector(".line-qty").value);
     const qty = sourceQty;
-    const purchasePackageUomCode = category === "MATERIAL" ? tr.querySelector(".line-purchase-form").value : null;
+    const purchasePackageUomCode = category === "MATERIAL" ? materialModel.form(tr.querySelector(".line-csp").value) : null;
     const purchasePackageQty = category === "MATERIAL" ? number(tr.querySelector(".line-package-qty").value) : null;
     const conversionUomCode = category === "MATERIAL" ? tr.querySelector(".line-conversion-uom").value : null;
     const conversionFactor = category === "MATERIAL" ? number(tr.querySelector(".line-conversion-factor").value) : null;
     const convertedPurchaseQty = category === "MATERIAL" ? purchasePackageQty * conversionFactor : null;
     const hasPurchaseDraft = category === "MATERIAL" && (
-      Boolean(purchasePackageUomCode)
-      || purchasePackageQty > 0
+      purchasePackageQty > 0
       || conversionFactor > 0
     );
     return {
@@ -418,14 +490,15 @@
       partCode: category === "MATERIAL" ? (source.partCode || null) : (part?.partCode || null),
       partNumber: category === "MATERIAL" ? (source.partNumber || null) : (part?.partNumber || null),
       partName: category === "MATERIAL" ? (source.partName || null) : (part?.partName || null),
-      productId: null,
+      productId: category === 'NON_PRODUCTION' ? source.productId || null : null,
+      currencyCode: source.currencyCode || 'IDR',
       materialId: category === "MATERIAL" ? (material?.id || null) : null,
       materialCode: category === "MATERIAL" ? (material?.materialCode || null) : null,
       materialName: category === "MATERIAL" ? (material?.materialName || material?.spec || null) : null,
       materialType: category === "MATERIAL" ? (material?.materialType || material?.materialGrade || null) : null,
       description: tr.querySelector(".line-description").value.trim() || material?.materialName || part?.partName || null,
       qty,
-      uomCode: tr.querySelector(".line-uom").value.trim().toUpperCase(),
+      uomCode: category === 'MATERIAL' ? 'KG' : tr.querySelector(".line-uom").value.trim().toUpperCase(),
       estimatedPrice: number(tr.querySelector(".line-price").value),
       preferredSupplier: category === "VENDOR_PROCESS" ? null : source.preferredSupplier || null,
       proposedSupplierCode: category === "VENDOR_PROCESS" ? null : tr.querySelector(".line-supplier").value || null,
@@ -436,7 +509,7 @@
       kgPerLot: hasPurchaseDraft && conversionUomCode === "KG" ? conversionFactor : null,
       purchaseQtyKg: hasPurchaseDraft && conversionUomCode === "KG" ? convertedPurchaseQty : null,
       purchasePackageQty: hasPurchaseDraft ? purchasePackageQty : null,
-      purchasePackageUomCode: hasPurchaseDraft ? purchasePackageUomCode : null,
+      purchasePackageUomCode,
       conversionUomCode: hasPurchaseDraft ? conversionUomCode : null,
       conversionFactor: hasPurchaseDraft ? conversionFactor : null,
       convertedPurchaseQty: hasPurchaseDraft ? convertedPurchaseQty : null,
@@ -466,6 +539,7 @@
     if (record.departmentId || record.department?.id) window.EnterpriseLookup.setSelected($("department-id"), { id: record.departmentId || record.department.id, text: record.department?.departmentName || record.departmentId });
     $("priority").value = record.priority || "Normal";
     $("po-type").value = record.poType || "Other";
+    $('pr-subcategory').value = record.subCategory || '';
     $("source-type").value = record.sourceType || "MANUAL";
     $("header-material").value = record.headerMaterialCode
       ? `${record.headerMaterialCode} — ${record.headerMaterialName || ""}`.trim()
@@ -486,6 +560,7 @@
       await loadRecordItems(record);
       applyDocumentCategory(record.procurementGroup || record.details?.[0]?.procurementCategory || state.currentCategory);
       populate(record);
+      [...$('po-type').options].forEach(option => { option.disabled = state.currentCategory === 'NON_PRODUCTION' ? !['Consumable','Maintenance','Service','Asset','Other'].includes(option.value) : option.value !== record.poType; });
     } else {
       applyDocumentCategory(state.currentCategory, { updateUrl: true });
       $("pr-date").value = today();
@@ -517,10 +592,18 @@
     if (config.mode === "edit" || event.target.value === state.currentCategory) return;
     applyDocumentCategory(event.target.value, { resetLines: true, updateUrl: true, announce: true });
   });
+  $('po-type').addEventListener('change', event => {
+    if (config.mode === 'edit') return;
+    const type = event.target.value;
+    const category = type === 'Material' ? 'MATERIAL' : type === 'Out Process' ? 'VENDOR_PROCESS' : type === 'Part' ? 'PURCHASE_PART' : 'NON_PRODUCTION';
+    if (category !== state.currentCategory) applyDocumentCategory(category, { resetLines: true, updateUrl: true });
+    $('po-type').value = type;
+  });
   $("pr-add-line").addEventListener("click", () => addLine({ procurementCategory: state.currentCategory }));
   $("pr-lines").addEventListener("click", (event) => {
     const tr = itemRowFromTarget(event.target);
     if (event.target.closest(".line-lookup") && tr) { openItemLookup(tr); return; }
+    if (event.target.closest('.line-price-lookup') && tr) { openPriceLookup(tr); return; }
     if (event.target.closest(".supplier-allocation-add") && tr) {
       tr._supplierAllocations = supplierAllocationPayload(tr, tr.querySelector(".line-uom").value.trim().toUpperCase());
       tr._supplierAllocations.push({
@@ -550,20 +633,34 @@
     const tr = itemRowFromTarget(event.target); if (!tr) return;
     if (event.target.matches(".line-category")) syncPart(tr, true);
     if (event.target.matches(".line-part")) syncPart(tr, false);
+    if (event.target.matches('.line-csp') && tr._selectedMaterialPrice) {
+      const kgPrice = materialModel.pricePerKg(tr._selectedMaterialPrice,event.target.value);
+      tr.querySelector('.line-price').value = kgPrice ?? '';tr._priceInvalid = kgPrice === null;
+    }
+    if (event.target.matches('.line-supplier,.line-vendor') && !tr._applyingPrice) {
+      tr.querySelector('.line-price').value = ''; tr._priceInvalid = true;
+    }
     recalculate();
   });
   $("pr-lines").addEventListener("input", (event) => {
     recalculate();
     const tr = itemRowFromTarget(event.target);
+    if (tr && event.target.matches('.line-price')) { tr._priceInvalid = false;tr._selectedMaterialPrice = null; }
     if (tr) recalculateSupplierAllocation(tr);
   });
   $("required-date").addEventListener("change", () => {
     $("demand-bucket").value = $("required-date").value.slice(0, 7) || "-";
   });
+  $('pr-date').addEventListener('change', () => {
+    $('pr-lines').querySelectorAll('.pr-item-row').forEach(tr => { tr.querySelector('.line-price').value = ''; tr._priceInvalid = true; });
+    show('Tanggal PR berubah. Pilih ulang harga supplier/vendor atau isi estimasi sesuai tanggal baru.', 'info'); recalculate();
+  });
   $("pr-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!state.ready) return show("Form belum siap. Tunggu data selesai dimuat atau muat ulang halaman.");
+    if ([...$('pr-lines').querySelectorAll('.pr-item-row')].some(tr=>tr._legacyMaterialInvalid)) return show('Pilih ulang material dengan konversi KG yang valid.');
     if (!event.currentTarget.reportValidity()) return;
+    if ([...$('pr-lines').querySelectorAll('.pr-item-row')].some(tr => tr._priceInvalid)) return show('Pilih ulang harga supplier/vendor atau isi estimasi harga setelah perubahan partner/tanggal.');
     const details = [...$("pr-lines").querySelectorAll(".pr-item-row")].map(linePayload);
     const invalid = details.find((line) => (!line.partCode && !line.description) || line.qty <= 0 || !line.uomCode);
     if (invalid) return show("Setiap baris wajib memiliki part/deskripsi, qty lebih dari 0, dan UOM.");
@@ -588,8 +685,8 @@
         }
       }
       if (line.procurementCategory !== "MATERIAL") continue;
-      const hasPurchaseDraft = Boolean(line.purchasePackageUomCode)
-        || line.purchasePackageQty > 0
+      if (!line.materialCode || line.uomCode !== 'KG' || !['COIL','SHEET'].includes(line.purchasePackageUomCode)) return show(`Baris ${lineNumber}: pilih raw material, UOM KG, dan bentuk Coil atau Sheet.`);
+      const hasPurchaseDraft = line.purchasePackageQty > 0
         || line.conversionFactor > 0;
       if (!hasPurchaseDraft) continue;
       if (!["COIL", "SHEET", "PCS"].includes(line.purchasePackageUomCode)) {
@@ -608,7 +705,7 @@
         return show(`Baris ${lineNumber}: UOM kebutuhan ${line.uomCode} harus sama dengan hasil konversi ${line.conversionUomCode}.`);
       }
     }
-    const payload = { header: { prDate: $("pr-date").value, requiredDate: $("required-date").value, requestedBy: $("requested-by").value.trim(), departmentId: $("department-id").value || null, priority: $("priority").value, poType: $("po-type").value, procurementGroup: state.record?.procurementGroup || state.currentCategory, sourceType: state.record?.sourceType || "MANUAL", notes: $("pr-notes").value.trim() || null }, details };
+    const payload = { header: { prDate: $("pr-date").value, requiredDate: $("required-date").value, requestedBy: $("requested-by").value.trim(), departmentId: $("department-id").value || null, priority: $("priority").value, poType: $("po-type").value, subCategory: $('pr-subcategory').value.trim().toUpperCase() || null, procurementGroup: state.record?.procurementGroup || state.currentCategory, sourceType: state.record?.sourceType || "MANUAL", notes: $("pr-notes").value.trim() || null }, details };
     const save = $("pr-save"); save.disabled = true; save.textContent = "Menyimpan...";
     try {
       const record = await api(config.mode === "edit" ? `/modules/api/purchasing-pr/${encodeURIComponent(config.recordKey)}` : "/modules/api/purchasing-pr", { method: config.mode === "edit" ? "PATCH" : "POST", body: JSON.stringify(payload) });

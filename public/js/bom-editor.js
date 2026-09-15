@@ -186,6 +186,18 @@
         }
         renderRoot(); autoLayout(); fitCanvas();
       }
+      const recoveryQuery=new URLSearchParams(location.search);
+      if(recoveryQuery.get('readiness') === '1') {
+        const detailId=recoveryQuery.get('focusDetail');
+        const target=state.nodes.find(node=>node.id === detailId && !node.external);
+        if(target) {
+          state.selectedId=nodeKey(target);
+          const fields=recoveryQuery.get('readiness_fields') || '';
+          state.inspectorTab=/policy\.|process\.|node-add-process/.test(fields) ? 'routing' : /node\.(supplierId|supplyCustomerId)|node-sourcing/.test(fields) ? 'material' : 'part';
+          renderAll();renderInspector();
+        }
+        window.dispatchEvent(new CustomEvent('ppic-recovery:ready'));
+      }
     } catch (error) { showError(error.message); }
   }
 
@@ -227,7 +239,7 @@
     }
     document.getElementById("bom-page-title").textContent = record.noReg || config.recordKey;
     state.nodes = (record.details || []).filter((item) => !item.isDeleted).map((item, index) => ({
-      id: item.id, sourceDetail: item, part: item.part || null, ...commercial.detailFields(item), clientKey: item.id || createKey(), parentDetailId: item.parentDetailId || null, partId: item.partId || "", linkedBom: (item.part?.mbomHeaders || []).find((bom) => bom.noReg !== record.noReg) || null, qty: Number(item.qty || 0), uomCode: item.uomCode || "", category: item.category || "Purchase", assemblyPolicyOverride: item.assemblyPolicyOverride || "DEFAULT", leadTime: Number(item.leadTime || 0), leadTimeUnit: item.leadTimeUnit || "HOUR", materialThickness: item.materialThickness, materialWidth: item.materialWidth, materialPitch: item.materialPitch, materialCavity: item.materialCavity, materialDensity: item.materialDensity, materialFormId: item.materialFormId, materialScheme: item.materialScheme || "DEFAULT", defaultGrossWeight: item.defaultGrossWeight, alternateMaterialFormId: item.alternateMaterialFormId, alternateMaterialPitch: item.alternateMaterialPitch, alternateMaterialCavity: item.alternateMaterialCavity, alternateGrossWeight: item.alternateGrossWeight, grossWeight: Number(item.grossWeight || 0), notes: item.notes || "", processes: item.mbomProcesses || [], x: 860 + (index % 4) * 260, y: 230 + Math.floor(index / 4) * 180
+      id: item.id, sourceDetail: item, part: item.part || null, ...commercial.detailFields(item), clientKey: item.id || createKey(), parentDetailId: item.parentDetailId || null, partId: item.partId || "", linkedBom: (item.part?.mbomHeaders || []).find((bom) => bom.noReg !== record.noReg) || null, qty: Number(item.qty || 0), uomCode: item.uomCode || "", category: item.category || "Purchase", assemblyPolicyOverride: item.assemblyPolicyOverride || "DEFAULT", leadTime: Number(item.leadTime || 0), leadTimeUnit: item.leadTimeUnit || "HOUR", ...window.BomMeasurements.detailFields(item), materialThickness: item.materialThickness, materialWidth: item.materialWidth, materialPitch: item.materialPitch, materialCavity: item.materialCavity, materialDensity: item.materialDensity, materialFormId: item.materialFormId, materialScheme: item.materialScheme || "DEFAULT", defaultGrossWeight: item.defaultGrossWeight, alternateMaterialFormId: item.alternateMaterialFormId, alternateMaterialPitch: item.alternateMaterialPitch, alternateMaterialCavity: item.alternateMaterialCavity, alternateGrossWeight: item.alternateGrossWeight, grossWeight: Number(item.grossWeight || 0), notes: item.notes || "", processes: item.mbomProcesses || [], x: 860 + (index % 4) * 260, y: 230 + Math.floor(index / 4) * 180
     }));
     state.omittedNodes = state.nodes.filter((node) => {
       let parent = state.nodes.find((p) => nodeKey(p) === node.parentDetailId); const seen = new Set();
@@ -256,7 +268,7 @@
       const clean = { ...part }; delete clean._createdThisSave; return clean;
     });
     const nodes = state.nodes.filter((node) => !node.external).map((node) => ({
-      ...commercial.detailFields(node), clientKey: node.clientKey || node.id || createKey(), parentDetailId: node.parentDetailId || null, partId: node.partId, qty: Number(node.qty || 0), uomCode: node.uomCode || "", category: node.category || "Purchase", assemblyPolicyOverride: node.assemblyPolicyOverride || "DEFAULT", leadTime: Number(node.leadTime || 0), leadTimeUnit: node.leadTimeUnit || "HOUR", materialThickness: node.materialThickness, materialWidth: node.materialWidth, materialPitch: node.materialPitch, materialCavity: node.materialCavity, materialDensity: node.materialDensity, materialFormId: node.materialFormId, materialScheme: node.materialScheme || "DEFAULT", defaultGrossWeight: node.defaultGrossWeight, alternateMaterialFormId: node.alternateMaterialFormId, alternateMaterialPitch: node.alternateMaterialPitch, alternateMaterialCavity: node.alternateMaterialCavity, alternateGrossWeight: node.alternateGrossWeight, grossWeight: Number(node.grossWeight || 0), notes: node.notes || "", processes: node.processes || [], x: Number(node.x || 0), y: Number(node.y || 0), linkedBom: node.linkedBom || null,
+      ...commercial.detailFields(node), clientKey: node.clientKey || node.id || createKey(), parentDetailId: node.parentDetailId || null, partId: node.partId, qty: Number(node.qty || 0), uomCode: node.uomCode || "", category: node.category || "Purchase", assemblyPolicyOverride: node.assemblyPolicyOverride || "DEFAULT", leadTime: Number(node.leadTime || 0), leadTimeUnit: node.leadTimeUnit || "HOUR", ...window.BomMeasurements.detailFields(node), materialThickness: node.materialThickness, materialWidth: node.materialWidth, materialPitch: node.materialPitch, materialCavity: node.materialCavity, materialDensity: node.materialDensity, materialFormId: node.materialFormId, materialScheme: node.materialScheme || "DEFAULT", defaultGrossWeight: node.defaultGrossWeight, alternateMaterialFormId: node.alternateMaterialFormId, alternateMaterialPitch: node.alternateMaterialPitch, alternateMaterialCavity: node.alternateMaterialCavity, alternateGrossWeight: node.alternateGrossWeight, grossWeight: Number(node.grossWeight || 0), notes: node.notes || "", processes: node.processes || [], x: Number(node.x || 0), y: Number(node.y || 0), linkedBom: node.linkedBom || null,
     }));
     return {
       version: 1,
@@ -380,7 +392,7 @@
         uomCode: item.uomCode || "",
         category: item.category || "Purchase",
         assemblyPolicyOverride: item.assemblyPolicyOverride || "DEFAULT",
-        leadTime: Number(item.leadTime || 0), leadTimeUnit: item.leadTimeUnit || "HOUR", materialThickness: item.materialThickness, materialWidth: item.materialWidth, materialPitch: item.materialPitch, materialCavity: item.materialCavity, materialDensity: item.materialDensity, materialFormId: item.materialFormId, materialScheme: item.materialScheme || "DEFAULT", defaultGrossWeight: item.defaultGrossWeight, alternateMaterialFormId: item.alternateMaterialFormId, alternateMaterialPitch: item.alternateMaterialPitch, alternateMaterialCavity: item.alternateMaterialCavity, alternateGrossWeight: item.alternateGrossWeight, grossWeight: Number(item.grossWeight || 0),
+        leadTime: Number(item.leadTime || 0), leadTimeUnit: item.leadTimeUnit || "HOUR", ...window.BomMeasurements.detailFields(item), materialThickness: item.materialThickness, materialWidth: item.materialWidth, materialPitch: item.materialPitch, materialCavity: item.materialCavity, materialDensity: item.materialDensity, materialFormId: item.materialFormId, materialScheme: item.materialScheme || "DEFAULT", defaultGrossWeight: item.defaultGrossWeight, alternateMaterialFormId: item.alternateMaterialFormId, alternateMaterialPitch: item.alternateMaterialPitch, alternateMaterialCavity: item.alternateMaterialCavity, alternateGrossWeight: item.alternateGrossWeight, grossWeight: Number(item.grossWeight || 0),
         notes: item.notes || "",
         processes: item.mbomProcesses || [],
         external: true,
@@ -638,15 +650,16 @@
 
   function renderInspector() {
     const node = selectedNode(); const empty = document.getElementById("bom-inspector-empty");
+    inspectorForm.dataset.readinessDetail=node?.external ? '' : (node?.id || '');
     document.getElementById("bom-inspector").classList.toggle("open", Boolean(node));
     document.querySelector(".bom-workspace").classList.toggle("has-inspector", Boolean(node));
-    empty.classList.toggle("d-none", Boolean(node)); inspectorForm.classList.toggle("d-none", !node); if (!node) return;
+    empty.classList.toggle("d-none", Boolean(node)); inspectorForm.classList.toggle("d-none", !node); if (!node) { window.dispatchEvent(new CustomEvent('ppic-recovery:render')); return; }
     const part = partById(node.partId); document.getElementById("bom-inspector-caption").textContent = node.external ? `Referensi dari ${node.sourceBomNoReg}. Klik label node untuk edit BOM asal.` : optionLabel(part);
     document.getElementById("node-part").value = node.partId || ""; document.getElementById("node-qty").value = node.qty ?? 0; document.getElementById("node-uom").value = node.uomCode || "";
     const parentSelect = document.getElementById("node-parent"); const excluded = descendantsOf(nodeKey(node)); excluded.add(nodeKey(node)); parentSelect.innerHTML = '<option value="">Produk Utama (Root)</option>' + state.nodes.filter((item) => !item.external && !excluded.has(nodeKey(item))).map((item) => `<option value="${nodeKey(item)}">${escapeHtml(optionLabel(partById(item.partId)))}</option>`).join(""); parentSelect.value = node.parentDetailId || "";
     document.getElementById("node-category").value = node.category; document.getElementById("node-policy").value = node.assemblyPolicyOverride; document.getElementById("node-lead-time").value = node.leadTime || 0; document.getElementById("node-lead-time-unit").value = node.leadTimeUnit || "HOUR"; document.getElementById("node-notes").value = node.notes || "";
     const materialInfo = materialConsumption(node); const materialSection = document.getElementById("node-material-consumption"); materialSection.classList.toggle("d-none", !materialInfo);
-    if (materialInfo) { document.getElementById("node-material-name").textContent = materialInfo.material ? `${materialInfo.material.materialCode} — ${materialInfo.material.materialName || materialInfo.material.spec || ""}` : "Part raw material belum terhubung ke Master Material"; const materialLink = document.getElementById("node-material-link"); materialLink.href = materialInfo.material ? `/master-data/materials/${encodeURIComponent(materialInfo.material.materialCode)}` : `/master-data/parts/${encodeURIComponent(materialInfo.part.partCode || materialInfo.part.id)}/edit?key=${encodeURIComponent(materialInfo.part.partCode || materialInfo.part.id)}`; materialLink.textContent = materialInfo.material ? "Lihat Material" : "Hubungkan Part"; document.getElementById("node-material-thickness").value = node.materialThickness ?? ""; document.getElementById("node-material-width").value = node.materialWidth ?? ""; document.getElementById("node-material-pitch").value = node.materialPitch ?? ""; document.getElementById("node-material-cavity").value = node.materialCavity ?? 1; document.getElementById("node-material-density").value = node.materialDensity ?? ""; document.getElementById("node-gross-weight").value = Number(node.grossWeight || 0).toFixed(6); document.getElementById("node-material-formula").textContent = materialInfo.material ? "Gross kg/pcs = T × W × P × Density (kg/mm³) ÷ Cavity" : "Hubungkan Part ini ke Master Material agar T, W, density dan gross weight dapat dihitung."; }
+    if (materialInfo) { document.getElementById("node-quotation-material").innerHTML = window.BomMeasurements.materialInputs(node); document.getElementById("node-material-name").textContent = materialInfo.material ? `${materialInfo.material.materialCode} — ${materialInfo.material.materialName || materialInfo.material.spec || ""}` : "Part raw material belum terhubung ke Master Material"; const materialLink = document.getElementById("node-material-link"); materialLink.href = materialInfo.material ? `/master-data/materials/${encodeURIComponent(materialInfo.material.materialCode)}` : `/master-data/parts/${encodeURIComponent(materialInfo.part.partCode || materialInfo.part.id)}/edit?key=${encodeURIComponent(materialInfo.part.partCode || materialInfo.part.id)}`; materialLink.textContent = materialInfo.material ? "Lihat Material" : "Hubungkan Part"; document.getElementById("node-material-thickness").value = node.materialThickness ?? ""; document.getElementById("node-material-width").value = node.materialWidth ?? ""; document.getElementById("node-material-pitch").value = node.materialPitch ?? ""; document.getElementById("node-material-cavity").value = node.materialCavity ?? 1; document.getElementById("node-material-density").value = node.materialDensity ?? ""; document.getElementById("node-gross-weight").value = Number(node.grossWeight || 0).toFixed(6); document.getElementById("node-material-formula").textContent = materialInfo.material ? "Gross kg/pcs = T × W × P × Density (kg/mm³) ÷ Cavity" : "Hubungkan Part ini ke Master Material agar T, W, density dan gross weight dapat dihitung."; }
     if (materialInfo) {
       document.getElementById("node-material-form").value = node.materialFormId || "";
       document.getElementById("node-material-scheme").value = node.materialScheme || "DEFAULT";
@@ -675,6 +688,7 @@
         ? (state.sequenceInsertionPolicy.locked ? "Sisipkan dengan slot sequence tanpa mengubah kode lama" : "Sisipkan dan geser sequence utama setelahnya")
         : "Pilih child process yang sudah memiliki sequence.";
     }
+    window.dispatchEvent(new CustomEvent('ppic-recovery:render'));
   }
 
   function processLabel(processId) { const item = state.processMaster.find((process) => process.id === processId); return item?.processName || item?.processCode || "Pilih proses"; }
@@ -1140,7 +1154,7 @@
   }
 
   function serializeBomNode(node, parentDetailId = node.parentDetailId || null, levelComponent = computeLevel(node) + 1) {
-    materialConsumption(node); return { ...commercial.detailFields(node), id: node.id, clientKey: node.clientKey, parentDetailId, levelComponent, partId: node.partId, qty: Number(node.qty), uomCode: node.uomCode || null, category: node.category, assemblyPolicyOverride: node.assemblyPolicyOverride, leadTime: Number(node.leadTime || 0), leadTimeUnit: node.leadTimeUnit || "HOUR", materialThickness: node.materialThickness ?? null, materialWidth: node.materialWidth ?? null, materialPitch: node.materialPitch ?? null, materialCavity: node.materialCavity ?? null, materialDensity: node.materialDensity ?? null, materialFormId: node.materialFormId || null, materialScheme: node.materialScheme || "DEFAULT", defaultGrossWeight: node.defaultGrossWeight ?? null, alternateMaterialFormId: node.alternateMaterialFormId || null, alternateMaterialPitch: node.alternateMaterialPitch ?? null, alternateMaterialCavity: node.alternateMaterialCavity ?? null, alternateGrossWeight: node.alternateGrossWeight ?? null, grossWeight: Number(node.grossWeight || 0), notes: node.notes || null, mbomProcesses: node.processes || [] };
+    materialConsumption(node); return { ...commercial.detailFields(node), id: node.id, clientKey: node.clientKey, parentDetailId, levelComponent, partId: node.partId, qty: Number(node.qty), uomCode: node.uomCode || null, category: node.category, assemblyPolicyOverride: node.assemblyPolicyOverride, leadTime: Number(node.leadTime || 0), leadTimeUnit: node.leadTimeUnit || "HOUR", ...window.BomMeasurements.detailFields(node), materialThickness: node.materialThickness ?? null, materialWidth: node.materialWidth ?? null, materialPitch: node.materialPitch ?? null, materialCavity: node.materialCavity ?? null, materialDensity: node.materialDensity ?? null, materialFormId: node.materialFormId || null, materialScheme: node.materialScheme || "DEFAULT", defaultGrossWeight: node.defaultGrossWeight ?? null, alternateMaterialFormId: node.alternateMaterialFormId || null, alternateMaterialPitch: node.alternateMaterialPitch ?? null, alternateMaterialCavity: node.alternateMaterialCavity ?? null, alternateGrossWeight: node.alternateGrossWeight ?? null, grossWeight: Number(node.grossWeight || 0), notes: node.notes || null, mbomProcesses: node.processes || [] };
   }
 
   function belongsToChildAssembly(node) {
@@ -1285,7 +1299,7 @@
         node.part = partById(node.partId);
         (node.processes || []).forEach((route) => window.BomMachinePolicy.clearUnrelatedDies(route, state.dies, node.partId));
         Object.assign(node, { supplierId: node.part.supplierId || null, supplyCustomerId: null, materialSupplyType: "SUPPLIER_PURCHASE" });
-        for (const key of ["materialThickness", "materialWidth", "materialDensity", "materialPitch", "materialCavity", "materialFormId", "alternateMaterialFormId", "alternateMaterialPitch", "alternateMaterialCavity", "defaultGrossWeight", "alternateGrossWeight", "grossWeight"]) node[key] = null;
+        for (const key of [...window.BomMeasurements.materialFields, "materialThickness", "materialWidth", "materialDensity", "materialPitch", "materialCavity", "materialFormId", "alternateMaterialFormId", "alternateMaterialPitch", "alternateMaterialCavity", "defaultGrossWeight", "alternateGrossWeight", "grossWeight"]) node[key] = null;
         node.materialScheme = "DEFAULT";
         node.linkedBom = linkedBomForPart(node.partId);
         if (node.linkedBom) await expandLinkedBom(node, node.linkedBom).catch((error) => showError(`BOM turunan gagal dimuat: ${error.message}`));
@@ -1296,16 +1310,22 @@
     document.getElementById("node-add-child").addEventListener("click", () => openQuickPartDialog("child"));
     document.getElementById("node-insert-before").addEventListener("click", openInsertBeforeDialog);
     document.getElementById("node-delete").addEventListener("click", () => { const node = selectedNode(); if (!node) return; if (state.pendingSequenceShift) return showError("Selesaikan Simpan BOM terlebih dahulu sebelum menghapus node pada sisipan sequence."); if (!confirm("Hapus node ini beserta seluruh child-nya?")) return; const remove = descendantsOf(nodeKey(node)); remove.add(nodeKey(node)); state.nodes = state.nodes.filter((item) => !remove.has(nodeKey(item))); state.selectedId = null; autoLayout(); });
-    [["node-material-pitch", "materialPitch"], ["node-material-cavity", "materialCavity"]].forEach(([id, field]) => document.getElementById(id).addEventListener("change", function () { const node = selectedNode(); if (!node || node.external) return; node[field] = this.value === "" ? null : Number(this.value); materialConsumption(node); renderAll(); renderInspector(); }));
+    [["node-material-thickness", "materialThickness"], ["node-material-width", "materialWidth"], ["node-material-pitch", "materialPitch"], ["node-material-cavity", "materialCavity"]].forEach(([id, field]) => document.getElementById(id).addEventListener("change", function () { const node = selectedNode(); if (!node || node.external) return; node[field] = this.value === "" ? null : Number(this.value); materialConsumption(node); renderAll(); renderInspector(); }));
     [["node-material-form", "materialFormId"], ["node-material-scheme", "materialScheme"], ["node-material-alt-form", "alternateMaterialFormId"]].forEach(([id, field]) => document.getElementById(id).addEventListener("change", function () { const node = selectedNode(); if (!node || node.external) return; node[field] = this.value || null; materialConsumption(node); renderAll(); renderInspector(); }));
     [["node-material-alt-pitch", "alternateMaterialPitch"], ["node-material-alt-cavity", "alternateMaterialCavity"]].forEach(([id, field]) => document.getElementById(id).addEventListener("change", function () { const node = selectedNode(); if (!node || node.external) return; node[field] = this.value === "" ? null : Number(this.value); materialConsumption(node); renderAll(); renderInspector(); }));
+    document.getElementById("node-quotation-material").addEventListener("change", (event) => {
+      const node = selectedNode(); const field = event.target.dataset.quotationMaterial;
+      if (!node || node.external || !window.BomMeasurements.materialFields.includes(field)) return;
+      node[field] = window.BomMeasurements.parse(event.target.value);
+      scheduleDraftAutosave();
+    });
     document.getElementById("node-add-process").addEventListener("click", () => { const node = selectedNode(); if (!node || node.external) return; const part = partById(node.partId); const ruleKey = part.partType === "COMP" ? "PART_CHILD_COMPONENT" : "PART_CHILD_NON_COMPONENT"; const step = Math.max(1, Number(state.numberingRules.get(ruleKey)?.processStep || 10)); const nextSequence = Math.max(0, ...(node.processes || []).map((item) => Number(item.sequence || 0))) + step; node.processes.push({ processId: "", routingMode: node.category === "Vendor" ? "VENDOR" : "INHOUSE", vendorId: null, machineId: null, machineSpecificationCode: "", alternativeMachineIds: [], sequence: nextSequence, cycleTime: 0, notes: null }); renderNodeProcesses(node); renderAll(); });
     document.getElementById("node-process-list").addEventListener("input", (event) => {
       const node = selectedNode(); const field = event.target.dataset.processField;
-      if (!node || node.external || !["cycleTime", "notes"].includes(field)) return;
+      if (!node || node.external || !["cycleTime", "quotationCycleTime", "notes"].includes(field)) return;
       const row = event.target.closest("[data-process-index]"); const process = node.processes?.[Number(row?.dataset.processIndex)];
       if (!process) return;
-      process[field] = field === "cycleTime" ? Number(event.target.value || 0) : event.target.value || null;
+      process[field] = field === "quotationCycleTime" ? window.BomMeasurements.parse(event.target.value) : field === "cycleTime" ? Number(event.target.value || 0) : event.target.value || null;
       if (field === "cycleTime") {
         const cost = commercial.processCost(process, node); const amount = row.querySelector(".bom-canvas-cost strong");
         if (amount) amount.textContent = cost.found ? new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(cost.value) : "Belum lengkap";
@@ -1320,7 +1340,7 @@
       if (window.BomExecutorPolicy.update(process, event.target) || window.BomMachinePolicy.update(process, event.target)) { renderAll(); renderInspector(); return; }
       const field = event.target.dataset.processField; if (!field) return;
       if (field === "routingMode") window.BomExecutorPolicy.changeDefault(process, event.target.value);
-      else process[field] = ["sequence", "cycleTime"].includes(field) ? Number(event.target.value || 0) : event.target.value || null;
+      else process[field] = field === "quotationCycleTime" ? window.BomMeasurements.parse(event.target.value) : ["sequence", "cycleTime"].includes(field) ? Number(event.target.value || 0) : event.target.value || null;
       if (field === "routingMode") {
         if (process.routingMode === "VENDOR") {
           commercial.autoSelectEligibleVendor(process, node);

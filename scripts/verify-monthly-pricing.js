@@ -10,7 +10,7 @@ assert.equal(monthly.february,100);assert.equal(monthly.september,125);
 assert.equal(monthly.monthlyOverrides.february,false);assert.equal(p.overrides(monthly).february,null,'display projection does not fabricate form anchors');
 const vendor=p.project({...old,unitPrice:undefined,details:[{vendorProcessId:'p',unitPrice:45},{vendorProcessId:'q',unitPrice:5}]});
 assert.equal(vendor.august,50);assert.equal(vendor.details[0].august,45);
-for(const slug of ['vendor-price-lists','material-price-lists','part-price-lists']) {
+for(const slug of ['vendor-price-lists','material-price-lists','part-price-lists','product-price-lists']) {
  const config=getEntity(slug);assert.equal(config.monthlyPricing,true);
  assert.equal(config.fields.some(f=>f.name==='effectiveFrom'||f.name==='unitPrice'),false);
  assert.ok(config.fields.some(f=>f.name==='pricingYear'&&f.required));
@@ -32,4 +32,4 @@ assert.equal(p.changeText(p.resolve({january:100,june:120})[5]),'↑ 20 (20%)');
 assert.equal(p.changeText(p.resolve({january:100,june:80})[6]),'↓ 20 (20%) · sejak Juni');
 assert.equal(p.changeText(p.resolve({january:0,june:20})[5]),'↑ 20 (dari 0)');
 assert.equal(p.changeText(p.resolve({january:100,june:100})[5]),'');
-console.log('Monthly pricing model passed: three forms, 12 months, legacy transitions, sparse anchors, future overrides, clearing, zero, and delta indicators.');
+console.log('Monthly pricing model passed: four forms, 12 months, legacy transitions, sparse anchors, future overrides, clearing, zero, and delta indicators.');

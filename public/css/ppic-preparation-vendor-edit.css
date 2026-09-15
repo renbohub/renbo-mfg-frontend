@@ -1,0 +1,30 @@
+.prep-unified-workbook .prep-bom-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:6px; padding:6px 10px; border-bottom:1px solid #e1e8f2; background:#fafcff; }
+.prep-unified-workbook .prep-bom-toolbar button { min-height:28px; font-size:11px; padding:4px 9px; }
+.prep-unified-workbook #prep-bom-status { color:#64748b; font-size:11px; flex:1 1 240px; }
+.prep-unified-workbook #prep-bom-status.has-update { color:#92400e; font-weight:600; }
+.prep-unified-workbook #prep-bom-apply[hidden] { display:none; }
+.prep-unified-workbook #prep-bom-warnings { flex:1 0 100%; color:#92400e; font-size:11px; }
+.prep-unified-workbook #prep-bom-warnings[hidden] { display:none; }
+.prep-unified-workbook #prep-bom-warning-text { white-space:pre-line; max-height:160px; overflow:auto; margin:6px 0; }
+.prep-workbench #prep-grid .prep-vendor-lead-trigger { display:block; min-height:16px; max-width:100%; padding:0 3px; border:1px solid #c7d7fa; border-radius:3px; background:#f8faff; color:#315bc5; font-size:10px; line-height:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+.prep-workbench #prep-grid .prep-vendor-lead-trigger:hover { background:#e7efff; }
+.prep-workbench #prep-grid .prep-vendor-in { cursor:default; }
+.prep-workbench #prep-grid .prep-vendor-out { cursor:text; }
+.prep-workbench #prep-grid .prep-total .prep-vendor-out { cursor:default; }
+.prep-unified-workbook #prep-vendor-dialog { width:min(520px,calc(100vw - 32px)); padding:0; border:1px solid #dbe4f1; border-radius:8px; color:#263d5b; box-shadow:0 16px 60px #172d4d33; }
+.prep-unified-workbook #prep-vendor-dialog::backdrop { background:#172d4d66; }
+.prep-unified-workbook #prep-vendor-dialog header { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid #e1e8f2; background:#f7faff; }
+.prep-unified-workbook #prep-vendor-dialog h2 { margin:0; font-size:16px; }
+.prep-unified-workbook .prep-vendor-dialog-body { padding:14px 18px; }
+.prep-unified-workbook #prep-vendor-edit-context { font-weight:600; overflow-wrap:anywhere; }
+.prep-unified-workbook #prep-vendor-dialog p { margin:0 0 12px; font-size:12px; line-height:1.5; }
+.prep-unified-workbook .prep-vendor-fields { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:14px 0; }
+.prep-unified-workbook .prep-vendor-fields label { display:grid; gap:5px; font-size:12px; font-weight:600; }
+.prep-unified-workbook .prep-vendor-fields input,.prep-unified-workbook .prep-vendor-fields select { width:100%; min-width:0; height:36px; border:1px solid #cbd7e6; border-radius:4px; padding:6px 9px; background:white; }
+.prep-unified-workbook #prep-vendor-edit-preview { padding:10px; background:#edf4ff; border-radius:4px; }
+.prep-unified-workbook #prep-vendor-edit-legacy { color:#92400e; background:#fffbeb; padding:8px; }
+.prep-unified-workbook #prep-vendor-edit-error { color:#b91c1c; }
+.prep-unified-workbook #prep-vendor-dialog footer { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; padding:12px 18px; border-top:1px solid #e1e8f2; }
+.prep-unified-workbook #prep-vendor-edit-reset { margin-right:auto; }
+.prep-unified-workbook #prep-vendor-edit-apply { background:#3555df; border-color:#3555df; color:white; }
+.prep-unified-workbook #prep-vendor-dialog button:focus-visible,.prep-unified-workbook .prep-bom-toolbar button:focus-visible,.prep-workbench #prep-grid .prep-vendor-lead-trigger:focus-visible { outline:2px solid #476fe1; outline-offset:2px; }
